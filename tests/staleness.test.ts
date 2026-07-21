@@ -127,6 +127,15 @@ describe("affectedBy — following the chain", () => {
     expect(names(found)).toEqual(["write_docs", "write_report"]);
   });
 
+  it("leaves detectedMs unset, because deciding cannot know how long writing takes", () => {
+    // The engine fills this in once every mark has been written and confirmed.
+    // A guess here would be exactly the unmeasured timing claim CLAUDE.md forbids,
+    // and it is what the dashboard prints.
+    const found = affectedBy(demoSwarm(), [{ dataset: ds("clean_orders"), kind: "schema" }], NOW);
+    expect(found).not.toHaveLength(0);
+    for (const entry of found) expect(entry.mark.detectedMs).toBeNull();
+  });
+
   it("carries a plain-English reason that names the table", () => {
     const found = affectedBy(demoSwarm(), [{ dataset: ds("clean_orders"), kind: "schema" }], NOW);
     const direct = found.find((a) => a.task.name === "build_revenue");
@@ -170,6 +179,25 @@ describe("affectedBy — work that has not finished", () => {
     expect(names(found)).toEqual([]);
   });
 
+  it("ignores a task that is re-running to fix itself, even though it still carries a mark", () => {
+    // A stale task being re-run keeps its mark until that run succeeds, so the
+    // completion knows there is a DataHub tag to take off. It is still `running`
+    // though, so it must not be re-marked and must not be walked through.
+    const swarm = demoSwarm({ build_revenue: "running" });
+    swarm.tasks[0].stale = {
+      causedBy: ds("clean_orders"),
+      causedByTask: null,
+      hops: 1,
+      changeKind: "schema",
+      reason: "an earlier change, not yet cleared",
+      since: NOW,
+      detectedMs: 42,
+    };
+
+    const found = affectedBy(swarm, [{ dataset: ds("clean_orders"), kind: "content" }], NOW);
+    expect(names(found)).toEqual([]);
+  });
+
   it("keeps walking through work already marked stale", () => {
     // Its output exists and is still wrong, so anything built on it is too.
     const found = affectedBy(
@@ -206,10 +234,7 @@ describe("affectedBy — awkward graph shapes", () => {
   });
 
   it("handles several tables changing at once", () => {
-    const swarm = snapshot([
-      task("a", ["x"], ["a_out"]),
-      task("b", ["y"], ["b_out"]),
-    ]);
+    const swarm = snapshot([task("a", ["x"], ["a_out"]), task("b", ["y"], ["b_out"])]);
     const found = affectedBy(
       swarm,
       [
@@ -231,7 +256,9 @@ describe("affectedBy — awkward graph shapes", () => {
 
 describe("readyToStart and blocked — what may run now", () => {
   it("lets a task start when its input comes from outside the swarm", () => {
-    const swarm = snapshot([task("build_revenue", ["clean_orders"], ["daily_revenue"], "registered")]);
+    const swarm = snapshot([
+      task("build_revenue", ["clean_orders"], ["daily_revenue"], "registered"),
+    ]);
     expect(readyToStart(swarm).map((t) => t.name)).toEqual(["build_revenue"]);
   });
 
@@ -241,9 +268,7 @@ describe("readyToStart and blocked — what may run now", () => {
       task("write_report", ["daily_revenue"], ["revenue_report"], "registered"),
     ]);
     expect(readyToStart(swarm)).toEqual([]);
-    expect(blocked(swarm)).toEqual([
-      { task: swarm.tasks[1], waitingOn: ["build_revenue"] },
-    ]);
+    expect(blocked(swarm)).toEqual([{ task: swarm.tasks[1], waitingOn: ["build_revenue"] }]);
   });
 
   it("releases it once the producer finishes", () => {

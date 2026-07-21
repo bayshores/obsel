@@ -1,3 +1,8 @@
+# Both are build-time only and neither runs in obsel's request path:
+#   sharp         - Next.js image optimisation
+#   unrs-resolver - the module resolver eslint-config-next depends on
+# Left unanswered, pnpm refuses to complete `pnpm install`, `pnpm dev`, and
+# `pnpm verify`, which stops a judge at the first setup step.
 allowBuilds:
-  sharp: set this to true or false
-  unrs-resolver: set this to true or false
+  sharp: true
+  unrs-resolver: true

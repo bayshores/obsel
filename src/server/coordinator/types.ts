@@ -48,6 +48,18 @@ export interface StaleMark {
   reason: string;
   /** ISO timestamp of when the mark was applied. */
   since: string;
+  /**
+   * Measured milliseconds from the upstream agent's completion report arriving to
+   * every mark from it being written and confirmed in DataHub.
+   *
+   * Recorded on the mark rather than derived by subtracting timestamps in the UI.
+   * Those timestamps are stamped in different processes and bracket neither end of
+   * the real work, and their difference goes negative as soon as the upstream task
+   * runs again — which silently deletes the number at the worst possible moment.
+   *
+   * Null on a mark written before this was recorded.
+   */
+  detectedMs: number | null;
 }
 
 /** One agent's unit of work. */
@@ -65,7 +77,14 @@ export interface TaskRecord {
   fingerprints: Record<string, OutputFingerprint>;
   /** ISO timestamp of the most recent completion, if it has ever finished. */
   finishedAt: string | null;
-  /** Present only when `status` is "stale". */
+  /**
+   * An unresolved stale mark, when the task carries one.
+   *
+   * Usually paired with `status: "stale"`, but deliberately outlives that: a
+   * stale task being re-run to fix it sits at `running` with its mark still
+   * attached, because the mark is only earned back by a run that succeeds. That
+   * is what lets completion know there is a DataHub tag to take off.
+   */
   stale: StaleMark | null;
 }
 
