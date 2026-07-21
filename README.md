@@ -16,17 +16,18 @@ That Do Real Work*. Apache-2.0.
 
 ## Status
 
-**Nothing is implemented yet.** This repository currently holds the project's rules, the research
-behind the design, and verified findings about how DataHub actually behaves. The scaffold is set up;
-the coordinator, the agent workers, and the dashboard are not written.
+**Early. The core mechanism is proven; the product around it is not built.**
 
-The first thing to be built is a script proving that an agent task registered as a `DataJob` is
-returned when querying lineage downstream from the dataset it reads. The documentation implies this
-works; it has not been verified hands-on. If it fails, the design changes. See
-[`docs/concept.md`](docs/concept.md) §7.
+What works, verified against a live DataHub on 2026-07-21: an agent task can be registered into the
+graph wired to the data it reads and writes, and a change to an upstream table returns every
+transitively affected task — including tasks that never touched the change directly. Measured at
+92 ms for the full walk. That code is [`agents/graph.py`](agents/graph.py).
 
-Read this file's claims as describing intent, not shipped behavior, until this section says
-otherwise.
+Not built yet: fingerprinting outputs so an identical re-run marks nothing, writing the stale marks
+back into DataHub, the demo agent workers, and the dashboard.
+
+Read everything below the setup section as describing intent, not shipped behavior, until this
+section says otherwise.
 
 ## Requirements
 

@@ -226,16 +226,64 @@ empty string for entity-level application.
 
 ---
 
-## 7. Open questions, not yet resolved
+## 7. Lineage: the search index lags by minutes, the graph store does not
+
+**Severity: decides obsel's core traversal. Measured 2026-07-21.**
+
+DataHub answers "what is downstream of X" from two different places, and they do not agree on
+recently written data.
+
+| Surface | Backed by | Sees data written seconds ago | Hops |
+| --- | --- | --- | --- |
+| `searchAcrossLineage` (GraphQL) | search index | **No** — lagged by minutes | multi-hop, returns `degree` |
+| `GET /relationships` (REST) | graph store | **Yes** — immediate | one hop per call |
+
+Three agent tasks were registered, then queried immediately. `searchAcrossLineage` returned **0
+results for over 90 seconds** while `/relationships` returned the edges correctly the whole time.
+The same query against entities written ~15 minutes earlier returned results on the first attempt.
+The index caught up during the session (0 → 6 results), confirming lag rather than failure.
+
+The data itself was never in doubt: `graph.exists()` was true for every entity, and
+`get_aspect(..., DataJobInputOutputClass)` returned the correct inputs and outputs throughout.
+
+**Why this decides the design.** obsel coordinates a swarm that is working *right now*, so the tasks
+it must reason about are always the most recently registered ones — precisely the ones the search
+index cannot see. Building traversal on `searchAcrossLineage` would make obsel blind exactly when it
+matters, and the failure is silent: it returns an empty list, not an error, which reads identically
+to "nothing is affected."
+
+**Consequence:** obsel walks the graph store. `/relationships` is one hop, so the cascade is
+hand-rolled, alternating direction by entity type:
+
+```
+dataset --(INCOMING "Consumes")--> tasks that READ it
+task    --(OUTGOING "Produces")--> datasets it WROTE   ->  repeat
+```
+
+Verified end to end on the four-table, three-task demo shape: a change to `clean_orders` returned
+`build_revenue` at hop 1, then `write_report` and `write_docs` at hop 2 — both reached transitively,
+neither having ever read `clean_orders`. **Full cascade in 92 ms**, on data the index still could not
+see. A visited set is carried so a cyclic graph terminates.
+
+`searchAcrossLineage` remains useful for anything not time-sensitive, and its `degree` field is a
+convenient cross-check once the index has settled.
+
+```bash
+# one hop, immediate — the predicate obsel traverses on
+curl -s "http://localhost:8080/relationships?urn=<url-encoded-dataset-urn>&direction=INCOMING&types=Consumes"
+```
+
+---
+
+## 8. Open questions, not yet resolved
 
 These are recorded as unknown rather than guessed. Each must be settled before the code that depends
 on it is written.
 
-0. **Does lineage traversal actually return agent tasks?** obsel's whole design assumes that a
-   `DataJob` registered with `Consumes`/`Produces` edges comes back when querying lineage downstream
-   from the dataset it reads. The relationship direction is right per the documentation, but no
-   worked example was found and this has **not been run**. This is the first thing to prove; if it
-   fails, the design changes. Nothing else on this list matters until it is settled.
+0. ~~**Does lineage traversal actually return agent tasks?**~~ **RESOLVED 2026-07-21: yes.** A
+   `DataJob` registered with `Consumes`/`Produces` edges is returned when walking downstream from a
+   dataset it reads, and the cascade is transitive. See section 7 — with the important correction
+   that this only holds immediately via the graph store, not the search index.
 1. **Structured-property definitions must exist before values can be written**, and there is no MCP
    tool that creates one. The instance currently has only 5 `showcase.*` properties, none scoped to
    `dataJob`. The definition path — YAML plus `datahub properties upsert`, or the Python SDK — has

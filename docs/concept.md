@@ -119,12 +119,21 @@ applied and removed over MCP and confirmed via GraphQL; writes are asynchronous;
 fabricates entities; `@latest` resolves to a broken read-only version; new tag vocabulary cannot be
 minted at runtime.
 
-**Not yet verified — prove this first, before building anything else:** that an agent task
-registered as a `DataJob` with `Consumes`/`Produces` edges is actually returned when querying
-lineage downstream from the dataset it reads. Docs imply it; no worked example was found. A script
-to test exactly this is the first task. If it fails, the design changes.
+**The load-bearing assumption is now verified.** An agent task registered as a `DataJob` with
+`Consumes`/`Produces` edges *is* returned when walking downstream from a dataset it reads, and the
+cascade is transitive: on the four-table demo shape, a change to `clean_orders` reached
+`build_revenue` at one hop and `write_report` and `write_docs` at two — neither of the latter having
+ever read `clean_orders`. Measured at 92 ms for the full walk.
 
-Also unproven: whether obsel's marks survive re-ingestion, and whether structured-property
+That test also produced a design correction worth more than the confirmation itself. DataHub answers
+lineage from two places: GraphQL's `searchAcrossLineage`, served from a **search index that lags by
+minutes**, and the REST `/relationships` endpoint, served from the **graph store, immediately**. On
+freshly registered tasks the GraphQL surface returned nothing for over 90 seconds while the data was
+provably present. obsel reasons about work registered seconds ago, so it walks the graph store; the
+index would have made it blind exactly when it matters, and silently — an empty result reads
+identically to "nothing is affected". See `docs/environment-findings.md` §7.
+
+Still unproven: whether obsel's marks survive re-ingestion, and whether structured-property
 definitions can be created without leaving the MCP surface.
 
 ## 8. Ideas rejected on the way here
