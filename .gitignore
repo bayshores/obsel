@@ -1,0 +1,20 @@
+.next/
+node_modules/
+coverage/
+playwright-report/
+test-results/
+.env
+.env.local
+.env.*.local
+!.env.example
+*.log
+*.tsbuildinfo
+.DS_Store
+
+# Python environment for the demo agent workers and DataHub emitter
+agents/.venv/
+**/__pycache__/
+*.pyc
+
+# Local run output (runs are reproducible; artifacts are not committed)
+.obsel/
