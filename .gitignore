@@ -18,3 +18,10 @@ agents/.venv/
 
 # Local run output (runs are reproducible; artifacts are not committed)
 .obsel/
+
+# Browser-automation scratch from checking the cockpit by hand
+.playwright-mcp/
+/*.png
+
+# Tool-local launch config (created by the editor's browser preview)
+.claude/

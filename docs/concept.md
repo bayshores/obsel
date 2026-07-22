@@ -84,7 +84,7 @@ clean_orders  ->  daily_revenue  ->  revenue_report
 
 All four finish. Then `clean_orders` re-runs and renames a column. obsel detects the changed output,
 walks downstream, and marks `daily_revenue` stale (direct), then `revenue_report` and
-`pipeline_docs` stale (transitively, through `daily_revenue`) — visible in obsel's dashboard and in
+`pipeline_docs` stale (transitively, through `daily_revenue`) — visible in obsel's cockpit and in
 DataHub's own lineage view.
 
 The cascade is the demonstration. Flagging only the direct dependent is the trivial version and does

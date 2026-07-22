@@ -1,0 +1,121 @@
+/*
+ * Raw values. Everything here is allowed to be long, and nothing is truncated
+ * with an ellipsis — a half-shown URN or a hash cut at eight characters is
+ * exactly what this panel exists to escape.
+ */
+
+.hint,
+.note {
+  margin: 0;
+  padding: var(--mm-space-sm) var(--mm-space-md);
+  color: var(--obsel-text-quiet);
+  font-family: var(--mm-font-sans);
+  font-size: var(--mm-text-md);
+  line-height: var(--mm-leading);
+  text-wrap: pretty;
+}
+
+.note {
+  border-top: 1px solid var(--mm-rose-line);
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--mm-space-sm);
+  padding: var(--mm-space-sm) var(--mm-space-md);
+  border-bottom: 1px solid var(--mm-rose-line);
+}
+
+.name {
+  color: var(--mm-cream);
+  font-family: var(--mm-font-mono);
+  font-size: var(--mm-text-body);
+  font-weight: var(--mm-weight-semi);
+}
+
+.close {
+  background: transparent;
+  border: 1px solid var(--mm-rose-line);
+  border-radius: var(--mm-radius-none);
+  color: var(--obsel-text-quiet);
+  font-family: var(--mm-font-mono);
+  font-size: var(--mm-text-cap);
+  letter-spacing: var(--mm-track);
+  padding: 3px 8px;
+  cursor: pointer;
+  transition: all var(--mm-dur-short) var(--mm-ease);
+}
+
+.close:hover {
+  border-color: var(--mm-border-strong);
+  color: var(--mm-cream);
+  background: var(--mm-rose-soft);
+}
+
+.fields {
+  margin: 0;
+  padding: var(--mm-space-sm) var(--mm-space-md);
+  display: grid;
+  gap: var(--mm-space-sm);
+}
+
+.field {
+  display: grid;
+  gap: 2px;
+}
+
+.label {
+  margin: 0;
+  color: var(--obsel-text-quiet);
+  font-family: var(--mm-font-mono);
+  font-size: var(--mm-text-cap);
+  letter-spacing: var(--mm-track-label);
+}
+
+.value {
+  margin: 0;
+  color: var(--mm-cream);
+  font-family: var(--mm-font-mono);
+  font-size: var(--mm-text-cap);
+  text-wrap: pretty;
+}
+
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 2px;
+}
+
+/*
+ * URNs and hashes break anywhere. They contain no spaces, so without this a
+ * single 64-character hash would force the whole gutter wider than its track
+ * and push the graph sideways.
+ */
+.urn,
+.hash {
+  font-family: var(--mm-font-mono);
+  font-size: var(--mm-text-sm);
+  color: var(--mm-cream-dim);
+  overflow-wrap: anywhere;
+  word-break: break-all;
+}
+
+.print {
+  display: grid;
+  gap: 1px;
+}
+
+.printLabel {
+  color: var(--obsel-text-quiet);
+  font-family: var(--mm-font-mono);
+  font-size: var(--mm-text-sm);
+}

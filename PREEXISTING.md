@@ -18,6 +18,20 @@ Five configuration files were adapted from an earlier personal project of the au
 They set compiler strictness, lint rules, formatting, the `@/` path alias, and the test runner.
 They contain no product logic. All five are in this repository's first commit, `0755e93`.
 
+**The mmux design system.** obsel's interface is built in mmux, a design system the author wrote
+before this project. Two things were carried in from it:
+
+- Its design tokens — colour, typography, spacing, motion — copied into `app/globals.css`.
+- Eight of its presentational components, ported from `.jsx` to `.tsx` in
+  `src/features/cockpit/mmux.tsx`: `Wordmark`, `Divider`, `Panel`, `StatCell`, `StatRibbon`,
+  `Eyebrow`, `PulseDot`, `Badge`.
+
+They are styling only. Not one of them knows what a task, a dataset, a fingerprint or a stale mark
+is; every decision obsel makes is in `src/server/coordinator/` and `src/features/cockpit/`, all
+written for this project. The port is not a verbatim copy — it moves seven type sizes up mmux's own
+ladder, because obsel is watched as a compressed screen recording rather than on a desk. Each change
+is marked `obsel:` in the file.
+
 ## What was not
 
 Everything else — every file under `src/`, `app/`, `agents/`, `tests/`, `docs/`, and `examples/` —

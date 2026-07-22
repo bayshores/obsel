@@ -1,0 +1,128 @@
+/**
+ * Canned `GET /api/swarm` bodies for the browser suite.
+ *
+ * Typed as `SwarmResponse`, which is the point: `tsconfig.json` includes
+ * `**​/*.ts`, so if the shape the cockpit reads ever drifts from the shape these
+ * describe, `pnpm typecheck` fails inside `pnpm verify` — before anyone runs a
+ * browser. A fixture that has quietly stopped resembling the real payload is
+ * worse than no fixture, because the suite keeps passing.
+ *
+ * These are invented values. Nothing here may be screenshotted into the
+ * submission or quoted as a measurement.
+ */
+
+import type { SwarmResponse } from "@/src/features/cockpit/use-swarm";
+import type { OutputFingerprint, StaleMark, TaskRecord } from "@/src/server/coordinator/types";
+
+const FLOW = "urn:li:dataFlow:(obsel,orders_pipeline,prod)";
+const AT = "2026-07-21T14:22:07.000Z";
+
+function ds(name: string): string {
+  return `urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_demo.${name},PROD)`;
+}
+
+function jobUrn(name: string): string {
+  return `urn:li:dataJob:(${FLOW},${name})`;
+}
+
+/** 64 hex characters, like the real thing — the inspector shows all of them. */
+function hex(seed: string): string {
+  return seed.repeat(64).slice(0, 64);
+}
+
+function print(schema: string, content: string): OutputFingerprint {
+  return { schema: hex(schema), content: hex(content) };
+}
+
+function task(
+  name: string,
+  reads: string[],
+  writes: string[],
+  extra: Partial<TaskRecord> = {},
+): TaskRecord {
+  return {
+    urn: jobUrn(name),
+    name,
+    reads: reads.map(ds),
+    writes: writes.map(ds),
+    status: "complete",
+    fingerprints: {},
+    finishedAt: AT,
+    stale: null,
+    ...extra,
+  };
+}
+
+function mark(hops: number, reason: string): StaleMark {
+  return {
+    causedBy: ds("clean_orders"),
+    causedByTask: jobUrn("clean_orders"),
+    hops,
+    changeKind: "schema",
+    reason,
+    since: AT,
+    detectedMs: 118,
+  };
+}
+
+const R1 = "read clean_orders, and its columns changed after this finished";
+const R2 =
+  "built on work from build_revenue, which is itself out of date because clean_orders changed";
+
+function wrap(tasks: TaskRecord[]): SwarmResponse {
+  return { snapshot: { flow: FLOW, tasks, at: AT }, ready: [], blocked: [] };
+}
+
+/** Four tasks finished, nothing marked. */
+export function calm(): SwarmResponse {
+  return wrap([
+    task("clean_orders", ["raw_orders"], ["clean_orders"], {
+      fingerprints: { [ds("clean_orders")]: print("a", "b") },
+    }),
+    task("build_revenue", ["clean_orders"], ["daily_revenue"], {
+      fingerprints: { [ds("daily_revenue")]: print("c", "d") },
+    }),
+    task("write_report", ["daily_revenue"], ["revenue_report"], {
+      fingerprints: { [ds("revenue_report")]: print("e", "f") },
+    }),
+    task("write_docs", ["daily_revenue"], ["pipeline_docs"], {
+      fingerprints: { [ds("pipeline_docs")]: print("1", "2") },
+    }),
+  ]);
+}
+
+/**
+ * One schema-only change, three tasks out of date.
+ *
+ * `clean_orders`'s content fingerprint is identical to the calm fixture's and
+ * its schema differs — the rename the demo is built on.
+ */
+export function cascaded(): SwarmResponse {
+  return wrap([
+    task("clean_orders", ["raw_orders"], ["clean_orders"], {
+      fingerprints: { [ds("clean_orders")]: print("9", "b") },
+    }),
+    task("build_revenue", ["clean_orders"], ["daily_revenue"], {
+      status: "stale",
+      stale: mark(1, R1),
+      fingerprints: { [ds("daily_revenue")]: print("c", "d") },
+    }),
+    task("write_report", ["daily_revenue"], ["revenue_report"], {
+      status: "stale",
+      stale: mark(2, R2),
+      fingerprints: { [ds("revenue_report")]: print("e", "f") },
+    }),
+    task("write_docs", ["daily_revenue"], ["pipeline_docs"], {
+      status: "stale",
+      stale: mark(2, R2),
+      fingerprints: { [ds("pipeline_docs")]: print("1", "2") },
+    }),
+  ]);
+}
+
+/** Connected, nothing registered. A real state at the start of the demo. */
+export function empty(): SwarmResponse {
+  return wrap([]);
+}
+
+export const REASONS = { one: R1, two: R2 };

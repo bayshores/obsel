@@ -30,7 +30,7 @@ and type-checks, not a plan.
 | The staleness rules, pure and testable               | `src/server/coordinator/staleness.ts`                                      |
 | Marks written back into DataHub                      | `src/server/coordinator/engine.ts`, `src/server/datahub/mcp.ts`            |
 | Four demo agent workers, each calling a real model   | `agents/worker.py`, `agents/run.py`                                        |
-| The dashboard                                        | `app/page.tsx`, `src/features/swarm/`                                      |
+| The cockpit — graph, ledger, stats, feed, inspector  | `app/page.tsx`, `src/features/cockpit/`                                    |
 | HTTP API, five routes including a demo reset         | `app/api/` — see [`docs/architecture.md`](docs/architecture.md) section 11 |
 
 ### Verified directly
@@ -39,6 +39,19 @@ and type-checks, not a plan.
   that nothing happens, which is deliberate — the failure that kills this kind of tool is a false
   alarm, not a miss. An identical re-run marks nothing, an unrelated branch is untouched, a running
   task is neither marked nor walked through, a cycle terminates.
+- **The cockpit's own logic**, by 90 further tests across `tests/cockpit-*.test.ts`. The load-bearing
+  ones: graph geometry is byte-identical across every task status, so nothing moves on the frame
+  three tasks flip amber; no label can overflow its box, checked against measured per-character
+  advances; a six-task pipeline the layout has never seen draws correctly; amber fills a node if and
+  only if its status is `stale`; and no measurement is ever displayed that the coordinator did not
+  record. The geometry assertions were confirmed to fail by reintroducing the status-dependent
+  sizing they exist to forbid.
+- **The cascade, end to end against a live DataHub** on 2026-07-21. A schema-only change posted to
+  `POST /api/tasks/complete` — content byte-identical, schema moved — marked exactly
+  `build_revenue` (1 hop), `write_report` and `write_docs` (2 hops), each with its reason, in a
+  measured **6867 ms** including the bounded-poll confirmation of every DataHub write. Re-posting
+  the identical fingerprint returned `changedOutputs: []`, marked nothing new, and left all three
+  existing marks untouched.
 - **The lineage assumption**, against a live DataHub (GMS `v1.5.0.6`, quickstart) on 2026-07-21. A
   `DataJob` registered with `Consumes`/`Produces` edges is returned when walking downstream from a
   dataset it reads, and the cascade is transitive. The full walk was measured at 92 ms. That
@@ -51,15 +64,20 @@ and type-checks, not a plan.
 
 ### Not done
 
-- **The demo has never been run end to end with a real model call.** Every step of it exists and the
-  commands are written down, but nobody has executed `setup` through `change` against a live
-  DataHub with `OPENAI_API_KEY` set and watched it work. That is the largest remaining gap and
-  nothing here should be read as if it had happened.
-- **There is no automated test of the TypeScript path against a live DataHub.** `engine.ts`,
-  `client.ts`, and `mcp.ts` are exercised only by hand. The 24 tests cover the pure decision logic
-  and stand nothing up.
-- **No end-to-end latency number has been measured.** The 92 ms figure is the Python traversal
-  alone. `elapsedMs` in [`examples/`](examples/) is a stand-in and its README says so.
+- **The demo has never been run end to end with a real model call.** The coordination path has now
+  been driven against a live DataHub — see the cascade measurement above — but by posting a
+  completion report directly to the API, not by an agent that called a model to do actual work.
+  Nobody has executed `setup` through `change` and watched the whole thing. That is the largest
+  remaining gap and nothing here should be read as if it had happened.
+- **There is no _automated_ test of the TypeScript path against a live DataHub.** `engine.ts`,
+  `client.ts`, and `mcp.ts` have been exercised by hand against a running instance, but nothing in
+  `pnpm test` stands DataHub up — those 114 tests cover pure decision logic only, by design, so
+  that `pnpm verify` needs no Docker. `pnpm e2e` runs a real browser but stubs the endpoint, so it
+  does not close this gap either.
+- **The end-to-end latency number is a single observation, not a benchmark.** 6867 ms was measured
+  once, on one machine, on 2026-07-21, against the quickstart stack. It is dominated by the bounded
+  polling that confirms each DataHub write actually landed. The separate 92 ms figure is the Python
+  traversal alone. `elapsedMs` in [`examples/`](examples/) is still a stand-in and its README says so.
 - The `examples/` artifacts are illustrative rather than captured from a real run.
 - The demo video is not recorded.
 
@@ -70,7 +88,10 @@ and type-checks, not a plan.
 - Python 3, for the demo agents. They get their own virtual environment in step 4 below; the
   `datahub` CLI used to start the stack is a separate, global install of `acryl-datahub`
 - `uv`, for running the DataHub MCP server
-- An `OPENAI_API_KEY`. The demo agents call a real model and have no offline mode
+- **The Codex CLI, signed in.** `codex login status` should say so. Each demo agent is a real
+  Codex session that reads the data, decides, and writes its table with its own tools. There is no
+  API-key path and no offline mode — if Codex is missing or signed out, the run fails and says so.
+  See [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) for the terms question this raises.
 
 ## Setup
 
@@ -94,8 +115,8 @@ these are different ports and are not interchangeable; point clients at 8080.
 cp .env.example .env.local
 ```
 
-Then set `OPENAI_API_KEY` in `.env.local`. The demo agents call a real model and have no offline
-mode; without the key they stop and say so. `.env.example` documents every variable. One,
+`.env.example` documents every variable. The demo agents need no key here — they authenticate
+through the Codex CLI. One variable,
 `MCP_SERVER_DATAHUB_VERSION`, is pinned deliberately — read its comment before changing it, because
 resolving it to `@latest` silently disables every write while still reporting success.
 
@@ -116,7 +137,7 @@ agents/.venv/bin/python -m pip install -r agents/requirements.txt
 **5. Start obsel.**
 
 ```bash
-pnpm dev        # http://localhost:3000 should show the board, not an error
+pnpm dev        # http://localhost:3000 should show the cockpit, not an error
 ```
 
 **6. Register obsel's vocabulary in DataHub.** Run every agent command from the repository root, so
@@ -161,14 +182,15 @@ produce wrong results silently. Worth reading before writing code that touches D
 
 ```
 app/                     routing and composition (Next.js), and the five HTTP routes
-src/features/swarm/      the dashboard
+src/features/cockpit/    the cockpit: layout.ts, tone.ts, timing.ts, feed.ts (pure), then the pixels
 src/server/coordinator/  types.ts, staleness.ts (pure rules), engine.ts (the IO half)
 src/server/datahub/      client.ts (GMS HTTP), mcp.ts (tag writes), urns.ts (URN shapes)
 src/server/domain/       reserved for deterministic logic; currently empty
 agents/                  the four demo agent workers, fingerprinting, and the demo runner
 docs/                    concept, architecture, environment findings, demo script
 examples/                sample outputs for judges
-tests/                   deterministic tests
+tests/                   deterministic tests, no browser and no DataHub
+e2e/                     Playwright checks that need a real browser
 ```
 
 There is no event subscription and no scheduler. An agent reporting that it finished is what
@@ -177,16 +199,20 @@ triggers the check — see [`docs/architecture.md`](docs/architecture.md) sectio
 ## Commands
 
 ```bash
-pnpm dev         # dashboard at http://localhost:3000
+pnpm dev         # cockpit at http://localhost:3000
 pnpm verify      # format, lint, typecheck, test, build
 pnpm test        # deterministic tests only
+pnpm e2e         # browser checks; builds and serves the app itself
 ```
 
-Checked 2026-07-21: `pnpm lint`, `pnpm typecheck`, `pnpm test` (24 passed), and `pnpm build` all
-succeed. **`pnpm verify` currently fails at its first step**, `pnpm format:check`, because several
-Markdown files and `pnpm-lock.yaml` have not been run through Prettier and there is no
-`.prettierignore`. That is a formatting gap in the repository, not a failure of the code the other
-four steps cover — but it is real, and running `pnpm verify` today will show it.
+`pnpm e2e` is separate from `pnpm verify` on purpose. Verify is what this README asks a judge to
+run, and it must stay free of Docker, DataHub and a browser download. The browser suite stubs
+`GET /api/swarm` at the network layer, so it needs no DataHub either — which also means it verifies
+the cockpit's rendering of a snapshot, not that obsel produces the right snapshot. The pure rules
+cover that half.
+
+Checked 2026-07-21: `pnpm verify` succeeds end to end — `pnpm format:check`, `pnpm lint`,
+`pnpm typecheck`, `pnpm test` (114 passed), and `pnpm build`.
 
 ## Documentation
 

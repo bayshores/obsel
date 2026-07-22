@@ -20,15 +20,11 @@ also means the output is a function of the plan, so an unchanged plan gives a
 byte-identical table. obsel's headline claim is that an identical re-run marks
 nothing stale, and this is what makes "identical" reachable at all.
 
-The plan is cached on disk under a key covering the model, the instruction, and
-the fingerprints of every input. Same job, same inputs, same decision -- which is
-ordinary practice, and here it is what lets the demo re-run a task honestly
-without a fresh sampling of the model changing the answer. Every printed line
-says which of the two happened; `use_cache=False` forces a real call.
-
-There is no offline mode and no synthetic fallback. Without OPENAI_API_KEY this
-fails and says so. A demo that quietly fakes the model is worse than one that
-does not run.
+There is one runner, and it is Codex: a real agent session working in the data
+directory with its own tools, invoked through `codex exec`. It authenticates
+through the Codex CLI. There is no API-key path and no offline mode -- if Codex
+is not installed or not signed in, the run fails and says so. A demo that
+quietly fakes the model is worse than one that does not run.
 """
 
 from __future__ import annotations
@@ -50,15 +46,20 @@ from agents.fingerprint import fingerprint
 REPO_ROOT = Path(__file__).resolve().parent.parent
 OBSEL_URL = os.environ.get("OBSEL_URL", "http://localhost:3000")
 
+# What does the work: a real Codex session, running in the data directory with
+# its own tools. The agent reads, decides, and writes the table itself -- an
+# agent rather than a single model call, which is what the hackathon category
+# asks for. It is the only runner.
+#
+# Measured 2026-07-21: two independent Codex runs over the same input produced
+# byte-identical tables, schema and content. That is what makes the demo's
+# "re-run marks nothing" step provable with a live agent rather than a cache.
+
 # Bumped when a plan schema or an applier changes, so old cached plans are not
 # reused against code that would interpret them differently.
 PLAN_CACHE_VERSION = "1"
 
 Table = dict[str, Any]  # {"columns": [...], "rows": [...]}
-
-
-class MissingApiKey(RuntimeError):
-    """Raised instead of inventing data when there is no model to call."""
 
 
 class PlanRejected(RuntimeError):
@@ -68,23 +69,6 @@ class PlanRejected(RuntimeError):
 # --------------------------------------------------------------------------
 # Environment
 # --------------------------------------------------------------------------
-
-
-def _load_env_files() -> None:
-    """Pick up OPENAI_API_KEY from .env.local / .env without adding a dependency.
-
-    Real environment variables always win; these files only fill gaps.
-    """
-    for name in (".env.local", ".env"):
-        path = REPO_ROOT / name
-        if not path.exists():
-            continue
-        for line in path.read_text(encoding="utf-8").splitlines():
-            line = line.strip()
-            if not line or line.startswith("#") or "=" not in line:
-                continue
-            key, _, value = line.partition("=")
-            os.environ.setdefault(key.strip(), value.strip().strip("\"'"))
 
 
 # --------------------------------------------------------------------------
@@ -256,296 +240,6 @@ _SYSTEM_PROMPT = (
 # --------------------------------------------------------------------------
 # Asking the model
 # --------------------------------------------------------------------------
-
-
-def _sample_for_prompt(table: Table, limit: int = 8) -> dict[str, Any]:
-    return {
-        "columns": table["columns"],
-        "row_count": len(table["rows"]),
-        "rows": table["rows"][:limit],
-    }
-
-
-def _prompt_payload(task: pipeline.AgentTask, inputs: dict[str, Table]) -> dict[str, Any]:
-    """What the model sees of the data.
-
-    A "write" agent is reporting on its input, so it needs all of it. A "clean" or
-    "aggregate" agent is deciding a rule, so a sample and the row count are enough
-    -- and keep the prompt the same size whether the table has fifty rows or a
-    million.
-    """
-    if task.kind == "write":
-        return {name: inputs[name] for name in task.reads}
-    return {name: _sample_for_prompt(inputs[name]) for name in task.reads}
-
-
-def _cache_key(
-    task: pipeline.AgentTask, instruction: str, inputs: dict[str, Table]
-) -> str:
-    """Identity of a decision: this model, this job, these exact inputs."""
-    material = {
-        "version": PLAN_CACHE_VERSION,
-        "model": pipeline.MODEL,
-        "task": task.name,
-        "kind": task.kind,
-        "instruction": instruction,
-        "inputs": {
-            name: fingerprint(table["rows"], table["columns"])
-            for name, table in sorted(inputs.items())
-        },
-    }
-    encoded = json.dumps(material, sort_keys=True, separators=(",", ":"))
-    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
-
-
-def _plan_cache_path(key: str, root: Path = REPO_ROOT) -> Path:
-    return root / ".obsel" / "plans" / f"{key}.json"
-
-
-def call_model(
-    task: pipeline.AgentTask, instruction: str, inputs: dict[str, Table]
-) -> tuple[dict[str, Any], float]:
-    """One structured-output call to gpt-5.6. Returns (plan, seconds)."""
-    _load_env_files()
-    api_key = os.environ.get("OPENAI_API_KEY", "").strip()
-    if not api_key:
-        raise MissingApiKey(
-            "OPENAI_API_KEY is not set, so there is no model to do this agent's work.\n"
-            "  export OPENAI_API_KEY=sk-...    (or put it in .env.local)\n"
-            "These agents have no offline mode on purpose: the point of the demo is that "
-            "real model output flows through obsel, so faking it here would make every "
-            "number on screen meaningless."
-        )
-
-    from openai import OpenAI
-
-    client = OpenAI(api_key=api_key)
-    user_message = json.dumps(
-        {
-            "your_job": instruction,
-            "you_write_a_table_called": task.writes,
-            "input_tables": _prompt_payload(task, inputs),
-        },
-        indent=2,
-        default=str,
-    )
-
-    started = time.perf_counter()
-    completion = client.chat.completions.create(
-        model=pipeline.MODEL,
-        messages=[
-            {"role": "system", "content": _SYSTEM_PROMPT},
-            {"role": "user", "content": user_message},
-        ],
-        response_format={
-            "type": "json_schema",
-            "json_schema": {
-                "name": f"{task.kind}_plan",
-                "strict": True,
-                "schema": _SCHEMAS[task.kind],
-            },
-        },
-        # Not a guarantee, but it is the only determinism lever the API offers and
-        # costs nothing. The plan cache is what actually makes a re-run identical.
-        seed=20260721,
-        timeout=120,
-    )
-    seconds = time.perf_counter() - started
-
-    content = completion.choices[0].message.content
-    if not content:
-        raise RuntimeError(
-            f"{pipeline.MODEL} returned no content for {task.name} "
-            f"(finish_reason={completion.choices[0].finish_reason})"
-        )
-    return json.loads(content), seconds
-
-
-def get_plan(
-    task: pipeline.AgentTask,
-    instruction: str,
-    inputs: dict[str, Table],
-    *,
-    use_cache: bool = True,
-    root: Path = REPO_ROOT,
-) -> tuple[dict[str, Any], str, float]:
-    """Returns (plan, source, seconds). `source` is "model" or "cache"."""
-    key = _cache_key(task, instruction, inputs)
-    path = _plan_cache_path(key, root)
-
-    if use_cache and path.exists():
-        cached = json.loads(path.read_text(encoding="utf-8"))
-        return cached["plan"], "cache", 0.0
-
-    plan, seconds = call_model(task, instruction, inputs)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        json.dumps(
-            {
-                "plan": plan,
-                "model": pipeline.MODEL,
-                "task": task.name,
-                "instruction": instruction,
-                "decided_at": datetime.now(timezone.utc).isoformat(),
-            },
-            indent=2,
-            sort_keys=True,
-        )
-        + "\n",
-        encoding="utf-8",
-    )
-    return plan, "model", seconds
-
-
-# --------------------------------------------------------------------------
-# Applying a plan
-# --------------------------------------------------------------------------
-
-
-def _require_columns(task: pipeline.AgentTask, wanted: list[str], available: list[str]) -> None:
-    missing = [name for name in wanted if name not in available]
-    if missing:
-        raise PlanRejected(
-            f"{task.name}: the plan references columns that are not in its input: "
-            f"{', '.join(sorted(set(missing)))}. Available: {', '.join(available)}."
-        )
-
-
-def _as_number(value: Any) -> float | None:
-    if value is None or isinstance(value, bool):
-        return None
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return None
-
-
-def _transform(value: Any, how: str) -> Any:
-    if value is None:
-        return None
-    if how == "copy":
-        return value
-    if how == "strip":
-        return str(value).strip()
-    if how == "title_case":
-        return str(value).strip().title()
-    if how == "lower":
-        return str(value).strip().lower()
-    if how == "round2":
-        number = _as_number(value)
-        return None if number is None else round(number, 2)
-    if how == "date_only":
-        # "2026-07-14T09:31:00Z" and "2026-07-14" both become "2026-07-14".
-        return str(value).strip()[:10]
-    raise PlanRejected(f"unknown transform {how!r}")
-
-
-def _drop_row(row: dict[str, Any], filters: list[dict[str, str]]) -> bool:
-    for rule in filters:
-        value = row.get(rule["column"])
-        condition = rule["condition"]
-        if condition == "missing" and (value is None or str(value).strip() == ""):
-            return True
-        if condition == "not_a_number" and _as_number(value) is None:
-            return True
-        if condition == "not_positive":
-            number = _as_number(value)
-            if number is None or number <= 0:
-                return True
-    return False
-
-
-def apply_clean(task: pipeline.AgentTask, plan: dict[str, Any], source: Table) -> Table:
-    _require_columns(
-        task,
-        [column["source"] for column in plan["columns"]]
-        + [rule["column"] for rule in plan["drop_rows_where"]],
-        source["columns"],
-    )
-    if not plan["columns"]:
-        raise PlanRejected(f"{task.name}: the plan produces no columns")
-
-    columns = [column["name"] for column in plan["columns"]]
-    rows: list[dict[str, Any]] = []
-    for row in source["rows"]:
-        if _drop_row(row, plan["drop_rows_where"]):
-            continue
-        rows.append(
-            {
-                column["name"]: _transform(row.get(column["source"]), column["transform"])
-                for column in plan["columns"]
-            }
-        )
-    return {"columns": columns, "rows": rows}
-
-
-def apply_aggregate(task: pipeline.AgentTask, plan: dict[str, Any], source: Table) -> Table:
-    _require_columns(
-        task,
-        [key["source"] for key in plan["group_by"]]
-        + [agg["source"] for agg in plan["aggregations"]],
-        source["columns"],
-    )
-    if not plan["group_by"]:
-        raise PlanRejected(f"{task.name}: the plan groups by nothing")
-
-    keys = plan["group_by"]
-    groups: dict[tuple[Any, ...], list[dict[str, Any]]] = {}
-    for row in source["rows"]:
-        signature = tuple(row.get(key["source"]) for key in keys)
-        groups.setdefault(signature, []).append(row)
-
-    columns = [key["name"] for key in keys] + [agg["name"] for agg in plan["aggregations"]]
-    rows: list[dict[str, Any]] = []
-    for signature, members in groups.items():
-        row: dict[str, Any] = {key["name"]: signature[i] for i, key in enumerate(keys)}
-        for agg in plan["aggregations"]:
-            numbers = [
-                number
-                for number in (_as_number(member.get(agg["source"])) for member in members)
-                if number is not None
-            ]
-            op = agg["op"]
-            if op == "count":
-                row[agg["name"]] = sum(1 for m in members if m.get(agg["source"]) is not None)
-            elif not numbers:
-                row[agg["name"]] = None
-            elif op == "sum":
-                row[agg["name"]] = round(sum(numbers), 2)
-            elif op == "mean":
-                row[agg["name"]] = round(sum(numbers) / len(numbers), 2)
-            elif op == "min":
-                row[agg["name"]] = round(min(numbers), 2)
-            elif op == "max":
-                row[agg["name"]] = round(max(numbers), 2)
-            else:
-                raise PlanRejected(f"unknown aggregation {op!r}")
-        rows.append(row)
-
-    sort_column = plan.get("sort_by") or columns[0]
-    if sort_column not in columns:
-        raise PlanRejected(
-            f"{task.name}: the plan sorts by {sort_column!r}, which it does not produce"
-        )
-    # str() so a column holding mixed types still sorts instead of raising.
-    rows.sort(key=lambda item: str(item.get(sort_column)))
-    return {"columns": columns, "rows": rows}
-
-
-def apply_write(task: pipeline.AgentTask, plan: dict[str, Any], _source: Table) -> Table:
-    if not plan["rows"]:
-        raise PlanRejected(f"{task.name}: the plan writes an empty document")
-    columns = ["section", "heading", "text"]
-    rows = [{column: entry[column] for column in columns} for entry in plan["rows"]]
-    return {"columns": columns, "rows": rows}
-
-
-_APPLIERS = {"clean": apply_clean, "aggregate": apply_aggregate, "write": apply_write}
-
-
-def apply_plan(task: pipeline.AgentTask, plan: dict[str, Any], inputs: dict[str, Table]) -> Table:
-    primary = inputs[task.reads[0]]
-    return _APPLIERS[task.kind](task, plan, primary)
 
 
 # --------------------------------------------------------------------------
@@ -773,14 +467,40 @@ def _leave_running(task_name: str, root: Path) -> None:
     _inflight_path(task_name, root).unlink(missing_ok=True)
 
 
+def _run_codex(
+    task: pipeline.AgentTask,
+    job: str,
+    expect_columns: tuple[str, ...] | None,
+    root: Path,
+) -> tuple[Table, float, str]:
+    """Run this task as a real Codex session and return what it produced.
+
+    Codex works in the data directory, so it reads its inputs and writes its
+    output as ordinary files, the way the tables actually live. The table comes
+    back from disk rather than from the agent's reply, because what is on disk is
+    what the next agent will read and what obsel will fingerprint.
+    """
+    from agents import codex_runner
+
+    contract = list(expect_columns or task.output_columns) or None
+    table, seconds, version = codex_runner.run_agent(
+        instruction=job,
+        input_files=[f"{name}.json" for name in task.reads],
+        output_file=f"{task.writes}.json",
+        working_dir=data_dir(root),
+        expect_columns=contract,
+    )
+    return table, seconds, version
+
+
 def run_task(
     task: pipeline.AgentTask,
     *,
     instruction: str | None = None,
     obsel_url: str = OBSEL_URL,
-    use_cache: bool = True,
     report: bool = True,
     root: Path = REPO_ROOT,
+    expect_columns: tuple[str, ...] | None = None,
 ) -> RunResult:
     """Do this agent's job end to end and tell obsel what came out."""
     started = time.perf_counter()
@@ -788,19 +508,22 @@ def run_task(
     task_urn = pipeline.task_urn(task.name)
 
     # ORDER MATTERS. Everything that can fail on its own happens before obsel is
-    # told this agent started: loading the inputs, getting the plan (the model call,
-    # and the single most likely failure in front of an audience is a missing
-    # OPENAI_API_KEY), and applying that plan. Announcing the start first would move
+    # told this agent started: loading the inputs and running the agent (the most
+    # likely failure in front of an audience is Codex not being signed in).
+    # Announcing the start first would move
     # the task to `running` and then leave it there when the model call failed --
     # and obsel only ever marks *finished* work stale, so a task stuck at `running`
     # drops out of the cascade entirely while the board still shows four healthy
     # tasks. Failing before the announcement leaves the task exactly as it was, and
     # a retry is an ordinary run.
     inputs = {name: load_table(name, root) for name in task.reads}
-    plan, plan_source, model_seconds = get_plan(
-        task, job, inputs, use_cache=use_cache, root=root
-    )
-    output = apply_plan(task, plan, inputs)
+
+    # The agent reads and writes the table itself, with its own tools. Its output
+    # is read back off disk and checked against the column contract before obsel
+    # hears anything -- a plausible-looking bad table would fingerprint as a real
+    # change and mark the chain stale for nothing.
+    output, model_seconds, plan_source = _run_codex(task, job, expect_columns, root)
+    plan = {"runner": "codex", "agent": plan_source}
 
     start = "not reported"
     if report:

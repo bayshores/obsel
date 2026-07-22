@@ -30,11 +30,6 @@ FLOW = "orders_pipeline"
 # and not mistaken for anything else in a shared DataHub instance.
 NAMESPACE = "obsel_demo"
 
-# The one model these agents use. Named in every printed line and recorded in
-# every cached plan, because a demo that is vague about which model did the work
-# is a demo a judge cannot check.
-MODEL = "gpt-5.6"
-
 # The table the swarm starts from. Nothing in the swarm produces it.
 SEED_TABLE = "raw_orders"
 
@@ -44,13 +39,22 @@ class AgentTask:
     """One agent's standing job description."""
 
     name: str
-    #: Which applier turns the model's plan into a table. See `worker.py`.
+    #: What sort of work this is, for the `shape` printout only. Nothing
+    #: dispatches on it: the agent decides how to do the job.
     kind: str  # "clean" | "aggregate" | "write"
     reads: tuple[str, ...]
     writes: str
-    #: What this agent is told to do. Part of the plan cache key, so changing it
-    #: is what makes the demo's `change` step call the model again.
+    #: What this agent is told to do. The demo's `change` step hands the agent a
+    #: modified version of this, which is the whole trigger for the cascade.
     instruction: str
+    #: The exact columns this task must produce, in order.
+    #:
+    #: Enforced by the `codex` runner, where the agent writes the table itself and
+    #: could otherwise pick slightly different names on two runs. That would move
+    #: the schema fingerprint and mark the whole chain stale for no reason -- a
+    #: false alarm, which is the failure obsel exists to prevent. So the contract
+    #: is stated and checked rather than hoped for.
+    output_columns: tuple[str, ...] = ()
 
 
 TASKS: tuple[AgentTask, ...] = (
@@ -59,11 +63,24 @@ TASKS: tuple[AgentTask, ...] = (
         kind="clean",
         reads=(SEED_TABLE,),
         writes="clean_orders",
+        output_columns=("order_id", "customer", "order_total", "order_date"),
         instruction=(
             "You are cleaning a raw orders export before anyone reports on it. "
             "Produce a plan that keeps four columns named exactly order_id, customer, "
             "order_total and order_date. Customer names arrive with stray whitespace and "
-            "inconsistent capitalisation, so normalise them. Some order_date values are "
+            # Pinned, not left to judgment. "normalise them" was the whole
+            # instruction here, and it is genuinely ambiguous: 'Ben RUIZ' can be
+            # read as a name to title-case or as an all-caps surname to leave
+            # alone, and both are defensible. Two real runs took the two
+            # readings, so the `change` step's output differed from the previous
+            # run's in VALUES as well as in the renamed column, obsel correctly
+            # reported the change as `both` rather than `schema`, and the demo's
+            # "same rows, same values, just the name" beat became untrue. Found
+            # by running the demo end to end on 2026-07-21; the harness's own
+            # UNEXPECTED assertion is what caught it.
+            "inconsistent capitalisation: trim the ends, collapse any run of spaces to a "
+            "single space, and capitalise the first letter of each word with the rest "
+            "lower case, so 'Ben RUIZ' becomes 'Ben Ruiz'. Some order_date values are "
             "full timestamps where a calendar date is wanted. Money should be a number "
             "rounded to two decimal places. Drop any row whose order_total is missing or "
             "is not greater than zero, because those are cancellations and refunds rather "
@@ -75,6 +92,12 @@ TASKS: tuple[AgentTask, ...] = (
         kind="aggregate",
         reads=("clean_orders",),
         writes="daily_revenue",
+        output_columns=(
+            "order_date",
+            "total_revenue",
+            "order_count",
+            "average_order_value",
+        ),
         instruction=(
             "Turn the cleaned orders into one row per calendar day. Each row should carry "
             "the day, the total money taken that day, how many orders made it up, and the "
@@ -87,6 +110,7 @@ TASKS: tuple[AgentTask, ...] = (
         kind="write",
         reads=("daily_revenue",),
         writes="revenue_report",
+        output_columns=("section", "heading", "text"),
         instruction=(
             "Write a short revenue report for an operations lead who has ninety seconds. "
             "Use the daily revenue table you are given and nothing else. Cover: what the "
@@ -101,6 +125,7 @@ TASKS: tuple[AgentTask, ...] = (
         kind="write",
         reads=("daily_revenue",),
         writes="pipeline_docs",
+        output_columns=("section", "heading", "text"),
         instruction=(
             "Document the daily_revenue table for the next engineer who has to use it. "
             "Give one section per column explaining what it holds, its units, and how it "
@@ -120,6 +145,14 @@ CHANGE_INSTRUCTION = (
     "rather than order_total, so the currency is unambiguous. Everything else about the "
     "cleaning stays the same."
 )
+
+
+# The output contract for the changed run of clean_orders. Differs from that
+# task's own output_columns in exactly one name -- which is the whole point, and
+# is what moves the schema fingerprint and starts the cascade. Stated here so the
+# `change` step can verify the agent actually did the rename instead of trusting
+# that it complied.
+CHANGE_COLUMNS: tuple[str, ...] = ("order_id", "customer", "order_total_usd", "order_date")
 
 
 def dataset_urn(short_name: str) -> str:

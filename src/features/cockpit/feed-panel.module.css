@@ -1,0 +1,82 @@
+/*
+ * The one scrolling surface in the cockpit, and it is contained.
+ *
+ * `overscroll-behavior: contain` stops a scroll gesture that reaches the end of
+ * this list from chaining to the page — which on the recording would drag the
+ * whole cockpit and cost a take.
+ */
+
+.rows {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px var(--mm-space-sm);
+  padding: 5px var(--mm-space-md);
+  border-left: 3px solid var(--obsel-text-quiet);
+  background: var(--mm-surface);
+}
+
+.clock {
+  color: var(--obsel-text-quiet);
+  font-family: var(--mm-font-mono);
+  font-size: var(--mm-text-cap);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.text {
+  font-family: var(--mm-font-mono);
+  font-size: var(--mm-text-cap);
+  text-wrap: pretty;
+}
+
+/* The cause, on the one event kind that has one. */
+.because {
+  grid-column: 2;
+  color: var(--obsel-text-quiet);
+  font-family: var(--mm-font-mono);
+  font-size: var(--mm-text-cap);
+  font-variant-numeric: tabular-nums;
+}
+
+.quiet {
+  padding: var(--mm-space-sm) var(--mm-space-md);
+  color: var(--obsel-text-quiet);
+  font-family: var(--mm-font-sans);
+  font-size: var(--mm-text-md);
+  line-height: var(--mm-leading);
+  text-wrap: pretty;
+}
+
+/*
+ * Pinned below the scroller, never inside it. If this scrolled away, the panel
+ * would spend most of its life showing rows with no statement of what they do
+ * and do not mean — which is the whole reason the panel is allowed to exist.
+ */
+.disclosure {
+  flex: 0 0 auto;
+  margin: 0;
+  border-top: 1px solid var(--mm-rose-line);
+  padding: var(--mm-space-sm) var(--mm-space-md);
+  color: var(--obsel-text-quiet);
+  font-family: var(--mm-font-sans);
+  font-size: var(--mm-text-md);
+  line-height: var(--mm-leading);
+  text-wrap: pretty;
+}
+
+.disclosure code {
+  font-family: var(--mm-font-mono);
+}

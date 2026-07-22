@@ -12,7 +12,6 @@ acryl-datahub==1.6.0.15
 
 # The model client for the agent workers themselves. obsel's own coordinator
 # makes no model calls; only the agents in this directory do.
-openai==2.46.0
 
 # Everything else the agents need -- HTTP to obsel, hashing, JSON -- is in the
 # standard library on purpose, so an agent joining a swarm needs almost nothing

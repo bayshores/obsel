@@ -100,8 +100,27 @@ The flow, in [`src/server/coordinator/engine.ts`](../src/server/coordinator/engi
    soon as the upstream task runs again.
 8. Return a `CoordinationResult` with a measured `elapsedMs` covering all of the above.
 
-The dashboard is a separate, dumber path: it polls `GET /api/swarm` once a second and renders
+The cockpit is a separate, dumber path: it polls `GET /api/swarm` once a second and renders
 whatever DataHub currently says. It never computes staleness.
+
+What it _does_ compute is geometry and colour, and both are deliberately walled off from the
+answer. `src/features/cockpit/graph/layout.ts` decides where every node and edge sits, and it never
+receives a task's status — so the layout cannot move when three tasks flip to stale.
+`tone.ts` decides colour from exactly `(status, hasMark)` and reads no timer. Between them, the
+animation layer is left able to write only `stroke-dashoffset` and a caption's opacity: it is
+structurally incapable of changing what the cockpit claims is true, so a dropped frame or an
+interrupted transition cannot produce a wrong answer on camera.
+
+Two invariants there are worth naming because breaking either produces a specific lie:
+
+- **Amber fill if and only if `status === "stale"`.** A `StaleMark` deliberately outlives that
+  status — a stale task being re-run to fix it sits at `running` with its mark attached — so a mark
+  on non-stale work renders as an _outline_. That satisfies "only finished work goes stale" and
+  "every mark carries its reason" at once, where "amber iff a mark exists" would violate the first.
+- **Box widths are reserved from the widest label the graph could ever show**, derived from its
+  shape rather than its state. Sizing from the current label is the intuitive thing and is wrong:
+  "out of date · 2 hops" is wider than "done", so the graph would rescale on exactly the frame that
+  matters most.
 
 ## 4. Traversal reads the graph store, never the search index
 
@@ -202,9 +221,10 @@ Three constraints in that module are non-negotiable, each because the alternativ
   seed_data.py the synthetic input                                     staleness.ts (pure,
                                                                         no network, no clock)
                                                                            |
-  src/features/swarm/                                                      | writes via
-    swarm-board.tsx  polls GET /api/swarm  <--- app/api/swarm/ ---+        v
-    task-row.tsx     one task, its status                         |   src/server/datahub/
+  src/features/cockpit/                                                    | writes via
+    cockpit.tsx      polls GET /api/swarm  <--- app/api/swarm/ ---+        v
+    graph/layout.ts  geometry, pure                               |   src/server/datahub/
+    feed.ts          diff of two reads, pure                      |
                                                                   |     client.ts  GMS HTTP
                                                                   +---- mcp.ts     MCP tag writes
                                                                         urns.ts    URN shapes
@@ -237,7 +257,7 @@ end-to-end evidence" — see [Evidence](#9-evidence) below.
 | MCP tag writes                            | `src/server/datahub/mcp.ts`                                | shipped, no automated test yet             |
 | URN shapes                                | `src/server/datahub/urns.ts`                               | shipped                                    |
 | HTTP API                                  | `app/api/swarm`, `app/api/tasks/{register,start,complete}` | shipped                                    |
-| Dashboard                                 | `app/page.tsx`, `src/features/swarm/`                      | shipped                                    |
+| Cockpit                                   | `app/page.tsx`, `src/features/cockpit/`                    | shipped, 90 unit + 30 browser tests        |
 | Task registration and traversal in Python | `agents/graph.py`                                          | shipped, verified live                     |
 | Fingerprinting                            | `agents/fingerprint.py`                                    | shipped, has a self-check                  |
 | Demo shape and seed data                  | `agents/pipeline.py`, `agents/seed_data.py`                | shipped                                    |
@@ -433,3 +453,33 @@ It deliberately does not delete the tasks. Their lineage edges are what the demo
 `reset` lists every task that was put back; `tagsCleared` lists only those that were actually
 carrying a mark, so an empty `tagsCleared` means there was nothing to clear rather than that
 clearing failed.
+
+## 12. What the cockpit's two side panels may and may not say
+
+Both sit in the gutter beside the lineage graph, and neither carries a demo beat.
+
+**The inspector** shows one task's uncompressed values: full URNs, complete 64-character
+fingerprints, and every field of its stale mark. It computes nothing. In particular it never derives
+an age or a freshness — the cockpit knows when it _read_ a value, not when that value became true,
+and an inspector is exactly the place that distinction gets quietly lost. Opening it moves nothing
+in the graph or the ledger; a browser test asserts that, because a layout that shifts when someone
+is curious would cost a take.
+
+**The feed** is titled "changes between reads", and the title is load-bearing. It is a diff of two
+`GET /api/swarm` bodies polled a second apart, and it can establish that a field differs from the
+previous read and nothing else. It did not watch obsel read the lineage graph, compare a
+fingerprint, walk the cascade, or poll DataHub until a write was confirmed — none of that reaches
+the browser. Calling it a "log", a "recorder" or an "activity stream" would imply a witness that
+does not exist, and one word in a title undoes a paragraph of disclosure beneath it.
+
+The sharper hazard is an **asserted absence**. `coordinateCompletion` writes the finishing task's
+new fingerprints and its `complete` status _before_ it writes any stale mark, so there is a window
+at least one poll wide in which a diff can truthfully observe "a new output was recorded, and
+nothing was marked" — while the cascade that is about to mark three tasks is still in flight. That
+observation is true and the obvious sentence for it is a lie.
+
+So: **no event in the feed asserts an absence.** Every event states something that appeared or
+changed; none says nothing happened, nothing was marked, or anything is clear. A viewer inferring
+"no news is good news" from a quiet panel is a risk the data cannot remove, which is why the
+disclosure is pinned below the rows rather than left to be inferred from them, and why it is outside
+the scroller — a disclosure that scrolls out of view is not a disclosure.

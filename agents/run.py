@@ -108,10 +108,10 @@ def _demo_tasks(obsel_url: str) -> list[dict[str, Any]]:
 
 
 def _print_run(result: worker.RunResult, was_first_run: bool) -> None:
-    if result.plan_source == "model":
-        origin = f"{pipeline.MODEL} decided the plan in {result.model_seconds * 1000:.0f} ms"
-    else:
-        origin = f"reused the plan {pipeline.MODEL} decided for these exact inputs earlier"
+    # A real agent read the files and wrote the table itself. There is no plan
+    # and no cache, so neither may be mentioned -- saying otherwise would
+    # misdescribe on camera what actually did the work.
+    origin = f"{result.plan_source} did the work in {result.model_seconds * 1000:.0f} ms"
 
     print(f"  {result.task}")
     if result.start == "resumed":
@@ -224,7 +224,10 @@ def cmd_register(args: argparse.Namespace) -> int:
 
 
 def _run_one(
-    task: pipeline.AgentTask, args: argparse.Namespace, instruction: str | None = None
+    task: pipeline.AgentTask,
+    args: argparse.Namespace,
+    instruction: str | None = None,
+    expect_columns: tuple[str, ...] | None = None,
 ) -> tuple[worker.RunResult, bool]:
     """Run one agent. Returns the result and whether obsel had a baseline to compare.
 
@@ -240,7 +243,7 @@ def _run_one(
         task,
         instruction=instruction,
         obsel_url=args.obsel_url,
-        use_cache=not args.no_cache,
+        expect_columns=expect_columns,
     )
     _print_run(result, was_first_run)
     return result, was_first_run
@@ -354,7 +357,15 @@ def cmd_change(args: argparse.Namespace) -> int:
     print()
 
     before = worker.load_table(task.writes, REPO_ROOT)
-    result, was_first_run = _run_one(task, args, instruction=pipeline.CHANGE_INSTRUCTION)
+    # The renamed column is the whole demo, so the contract for this run is passed
+    # in and enforced. If the agent quietly kept the old name the run fails here,
+    # rather than producing an unchanged fingerprint and a cascade that never fires.
+    result, was_first_run = _run_one(
+        task,
+        args,
+        instruction=pipeline.CHANGE_INSTRUCTION,
+        expect_columns=pipeline.CHANGE_COLUMNS,
+    )
     after = worker.load_table(task.writes, REPO_ROOT)
 
     where = f"{task.name}'s completion"
@@ -482,19 +493,10 @@ def main(argv: list[str] | None = None) -> int:
         default=worker.OBSEL_URL,
         help="where obsel is running (default %(default)s)",
     )
-    parser.add_argument(
-        "--no-cache",
-        action="store_true",
-        help="call the model even when a plan for these exact inputs was already decided",
-    )
     args = parser.parse_args(argv)
 
     try:
         return COMMANDS[args.command](args)
-    except worker.MissingApiKey as error:
-        print()
-        print(error)
-        return 1
     except Unexpected as error:
         # The demo ran and obsel's answer does not hold up. Different problem from
         # the demo failing to run, and labelled differently on purpose.

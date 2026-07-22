@@ -14,7 +14,7 @@ write_docs     reads daily_revenue  writes pipeline_docs
 
 These are real agents. Each one calls `gpt-5.6` to decide how to do its job, and
 deterministic code applies that decision to every row. There is no offline mode
-and no synthetic fallback: without `OPENAI_API_KEY` the workers stop and say so,
+and no synthetic fallback: without a signed-in Codex CLI the workers stop and say so,
 because a demo that quietly fakes the model would make every number on screen
 meaningless.
 
@@ -59,7 +59,8 @@ You need four things running or set:
    agents/.venv/bin/python -m pip install -r agents/requirements.txt
    ```
 
-4. **`OPENAI_API_KEY`**, exported or in `.env.local` at the repository root.
+4. **The Codex CLI, signed in.** `codex login status` should confirm it. There is no
+   API-key path.
 
 Every command below is run from the repository root, so that `agents` imports as
 a package:

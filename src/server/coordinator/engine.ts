@@ -180,6 +180,15 @@ async function markStale(entry: AffectedTask): Promise<void> {
     [PROP.staleChangeKind]: mark.changeKind,
     [PROP.staleReason]: mark.reason,
     [PROP.staleSince]: mark.since,
+    // Cleared, not left alone. `updateTaskProperties` MERGES, and the real
+    // figure is stamped by a second write further down that is deliberately
+    // deferred so a bookkeeping failure cannot stop the flags landing. Without
+    // this line a task marked by a second, later cascade keeps the FIRST
+    // cascade's measurement in the meantime — and the cockpit would report a
+    // millisecond figure measured for a different change, which is precisely
+    // the "number nobody measured" obsel refuses to display. Null removes the
+    // property, so the gap reads "not measured" until the real one lands.
+    [PROP.staleDetectedMs]: null,
   });
 
   await applyStaleTag([task.urn]);
