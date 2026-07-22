@@ -92,6 +92,29 @@
 }
 
 /*
+ * The activity line: what did the work, how long it took, what came out.
+ *
+ * Monospace and quiet, because it is instrument readout rather than prose — it
+ * sits under the reason sentence and must not compete with it. Rendered only
+ * when there is something measured to put in it, so an empty one never reserves
+ * a line of height.
+ *
+ * `overflow-wrap` rather than a clamp: a long column list wraps to a second
+ * line instead of being cut, for the same reason the reason sentence is never
+ * truncated. A viewer watching a recording cannot hover to see the rest.
+ */
+.activity {
+  margin: 0;
+  color: var(--obsel-text-quiet);
+  font-family: var(--mm-font-mono);
+  font-size: var(--mm-text-cap);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: var(--mm-track);
+  line-height: var(--mm-leading);
+  overflow-wrap: anywhere;
+}
+
+/*
  * The inspect control.
  *
  * Placed after the row content in source order and pulled to the right, so it

@@ -34,6 +34,8 @@ function task(
     status,
     fingerprints: {},
     finishedAt: status === "complete" || status === "stale" ? NOW : null,
+    startedAt: null,
+    run: null,
     stale: null,
   };
 }

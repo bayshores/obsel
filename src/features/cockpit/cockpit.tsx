@@ -168,6 +168,12 @@ export function Cockpit() {
             <LedgerRow
               key={task.urn}
               task={task}
+              // The snapshot's own timestamp, so an in-flight elapsed is
+              // measured entirely on obsel's clock. It advances once per poll,
+              // which is what makes the figure tick without a second timer —
+              // and it freezes when reads fail, so a broken connection stops
+              // the count rather than letting it run on unattended.
+              snapshotAt={data?.snapshot.at ?? null}
               selected={task.urn === selectedUrn}
               onSelect={() => setSelectedUrn(task.urn === selectedUrn ? null : task.urn)}
             />

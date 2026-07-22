@@ -13,6 +13,7 @@
 
 import { shortName } from "./graph/layout";
 import { Badge, PulseDot } from "./mmux";
+import { activityNote, stampLabel } from "./progress";
 import { clockTime } from "./timing";
 import { STALE, STATUS_WORD, nodeTone } from "./tone";
 import type { TaskRecord } from "@/src/server/coordinator/types";
@@ -44,16 +45,26 @@ function note(task: TaskRecord): string {
 
 export function LedgerRow({
   task,
+  snapshotAt = null,
   selected = false,
   onSelect,
 }: {
   task: TaskRecord;
+  /**
+   * When the snapshot this row came from was taken, on obsel's clock.
+   *
+   * Passed in rather than read from `Date.now()` here. An in-flight elapsed is
+   * this minus the task's `startedAt`, and both have to come off the same clock
+   * for the difference to mean anything — the browser's would be a second one.
+   */
+  snapshotAt?: string | null;
   selected?: boolean;
   onSelect?: () => void;
 }) {
   const isStale = task.status === "stale";
   const tone = nodeTone(task.status, task.stale !== null);
   const mark = task.stale;
+  const activity = activityNote(task, snapshotAt);
 
   return (
     <li
@@ -86,14 +97,9 @@ export function LedgerRow({
 
         {/* Labelled, because the graph's task box carries a timestamp too and
             for a stale task they are different instants: this one is when the
-            mark was applied, that one is when the task last finished. */}
-        <span className={styles.clock}>
-          {mark !== null
-            ? `marked ${clockTime(mark.since)}`
-            : task.finishedAt === null
-              ? ""
-              : `finished ${clockTime(task.finishedAt)}`}
-        </span>
+            mark was applied, that one is when the task last finished. A running
+            task shows its start instead — see stampLabel. */}
+        <span className={styles.clock}>{stampLabel(task, clockTime)}</span>
 
         {/*
           A real <button>, not a click handler on the <li>: reachable by
@@ -118,6 +124,11 @@ export function LedgerRow({
       <p className={isStale ? `${styles.reason} ${styles.reasonStale}` : styles.reason}>
         {note(task)}
       </p>
+
+      {/* Only when something was actually measured. An agent that reported no
+          detail leaves this out entirely rather than rendering an empty line —
+          absence of a measurement is not a measurement. */}
+      {activity !== null && <p className={styles.activity}>{activity}</p>}
     </li>
   );
 }

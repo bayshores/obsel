@@ -44,13 +44,102 @@ export async function registerTask(
  * Recorded fingerprints are deliberately left in place. They are the baseline
  * this run will be compared against, and clearing them would make every re-run
  * look like a first run — which reports no change and marks nothing stale.
+ *
+ * `startedAt` is stamped here, on obsel's clock, so the cockpit can say how long
+ * work in flight has been in flight. Taken before the write rather than after:
+ * `updateTaskProperties` polls until DataHub confirms, and billing that wait to
+ * the agent would overstate every elapsed figure on screen by the confirmation
+ * time.
+ *
+ * The previous run's detail is cleared in the same write. It described a run
+ * that is over, and leaving it would caption work happening now with the row
+ * count and duration of the last one.
  */
 export async function startTask(urn: string): Promise<TaskRecord> {
   const task = await readTask(urn);
   if (!task) throw new Error(`cannot start ${urn}: no such task in DataHub`);
   if (task.status === "running") throw new Error(`task ${task.name} is already running`);
 
-  return await updateTaskProperties(urn, { [PROP.status]: "running" });
+  return await updateTaskProperties(urn, {
+    [PROP.status]: "running",
+    [PROP.startedAt]: new Date().toISOString(),
+    [PROP.runRunner]: null,
+    [PROP.runMs]: null,
+    [PROP.runOutputs]: null,
+  });
+}
+
+/**
+ * Put a task that announced a start back to `registered`, because its run died.
+ *
+ * This is the other half of announcing before the work rather than after it.
+ * obsel excludes `running` work from the cascade — correctly, since work in
+ * flight will pick up the new input itself — so a task left at `running` by a
+ * crashed agent is invisible to every future traversal while the board still
+ * shows a healthy swarm. That is a false negative, which is the one failure
+ * obsel cannot afford.
+ *
+ * Restores the status the task held before it announced, which is NOT always
+ * `registered`. A failed *re-run* was `complete` or `stale` beforehand, and
+ * demoting it to `registered` would erase a completion that genuinely happened
+ * — and since obsel skips `registered` work in the cascade for the same reason
+ * it skips `running` work, that demotion would reintroduce the exact false
+ * negative this function exists to prevent, one step further along.
+ *
+ * The previous status is derived rather than stored, from state a failed run
+ * never touches: an unresolved mark means it was `stale`, a recorded completion
+ * means it was `complete`, and neither means it had never run. Deriving beats
+ * remembering here because a stashed value can outlive a reset that clears
+ * everything around it.
+ *
+ * Recorded fingerprints are kept either way: they are the baseline the eventual
+ * successful run is compared against, and dropping them would make that run look
+ * like a first run and mark nothing.
+ *
+ * The display detail of the *earlier* successful run does not come back — it was
+ * cleared when this run announced, so that live work could not be captioned with
+ * the previous run's row count and duration. A restored task therefore shows its
+ * status and its fingerprints but no activity line until it runs again. That is
+ * the honest trade: obsel holds no current detail for it, and shows none, rather
+ * than showing a number that describes a different run.
+ *
+ * A task that is not running is left alone and reported as untouched. The agent
+ * calls this from a failure path, where the run may have died before it ever
+ * announced anything, and turning that into a second error would bury the real
+ * one.
+ */
+export async function abandonTask(urn: string): Promise<{ task: TaskRecord; reverted: boolean }> {
+  const task = await readTask(urn);
+  if (!task) throw new Error(`cannot abandon ${urn}: no such task in DataHub`);
+  if (task.status !== "running") return { task, reverted: false };
+
+  const restored = priorStatus(task);
+
+  const reverted = await updateTaskProperties(urn, {
+    [PROP.status]: restored,
+    // Only cleared when the task goes back to never-having-run. On a restored
+    // completion the stamp still describes the run that produced the recorded
+    // fingerprints, and blanking it would leave a finished task claiming it
+    // never started.
+    [PROP.startedAt]: restored === "registered" ? null : task.startedAt,
+    [PROP.runRunner]: null,
+    [PROP.runMs]: null,
+    [PROP.runOutputs]: null,
+  });
+  return { task: reverted, reverted: true };
+}
+
+/**
+ * What a task's status was before it announced a start it never finished.
+ *
+ * Derived from what a dead run leaves untouched. Order matters: an unresolved
+ * mark outranks a recorded completion, because a stale task being re-run keeps
+ * its mark through the run and must get it back if the run dies.
+ */
+function priorStatus(task: TaskRecord): "registered" | "complete" | "stale" {
+  if (task.stale !== null) return "stale";
+  if (task.finishedAt !== null && Object.keys(task.fingerprints).length > 0) return "complete";
+  return "registered";
 }
 
 /** Everything the dashboard shows in one read. */
@@ -138,10 +227,19 @@ export async function coordinateCompletion(report: CompletionReport): Promise<Co
 async function recordCompletion(finishing: TaskRecord, report: CompletionReport): Promise<void> {
   const fingerprints = { ...finishing.fingerprints, ...report.fingerprints };
 
+  // Replaced wholesale, never merged, and cleared when a run reports nothing.
+  // Merging would let an old runner name or row count survive beside a new one
+  // and describe a run that never happened. Absent reads as "not reported" in
+  // the cockpit, which is the truthful rendering of having not been told.
+  const run = report.run;
+
   await updateTaskProperties(finishing.urn, {
     [PROP.status]: "complete",
     [PROP.finishedAt]: report.finishedAt,
     [PROP.fingerprints]: JSON.stringify(fingerprints),
+    [PROP.runRunner]: run ? run.runner : null,
+    [PROP.runMs]: run ? String(Math.round(run.ms)) : null,
+    [PROP.runOutputs]: run ? JSON.stringify(run.outputs) : null,
     [PROP.staleCausedBy]: null,
     [PROP.staleCausedByTask]: null,
     [PROP.staleHops]: null,
@@ -220,7 +318,11 @@ export async function resetSwarm(): Promise<{ reset: string[]; tagsCleared: stri
       updateTaskProperties(task.urn, {
         [PROP.status]: "registered",
         [PROP.finishedAt]: null,
+        [PROP.startedAt]: null,
         [PROP.fingerprints]: null,
+        [PROP.runRunner]: null,
+        [PROP.runMs]: null,
+        [PROP.runOutputs]: null,
         [PROP.staleCausedBy]: null,
         [PROP.staleCausedByTask]: null,
         [PROP.staleHops]: null,

@@ -30,13 +30,21 @@ A `DataJob` gives us identity and edges. Everything else is carried in that Data
 | -------------------------- | ---------------------------------------------------- | -------------------------------------------------------------------------------------------- |
 | `obsel.status`             | `registered`, `running`, `complete`, or `stale`      | `stale`                                                                                      |
 | `obsel.finishedAt`         | ISO timestamp of the last completion                 | `2026-07-21T14:02:39.905Z`                                                                   |
+| `obsel.startedAt`          | ISO timestamp obsel moved the task to `running`      | `2026-07-21T14:01:56.031Z`                                                                   |
 | `obsel.fingerprints`       | JSON: dataset URN to `{schema, content}` sha256 pair | `{"urn:li:dataset:(...)":{"schema":"8c25...","content":"f521..."}}`                          |
+| `obsel.run.runner`         | what did the work, with its version                  | `codex-cli 0.144.4`                                                                          |
+| `obsel.run.ms`             | ms the runner took, as the agent measured it         | `43937`                                                                                      |
+| `obsel.run.outputs`        | JSON: dataset URN to `{rows, columns}`               | `{"urn:li:dataset:(...)":{"rows":39,"columns":["order_id","customer"]}}`                     |
 | `obsel.stale.causedBy`     | dataset URN that actually moved                      | `urn:li:dataset:(...,obsel_demo.clean_orders,PROD)`                                          |
 | `obsel.stale.causedByTask` | task URN that wrote it, or empty                     | `urn:li:dataJob:(...,clean_orders)`                                                          |
 | `obsel.stale.hops`         | distance from the change, as a string                | `2`                                                                                          |
 | `obsel.stale.changeKind`   | `schema`, `content`, or `both`                       | `schema`                                                                                     |
 | `obsel.stale.reason`       | one plain-English sentence                           | `built on work from build_revenue, which is itself out of date because clean_orders changed` |
 | `obsel.stale.since`        | ISO timestamp the mark was applied                   | `2026-07-21T14:05:52.244Z`                                                                   |
+
+The last four are display only: `startedAt` lets the cockpit say how long work in flight has been in
+flight, and the `obsel.run.*` group is what an agent reports about its own run. obsel's staleness
+answer reads none of them, and a task carrying none of them still cascades correctly.
 
 `customProperties` was chosen over structured properties for a measured reason, not a stylistic
 one: a structured property has to be _defined_ before a value can be written, there is no MCP tool
@@ -210,8 +218,10 @@ Three constraints in that module are non-negotiable, each because the alternativ
   run.py       sequences the demo  --- POST /api/demo/reset ------------->  demo/reset/
   worker.py    executes one task  --- POST /api/tasks/register ----------->  tasks/register/
     |          calls a real model  --- POST /api/tasks/start -------------->  tasks/start/
-    |                              --- POST /api/tasks/complete ---------->  tasks/complete/
-    |                                                                             |
+    |            announces BEFORE   --- POST /api/tasks/abandon ---------->  tasks/abandon/
+    |            it works, and       --- POST /api/tasks/complete ---------->  tasks/complete/
+    |            gives that back                                                  |
+    |            if the work dies                                                 |
   fingerprint.py                                                                  v
     hashes what the task wrote                                     src/server/coordinator/
                                                                        engine.ts   (IO)
@@ -248,23 +258,25 @@ Checked against the working tree on 2026-07-21. Several of these files landed wh
 was being written, so treat the shipped column as "present and readable", not as "covered by
 end-to-end evidence" — see [Evidence](#9-evidence) below.
 
-| Piece                                     | Path                                                       | State                                      |
-| ----------------------------------------- | ---------------------------------------------------------- | ------------------------------------------ |
-| The contracts                             | `src/server/coordinator/types.ts`                          | shipped                                    |
-| Staleness rules                           | `src/server/coordinator/staleness.ts`                      | shipped, 24 passing tests                  |
-| Coordinator IO                            | `src/server/coordinator/engine.ts`                         | shipped, no automated test yet             |
-| GMS client                                | `src/server/datahub/client.ts`                             | shipped, no automated test yet             |
-| MCP tag writes                            | `src/server/datahub/mcp.ts`                                | shipped, no automated test yet             |
-| URN shapes                                | `src/server/datahub/urns.ts`                               | shipped                                    |
-| HTTP API                                  | `app/api/swarm`, `app/api/tasks/{register,start,complete}` | shipped                                    |
-| Cockpit                                   | `app/page.tsx`, `src/features/cockpit/`                    | shipped, 90 unit + 30 browser tests        |
-| Task registration and traversal in Python | `agents/graph.py`                                          | shipped, verified live                     |
-| Fingerprinting                            | `agents/fingerprint.py`                                    | shipped, has a self-check                  |
-| Demo shape and seed data                  | `agents/pipeline.py`, `agents/seed_data.py`                | shipped                                    |
-| Vocabulary setup                          | `agents/setup.py`                                          | shipped                                    |
-| Agent worker and demo runner              | `agents/worker.py`, `agents/run.py`                        | shipped, no automated test yet             |
-| Demo reset                                | `app/api/demo/reset/route.ts`, `engine.resetSwarm`         | shipped, no automated test yet             |
-| Sample outputs                            | `examples/`                                                | shipped, illustrative rather than captured |
+| Piece                                     | Path                                                               | State                                      |
+| ----------------------------------------- | ------------------------------------------------------------------ | ------------------------------------------ |
+| The contracts                             | `src/server/coordinator/types.ts`                                  | shipped                                    |
+| Staleness rules                           | `src/server/coordinator/staleness.ts`                              | shipped, 24 passing tests                  |
+| Coordinator IO                            | `src/server/coordinator/engine.ts`                                 | shipped, no automated test yet             |
+| GMS client                                | `src/server/datahub/client.ts`                                     | shipped, no automated test yet             |
+| MCP tag writes                            | `src/server/datahub/mcp.ts`                                        | shipped, no automated test yet             |
+| URN shapes                                | `src/server/datahub/urns.ts`                                       | shipped                                    |
+| HTTP API                                  | `app/api/swarm`, `app/api/tasks/{register,start,abandon,complete}` | shipped                                    |
+| Cockpit                                   | `app/page.tsx`, `src/features/cockpit/`                            | shipped, 113 unit + 30 browser tests       |
+| Live agent progress                       | `src/features/cockpit/progress.ts`                                 | shipped, 23 passing tests, seen live       |
+| Task registration and traversal in Python | `agents/graph.py`                                                  | shipped, verified live                     |
+| Fingerprinting                            | `agents/fingerprint.py`                                            | shipped, has a self-check                  |
+| Demo shape and seed data                  | `agents/pipeline.py`, `agents/seed_data.py`                        | shipped                                    |
+| Vocabulary setup                          | `agents/setup.py`                                                  | shipped                                    |
+| Agent worker and demo runner              | `agents/worker.py`, `agents/run.py`                                | shipped, no automated test yet             |
+| Demo reset                                | `app/api/demo/reset/route.ts`, `engine.resetSwarm`                 | shipped, no automated test yet             |
+| Agent output contract                     | `agents/worker.py` — `canonicalise_numbers`                        | shipped, 7 self-check properties           |
+| Sample outputs                            | `examples/`                                                        | shipped, illustrative rather than captured |
 
 ## 9. Evidence
 
@@ -287,13 +299,26 @@ What has been verified directly, and what has not.
   enumerating a flow's members. Reproductions in
   [`docs/environment-findings.md`](environment-findings.md) sections 1 and 9.
 
+- **The demo end to end with live agents**, on 2026-07-22 against a live DataHub and a signed-in
+  Codex CLI. `reset` → `run` → `rerun-same` → `change`, exit 0, every step's own assertions passing.
+  `run` took 134.0 s for four Codex sessions; `rerun-same` produced a byte-identical table and obsel
+  reported 0 changed outputs and 0 marks in 60 ms; `change` renamed one column, was correctly called
+  `schema` rather than `both`, and marked exactly `build_revenue` (1 hop), `write_docs` and
+  `write_report` (2 hops) in 2591 ms. That run exercises `engine.ts`, `client.ts` and `mcp.ts`
+  against real DataHub, by hand rather than by an automated test.
+- The agent output contract, by the self-check in `agents/worker.py`: `217` and `217.0` reach one
+  fingerprint, an id column keeps its integers, and a value that genuinely moved still moves the
+  hash. Added after a live run where a single value's spelling broke two demo steps at once.
+
 **Not verified:**
 
-- **The demo has never been run end to end with a real model call.** Every step exists and is
-  written down; nobody has executed `setup` through `change` against a live DataHub with a model key
-  set and watched it work. This is the largest gap in the repository.
-- The TypeScript path end to end against a live DataHub. Every module above exists and type-checks;
-  none of it has an automated test that stands up DataHub and asserts the result.
+- **The demo has passed once per step, which is not a pass rate.** Codex is a live agent and its
+  output has twice proved unstable in ways that made a re-run look like a real change — name casing,
+  then numeric serialisation. Both are pinned now and both were caught by the demo's own assertions
+  rather than on camera. A third category nobody has hit yet is a live possibility.
+- The TypeScript path end to end against a live DataHub **as an automated test**. It has now been
+  exercised by a real run (above), but nothing in `pnpm test` stands DataHub up and asserts the
+  result, by design, so that `pnpm verify` needs no Docker.
 - Whether obsel's marks survive a later re-ingestion.
 - Any end-to-end latency number. The 92 ms figure is the Python traversal alone. `elapsedMs` in
   `examples/coordination-result.json` is a stand-in and is labelled as one.
@@ -311,7 +336,7 @@ What has been verified directly, and what has not.
 
 ## 11. The HTTP API
 
-Five routes. All of them are `force-dynamic`; nothing here is cached.
+Six routes. All of them are `force-dynamic`; nothing here is cached.
 
 **One asymmetry to know before you call anything:** `POST /api/tasks/register` takes **short dataset
 names** — `clean_orders`, not a URN. Every other route, and every field in every response, uses full
@@ -351,6 +376,8 @@ re-run a task.
   "status": "registered",
   "fingerprints": {},
   "finishedAt": null,
+  "startedAt": null,
+  "run": null,
   "stale": null,
 }
 ```
@@ -370,6 +397,36 @@ deliberately left in place as the baseline this run will be compared against.
 
 Returns `200` with the updated `TaskRecord`. Starting a task that is already `running` is a 500.
 
+The server stamps `startedAt` here, on its own clock, and clears any `run` detail left by the
+previous run. The cockpit subtracts `startedAt` from `SwarmSnapshot.at` to say how long work in
+flight has been in flight — both timestamps come from this process, so the difference is an interval
+rather than two machines disagreeing about the time.
+
+**Agents call this before doing their work, not after.** That is what lets the board show an agent
+working while it is working; it also means a run that dies owes the announcement back, which is what
+`POST /api/tasks/abandon` is for.
+
+### `POST /api/tasks/abandon`
+
+Put a task that announced a start back to `registered`, because the run behind it failed.
+
+```jsonc
+// request — a full DataJob URN
+{ "taskUrn": "urn:li:dataJob:(urn:li:dataFlow:(obsel,orders_pipeline,prod),clean_orders)" }
+```
+
+```jsonc
+// 200 — reverted is false when the task was not running, which is not an error
+{ "task": { "…": "a TaskRecord, back at registered" }, "reverted": true }
+```
+
+Recorded fingerprints survive: they are the baseline the eventual successful run is compared
+against, and dropping them would make that run read as a first run and mark nothing.
+
+This route exists because obsel excludes `running` work from the cascade — correctly, since work in
+flight picks up the new input itself. A task abandoned at `running` would therefore be skipped by
+every later traversal while the board still showed a healthy swarm, which is a false negative.
+
 ### `POST /api/tasks/complete`
 
 The one that matters. An agent reporting that it finished is what triggers the whole cascade.
@@ -385,8 +442,26 @@ The one that matters. An agent reporting that it finished is what triggers the w
     },
   },
   "finishedAt": "2026-07-21T14:02:39.905Z",
+  // Optional. Display only — obsel decides nothing on it, and an agent that
+  // omits it gets an identical staleness answer.
+  "run": {
+    "runner": "codex-cli 0.144.4",
+    "ms": 51128,
+    "outputs": {
+      "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_demo.clean_orders,PROD)": {
+        "rows": 39,
+        "columns": ["order_id", "customer", "order_total", "order_date"],
+      },
+    },
+  },
 }
 ```
+
+`run.ms` is the **agent's** measurement of its own run, taken in one process, and obsel stores it
+verbatim. It is deliberately not derived from `finishedAt` minus `startedAt`: those two are stamped
+on different clocks, a mistake this codebase has already made once and documents in
+[`timing.ts`](../src/features/cockpit/timing.ts). A completion that omits `run` clears any previous
+detail rather than leaving it, so the cockpit never captions a run with the last one's numbers.
 
 ```jsonc
 // 200 — a CoordinationResult

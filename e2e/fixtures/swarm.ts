@@ -48,6 +48,8 @@ function task(
     status: "complete",
     fingerprints: {},
     finishedAt: AT,
+    startedAt: null,
+    run: null,
     stale: null,
     ...extra,
   };

@@ -28,6 +28,8 @@ import "server-only";
 import type {
   ChangeKind,
   OutputFingerprint,
+  OutputShape,
+  RunDetail,
   StaleMark,
   SwarmSnapshot,
   TaskRecord,
@@ -47,7 +49,11 @@ import {
 export const PROP = {
   status: "obsel.status",
   finishedAt: "obsel.finishedAt",
+  startedAt: "obsel.startedAt",
   fingerprints: "obsel.fingerprints",
+  runRunner: "obsel.run.runner",
+  runMs: "obsel.run.ms",
+  runOutputs: "obsel.run.outputs",
   staleCausedBy: "obsel.stale.causedBy",
   staleCausedByTask: "obsel.stale.causedByTask",
   staleHops: "obsel.stale.hops",
@@ -293,6 +299,49 @@ function parseFingerprints(
 }
 
 /**
+ * Read back what the last run said about itself, when it said anything.
+ *
+ * Returns null — never a partial object — unless the runner, the duration and
+ * the output shapes are all present and usable. This is display-only material,
+ * so a half-written record is dropped rather than raised: unlike a fingerprint
+ * or a stale mark, nothing obsel decides depends on it, and failing a snapshot
+ * read over a cosmetic property would take the whole cockpit down.
+ *
+ * A missing record renders as nothing at all, which is the honest outcome. It
+ * never renders as a zero, because "took 0 ms" is a measurement and "we were
+ * not told" is not.
+ */
+function parseRun(props: Record<string, string>): RunDetail | null {
+  const runner = props[PROP.runRunner];
+  const ms = Number.parseInt(props[PROP.runMs] ?? "", 10);
+  if (!runner || !Number.isFinite(ms) || ms < 0) return null;
+
+  const outputs: Record<string, OutputShape> = {};
+  const raw = props[PROP.runOutputs];
+  if (raw) {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      return { runner, ms, outputs };
+    }
+    if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) {
+      for (const [dataset, value] of Object.entries(parsed as Record<string, unknown>)) {
+        const shape = value as Partial<OutputShape> | null;
+        if (!shape || typeof shape.rows !== "number" || !Array.isArray(shape.columns)) continue;
+        if (!Number.isFinite(shape.rows) || shape.rows < 0) continue;
+        outputs[dataset] = {
+          rows: shape.rows,
+          columns: shape.columns.filter((name): name is string => typeof name === "string"),
+        };
+      }
+    }
+  }
+
+  return { runner, ms, outputs };
+}
+
+/**
  * Read back an unresolved stale mark, if the task carries one.
  *
  * Deliberately keyed on the mark's own properties rather than on `status`. A task
@@ -351,6 +400,7 @@ function toTaskRecord(entity: DataJobEntity): TaskRecord {
   const props = info?.customProperties ?? {};
   const status = parseStatus(props[PROP.status], entity.urn);
   const finishedAt = props[PROP.finishedAt];
+  const startedAt = props[PROP.startedAt];
 
   return {
     urn: entity.urn,
@@ -360,6 +410,8 @@ function toTaskRecord(entity: DataJobEntity): TaskRecord {
     status,
     fingerprints: parseFingerprints(props[PROP.fingerprints], entity.urn),
     finishedAt: finishedAt ? finishedAt : null,
+    startedAt: startedAt ? startedAt : null,
+    run: parseRun(props),
     stale: parseStale(props, status, entity.urn),
   };
 }

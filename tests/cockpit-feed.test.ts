@@ -31,6 +31,8 @@ function task(name: string, status: TaskStatus = "complete"): TaskRecord {
     status,
     fingerprints: {},
     finishedAt: status === "complete" || status === "stale" ? AT_1 : null,
+    startedAt: null,
+    run: null,
     stale: null,
   };
 }

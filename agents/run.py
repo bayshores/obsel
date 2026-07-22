@@ -31,6 +31,7 @@ from pathlib import Path
 from typing import Any
 
 from agents import pipeline, seed_data, worker
+from agents.fingerprint import fingerprint
 
 REPO_ROOT = worker.REPO_ROOT
 
@@ -315,9 +316,28 @@ def cmd_rerun_same(args: argparse.Namespace) -> int:
     affected = _required_list(result.coordination, "affected", where)
     changed = _required_list(result.coordination, "changedOutputs", where)
 
-    identical = before == after
+    # Compared by fingerprint, NOT by `before == after`.
+    #
+    # Python's equality is weaker than the hash obsel decides on, and the gap is
+    # not theoretical: measured 2026-07-22, a re-run of clean_orders differed from
+    # the previous one in exactly one value -- order_id 1012's order_total written
+    # as `217` where the run before wrote `217.0`. Python calls those two tables
+    # equal, because 217 == 217.0. The fingerprint does not, because it hashes the
+    # serialised value, and `217` and `217.0` are different bytes.
+    #
+    # So this check reported "byte-identical: True" for a table that was not, and
+    # then blamed obsel for a false alarm that was in fact a correct detection.
+    # A check that is looser than the property it verifies does not verify it; it
+    # manufactures a failure and points at the wrong component.
+    before_print = fingerprint(before["rows"], before["columns"])
+    after_print = fingerprint(after["rows"], after["columns"])
+    identical = before_print == after_print
+
     print()
     print(f"  output byte-identical to the previous run: {identical}")
+    if not identical:
+        for label, prints in (("before", before_print), ("after", after_print)):
+            print(f"    {label:<7}schema {prints['schema'][:12]} content {prints['content'][:12]}")
     print(f"  outputs obsel saw change: {len(changed)}")
     print(f"  tasks obsel marked stale: {len(affected)}")
 
@@ -328,10 +348,17 @@ def cmd_rerun_same(args: argparse.Namespace) -> int:
             "Marking nothing here proves nothing. Run `run` before `rerun-same`."
         )
     if not identical:
-        problems.append("the re-run produced a different table, so this was not a no-change re-run")
-    if changed:
+        # Stated as an agent problem, because that is what it is. obsel comparing
+        # fingerprints and finding a difference that really exists is obsel
+        # working. The demonstration is what failed: this step can only show
+        # "no change, no alarm" if the re-run genuinely produced no change.
+        problems.append(
+            "the re-run produced a different table, so this was not a no-change re-run -- "
+            "any mark below is a correct detection, not a false alarm"
+        )
+    elif changed:
         problems.append(f"obsel reported {len(changed)} changed output(s) for an identical table")
-    if affected:
+    elif affected:
         problems.append(f"obsel marked {len(affected)} task(s) stale for an identical table")
 
     if problems:

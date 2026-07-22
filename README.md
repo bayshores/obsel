@@ -16,9 +16,11 @@ That Do Real Work_. Apache-2.0.
 
 ## Status
 
-**The whole loop is built. It has not yet been run end to end with a real model call.**
+**The whole loop is built, and the whole demo now runs end to end with real agents.** `reset` →
+`run` → `rerun-same` → `change` completed and exited 0 on 2026-07-22, against a live DataHub with a
+live Codex CLI, with every step's own assertions passing.
 
-Updated 2026-07-21. Everything described below this section is code that exists in this repository
+Updated 2026-07-22. Everything described below this section is code that exists in this repository
 and type-checks, not a plan.
 
 ### Built
@@ -29,9 +31,11 @@ and type-checks, not a plan.
 | Output fingerprinting, schema and content separately | `agents/fingerprint.py`                                                    |
 | The staleness rules, pure and testable               | `src/server/coordinator/staleness.ts`                                      |
 | Marks written back into DataHub                      | `src/server/coordinator/engine.ts`, `src/server/datahub/mcp.ts`            |
-| Four demo agent workers, each calling a real model   | `agents/worker.py`, `agents/run.py`                                        |
+| Four demo agent workers, each a real Codex session   | `agents/worker.py`, `agents/run.py`                                        |
+| The agent output contract, names and number form     | `agents/worker.py` — `canonicalise_numbers`, with a self-check             |
 | The cockpit — graph, ledger, stats, feed, inspector  | `app/page.tsx`, `src/features/cockpit/`                                    |
-| HTTP API, five routes including a demo reset         | `app/api/` — see [`docs/architecture.md`](docs/architecture.md) section 11 |
+| Live agent progress on the board                     | `src/features/cockpit/progress.ts`                                         |
+| HTTP API, six routes including a demo reset          | `app/api/` — see [`docs/architecture.md`](docs/architecture.md) section 11 |
 
 ### Verified directly
 
@@ -39,7 +43,7 @@ and type-checks, not a plan.
   that nothing happens, which is deliberate — the failure that kills this kind of tool is a false
   alarm, not a miss. An identical re-run marks nothing, an unrelated branch is untouched, a running
   task is neither marked nor walked through, a cycle terminates.
-- **The cockpit's own logic**, by 90 further tests across `tests/cockpit-*.test.ts`. The load-bearing
+- **The cockpit's own logic**, by 113 further tests across `tests/cockpit-*.test.ts`. The load-bearing
   ones: graph geometry is byte-identical across every task status, so nothing moves on the frame
   three tasks flip amber; no label can overflow its box, checked against measured per-character
   advances; a six-task pipeline the layout has never seen draws correctly; amber fills a node if and
@@ -57,6 +61,27 @@ and type-checks, not a plan.
   dataset it reads, and the cascade is transitive. The full walk was measured at 92 ms. That
   measurement is of [`agents/graph.py`](agents/graph.py), the Python traversal, not the end-to-end
   path.
+- **The whole demo, end to end, with live agents**, on 2026-07-22 against a live DataHub and a
+  signed-in Codex CLI. `reset` → `run` → `rerun-same` → `change`, exit 0, every assertion passing:
+
+  - `run` — four Codex sessions in **134.0 s**, then `GET /api/swarm` read back to confirm 4 of 4
+    complete with no marks. obsel held no previous fingerprint for any output, so it correctly
+    marked nothing.
+  - `rerun-same` — `clean_orders` re-ran, produced a byte-identical table, and obsel reported
+    **0 changed outputs and 0 marks**, confirmed in **60 ms**. This is the negative case the whole
+    product rests on: a tool that flags the pipeline on every scheduled re-run is a tool people mute.
+  - `change` — one column renamed, `order_total` → `order_total_usd`. obsel called it **`schema`,
+    not `both`** — the values did not move, only the name — and marked exactly `build_revenue`
+    (1 hop), `write_docs` and `write_report` (2 hops each), in a measured **2591 ms**, each with its
+    reason. The last two never read `clean_orders`; they were reached through `daily_revenue`.
+
+  Four earlier runs of `run` measured 135.9 s, 119.4 s, 152.0 s and 134.0 s on the same machine.
+
+- **The board showing an agent while it works.** During the second run the cockpit reported
+  `clean_orders` as `in flight for 12.7 s`, then 20.7 s on a later poll, and after it finished
+  `codex-cli 0.144.4 · 43.9 s · 39 rows · order_id, customer, order_total, order_date` — the same
+  figures the terminal printed. Before this, obsel was told an agent had started only after its work
+  was already over, so the board said "waiting" throughout.
 - **The MCP write path**, by round trip: apply the tag, confirm it through GraphQL, remove it,
   confirm removal.
 - **The existence predicate and swarm enumeration**, by curl against the live instance —
@@ -64,14 +89,21 @@ and type-checks, not a plan.
 
 ### Not done
 
-- **The demo has never been run end to end with a real model call.** The coordination path has now
-  been driven against a live DataHub — see the cascade measurement above — but by posting a
-  completion report directly to the API, not by an agent that called a model to do actual work.
-  Nobody has executed `setup` through `change` and watched the whole thing. That is the largest
-  remaining gap and nothing here should be read as if it had happened.
+- **The demo has passed once, not repeatedly.** The sequence above is one clean run of each step on
+  one machine. It is not a pass rate. Codex is a live agent and its output is not guaranteed
+  identical between runs — see the next point for the one instance of that already found and fixed,
+  and expect the possibility of others in categories nobody has hit yet.
+- **Codex's output needed pinning down twice, and may need it again.** Two separate instabilities
+  have shown up in live runs, both of which made a re-run look like a real change: customer-name
+  casing (fixed by pinning the instruction, see `agents/pipeline.py`) and numeric serialisation —
+  `order_id` 1012's money value written `217` on three runs and `217.0` on a fourth, which broke
+  `rerun-same` and made `change` report `both` instead of `schema`. The second is now handled by
+  `canonicalise_numbers` in `agents/worker.py`, which fixes the serialised form per column before
+  anything is hashed. Both were caught by the demo's own assertions rather than seen on camera,
+  which is the property worth keeping. obsel itself called every one of those runs correctly.
 - **There is no _automated_ test of the TypeScript path against a live DataHub.** `engine.ts`,
   `client.ts`, and `mcp.ts` have been exercised by hand against a running instance, but nothing in
-  `pnpm test` stands DataHub up — those 114 tests cover pure decision logic only, by design, so
+  `pnpm test` stands DataHub up — those 137 tests cover pure decision logic only, by design, so
   that `pnpm verify` needs no Docker. `pnpm e2e` runs a real browser but stubs the endpoint, so it
   does not close this gap either.
 - **The end-to-end latency number is a single observation, not a benchmark.** 6867 ms was measured
@@ -182,7 +214,8 @@ produce wrong results silently. Worth reading before writing code that touches D
 
 ```
 app/                     routing and composition (Next.js), and the five HTTP routes
-src/features/cockpit/    the cockpit: layout.ts, tone.ts, timing.ts, feed.ts (pure), then the pixels
+src/features/cockpit/    the cockpit: layout.ts, tone.ts, timing.ts, feed.ts, progress.ts (pure),
+                         then the pixels
 src/server/coordinator/  types.ts, staleness.ts (pure rules), engine.ts (the IO half)
 src/server/datahub/      client.ts (GMS HTTP), mcp.ts (tag writes), urns.ts (URN shapes)
 src/server/domain/       reserved for deterministic logic; currently empty
@@ -212,7 +245,7 @@ the cockpit's rendering of a snapshot, not that obsel produces the right snapsho
 cover that half.
 
 Checked 2026-07-21: `pnpm verify` succeeds end to end — `pnpm format:check`, `pnpm lint`,
-`pnpm typecheck`, `pnpm test` (114 passed), and `pnpm build`.
+`pnpm typecheck`, `pnpm test` (137 passed), and `pnpm build`.
 
 ## Documentation
 

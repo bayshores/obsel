@@ -24,6 +24,35 @@ export interface OutputFingerprint {
 
 export type ChangeKind = "schema" | "content" | "both";
 
+/** What one output table turned out to be, as the agent that wrote it counted it. */
+export interface OutputShape {
+  rows: number;
+  /** Column names in the order the agent wrote them. */
+  columns: string[];
+}
+
+/**
+ * What actually happened during a run, reported by the agent that did it.
+ *
+ * Separate from `fingerprints` on purpose. A fingerprint is what obsel *decides*
+ * on; this is what a person needs in order to believe the decision — which
+ * runner did the work, how long it took, and what came out. obsel never reasons
+ * about any of it.
+ *
+ * `ms` is the agent's own measurement of its own run, taken in one process.
+ * The cockpit reports it verbatim rather than subtracting `finishedAt` from
+ * `startedAt`: those two are stamped on different clocks, which is the mistake
+ * `timing.ts` already documents having made once.
+ */
+export interface RunDetail {
+  /** What did the work, with its version, e.g. `codex-cli 0.144.4`. */
+  runner: string;
+  /** Milliseconds the runner took, measured by the agent in a single process. */
+  ms: number;
+  /** Shape of each output dataset URN this run produced. */
+  outputs: Record<string, OutputShape>;
+}
+
 export type TaskStatus =
   /** Declared what it will touch, not started. */
   | "registered"
@@ -78,6 +107,26 @@ export interface TaskRecord {
   /** ISO timestamp of the most recent completion, if it has ever finished. */
   finishedAt: string | null;
   /**
+   * ISO timestamp of when obsel moved this task to `running`, stamped by obsel.
+   *
+   * Deliberately obsel's own clock rather than the agent's. It exists so the
+   * cockpit can say how long work in flight has been in flight, and it is
+   * subtracted from `SwarmSnapshot.at` — which the same process stamps on the
+   * same clock, so the difference is a real interval and not two machines
+   * disagreeing about what time it is.
+   *
+   * Null on a task that has never started, and left in place after completion so
+   * a finished run still shows when it began.
+   */
+  startedAt: string | null;
+  /**
+   * What the last completed run reported about itself, when it reported anything.
+   *
+   * Null for a task that has never finished, and for one finished by an agent
+   * that sent no detail — obsel shows nothing rather than a zero in that case.
+   */
+  run: RunDetail | null;
+  /**
    * An unresolved stale mark, when the task carries one.
    *
    * Usually paired with `status: "stale"`, but deliberately outlives that: a
@@ -109,6 +158,11 @@ export interface CompletionReport {
   /** Fingerprint per output dataset URN. */
   fingerprints: Record<string, OutputFingerprint>;
   finishedAt: string;
+  /**
+   * What the run was like, for the cockpit. Optional, and nothing obsel decides
+   * on: an agent that omits it still gets a correct staleness answer.
+   */
+  run?: RunDetail;
 }
 
 /** The outcome of one completion, for the dashboard and for `examples/`. */

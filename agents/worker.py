@@ -1,30 +1,35 @@
-"""An agent worker: read your inputs, ask the model what to do, do it, report in.
+"""An agent worker: read your inputs, do the job, report in.
 
 Each of the four demo agents is this file with a different job description. A run
-is four steps:
+is five steps:
 
 1. Load the input tables from `.obsel/data/`.
-2. Ask gpt-5.6 for a **plan** -- which columns to produce, how to derive them,
-   which rows to drop, what the report should say -- as a structured output.
-3. Apply that plan deterministically to every row.
-4. Tell obsel the task has started, write the result, fingerprint it, and POST
-   that to obsel, which decides what the change breaks.
+2. Tell obsel the task has started, so the board can show work in flight while it
+   is in flight.
+3. Let Codex do the work: a real agent session in the data directory, with its
+   own tools, which reads, decides, and writes the output table itself.
+4. Hold that output to its contract -- the exact column names, and one serialised
+   form per numeric column. See `canonicalise_numbers`.
+5. Save it, fingerprint it, and POST that to obsel, which decides what the change
+   breaks.
 
-The start is announced at step 4 rather than step 1 on purpose. See `run_task`.
+Step 2 comes before step 3, and that ordering is load-bearing in both directions.
+Announcing afterwards left obsel holding the task at `registered` for the whole
+20-50 seconds an agent actually works, so the board said "waiting" about an agent
+mid-job. Announcing beforehand means a run that dies owes the announcement back,
+because obsel skips `running` work in the cascade and a wedged task would be
+invisible to every later traversal. `run_task` does both halves.
 
-Why a plan rather than asking the model for the finished table: the model makes
-the judgement calls (what "clean" means for this data, how to aggregate it, what
-is worth saying about it) and code applies them to all fifty rows. That is how
-this is done for real -- nobody streams a whole table through a model -- and it
-also means the output is a function of the plan, so an unchanged plan gives a
-byte-identical table. obsel's headline claim is that an identical re-run marks
-nothing stale, and this is what makes "identical" reachable at all.
+There is one runner, and it is Codex, invoked through `codex exec` and
+authenticated through the Codex CLI. There is no API-key path and no offline
+mode -- if Codex is not installed or not signed in, the run fails and says so. A
+demo that quietly fakes the model is worse than one that does not run.
 
-There is one runner, and it is Codex: a real agent session working in the data
-directory with its own tools, invoked through `codex exec`. It authenticates
-through the Codex CLI. There is no API-key path and no offline mode -- if Codex
-is not installed or not signed in, the run fails and says so. A demo that
-quietly fakes the model is worse than one that does not run.
+An earlier design asked the model for a JSON plan and applied it with
+deterministic code, which made a byte-identical re-run a property of the
+construction. Codex writing the table directly gives that up, which is why step 4
+exists: the agent decides what the numbers are, and the worker decides how they
+are written down, so the same table twice hashes the same twice.
 """
 
 from __future__ import annotations
@@ -51,24 +56,12 @@ OBSEL_URL = os.environ.get("OBSEL_URL", "http://localhost:3000")
 # agent rather than a single model call, which is what the hackathon category
 # asks for. It is the only runner.
 #
-# Measured 2026-07-21: two independent Codex runs over the same input produced
-# byte-identical tables, schema and content. That is what makes the demo's
-# "re-run marks nothing" step provable with a live agent rather than a cache.
-
-# Bumped when a plan schema or an applier changes, so old cached plans are not
-# reused against code that would interpret them differently.
-PLAN_CACHE_VERSION = "1"
+# It is not byte-reproducible on its own. Measured 2026-07-22 across four live
+# runs over the identical seed, one wrote a money value `217` where the others
+# wrote `217.0` -- so the worker canonicalises the output before hashing it, and
+# the demo's "a re-run marks nothing" step rests on that rather than on luck.
 
 Table = dict[str, Any]  # {"columns": [...], "rows": [...]}
-
-
-class PlanRejected(RuntimeError):
-    """The model returned a well-formed plan that does not fit the actual data."""
-
-
-# --------------------------------------------------------------------------
-# Environment
-# --------------------------------------------------------------------------
 
 
 # --------------------------------------------------------------------------
@@ -96,6 +89,73 @@ def load_table(short_name: str, root: Path = REPO_ROOT) -> Table:
     if "columns" not in table or "rows" not in table:
         raise ValueError(f"{path} is not a table: expected 'columns' and 'rows' keys")
     return table
+
+
+def _is_whole(value: Any) -> bool:
+    """True for a number with nothing after the decimal point. Ints without a
+    float round-trip, so a large id cannot lose precision on the way through."""
+    if isinstance(value, bool):
+        return False
+    if isinstance(value, int):
+        return True
+    return isinstance(value, float) and value.is_integer()
+
+
+def _is_number(value: Any) -> bool:
+    # bool is a subclass of int in Python, and a True/False column is not numeric.
+    return isinstance(value, (int, float)) and not isinstance(value, bool)
+
+
+def canonicalise_numbers(table: Table) -> Table:
+    """Put each numeric column into one serialised form, decided by its own values.
+
+    Part of the contract the worker holds the agent to, alongside the column
+    names. The agent decides *what* the numbers are; this decides how they are
+    written down, because otherwise the same number written two ways hashes two
+    ways.
+
+    Measured on 2026-07-22, and the reason this exists: across four live runs of
+    `clean_orders` over the identical seed, `order_id` 1012's money value came out
+    as `217` three times and `217.0` once. Same value, different bytes, so the
+    content fingerprint moved and obsel correctly reported a change nobody made.
+    It broke two demo steps at once -- `rerun-same` saw a re-run that was not
+    identical, and `change`'s pure column rename reported `both` instead of
+    `schema` because the values appeared to have moved too.
+
+    The rule is per column and derived from the data, never declared: if every
+    value in a column is a whole number it is written as an integer, and
+    otherwise every value in that column is written as a float. Both spellings of
+    the run above therefore land on floats, because `233.08` sits in the same
+    column and forces it.
+
+    Derived rather than declared on purpose. A declaration would have to be
+    restated for `change`, which renames `order_total` to `order_total_usd` --
+    and a contract that has to be edited in step with the thing it constrains is
+    a contract that will be forgotten in exactly the step that matters.
+
+    **This does not weaken what obsel treats as evidence.** obsel still hashes
+    bytes and still calls two different byte sequences different. What changed is
+    upstream of it: the agent's output is now written down one way, so a genuine
+    change in the data is the only thing that can move the hash. A column that
+    really does gain a fractional value still flips to float and is still
+    reported, because that is a real change to the data.
+    """
+    columns = list(table["columns"])
+    rows = [dict(row) for row in table["rows"]]
+
+    for column in columns:
+        present = [row[column] for row in rows if row.get(column) is not None]
+        if not present or not all(_is_number(value) for value in present):
+            continue
+
+        whole = all(_is_whole(value) for value in present)
+        for row in rows:
+            value = row.get(column)
+            if value is None:
+                continue
+            row[column] = int(value) if whole else float(value)
+
+    return {**table, "columns": columns, "rows": rows}
 
 
 def save_table(short_name: str, table: Table, root: Path = REPO_ROOT) -> Path:
@@ -346,17 +406,43 @@ def announce_start(task_urn: str, obsel_url: str = OBSEL_URL) -> Any:
     return post_json(f"{obsel_url}/api/tasks/start", {"taskUrn": task_urn})
 
 
+def abandon_run(task_urn: str, obsel_url: str = OBSEL_URL) -> Any:
+    """Give a start announcement back, because the work behind it died.
+
+    The counterpart to `announce_start`. obsel excludes `running` work from the
+    cascade, so a task left at `running` by a failed agent is skipped by every
+    later traversal while the board still shows a healthy swarm -- a false
+    negative, which is the one answer obsel must never give.
+    """
+    return post_json(f"{obsel_url}/api/tasks/abandon", {"taskUrn": task_urn})
+
+
 def report_completion(
     task_urn: str,
     fingerprints: dict[str, dict[str, str]],
     finished_at: str,
     obsel_url: str = OBSEL_URL,
+    run: dict[str, Any] | None = None,
 ) -> Any:
-    """The CompletionReport. obsel answers with what this completion invalidated."""
-    return post_json(
-        f"{obsel_url}/api/tasks/complete",
-        {"taskUrn": task_urn, "fingerprints": fingerprints, "finishedAt": finished_at},
-    )
+    """The CompletionReport. obsel answers with what this completion invalidated.
+
+    `run` is what the cockpit shows a viewer -- which runner did the work, how
+    long it took, and the shape of what came out. obsel decides nothing on it,
+    and omitting it changes no staleness answer; it exists so a person watching
+    the board can see what the terminal sees.
+
+    The duration is this process's own measurement of its own run. It is sent
+    rather than left for obsel to derive from `finishedAt`, because obsel would
+    have to subtract its own clock from this machine's to get it.
+    """
+    body: dict[str, Any] = {
+        "taskUrn": task_urn,
+        "fingerprints": fingerprints,
+        "finishedAt": finished_at,
+    }
+    if run is not None:
+        body["run"] = run
+    return post_json(f"{obsel_url}/api/tasks/complete", body)
 
 
 # --------------------------------------------------------------------------
@@ -467,6 +553,27 @@ def _leave_running(task_name: str, root: Path) -> None:
     _inflight_path(task_name, root).unlink(missing_ok=True)
 
 
+def _abandon_running(task_name: str, task_urn: str, obsel_url: str, root: Path) -> None:
+    """Undo an announcement after the work behind it failed.
+
+    Used only on the path where the agent never produced a table. Nothing was
+    written, so the honest state is the one the task had before it started, and a
+    retry is then an ordinary run rather than a resume.
+
+    Deliberately swallows its own failure. This runs inside an `except` block,
+    and obsel being unreachable here would replace "Codex is not signed in" --
+    the thing that actually went wrong and the thing the operator has to fix --
+    with a connection error about the cleanup. The marker file stays put when
+    this fails, which is what makes the next attempt a resume instead of a
+    silently wedged task.
+    """
+    try:
+        abandon_run(task_urn, obsel_url)
+    except Exception:
+        return
+    _leave_running(task_name, root)
+
+
 def _run_codex(
     task: pipeline.AgentTask,
     job: str,
@@ -507,27 +614,54 @@ def run_task(
     job = instruction if instruction is not None else task.instruction
     task_urn = pipeline.task_urn(task.name)
 
-    # ORDER MATTERS. Everything that can fail on its own happens before obsel is
-    # told this agent started: loading the inputs and running the agent (the most
-    # likely failure in front of an audience is Codex not being signed in).
-    # Announcing the start first would move
-    # the task to `running` and then leave it there when the model call failed --
-    # and obsel only ever marks *finished* work stale, so a task stuck at `running`
-    # drops out of the cascade entirely while the board still shows four healthy
-    # tasks. Failing before the announcement leaves the task exactly as it was, and
-    # a retry is an ordinary run.
+    # Inputs first, and still before the announcement. A missing input is this
+    # machine's problem and has nothing to do with obsel's view of the swarm, so
+    # failing here should leave the task exactly as it was.
     inputs = {name: load_table(name, root) for name in task.reads}
+
+    # ORDER MATTERS, and it is the reverse of what it once was.
+    #
+    # The announcement used to come *after* Codex, so that a failed run could not
+    # wedge the task at `running` -- where obsel, which only ever marks *finished*
+    # work stale, would skip it in every later traversal while the board still
+    # showed a healthy swarm.
+    #
+    # The cost was that obsel had no idea an agent was working. For the whole 20
+    # to 50 seconds a real Codex session takes, obsel held the task at
+    # `registered` and the cockpit said "waiting" about an agent that was at that
+    # moment doing its job. The one thing a person watching wants to know -- is it
+    # working or is it stuck -- was the one thing the board could not say.
+    #
+    # So the announcement moves in front of the work and the wedge is closed
+    # directly instead: if Codex fails, `_abandon_running` hands the announcement
+    # back and the task returns to `registered`. The property the old order bought
+    # -- a failed run leaves the task as it was -- still holds, and now the board
+    # tells the truth while the work is happening.
+    start = "not reported"
+    if report:
+        start = _enter_running(task.name, task_urn, obsel_url, root)
 
     # The agent reads and writes the table itself, with its own tools. Its output
     # is read back off disk and checked against the column contract before obsel
     # hears anything -- a plausible-looking bad table would fingerprint as a real
     # change and mark the chain stale for nothing.
-    output, model_seconds, plan_source = _run_codex(task, job, expect_columns, root)
-    plan = {"runner": "codex", "agent": plan_source}
+    try:
+        output, model_seconds, plan_source = _run_codex(task, job, expect_columns, root)
+    except BaseException:
+        # Nothing was produced, so there is no partial result to resume from and
+        # the honest state is the one before the announcement. BaseException, not
+        # Exception: a Ctrl-C during a 50-second agent is the most likely way this
+        # is ever hit, and it must not leave the task wedged either.
+        if report:
+            _abandon_running(task.name, task_urn, obsel_url, root)
+        raise
 
-    start = "not reported"
-    if report:
-        start = _enter_running(task.name, task_urn, obsel_url, root)
+    # Before anything is saved or hashed, so the file on disk and the fingerprint
+    # obsel records describe the same bytes. Hashing a canonical table and saving
+    # a non-canonical one would put the two permanently out of step.
+    output = canonicalise_numbers(output)
+
+    plan = {"runner": "codex", "agent": plan_source}
 
     try:
         output_path = save_table(task.writes, output, root)
@@ -538,9 +672,25 @@ def run_task(
         }
         finished_at = datetime.now(timezone.utc).isoformat()
 
+        # What the cockpit shows about this run. Every figure here is already
+        # printed to the terminal; sending it is what stops the board from being
+        # the one place that cannot say what an agent actually did.
+        run_detail = {
+            "runner": plan_source,
+            "ms": round(model_seconds * 1000),
+            "outputs": {
+                pipeline.dataset_urn(task.writes): {
+                    "rows": len(output["rows"]),
+                    "columns": list(output["columns"]),
+                }
+            },
+        }
+
         coordination: dict[str, Any] = {}
         if report:
-            coordination = report_completion(task_urn, fingerprints, finished_at, obsel_url)
+            coordination = report_completion(
+                task_urn, fingerprints, finished_at, obsel_url, run=run_detail
+            )
             _leave_running(task.name, root)
     except Exception as error:
         if not report:
@@ -574,3 +724,85 @@ def run_task(
         coordination=coordination,
         start=start,
     )
+
+
+def _self_check() -> int:
+    """Prove the canonicalisation properties the demo's quiet step depends on.
+
+    Run directly: `python -m agents.worker`
+
+    The case that motivated all of this is first: two runs that wrote the same
+    money value as `217` and `217.0` must reach the same fingerprint, because
+    they are the same table and obsel should say nothing about them.
+    """
+    from agents.fingerprint import fingerprint
+
+    failures: list[str] = []
+
+    def check(name: str, condition: bool, detail: str) -> None:
+        print(f"  {'pass' if condition else 'FAIL'}  {name}: {detail}")
+        if not condition:
+            failures.append(name)
+
+    columns = ["order_id", "order_total", "customer"]
+
+    def table(total_1012: Any) -> Table:
+        return {
+            "columns": columns,
+            "rows": [
+                {"order_id": 1011, "order_total": 233.08, "customer": "Ada Okafor"},
+                {"order_id": 1012, "order_total": total_1012, "customer": "Ben Ruiz"},
+            ],
+        }
+
+    def printed(value: Any) -> str:
+        canonical = canonicalise_numbers(table(value))
+        return fingerprint(canonical["rows"], canonical["columns"])["content"]
+
+    check(
+        "217 and 217.0 reach the same fingerprint",
+        printed(217) == printed(217.0),
+        "the exact difference between two live Codex runs on 2026-07-22",
+    )
+    check(
+        "an integer id column stays an integer",
+        canonicalise_numbers(table(217))["rows"][0]["order_id"] == 1011,
+        "1011, not 1011.0 -- an id is not money and must not gain a decimal",
+    )
+    check(
+        "a column with a fractional value writes every value as a float",
+        isinstance(canonicalise_numbers(table(217))["rows"][1]["order_total"], float),
+        "233.08 sits in the column, so 217 is written 217.0",
+    )
+    check(
+        "a real change to the data still moves the fingerprint",
+        printed(217) != printed(218),
+        "canonicalising must not make obsel blind to a value that genuinely moved",
+    )
+    check(
+        "a gained fractional value still moves the fingerprint",
+        printed(217) != printed(217.5),
+        "217.5 is not 217, and no rounding may hide that",
+    )
+    check(
+        "text columns are untouched",
+        canonicalise_numbers(table(217))["rows"][0]["customer"] == "Ada Okafor",
+        "only numeric columns are rewritten",
+    )
+    check(
+        "applying it twice changes nothing",
+        canonicalise_numbers(canonicalise_numbers(table(217)))
+        == canonicalise_numbers(table(217)),
+        "idempotent, so a re-saved table cannot drift",
+    )
+
+    print()
+    if failures:
+        print(f"FAILED: {', '.join(failures)}")
+        return 1
+    print("all properties hold")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(_self_check())
