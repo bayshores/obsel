@@ -17,7 +17,7 @@ worst moment.
 
 ## 2. Evidence the problem is real and current
 
-**A dated first-person account.** Dave Paola, *"Stop parallelizing your AI agents"*, 2026-02-24
+**A dated first-person account.** Dave Paola, _"Stop parallelizing your AI agents"_, 2026-02-24
 ([source](https://thedailydeveloper.substack.com/p/stop-parallelizing-your-ai-agents)) — a sprint
 with four agents on one database. In his words: agent 4 adds a `deactivated_at` column and a filter
 for active users, "which breaks agent 2's search query that didn't know about it." Agent 2 had
@@ -25,11 +25,11 @@ already finished. Verified by reading the article directly.
 
 **Independent academic recognition, three papers in two months:**
 
-| Paper | Date | What it does | Why it is not this |
-| --- | --- | --- | --- |
-| CoAgent: Concurrency Control for Multi-Agent Systems ([2606.15376](https://arxiv.org/abs/2606.15376)) | 2026-06-13 | Runtime that informs agents when a parallel write invalidates their plan, so they can repair it | A research protocol, not a shipped tool; built on nothing existing |
-| GRADE ([2606.22741](https://arxiv.org/abs/2606.22741)) | 2026-06-22 | Two-layer graph of what each agent step relied on | Recovered from traces **after the run**, for failure diagnosis — not live |
-| Execution lineage for AI-native work ([2605.06365](https://arxiv.org/pdf/2605.06365)) | 2026-05 | Invalidates only the true descendants of a changed artifact | A proposed runtime, not shipped |
+| Paper                                                                                                 | Date       | What it does                                                                                    | Why it is not this                                                        |
+| ----------------------------------------------------------------------------------------------------- | ---------- | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| CoAgent: Concurrency Control for Multi-Agent Systems ([2606.15376](https://arxiv.org/abs/2606.15376)) | 2026-06-13 | Runtime that informs agents when a parallel write invalidates their plan, so they can repair it | A research protocol, not a shipped tool; built on nothing existing        |
+| GRADE ([2606.22741](https://arxiv.org/abs/2606.22741))                                                | 2026-06-22 | Two-layer graph of what each agent step relied on                                               | Recovered from traces **after the run**, for failure diagnosis — not live |
+| Execution lineage for AI-native work ([2605.06365](https://arxiv.org/pdf/2605.06365))                 | 2026-05    | Invalidates only the true descendants of a changed artifact                                     | A proposed runtime, not shipped                                           |
 
 The first two were verified by fetching their abstracts directly. The third comes from a search
 summary and has not been read in full.
@@ -40,8 +40,8 @@ work from the preceding 30 days. It is not solved: the June 22 paper still state
 
 ## 3. What already exists, and the gap it leaves
 
-Every shipped multi-agent coordination tool surveyed prevents collisions *before* they happen. None
-detects invalidation *after* work is finished.
+Every shipped multi-agent coordination tool surveyed prevents collisions _before_ they happen. None
+detects invalidation _after_ work is finished.
 
 - **Prevention is the whole state of the art.** A representative April 2026 survey of the field
   ([source](https://getautonoma.com/blog/parallel-ai-agent-prs)) lists five strategies: scope agents
@@ -106,7 +106,7 @@ none of them measures this specific problem, and the submission must not imply o
 demo therefore measures its own scenario live rather than citing a statistic that does not exist.
 
 Two consequences for positioning. First, do not premise the pitch on large swarms being common —
-the problem appears the moment *two* actors touch the same pipeline, including one agent and one
+the problem appears the moment _two_ actors touch the same pipeline, including one agent and one
 human, which is a far larger audience. Second, joining should cost nothing: any agent that can emit
 an OpenLineage event (the neutral standard DataHub already ingests, which Airflow and dbt already
 speak) can participate, with no rewrite into a new framework.
@@ -120,7 +120,7 @@ fabricates entities; `@latest` resolves to a broken read-only version; new tag v
 minted at runtime.
 
 **The load-bearing assumption is now verified.** An agent task registered as a `DataJob` with
-`Consumes`/`Produces` edges *is* returned when walking downstream from a dataset it reads, and the
+`Consumes`/`Produces` edges _is_ returned when walking downstream from a dataset it reads, and the
 cascade is transitive: on the four-table demo shape, a change to `clean_orders` reached
 `build_revenue` at one hop and `write_report` and `write_docs` at two — neither of the latter having
 ever read `clean_orders`. Measured at 92 ms for the full walk.
@@ -144,8 +144,8 @@ governance-flavored shape); a tool-tampering detector (already shipping from Tra
 Docker, and Vercel); a contradiction referee between agents (real, but judged not impactful); and a
 lineage-based incident filer (Atlan, Databricks, and Alation all had near-identical offerings).
 
-The pattern behind all four: *point an agent at the catalog, have it check something, write a
-finding back.* That shape is inherently backward-looking and is exactly where every funded competitor
+The pattern behind all four: _point an agent at the catalog, have it check something, write a
+finding back._ That shape is inherently backward-looking and is exactly where every funded competitor
 already is. obsel is forward-looking — it uses the graph while the work is happening.
 
 ## 9. Honest weaknesses

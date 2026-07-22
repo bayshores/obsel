@@ -1,0 +1,94 @@
+{
+  "snapshot": {
+    "flow": "urn:li:dataFlow:(obsel,orders_pipeline,prod)",
+    "tasks": [
+      {
+        "urn": "urn:li:dataJob:(urn:li:dataFlow:(obsel,orders_pipeline,prod),clean_orders)",
+        "name": "clean_orders",
+        "reads": ["urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_demo.raw_orders,PROD)"],
+        "writes": ["urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_demo.clean_orders,PROD)"],
+        "status": "complete",
+        "fingerprints": {
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_demo.clean_orders,PROD)": {
+            "schema": "f7b62a6671ac038d27b492bb8842def34ef451c455fa7314222a0e0ad0203c1b",
+            "content": "f521e9ddbd60addc828e8ec983051309a44248529c7705354c51ebc568d03cbd"
+          }
+        },
+        "finishedAt": "2026-07-21T14:05:52.118Z",
+        "stale": null
+      },
+      {
+        "urn": "urn:li:dataJob:(urn:li:dataFlow:(obsel,orders_pipeline,prod),build_revenue)",
+        "name": "build_revenue",
+        "reads": ["urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_demo.clean_orders,PROD)"],
+        "writes": ["urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_demo.daily_revenue,PROD)"],
+        "status": "stale",
+        "fingerprints": {
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_demo.daily_revenue,PROD)": {
+            "schema": "d784894c90827c1a0f5247364017494ad978c9a9a3bfd7b2425c8b929c20f2f3",
+            "content": "b95a5364dae9845bf78daaef081bd417749079fe302e395ce8222076b73339a4"
+          }
+        },
+        "finishedAt": "2026-07-21T14:02:39.905Z",
+        "stale": {
+          "causedBy": "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_demo.clean_orders,PROD)",
+          "causedByTask": "urn:li:dataJob:(urn:li:dataFlow:(obsel,orders_pipeline,prod),clean_orders)",
+          "hops": 1,
+          "changeKind": "schema",
+          "reason": "read clean_orders, and its columns changed after this finished",
+          "since": "2026-07-21T14:05:52.244Z",
+          "detectedMs": 118
+        }
+      },
+      {
+        "urn": "urn:li:dataJob:(urn:li:dataFlow:(obsel,orders_pipeline,prod),write_report)",
+        "name": "write_report",
+        "reads": ["urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_demo.daily_revenue,PROD)"],
+        "writes": ["urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_demo.revenue_report,PROD)"],
+        "status": "stale",
+        "fingerprints": {
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_demo.revenue_report,PROD)": {
+            "schema": "0a1d9d0244688f6ba6ef46ec05ba53b6e7bdb187a9ae0e4903b97c35ac24ee54",
+            "content": "430fe8f6048a63b46adfb0f9dcc10669ec210a69c21d06df7d425d96b8d8ecd7"
+          }
+        },
+        "finishedAt": "2026-07-21T14:03:06.221Z",
+        "stale": {
+          "causedBy": "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_demo.clean_orders,PROD)",
+          "causedByTask": "urn:li:dataJob:(urn:li:dataFlow:(obsel,orders_pipeline,prod),clean_orders)",
+          "hops": 2,
+          "changeKind": "schema",
+          "reason": "built on work from build_revenue, which is itself out of date because clean_orders changed",
+          "since": "2026-07-21T14:05:52.244Z",
+          "detectedMs": 118
+        }
+      },
+      {
+        "urn": "urn:li:dataJob:(urn:li:dataFlow:(obsel,orders_pipeline,prod),write_docs)",
+        "name": "write_docs",
+        "reads": ["urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_demo.daily_revenue,PROD)"],
+        "writes": ["urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_demo.pipeline_docs,PROD)"],
+        "status": "stale",
+        "fingerprints": {
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_demo.pipeline_docs,PROD)": {
+            "schema": "0a1d9d0244688f6ba6ef46ec05ba53b6e7bdb187a9ae0e4903b97c35ac24ee54",
+            "content": "195705259b0b98988a181b0f01105bac799e2bfe45fd426c2c6fae0baa83f702"
+          }
+        },
+        "finishedAt": "2026-07-21T14:03:07.884Z",
+        "stale": {
+          "causedBy": "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_demo.clean_orders,PROD)",
+          "causedByTask": "urn:li:dataJob:(urn:li:dataFlow:(obsel,orders_pipeline,prod),clean_orders)",
+          "hops": 2,
+          "changeKind": "schema",
+          "reason": "built on work from build_revenue, which is itself out of date because clean_orders changed",
+          "since": "2026-07-21T14:05:52.244Z",
+          "detectedMs": 118
+        }
+      }
+    ],
+    "at": "2026-07-21T14:05:52.301Z"
+  },
+  "ready": [],
+  "blocked": []
+}

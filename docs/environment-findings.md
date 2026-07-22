@@ -18,7 +18,7 @@ so each is reproducible rather than asserted.
 
 **Severity: critical for this project specifically.**
 
-The GMS REST endpoint `GET /entities/<urn>` returns a well-formed snapshot with a synthesised *key*
+The GMS REST endpoint `GET /entities/<urn>` returns a well-formed snapshot with a synthesised _key_
 aspect for **any syntactically valid URN**, including one invented on the spot. It does not 404.
 
 ```bash
@@ -28,10 +28,22 @@ curl -s "http://localhost:8080/entities/urn%3Ali%3AmlModel%3A%28urn%3Ali%3AdataP
 Returns:
 
 ```json
-{"value":{"com.linkedin.metadata.snapshot.MLModelSnapshot":{
-  "urn":"urn:li:mlModel:(urn:li:dataPlatform:mlflow,TOTALLY_INVENTED_qqq999,PROD)",
-  "aspects":[{"com.linkedin.metadata.key.MLModelKey":{
-    "origin":"PROD","name":"TOTALLY_INVENTED_qqq999","platform":"urn:li:dataPlatform:mlflow"}}]}}}
+{
+  "value": {
+    "com.linkedin.metadata.snapshot.MLModelSnapshot": {
+      "urn": "urn:li:mlModel:(urn:li:dataPlatform:mlflow,TOTALLY_INVENTED_qqq999,PROD)",
+      "aspects": [
+        {
+          "com.linkedin.metadata.key.MLModelKey": {
+            "origin": "PROD",
+            "name": "TOTALLY_INVENTED_qqq999",
+            "platform": "urn:li:dataPlatform:mlflow"
+          }
+        }
+      ]
+    }
+  }
+}
 ```
 
 The key aspect is derived from parsing the URN string, not from stored data.
@@ -41,7 +53,9 @@ tasks that consumed it. An existence check built on `/entities/` would confirm e
 a real entity, so a typo or a stale reference in a task's declared inputs would produce a confident
 staleness verdict about a task that does not exist — or, worse, silently mask one that does.
 
-**Required predicate.** Use `DataHubGraph.exists()`, which is correct:
+**Two correct predicates, one per language.**
+
+From Python, `DataHubGraph.exists()`:
 
 ```bash
 /Users/seane/.local/share/uv/tools/acryl-datahub/bin/python -c "
@@ -51,6 +65,32 @@ print(g.exists('urn:li:mlModel:(urn:li:dataPlatform:mlflow,TOTALLY_INVENTED_qqq9
 print(g.exists('urn:li:dataset:(urn:li:dataPlatform:powerbi,b2fd91.datahub_order_entries.ORDER_DETAILS,PROD)'))  # True
 "
 ```
+
+From TypeScript there is no SDK, and for a while it looked as though the only safe option was
+shelling out to Python. It is not. **`GET /openapi/v3/entity/<type>/<urn>` returns 404 for a URN
+that was never written**, on the same URN that `/entities/` happily fabricates. Measured
+2026-07-21 on this instance:
+
+```bash
+U='urn%3Ali%3AdataJob%3A%28urn%3Ali%3AdataFlow%3A%28obsel%2Corders_pipeline%2Cprod%29%2CTOTALLY_INVENTED_zzz404%29'
+
+curl -s -o /dev/null -w '%{http_code}\n' "http://localhost:8080/openapi/v3/entity/datajob/$U"
+# => 404
+
+curl -s "http://localhost:8080/entities/$U"
+# => 200
+# {"value":{"com.linkedin.metadata.snapshot.DataJobSnapshot":{
+#   "urn":"urn:li:dataJob:(urn:li:dataFlow:(obsel,orders_pipeline,prod),TOTALLY_INVENTED_zzz404)",
+#   "aspects":[{"com.linkedin.metadata.key.DataJobKey":{
+#     "jobId":"TOTALLY_INVENTED_zzz404","flow":"urn:li:dataFlow:(obsel,orders_pipeline,prod)"}}]}}}
+```
+
+Two endpoints on the same server, the same invented URN, opposite answers. The positive case works
+too: a DataJob that really was registered returns 200 from the same `openapi/v3` path.
+
+`src/server/datahub/client.ts` uses this — `readTaskEntity` treats a 404 as "no such task" and
+anything else non-2xx as an error, so `taskExists` is a predicate that can genuinely return false
+without a Python subprocess in the request path.
 
 **Rule for this repository:** `/entities/` must never be used to establish existence. Entity
 existence is a proof obligation like any other, and it needs a predicate that can return false.
@@ -71,10 +111,10 @@ uvx mcp-server-datahub@latest  --version   # => mcp-server-datahub, version 0.4.
 uvx mcp-server-datahub==0.6.0  --version   # => mcp-server-datahub, version 0.6.0
 ```
 
-| Invocation | Tools registered | Mutation tools |
-| --- | --- | --- |
-| `@latest` (resolved 0.4.0) | 6 | 0 |
-| `==0.6.0` | 21 | 11 |
+| Invocation                 | Tools registered | Mutation tools |
+| -------------------------- | ---------------- | -------------- |
+| `@latest` (resolved 0.4.0) | 6                | 0              |
+| `==0.6.0`                  | 21               | 11             |
 
 **Rule for this repository:** the MCP server version is pinned everywhere — scripts, docs, README,
 and CI. `@latest` is forbidden. An agent that reports success while writing nothing is the worst
@@ -111,21 +151,38 @@ absent from the live listing and must not appear in obsel's design:
   `set_lifecycle_stage`, `list_lifecycle_stages`, `get_glossary_term_versions`
 
 **Consequence for obsel:** there is no proposal queue to route a staleness mark through for human
-review, so a mark is applied directly as a tag plus structured properties. `save_document` is
-available if a richer human-readable explanation needs to hang off the entity.
+review, so a mark is applied directly. It is applied as **a tag plus `customProperties`**, not
+structured properties: a structured property has to be _defined_ before any value can be written to
+it, no MCP tool creates a definition, and that path has never been exercised on this instance
+(section 8, item 1). `customProperties` need no setup and show up in DataHub's own UI. The cost is
+no typing and no per-property attribution, which obsel does not need because the cause lives inside
+the value. `save_document` is available if a richer human-readable explanation ever needs to hang
+off the entity.
 
 Tool listings are also environment-dependent: `search_documents` and `grep_documents` register only
 because showcase-ecommerce loaded 18 documents. Never hardcode an expected tool set; query
 `tools/list` and fail loudly if a required tool is absent.
 
-### Confirmed present, and load-bearing
+### Confirmed present — and which of them obsel actually uses
 
-- **`get_lineage_paths_between`** is available. obsel needs it to show *why* a task is stale — the
-  exact path from the changed output to the task that consumed it, which is what makes a mark
-  actionable rather than an alarm.
-- **`get_lineage`** is available, and is the traversal primitive the cascade depends on.
-- **`update_description`** is available on Core despite a changelog note suggesting otherwise.
-- **`get_dataset_queries`** is available. Not currently on obsel's path, but it returns the real SQL
+Availability and usefulness are different questions, and the first draft of this document conflated
+them. What obsel calls over MCP is `add_tags` and `remove_tags`, and nothing else.
+
+- **`add_tags` / `remove_tags`** are available, and are the only MCP tools on obsel's path.
+  `src/server/datahub/mcp.ts` is the whole of it.
+- **`get_lineage`** is available, but obsel does **not** traverse with it. The cascade runs on
+  `GET /relationships` over GMS HTTP, for the freshness reason in section 7: the indexed lineage
+  surface lagged over 90 seconds on tasks registered seconds earlier and returned an empty list
+  rather than an error. obsel reasons about a swarm working right now, so it cannot use a surface
+  that is blind to the newest entities.
+- **`get_lineage_paths_between`** is available and is **never called**. obsel's explanation of why a
+  task is stale is produced by `reasonFor()` in `src/server/coordinator/staleness.ts`, from the hop
+  count and the task in between, both of which the hand-rolled walk already knows. That keeps the
+  reason deterministic, testable without a network, and computed from the same graph read the
+  verdict came from — a second query could disagree with the first.
+- **`update_description`** is available on Core despite a changelog note suggesting otherwise. Not
+  used: obsel's marks are additive and reversible, and rewriting a human's description is neither.
+- **`get_dataset_queries`** is available. Not on obsel's path, but it returns the real SQL
   referencing a dataset, which is a candidate source for fingerprinting an output's meaning rather
   than its bytes.
 
@@ -214,9 +271,9 @@ The tools take plural arrays, not a single `urn`, and the schema is strict
 ```jsonc
 // add_tags / remove_tags
 {
-  "tag_urns":    ["urn:li:tag:b2fd91.PII_Data"],   // required
-  "entity_urns": ["urn:li:dataset:(...)"],          // required
-  "column_paths": ["email_address"]                 // optional, same length as entity_urns
+  "tag_urns": ["urn:li:tag:b2fd91.PII_Data"], // required
+  "entity_urns": ["urn:li:dataset:(...)"], // required
+  "column_paths": ["email_address"], // optional, same length as entity_urns
 }
 ```
 
@@ -233,10 +290,10 @@ empty string for entity-level application.
 DataHub answers "what is downstream of X" from two different places, and they do not agree on
 recently written data.
 
-| Surface | Backed by | Sees data written seconds ago | Hops |
-| --- | --- | --- | --- |
-| `searchAcrossLineage` (GraphQL) | search index | **No** — lagged by minutes | multi-hop, returns `degree` |
-| `GET /relationships` (REST) | graph store | **Yes** — immediate | one hop per call |
+| Surface                         | Backed by    | Sees data written seconds ago | Hops                        |
+| ------------------------------- | ------------ | ----------------------------- | --------------------------- |
+| `searchAcrossLineage` (GraphQL) | search index | **No** — lagged by minutes    | multi-hop, returns `degree` |
+| `GET /relationships` (REST)     | graph store  | **Yes** — immediate           | one hop per call            |
 
 Three agent tasks were registered, then queried immediately. `searchAcrossLineage` returned **0
 results for over 90 seconds** while `/relationships` returned the edges correctly the whole time.
@@ -246,7 +303,7 @@ The index caught up during the session (0 → 6 results), confirming lag rather 
 The data itself was never in doubt: `graph.exists()` was true for every entity, and
 `get_aspect(..., DataJobInputOutputClass)` returned the correct inputs and outputs throughout.
 
-**Why this decides the design.** obsel coordinates a swarm that is working *right now*, so the tasks
+**Why this decides the design.** obsel coordinates a swarm that is working _right now_, so the tasks
 it must reason about are always the most recently registered ones — precisely the ones the search
 index cannot see. Building traversal on `searchAcrossLineage` would make obsel blind exactly when it
 matters, and the failure is silent: it returns an empty list, not an error, which reads identically
@@ -287,16 +344,87 @@ on it is written.
 1. **Structured-property definitions must exist before values can be written**, and there is no MCP
    tool that creates one. The instance currently has only 5 `showcase.*` properties, none scoped to
    `dataJob`. The definition path — YAML plus `datahub properties upsert`, or the Python SDK — has
-   not yet been exercised here. obsel needs at least one property to carry a mark's reason.
+   not yet been exercised here. **obsel routed around this rather than resolving it:** a mark's
+   reason is carried in `dataJobInfo.customProperties`, which need no definition. The question stays
+   open because it is what a typed, attributable mark would need.
 2. **Attribution on structured properties.** `upsertStructuredProperties` reportedly calls
    `removeAttribution()`, so DataHub's native attribution metadata may not survive an MCP write.
-   obsel's reason and source-change data live *inside* the property values, so this is expected to
+   obsel's reason and source-change data live _inside_ the property values, so this is expected to
    be tolerable, but it has not been verified.
 3. **Durability across re-ingestion** — whether written values survive a later ingestion run — is
    untested, and decides whether a mark from one run is still there for the next.
-4. **Whether the MCP filter DSL accepts `entity_type = dataJob`.** If not, agent tasks cannot be
-   discovered via `search` and must be traversed by URN from a known root.
+4. **Whether the MCP filter DSL accepts `entity_type = dataJob`.** Still unknown, and no longer on
+   obsel's path: the swarm is enumerated from the flow's `IsPartOf` edges instead, which is
+   immediate rather than index-backed. See section 9.
 5. **Client/server version skew.** CLI `1.6.0.15` against GMS `v1.5.0.6`. Aspect rejection
    (`422 ValidationException`) is the likely failure mode when emitting `dataJobInputOutput`, and a
    rejected `(entityType, aspectName)` pair can be dropped silently — so registration must verify
    what actually landed rather than trusting a successful exit code.
+
+---
+
+## 9. Swarm membership is enumerable immediately, and it pages
+
+**Measured 2026-07-21.** This section is numbered after the open questions so that the earlier
+section numbers, which other files and code comments cite, keep pointing at the same content.
+
+Section 7 established that the search index cannot see freshly registered tasks. That leaves the
+question of how obsel lists the members of a swarm at all, given a `search` over `entity_type =
+dataJob` would read the same lagging index. The answer needs no index: a `DataJob` carries an
+`IsPartOf` edge to its `DataFlow`, and that edge is in the graph store like any other.
+
+```bash
+F='urn%3Ali%3AdataFlow%3A%28obsel%2Corders_pipeline%2Cprod%29'
+curl -s "http://localhost:8080/relationships?urn=$F&direction=INCOMING&types=IsPartOf"
+```
+
+```json
+{
+  "start": 0,
+  "count": 4,
+  "relationships": [
+    {
+      "type": "IsPartOf",
+      "entity": "urn:li:dataJob:(urn:li:dataFlow:(obsel,orders_pipeline,prod),clean_orders)"
+    },
+    {
+      "type": "IsPartOf",
+      "entity": "urn:li:dataJob:(urn:li:dataFlow:(obsel,orders_pipeline,prod),build_revenue)"
+    },
+    {
+      "type": "IsPartOf",
+      "entity": "urn:li:dataJob:(urn:li:dataFlow:(obsel,orders_pipeline,prod),write_report)"
+    },
+    {
+      "type": "IsPartOf",
+      "entity": "urn:li:dataJob:(urn:li:dataFlow:(obsel,orders_pipeline,prod),write_docs)"
+    }
+  ],
+  "total": 4
+}
+```
+
+### The paging is real and has to be followed
+
+`start` and `count` are honoured, and `total` is the full size rather than the size of the page.
+Four requests against the same four-member flow:
+
+| Request              | Response                                                         |
+| -------------------- | ---------------------------------------------------------------- |
+| no paging parameters | `start 0`, `count 4`, 4 entities, `total 4`                      |
+| `start=0&count=2`    | `start 0`, `count 2`, `clean_orders`, `build_revenue`, `total 4` |
+| `start=2&count=2`    | `start 2`, `count 2`, `write_report`, `write_docs`, `total 4`    |
+| `start=4&count=2`    | `start 4`, `count 0`, no entities, `total 4`                     |
+
+Note that the `count` field in the response is **the number of rows on this page**, not an echo of
+what was asked for — `start=4&count=2` answers `count: 0`. Reading it as the request echo would make
+a termination condition built on it never fire. Past the end is an empty list, not an error.
+
+**Consequence for obsel.** `readSnapshot` in `src/server/datahub/client.ts` follows the pages until
+`total` is covered rather than taking the first page. A truncated member list is not a smaller
+answer, it is a wrong one: the tasks that fell off the page would be absent from the snapshot the
+cascade walks, so a change that broke them would be reported as breaking nothing. That is the same
+silent-empty failure mode as section 7, arriving by a different route.
+
+The same applies to the `Consumes` and `Produces` hops, which come back from the same endpoint and
+are paged the same way.

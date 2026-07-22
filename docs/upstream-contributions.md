@@ -57,7 +57,7 @@ if not sys.stdout.isatty():
 
 The file exists in the source tree — `metadata-ingestion/src/datahub/cli/datapack/resources/DATAPACK_AGENT_CONTEXT.md`
 returns HTTP 200 on `master` — but it is **never included in the built distribution**, because
-`metadata-ingestion/setup.py` declares `package_data` for a *different* package:
+`metadata-ingestion/setup.py` declares `package_data` for a _different_ package:
 
 ```python
 package_data={
@@ -94,7 +94,7 @@ assert "DATAPACK_AGENT_CONTEXT.md" in names
 
 ### Why it is worth fixing
 
-The missing file is `DATAPACK_AGENT_CONTEXT.md` — context written specifically *for AI agents* — and
+The missing file is `DATAPACK_AGENT_CONTEXT.md` — context written specifically _for AI agents_ — and
 the code path that reads it fires only when stdout is not a TTY, which is exactly how an agent
 invokes the CLI. The failure is therefore invisible to a human at a terminal and guaranteed for the
 audience the file was written for.
@@ -147,23 +147,23 @@ Note that `AggregateResults` has no `total` field on this version; request only 
 
 **Result — 1084 entities across 15 types:**
 
-| Entity type | Count |
-| --- | --- |
-| `SCHEMA_FIELD` | 873 |
-| `DATASET` | 67 |
-| `DATA_JOB` | 23 |
-| `DATA_FLOW` | 23 |
-| `DOCUMENT` | 18 |
-| `CONTAINER` | 14 |
-| `CORP_USER` | 12 |
-| `CHART` | 12 |
-| `GLOSSARY_TERM` | 10 |
-| `CORP_GROUP` | 8 |
-| `TAG` | 6 |
-| `DOMAIN` | 6 |
-| `DATA_PRODUCT` | 5 |
-| `GLOSSARY_NODE` | 4 |
-| `DASHBOARD` | 3 |
+| Entity type     | Count |
+| --------------- | ----- |
+| `SCHEMA_FIELD`  | 873   |
+| `DATASET`       | 67    |
+| `DATA_JOB`      | 23    |
+| `DATA_FLOW`     | 23    |
+| `DOCUMENT`      | 18    |
+| `CONTAINER`     | 14    |
+| `CORP_USER`     | 12    |
+| `CHART`         | 12    |
+| `GLOSSARY_TERM` | 10    |
+| `CORP_GROUP`    | 8     |
+| `TAG`           | 6     |
+| `DOMAIN`        | 6     |
+| `DATA_PRODUCT`  | 5     |
+| `GLOSSARY_NODE` | 4     |
+| `DASHBOARD`     | 3     |
 
 `MLMODEL`, `MLMODEL_GROUP`, `MLFEATURE`, `MLFEATURE_TABLE`, `MLPRIMARY_KEY`, and
 `DATA_PROCESS_INSTANCE` do not appear in the aggregation at all — their count is zero.
@@ -178,15 +178,15 @@ Counted directly from the pack's source
 ([`bootstrap_mce.json`](https://raw.githubusercontent.com/datahub-project/datahub/master/metadata-ingestion/examples/mce_files/bootstrap_mce.json),
 156 KB), `bootstrap` does contain ML entities — as legacy `proposedSnapshot` MCEs:
 
-| Entity type | Present in `bootstrap` |
-| --- | --- |
-| `mlModel` | 1 |
-| `mlFeatureTable` | 1 |
-| `mlFeature` | a handful (40 URN references) |
-| `mlPrimaryKey` | a handful (14 URN references) |
-| **`mlModelGroup`** | **0** |
-| **`dataProcessInstance`** | **0** |
-| `mlModelDeployment` | 0 |
+| Entity type               | Present in `bootstrap`        |
+| ------------------------- | ----------------------------- |
+| `mlModel`                 | 1                             |
+| `mlFeatureTable`          | 1                             |
+| `mlFeature`               | a handful (40 URN references) |
+| `mlPrimaryKey`            | a handful (14 URN references) |
+| **`mlModelGroup`**        | **0**                         |
+| **`dataProcessInstance`** | **0**                         |
+| `mlModelDeployment`       | 0                             |
 
 The accurate claim is therefore narrower and stronger:
 
