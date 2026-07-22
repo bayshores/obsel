@@ -16,11 +16,22 @@
         "status": "complete",
         "fingerprints": {
           "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_demo.daily_revenue,PROD)": {
-            "schema": "d784894c90827c1a0f5247364017494ad978c9a9a3bfd7b2425c8b929c20f2f3",
-            "content": "b95a5364dae9845bf78daaef081bd417749079fe302e395ce8222076b73339a4"
+            "schema": "e67a1da2bbcaa77efb95f7c30cfd667b89d31012dbb9ceb5d47a83a2b7cac5e3",
+            "content": "6f09e38211e0415ebfbc74d2188c591e7b93d797cc51c4073a3fb6f420d9f16b"
           }
         },
-        "finishedAt": "2026-07-21T14:02:39.905Z",
+        "finishedAt": "2026-07-22T08:35:52.677238+00:00",
+        "startedAt": "2026-07-22T08:35:37.381Z",
+        "run": {
+          "runner": "codex-cli 0.144.4",
+          "ms": 15175,
+          "outputs": {
+            "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_demo.daily_revenue,PROD)": {
+              "rows": 5,
+              "columns": ["order_date", "total_revenue", "order_count", "average_order_value"]
+            }
+          }
+        },
         "stale": null
       },
       "mark": {
@@ -29,8 +40,8 @@
         "hops": 1,
         "changeKind": "schema",
         "reason": "read clean_orders, and its columns changed after this finished",
-        "since": "2026-07-21T14:05:52.244Z",
-        "detectedMs": 118
+        "since": "2026-07-22T08:37:32.086Z",
+        "detectedMs": 1034
       }
     },
     {
@@ -43,10 +54,21 @@
         "fingerprints": {
           "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_demo.pipeline_docs,PROD)": {
             "schema": "0a1d9d0244688f6ba6ef46ec05ba53b6e7bdb187a9ae0e4903b97c35ac24ee54",
-            "content": "195705259b0b98988a181b0f01105bac799e2bfe45fd426c2c6fae0baa83f702"
+            "content": "160894e788195743546410e13f975e16b2d5350fd449dcde0689084b30f432a9"
           }
         },
-        "finishedAt": "2026-07-21T14:03:07.884Z",
+        "finishedAt": "2026-07-22T08:36:15.526251+00:00",
+        "startedAt": "2026-07-22T08:35:52.787Z",
+        "run": {
+          "runner": "codex-cli 0.144.4",
+          "ms": 22617,
+          "outputs": {
+            "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_demo.pipeline_docs,PROD)": {
+              "rows": 5,
+              "columns": ["section", "heading", "text"]
+            }
+          }
+        },
         "stale": null
       },
       "mark": {
@@ -55,8 +77,8 @@
         "hops": 2,
         "changeKind": "schema",
         "reason": "built on work from build_revenue, which is itself out of date because clean_orders changed",
-        "since": "2026-07-21T14:05:52.244Z",
-        "detectedMs": 118
+        "since": "2026-07-22T08:37:32.086Z",
+        "detectedMs": 1034
       }
     },
     {
@@ -69,10 +91,21 @@
         "fingerprints": {
           "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_demo.revenue_report,PROD)": {
             "schema": "0a1d9d0244688f6ba6ef46ec05ba53b6e7bdb187a9ae0e4903b97c35ac24ee54",
-            "content": "430fe8f6048a63b46adfb0f9dcc10669ec210a69c21d06df7d425d96b8d8ecd7"
+            "content": "31d7de2ad6d058b6a606169a32e007681b1780345486b0af452a4771100e156b"
           }
         },
-        "finishedAt": "2026-07-21T14:03:06.221Z",
+        "finishedAt": "2026-07-22T08:36:40.650332+00:00",
+        "startedAt": "2026-07-22T08:36:15.679Z",
+        "run": {
+          "runner": "codex-cli 0.144.4",
+          "ms": 24828,
+          "outputs": {
+            "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_demo.revenue_report,PROD)": {
+              "rows": 4,
+              "columns": ["section", "heading", "text"]
+            }
+          }
+        },
         "stale": null
       },
       "mark": {
@@ -81,10 +114,10 @@
         "hops": 2,
         "changeKind": "schema",
         "reason": "built on work from build_revenue, which is itself out of date because clean_orders changed",
-        "since": "2026-07-21T14:05:52.244Z",
-        "detectedMs": 118
+        "since": "2026-07-22T08:37:32.086Z",
+        "detectedMs": 1034
       }
     }
   ],
-  "elapsedMs": 118
+  "elapsedMs": 1034
 }

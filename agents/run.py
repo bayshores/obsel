@@ -24,6 +24,7 @@ missing key or an empty list would read as a pass.
 from __future__ import annotations
 
 import argparse
+import json
 import shutil
 import sys
 import time
@@ -376,6 +377,65 @@ def cmd_rerun_same(args: argparse.Namespace) -> int:
 EXPECTED_CASCADE = {"build_revenue": 1, "write_report": 2, "write_docs": 2}
 
 
+def _read_tables() -> dict[str, Any]:
+    """Every table currently on disk, by short name."""
+    directory = worker.data_dir(REPO_ROOT)
+    if not directory.is_dir():
+        return {}
+    return {
+        path.stem: json.loads(path.read_text(encoding="utf-8"))
+        for path in sorted(directory.glob("*.json"))
+    }
+
+
+def _capture(
+    directory: str,
+    swarm_before: Any,
+    tables_before: dict[str, Any],
+    coordination: dict[str, Any],
+    obsel_url: str,
+) -> None:
+    """Write the artefacts a judge reads, all from this one `change`.
+
+    Assembling these from separate runs would produce a set that looks coherent
+    and is not -- the fingerprints in `swarm-before` would belong to a table other
+    than the one `coordination-result` reports on, which is precisely the kind of
+    quiet disagreement obsel exists to catch. So they are written together or not
+    at all.
+
+    The tables are captured as well as the responses, and both sides of the
+    change. Without them every digest in the JSON is a number a reader has to take
+    on trust; with them `examples/reproduce_fingerprints.py` can recompute each
+    one from the actual rows it was taken over. `clean_orders` is the table that
+    moves, so it is the one that genuinely needs both versions -- the others are
+    captured on both sides too, because "these three did not move" is itself a
+    claim worth being able to check.
+
+    `swarm-after` is read here rather than passed in, so it is the swarm once the
+    marks have actually landed in DataHub, not once the HTTP call returned.
+    """
+    target = Path(directory)
+    (target / "tables").mkdir(parents=True, exist_ok=True)
+
+    files = {
+        "swarm-before.json": swarm_before,
+        "coordination-result.json": coordination,
+        "swarm-after.json": worker.read_swarm(obsel_url),
+        "tables/before.json": tables_before,
+        "tables/after.json": _read_tables(),
+    }
+    for name, body in files.items():
+        path = target / name
+        path.write_text(json.dumps(body, indent=2) + "\n", encoding="utf-8")
+        print(f"  captured {path}")
+
+    # Python and Prettier disagree about when a short array fits on one line, and
+    # `pnpm verify` runs `prettier --check .`. Whitespace only -- the parsed values
+    # are identical either way -- but a capture committed as written fails the
+    # check, so say so here rather than leaving it to be rediscovered.
+    print(f"  run `npx prettier --write {directory}` before committing these")
+
+
 def cmd_change(args: argparse.Namespace) -> int:
     task = pipeline.TASKS[0]
     _rule(f"change: {task.name} runs again and renames a column")
@@ -384,6 +444,12 @@ def cmd_change(args: argparse.Namespace) -> int:
     print()
 
     before = worker.load_table(task.writes, REPO_ROOT)
+
+    # Read before the agent runs, so a capture records the swarm and the tables as
+    # they actually were on the far side of the change rather than a later re-read.
+    swarm_before = worker.read_swarm(args.obsel_url) if args.capture else None
+    tables_before = _read_tables() if args.capture else {}
+
     # The renamed column is the whole demo, so the contract for this run is passed
     # in and enforced. If the agent quietly kept the old name the run fails here,
     # rather than producing an unchanged fingerprint and a cascade that never fires.
@@ -394,6 +460,9 @@ def cmd_change(args: argparse.Namespace) -> int:
         expect_columns=pipeline.CHANGE_COLUMNS,
     )
     after = worker.load_table(task.writes, REPO_ROOT)
+
+    if args.capture:
+        _capture(args.capture, swarm_before, tables_before, result.coordination, args.obsel_url)
 
     where = f"{task.name}'s completion"
     affected = _required_list(result.coordination, "affected", where)
@@ -519,6 +588,15 @@ def main(argv: list[str] | None = None) -> int:
         "--obsel-url",
         default=worker.OBSEL_URL,
         help="where obsel is running (default %(default)s)",
+    )
+    parser.add_argument(
+        "--capture",
+        metavar="DIR",
+        default=None,
+        help=(
+            "with `change`, write swarm-before.json, coordination-result.json and "
+            "swarm-after.json into DIR, all from this one run"
+        ),
     )
     args = parser.parse_args(argv)
 

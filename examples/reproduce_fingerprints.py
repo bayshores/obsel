@@ -4,36 +4,28 @@ Run it:
 
     python3 examples/reproduce_fingerprints.py
 
-It prints each digest and then compares it to the value stored in
-`swarm-before.json`, `swarm-after.json` and `coordination-result.json`. Exit code 0
-means every digest in those files came out of `agents/fingerprint.py` over the table
-printed here. Any edit to a digest in the JSON, or to a table here, makes it fail.
+It recomputes each digest from the actual rows it was taken over and compares the
+result to the value stored in `swarm-before.json`, `swarm-after.json` and
+`coordination-result.json`. Exit code 0 means every digest in those files came out
+of `agents/fingerprint.py` over the table printed here. Any edit to a digest in the
+JSON, or to a row in `tables/`, makes it fail.
 
 What this does and does not prove
 ---------------------------------
-It proves the digests are genuine sha256 output of the real fingerprinting code over
-the tables below. It does not prove those tables are what a live run produced -- the
-demo has not been run end to end against a real model, so the row values here are
-written by hand to be a plausible small pipeline, not captured.
+The tables in `tables/before.json` and `tables/after.json` are **captured**, not
+written by hand. They are the five tables that were on disk either side of the
+`change` step of a real run, saved by `agents.run change --capture`, and every
+digest in the JSON files was computed from them by the run itself. So this script
+proves two things at once: that the digests are genuine sha256 output of the real
+fingerprinting code, and that the tables they were taken over are what four live
+Codex agents actually produced.
 
-Two of the four column sets are fixed by code and would come out this way from any
-run:
-
-  revenue_report and pipeline_docs -- `worker.apply_write` hardcodes
-  ["section", "heading", "text"] for both write tasks, so both tables must carry the
-  same schema digest no matter what the model returns. Only their content differs.
-
-The other two are chosen by the model at run time, inside limits the instruction in
-`agents/pipeline.py` sets:
-
-  clean_orders -- the instruction names all four columns explicitly ("named exactly
-  order_id, customer, order_total and order_date"), so a plan that obeys it gives the
-  columns used here. The row values are invented.
-
-  daily_revenue -- the instruction pins only the day column ("Name the day column
-  order_date"). The other three names are the model's choice, so the schema digest
-  here is one plausible outcome rather than a fixed one. A real run may well name
-  them differently and produce a different digest.
+What it does not prove is that a *different* run would produce the same tables.
+Codex is a live agent. Column names are held to the contract in
+`agents/pipeline.py` and numeric values to one serialised form by
+`worker.canonicalise_numbers`, but the row values and the prose in the two written
+documents are the agents' own work and would differ on another run. The properties
+checked below are the parts that must hold for any run at all.
 """
 
 from __future__ import annotations
@@ -54,124 +46,36 @@ from fingerprint import fingerprint  # noqa: E402
 Table = dict[str, Any]
 
 
-# --------------------------------------------------------------------------
-# The tables the digests are taken over
-# --------------------------------------------------------------------------
+def _load(name: str) -> Any:
+    return json.loads((HERE / name).read_text(encoding="utf-8"))
 
-# clean_orders, as `clean_orders` writes it. Three rows is enough to show the shape;
-# the demo's seed table is larger.
-CLEAN_ORDERS: Table = {
-    "columns": ["order_id", "customer", "order_total", "order_date"],
-    "rows": [
-        {"order_id": 7001, "customer": "Ada Okafor", "order_total": 42.5, "order_date": "2026-07-20"},
-        {"order_id": 7002, "customer": "Ben Ruiz", "order_total": 18.0, "order_date": "2026-07-20"},
-        {"order_id": 7003, "customer": "Cai Zhou", "order_total": 99.99, "order_date": "2026-07-21"},
-    ],
-}
 
-# The same table after the demo's change: order_total becomes order_total_usd, and
-# nothing else moves. This is the rename the whole cascade hangs off.
-CLEAN_ORDERS_RENAMED: Table = {
-    "columns": ["order_id", "customer", "order_total_usd", "order_date"],
-    "rows": [
-        {"order_id": 7001, "customer": "Ada Okafor", "order_total_usd": 42.5, "order_date": "2026-07-20"},
-        {"order_id": 7002, "customer": "Ben Ruiz", "order_total_usd": 18.0, "order_date": "2026-07-20"},
-        {"order_id": 7003, "customer": "Cai Zhou", "order_total_usd": 99.99, "order_date": "2026-07-21"},
-    ],
-}
+# The five tables as they were either side of the change, captured from the run.
+# `clean_orders` is the only one that differs between them, because it is the only
+# task that ran again.
+TABLES_BEFORE: dict[str, Table] = _load("tables/before.json")
+TABLES_AFTER: dict[str, Table] = _load("tables/after.json")
 
-# daily_revenue, as `build_revenue` writes it: one row per calendar day, the group-by
-# column first and then the aggregations, which is the order `worker.apply_aggregate`
-# builds. Values are what its sum/count/mean operations give over CLEAN_ORDERS.
-DAILY_REVENUE: Table = {
-    "columns": ["order_date", "revenue", "order_count", "average_order_value"],
-    "rows": [
-        {"order_date": "2026-07-20", "revenue": 60.5, "order_count": 2, "average_order_value": 30.25},
-        {"order_date": "2026-07-21", "revenue": 99.99, "order_count": 1, "average_order_value": 99.99},
-    ],
-}
+# Written by a task, so obsel holds a fingerprint for it. `raw_orders` is the seed
+# and nothing in the swarm produces it, so it is captured for context but carries
+# no fingerprint to check.
+PRODUCED = ("clean_orders", "daily_revenue", "revenue_report", "pipeline_docs")
 
-# revenue_report, as `write_report` writes it. Columns are hardcoded by
-# `worker.apply_write`; the model supplies one entry per section.
-REVENUE_REPORT: Table = {
-    "columns": ["section", "heading", "text"],
-    "rows": [
-        {
-            "section": "period_total",
-            "heading": "Period total",
-            "text": "The table covers 2026-07-20 to 2026-07-21 and totals 160.49 across 3 orders.",
-        },
-        {
-            "section": "strongest_and_weakest",
-            "heading": "Strongest and weakest day",
-            "text": "2026-07-21 took 99.99 from 1 order. 2026-07-20 took 60.5 from 2 orders.",
-        },
-        {
-            "section": "what_explains_it",
-            "heading": "What explains the difference",
-            "text": (
-                "Order size, not order volume. The stronger day had half the orders and an "
-                "average order value of 99.99 against 30.25."
-            ),
-        },
-        {
-            "section": "bottom_line",
-            "heading": "Bottom line",
-            "text": "One large order carried 2026-07-21; two days is too short a period to read a trend from.",
-        },
-    ],
-}
 
-# pipeline_docs, as `write_docs` writes it. Same hardcoded columns as revenue_report,
-# which is why the two share a schema digest.
-PIPELINE_DOCS: Table = {
-    "columns": ["section", "heading", "text"],
-    "rows": [
-        {
-            "section": "order_date",
-            "heading": "order_date",
-            "text": "Calendar day, ISO 8601. Taken from the cleaned orders' order_date, which is a date and not a timestamp.",
-        },
-        {
-            "section": "revenue",
-            "heading": "revenue",
-            "text": "Sum of order_total for that day, rounded to two decimal places. Same currency as the source.",
-        },
-        {
-            "section": "order_count",
-            "heading": "order_count",
-            "text": "How many orders make up that day's revenue. Counts rows with a value, so it never counts a null.",
-        },
-        {
-            "section": "average_order_value",
-            "heading": "average_order_value",
-            "text": "Mean of order_total for that day, rounded to two decimal places. Not revenue divided by a rounded count.",
-        },
-        {
-            "section": "exclusions",
-            "heading": "What this table leaves out",
-            "text": (
-                "Rows whose order_total was missing or not greater than zero were dropped upstream as "
-                "cancellations and refunds, so this is gross takings on completed orders only."
-            ),
-        },
-    ],
-}
+def _fingerprint_of(tables: dict[str, Table], name: str) -> dict[str, str]:
+    table = tables[name]
+    return fingerprint(table["rows"], table["columns"])
 
 
 def digests() -> dict[str, dict[str, str]]:
     """Every digest the example files quote, keyed by the label used in the README."""
-    return {
-        "clean_orders (before the rename)": fingerprint(
-            CLEAN_ORDERS["rows"], CLEAN_ORDERS["columns"]
-        ),
-        "clean_orders (after the rename)": fingerprint(
-            CLEAN_ORDERS_RENAMED["rows"], CLEAN_ORDERS_RENAMED["columns"]
-        ),
-        "daily_revenue": fingerprint(DAILY_REVENUE["rows"], DAILY_REVENUE["columns"]),
-        "revenue_report": fingerprint(REVENUE_REPORT["rows"], REVENUE_REPORT["columns"]),
-        "pipeline_docs": fingerprint(PIPELINE_DOCS["rows"], PIPELINE_DOCS["columns"]),
+    computed = {
+        "clean_orders (before the rename)": _fingerprint_of(TABLES_BEFORE, "clean_orders"),
+        "clean_orders (after the rename)": _fingerprint_of(TABLES_AFTER, "clean_orders"),
     }
+    for name in PRODUCED[1:]:
+        computed[name] = _fingerprint_of(TABLES_BEFORE, name)
+    return computed
 
 
 # --------------------------------------------------------------------------
@@ -179,10 +83,6 @@ def digests() -> dict[str, dict[str, str]]:
 # --------------------------------------------------------------------------
 
 DATASET = "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_demo.{name},PROD)".format
-
-
-def _load(name: str) -> Any:
-    return json.loads((HERE / name).read_text(encoding="utf-8"))
 
 
 def _fingerprints_in(document: Any) -> list[tuple[str, str, dict[str, str]]]:
@@ -208,9 +108,12 @@ def _fingerprints_in(document: Any) -> list[tuple[str, str, dict[str, str]]]:
 def main() -> int:
     computed = digests()
 
-    print("digests from agents/fingerprint.py")
+    print("digests recomputed from the captured tables")
     for label, printed in computed.items():
-        print(f"\n  {label}")
+        source = TABLES_AFTER if "after" in label else TABLES_BEFORE
+        name = label.split(" ")[0]
+        rows = len(source[name]["rows"])
+        print(f"\n  {label} — {rows} rows, columns {', '.join(source[name]['columns'])}")
         print(f"    schema  {printed['schema']}")
         print(f"    content {printed['content']}")
 
@@ -233,37 +136,38 @@ def main() -> int:
         "which is why the mark can say 'its columns changed'",
     )
     check(
+        "the renamed column is the only difference",
+        [c for c in TABLES_BEFORE["clean_orders"]["columns"] if c != "order_total"]
+        == [c for c in TABLES_AFTER["clean_orders"]["columns"] if c != "order_total_usd"],
+        "every other column name is unchanged and in the same position",
+    )
+    check(
         "both write tasks share a schema digest",
         report["schema"] == docs["schema"],
-        "worker.apply_write hardcodes the same three columns for both",
+        "both write tasks are held to the same three columns",
     )
     check(
         "the two write tasks differ in content",
         report["content"] != docs["content"],
         "same shape, different document",
     )
+    check(
+        "the three untouched tables did not move",
+        all(
+            _fingerprint_of(TABLES_BEFORE, name) == _fingerprint_of(TABLES_AFTER, name)
+            for name in PRODUCED[1:]
+        ),
+        "they were stale because of what they were built on, not because they changed",
+    )
 
     # Which digest each dataset should be carrying, per file. clean_orders is the only
     # one that differs between before and after, because it is the only thing that ran
     # again.
+    unchanged = {DATASET(name=name): computed[name] for name in PRODUCED[1:]}
     expected = {
-        "swarm-before.json": {
-            DATASET(name="clean_orders"): before,
-            DATASET(name="daily_revenue"): computed["daily_revenue"],
-            DATASET(name="revenue_report"): report,
-            DATASET(name="pipeline_docs"): docs,
-        },
-        "swarm-after.json": {
-            DATASET(name="clean_orders"): after,
-            DATASET(name="daily_revenue"): computed["daily_revenue"],
-            DATASET(name="revenue_report"): report,
-            DATASET(name="pipeline_docs"): docs,
-        },
-        "coordination-result.json": {
-            DATASET(name="daily_revenue"): computed["daily_revenue"],
-            DATASET(name="revenue_report"): report,
-            DATASET(name="pipeline_docs"): docs,
-        },
+        "swarm-before.json": {DATASET(name="clean_orders"): before, **unchanged},
+        "swarm-after.json": {DATASET(name="clean_orders"): after, **unchanged},
+        "coordination-result.json": dict(unchanged),
     }
 
     print("\nexample files")

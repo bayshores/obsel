@@ -1,0 +1,636 @@
+{
+  "clean_orders": {
+    "columns": ["order_id", "customer", "order_total", "order_date"],
+    "rows": [
+      {
+        "customer": "Joss Adeyemi",
+        "order_date": "2026-07-14",
+        "order_id": 1000,
+        "order_total": 233.08
+      },
+      {
+        "customer": "Lena Bhattacharya",
+        "order_date": "2026-07-16",
+        "order_id": 1001,
+        "order_total": 101.63
+      },
+      {
+        "customer": "Hana Sorensen",
+        "order_date": "2026-07-13",
+        "order_id": 1002,
+        "order_total": 56.33
+      },
+      {
+        "customer": "Lena Bhattacharya",
+        "order_date": "2026-07-16",
+        "order_id": 1003,
+        "order_total": 155.29
+      },
+      {
+        "customer": "Eli Nakamura",
+        "order_date": "2026-07-16",
+        "order_id": 1006,
+        "order_total": 10.06
+      },
+      {
+        "customer": "Lena Bhattacharya",
+        "order_date": "2026-07-14",
+        "order_id": 1007,
+        "order_total": 143.48
+      },
+      {
+        "customer": "Eli Nakamura",
+        "order_date": "2026-07-14",
+        "order_id": 1008,
+        "order_total": 27.18
+      },
+      {
+        "customer": "Joss Adeyemi",
+        "order_date": "2026-07-15",
+        "order_id": 1010,
+        "order_total": 73.77
+      },
+      {
+        "customer": "Ada Okafor",
+        "order_date": "2026-07-17",
+        "order_id": 1011,
+        "order_total": 69.47
+      },
+      {
+        "customer": "Kit Ferreira",
+        "order_date": "2026-07-15",
+        "order_id": 1012,
+        "order_total": 217.0
+      },
+      {
+        "customer": "Iris Kovac",
+        "order_date": "2026-07-16",
+        "order_id": 1013,
+        "order_total": 19.23
+      },
+      {
+        "customer": "Kit Ferreira",
+        "order_date": "2026-07-14",
+        "order_id": 1014,
+        "order_total": 33.87
+      },
+      {
+        "customer": "Ada Okafor",
+        "order_date": "2026-07-15",
+        "order_id": 1015,
+        "order_total": 188.82
+      },
+      {
+        "customer": "Ada Okafor",
+        "order_date": "2026-07-14",
+        "order_id": 1018,
+        "order_total": 95.47
+      },
+      {
+        "customer": "Joss Adeyemi",
+        "order_date": "2026-07-13",
+        "order_id": 1019,
+        "order_total": 183.55
+      },
+      {
+        "customer": "Ben Ruiz",
+        "order_date": "2026-07-15",
+        "order_id": 1020,
+        "order_total": 81.57
+      },
+      {
+        "customer": "Lena Bhattacharya",
+        "order_date": "2026-07-13",
+        "order_id": 1021,
+        "order_total": 45.54
+      },
+      {
+        "customer": "Gus Marchetti",
+        "order_date": "2026-07-17",
+        "order_id": 1022,
+        "order_total": 206.05
+      },
+      {
+        "customer": "Gus Marchetti",
+        "order_date": "2026-07-14",
+        "order_id": 1023,
+        "order_total": 16.66
+      },
+      {
+        "customer": "Lena Bhattacharya",
+        "order_date": "2026-07-15",
+        "order_id": 1024,
+        "order_total": 16.46
+      },
+      {
+        "customer": "Iris Kovac",
+        "order_date": "2026-07-16",
+        "order_id": 1025,
+        "order_total": 194.44
+      },
+      {
+        "customer": "Dara Lindqvist",
+        "order_date": "2026-07-16",
+        "order_id": 1028,
+        "order_total": 91.71
+      },
+      {
+        "customer": "Ada Okafor",
+        "order_date": "2026-07-17",
+        "order_id": 1029,
+        "order_total": 28.27
+      },
+      {
+        "customer": "Lena Bhattacharya",
+        "order_date": "2026-07-14",
+        "order_id": 1031,
+        "order_total": 139.66
+      },
+      {
+        "customer": "Hana Sorensen",
+        "order_date": "2026-07-16",
+        "order_id": 1032,
+        "order_total": 40.92
+      },
+      {
+        "customer": "Ben Ruiz",
+        "order_date": "2026-07-17",
+        "order_id": 1033,
+        "order_total": 62.89
+      },
+      {
+        "customer": "Hana Sorensen",
+        "order_date": "2026-07-13",
+        "order_id": 1034,
+        "order_total": 37.9
+      },
+      {
+        "customer": "Eli Nakamura",
+        "order_date": "2026-07-16",
+        "order_id": 1035,
+        "order_total": 88.75
+      },
+      {
+        "customer": "Gus Marchetti",
+        "order_date": "2026-07-14",
+        "order_id": 1036,
+        "order_total": 78.27
+      },
+      {
+        "customer": "Iris Kovac",
+        "order_date": "2026-07-14",
+        "order_id": 1037,
+        "order_total": 46.44
+      },
+      {
+        "customer": "Lena Bhattacharya",
+        "order_date": "2026-07-17",
+        "order_id": 1039,
+        "order_total": 200.76
+      },
+      {
+        "customer": "Joss Adeyemi",
+        "order_date": "2026-07-13",
+        "order_id": 1040,
+        "order_total": 69.06
+      },
+      {
+        "customer": "Eli Nakamura",
+        "order_date": "2026-07-17",
+        "order_id": 1041,
+        "order_total": 186.74
+      },
+      {
+        "customer": "Kit Ferreira",
+        "order_date": "2026-07-16",
+        "order_id": 1042,
+        "order_total": 147.61
+      },
+      {
+        "customer": "Ada Okafor",
+        "order_date": "2026-07-16",
+        "order_id": 1044,
+        "order_total": 64.83
+      },
+      {
+        "customer": "Eli Nakamura",
+        "order_date": "2026-07-17",
+        "order_id": 1045,
+        "order_total": 167.2
+      },
+      {
+        "customer": "Lena Bhattacharya",
+        "order_date": "2026-07-14",
+        "order_id": 1046,
+        "order_total": 110.27
+      },
+      {
+        "customer": "Lena Bhattacharya",
+        "order_date": "2026-07-16",
+        "order_id": 1047,
+        "order_total": 128.46
+      },
+      {
+        "customer": "Gus Marchetti",
+        "order_date": "2026-07-16",
+        "order_id": 1048,
+        "order_total": 210.91
+      }
+    ]
+  },
+  "daily_revenue": {
+    "columns": ["order_date", "total_revenue", "order_count", "average_order_value"],
+    "rows": [
+      {
+        "average_order_value": 78.48,
+        "order_count": 5,
+        "order_date": "2026-07-13",
+        "total_revenue": 392.38
+      },
+      {
+        "average_order_value": 92.44,
+        "order_count": 10,
+        "order_date": "2026-07-14",
+        "total_revenue": 924.38
+      },
+      {
+        "average_order_value": 115.52,
+        "order_count": 5,
+        "order_date": "2026-07-15",
+        "total_revenue": 577.62
+      },
+      {
+        "average_order_value": 104.49,
+        "order_count": 12,
+        "order_date": "2026-07-16",
+        "total_revenue": 1253.84
+      },
+      {
+        "average_order_value": 131.63,
+        "order_count": 7,
+        "order_date": "2026-07-17",
+        "total_revenue": 921.38
+      }
+    ]
+  },
+  "pipeline_docs": {
+    "columns": ["section", "heading", "text"],
+    "rows": [
+      {
+        "heading": "order_date",
+        "section": "column",
+        "text": "The calendar date used to group the source orders, represented as an ISO 8601 date (YYYY-MM-DD) with no time component. It was derived by assigning each included order to its order date, then producing one daily aggregate row for that date."
+      },
+      {
+        "heading": "total_revenue",
+        "section": "column",
+        "text": "The summed revenue from all included orders on order_date, in currency units rounded to two decimal places. It was derived by adding the revenue amounts of the orders assigned to that date. The source does not identify the currency."
+      },
+      {
+        "heading": "order_count",
+        "section": "column",
+        "text": "The number of included orders assigned to order_date, in orders. It was derived by counting those source orders."
+      },
+      {
+        "heading": "average_order_value",
+        "section": "column",
+        "text": "The mean revenue per included order on order_date, in the same unspecified currency units as total_revenue and rounded to two decimal places. It was derived as total_revenue divided by order_count."
+      },
+      {
+        "heading": "Deliberate exclusions",
+        "section": "exclusions",
+        "text": "This is a daily aggregate, so it deliberately excludes order-level rows and order-level attributes such as identifiers, timestamps, customers, products, quantities, statuses, and individual revenue amounts. It also contains no currency or timezone column and no dates without an aggregate row. The available data does not establish whether particular order statuses, taxes, discounts, shipping, refunds, or cancellations were excluded from the source revenue calculation."
+      }
+    ]
+  },
+  "raw_orders": {
+    "columns": ["order_id", "customer", "order_total", "order_date"],
+    "rows": [
+      {
+        "customer": "Joss Adeyemi",
+        "order_date": "2026-07-14",
+        "order_id": 1000,
+        "order_total": 233.08
+      },
+      {
+        "customer": "Lena Bhattacharya",
+        "order_date": "2026-07-16",
+        "order_id": 1001,
+        "order_total": 101.63
+      },
+      {
+        "customer": "Hana Sorensen",
+        "order_date": "2026-07-13",
+        "order_id": 1002,
+        "order_total": 56.33
+      },
+      {
+        "customer": "Lena Bhattacharya",
+        "order_date": "2026-07-16T18:08:00Z",
+        "order_id": 1003,
+        "order_total": 155.29
+      },
+      {
+        "customer": "cai zhou",
+        "order_date": "2026-07-14",
+        "order_id": 1004,
+        "order_total": 0.0
+      },
+      {
+        "customer": "Ben RUIZ",
+        "order_date": "2026-07-17",
+        "order_id": 1005,
+        "order_total": null
+      },
+      {
+        "customer": "eli nakamura  ",
+        "order_date": "2026-07-16",
+        "order_id": 1006,
+        "order_total": 10.06
+      },
+      {
+        "customer": "Lena Bhattacharya",
+        "order_date": "2026-07-14",
+        "order_id": 1007,
+        "order_total": 143.48
+      },
+      {
+        "customer": "eli nakamura  ",
+        "order_date": "2026-07-14",
+        "order_id": 1008,
+        "order_total": 27.18
+      },
+      {
+        "customer": "gus MARCHETTI",
+        "order_date": "2026-07-16",
+        "order_id": 1009,
+        "order_total": -15.34
+      },
+      {
+        "customer": "Joss Adeyemi",
+        "order_date": "2026-07-15T16:00:00Z",
+        "order_id": 1010,
+        "order_total": 73.77
+      },
+      {
+        "customer": "ada okafor",
+        "order_date": "2026-07-17",
+        "order_id": 1011,
+        "order_total": 69.47
+      },
+      {
+        "customer": "kit ferreira",
+        "order_date": "2026-07-15",
+        "order_id": 1012,
+        "order_total": 217.0
+      },
+      {
+        "customer": "iris kovac",
+        "order_date": "2026-07-16",
+        "order_id": 1013,
+        "order_total": 19.23
+      },
+      {
+        "customer": "kit ferreira",
+        "order_date": "2026-07-14",
+        "order_id": 1014,
+        "order_total": 33.87
+      },
+      {
+        "customer": "ada okafor",
+        "order_date": "2026-07-15",
+        "order_id": 1015,
+        "order_total": 188.82
+      },
+      {
+        "customer": "kit ferreira",
+        "order_date": "2026-07-13",
+        "order_id": 1016,
+        "order_total": null
+      },
+      {
+        "customer": "cai zhou",
+        "order_date": "2026-07-14T10:01:00Z",
+        "order_id": 1017,
+        "order_total": 0.0
+      },
+      {
+        "customer": "ada okafor",
+        "order_date": "2026-07-14",
+        "order_id": 1018,
+        "order_total": 95.47
+      },
+      {
+        "customer": "Joss Adeyemi",
+        "order_date": "2026-07-13",
+        "order_id": 1019,
+        "order_total": 183.55
+      },
+      {
+        "customer": "Ben RUIZ",
+        "order_date": "2026-07-15",
+        "order_id": 1020,
+        "order_total": 81.57
+      },
+      {
+        "customer": "Lena Bhattacharya",
+        "order_date": "2026-07-13",
+        "order_id": 1021,
+        "order_total": 45.54
+      },
+      {
+        "customer": "gus MARCHETTI",
+        "order_date": "2026-07-17",
+        "order_id": 1022,
+        "order_total": 206.05
+      },
+      {
+        "customer": "gus MARCHETTI",
+        "order_date": "2026-07-14",
+        "order_id": 1023,
+        "order_total": 16.66
+      },
+      {
+        "customer": "Lena Bhattacharya",
+        "order_date": "2026-07-15T17:34:00Z",
+        "order_id": 1024,
+        "order_total": 16.46
+      },
+      {
+        "customer": "iris kovac",
+        "order_date": "2026-07-16",
+        "order_id": 1025,
+        "order_total": 194.44
+      },
+      {
+        "customer": "Lena Bhattacharya",
+        "order_date": "2026-07-17",
+        "order_id": 1026,
+        "order_total": -8.33
+      },
+      {
+        "customer": "Hana Sorensen",
+        "order_date": "2026-07-13",
+        "order_id": 1027,
+        "order_total": null
+      },
+      {
+        "customer": "  Dara Lindqvist",
+        "order_date": "2026-07-16",
+        "order_id": 1028,
+        "order_total": 91.71
+      },
+      {
+        "customer": "ada okafor",
+        "order_date": "2026-07-17",
+        "order_id": 1029,
+        "order_total": 28.27
+      },
+      {
+        "customer": "cai zhou",
+        "order_date": "2026-07-13",
+        "order_id": 1030,
+        "order_total": 0.0
+      },
+      {
+        "customer": "Lena Bhattacharya",
+        "order_date": "2026-07-14T20:18:00Z",
+        "order_id": 1031,
+        "order_total": 139.66
+      },
+      {
+        "customer": "Hana Sorensen",
+        "order_date": "2026-07-16",
+        "order_id": 1032,
+        "order_total": 40.92
+      },
+      {
+        "customer": "Ben RUIZ",
+        "order_date": "2026-07-17",
+        "order_id": 1033,
+        "order_total": 62.89
+      },
+      {
+        "customer": "Hana Sorensen",
+        "order_date": "2026-07-13",
+        "order_id": 1034,
+        "order_total": 37.9
+      },
+      {
+        "customer": "eli nakamura  ",
+        "order_date": "2026-07-16",
+        "order_id": 1035,
+        "order_total": 88.75
+      },
+      {
+        "customer": "gus MARCHETTI",
+        "order_date": "2026-07-14",
+        "order_id": 1036,
+        "order_total": 78.27
+      },
+      {
+        "customer": "iris kovac",
+        "order_date": "2026-07-14",
+        "order_id": 1037,
+        "order_total": 46.44
+      },
+      {
+        "customer": "Ben RUIZ",
+        "order_date": "2026-07-15T04:01:00Z",
+        "order_id": 1038,
+        "order_total": null
+      },
+      {
+        "customer": "Lena Bhattacharya",
+        "order_date": "2026-07-17",
+        "order_id": 1039,
+        "order_total": 200.76
+      },
+      {
+        "customer": "Joss Adeyemi",
+        "order_date": "2026-07-13",
+        "order_id": 1040,
+        "order_total": 69.06
+      },
+      {
+        "customer": "eli nakamura  ",
+        "order_date": "2026-07-17",
+        "order_id": 1041,
+        "order_total": 186.74
+      },
+      {
+        "customer": "kit ferreira",
+        "order_date": "2026-07-16",
+        "order_id": 1042,
+        "order_total": 147.61
+      },
+      {
+        "customer": "iris kovac",
+        "order_date": "2026-07-14",
+        "order_id": 1043,
+        "order_total": 0.0
+      },
+      {
+        "customer": "ada okafor",
+        "order_date": "2026-07-16",
+        "order_id": 1044,
+        "order_total": 64.83
+      },
+      {
+        "customer": "eli nakamura  ",
+        "order_date": "2026-07-17T22:21:00Z",
+        "order_id": 1045,
+        "order_total": 167.2
+      },
+      {
+        "customer": "Lena Bhattacharya",
+        "order_date": "2026-07-14",
+        "order_id": 1046,
+        "order_total": 110.27
+      },
+      {
+        "customer": "Lena Bhattacharya",
+        "order_date": "2026-07-16",
+        "order_id": 1047,
+        "order_total": 128.46
+      },
+      {
+        "customer": "gus MARCHETTI",
+        "order_date": "2026-07-16",
+        "order_id": 1048,
+        "order_total": 210.91
+      },
+      {
+        "customer": "iris kovac",
+        "order_date": "2026-07-17",
+        "order_id": 1049,
+        "order_total": null
+      }
+    ]
+  },
+  "revenue_report": {
+    "columns": ["section", "heading", "text"],
+    "rows": [
+      {
+        "heading": "Period total",
+        "section": "overview",
+        "text": "Revenue totalled 4069.60 from 2026-07-13 through 2026-07-17."
+      },
+      {
+        "heading": "Strongest day",
+        "section": "high",
+        "text": "2026-07-16 was strongest at 1253.84 from 12 orders, with average order value of 104.49."
+      },
+      {
+        "heading": "Weakest day",
+        "section": "low",
+        "text": "2026-07-13 was weakest at 392.38 from 5 orders, with average order value of 78.48."
+      },
+      {
+        "heading": "Bottom line",
+        "section": "bottom_line",
+        "text": "Order volume was the main driver of the gap: the strongest day had 12 orders versus 5, while its higher average order value of 104.49 versus 78.48 also contributed."
+      }
+    ]
+  }
+}
