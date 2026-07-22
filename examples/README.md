@@ -263,3 +263,7 @@ Those values were checked separately by walking the files and comparing against 
   and empty `affected`, which is the behaviour the whole design rests on. It has been observed
   live — `rerun-same` reported 0 changed outputs and 0 marks on a separate run the same day — but
   this capture did not include that step, so there is no sample of it here.
+- **The `description` field.** Task job descriptions were added to registration later on
+  2026-07-22, after this capture, so no task here carries the key. The type declares it optional
+  for exactly this reason: these files remain a faithful record of what `GET /api/swarm` returned
+  at the time, and the conformance checks still hold over them.

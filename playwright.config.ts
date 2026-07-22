@@ -45,9 +45,14 @@ export default defineConfig({
   },
 
   projects: [
-    // The size docs/demo-script.md specifies for the recording.
-    { name: "recording-960x1000", use: { viewport: { width: 960, height: 1000 } } },
-    { name: "wide-1280x800", use: { viewport: { width: 1280, height: 800 } } },
+    // A full-frame browser on a 1080p display, which is what
+    // docs/demo-script.md specifies for the recording now that the demo is
+    // driven from the guide panel rather than a terminal beside the window.
+    // 990 ≈ 1080 minus the browser chrome.
+    { name: "recording-1920x990", use: { viewport: { width: 1920, height: 990 } } },
+    // A laptop. The page may scroll vertically here — the fit test asserts
+    // what must stay above the fold instead.
+    { name: "laptop-1280x800", use: { viewport: { width: 1280, height: 800 } } },
   ],
 
   webServer: {

@@ -39,8 +39,14 @@ function note(task: TaskRecord): string {
       : `wrote ${shortName(wrote)} · fingerprint recorded`;
   }
   if (task.status === "running") return "working · its outputs are not final yet";
-  if (task.reads.length === 0) return "waiting to start";
-  return `waiting on ${task.reads.map(shortName).join(", ")}`;
+  // Before a task has run, its row is where a newcomer learns what the agent
+  // is for — the registered job description, when the agent declared one.
+  const job = task.description ?? null;
+  const waiting =
+    task.reads.length === 0
+      ? "waiting to start"
+      : `waiting on ${task.reads.map(shortName).join(", ")}`;
+  return job === null ? waiting : `${job} · ${waiting}`;
 }
 
 export function LedgerRow({

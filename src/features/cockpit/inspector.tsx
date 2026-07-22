@@ -69,6 +69,9 @@ export function Inspector({
 
           <dl className={styles.fields}>
             <Field label="status">{STATUS_WORD[task.status]}</Field>
+            {/* Present only when the agent declared one at registration — the
+                same text stored on the DataJob's description in DataHub. */}
+            {task.description != null && <Field label="job">{task.description}</Field>}
             <Field label="task urn">
               <code className={styles.urn}>{task.urn}</code>
             </Field>

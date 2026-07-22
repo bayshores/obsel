@@ -42,6 +42,10 @@ class AgentTask:
     #: What sort of work this is, for the `shape` printout only. Nothing
     #: dispatches on it: the agent decides how to do the job.
     kind: str  # "clean" | "aggregate" | "write"
+    #: The job in one sentence, registered as the DataJob's own description in
+    #: DataHub -- so DataHub's UI, obsel's ledger, and the guide all show the
+    #: same words. Written for someone who has never seen this pipeline.
+    summary: str
     reads: tuple[str, ...]
     writes: str
     #: What this agent is told to do. The demo's `change` step hands the agent a
@@ -61,6 +65,7 @@ TASKS: tuple[AgentTask, ...] = (
     AgentTask(
         name="clean_orders",
         kind="clean",
+        summary="cleans the raw orders export into a tidy four-column table",
         reads=(SEED_TABLE,),
         writes="clean_orders",
         output_columns=("order_id", "customer", "order_total", "order_date"),
@@ -90,6 +95,7 @@ TASKS: tuple[AgentTask, ...] = (
     AgentTask(
         name="build_revenue",
         kind="aggregate",
+        summary="totals the clean orders into one revenue row per day",
         reads=("clean_orders",),
         writes="daily_revenue",
         output_columns=(
@@ -108,6 +114,7 @@ TASKS: tuple[AgentTask, ...] = (
     AgentTask(
         name="write_report",
         kind="write",
+        summary="writes the short revenue report an operations lead reads",
         reads=("daily_revenue",),
         writes="revenue_report",
         output_columns=("section", "heading", "text"),
@@ -123,6 +130,7 @@ TASKS: tuple[AgentTask, ...] = (
     AgentTask(
         name="write_docs",
         kind="write",
+        summary="documents the daily_revenue table for the next engineer",
         reads=("daily_revenue",),
         writes="pipeline_docs",
         output_columns=("section", "heading", "text"),

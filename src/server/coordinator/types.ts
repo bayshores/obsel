@@ -97,6 +97,15 @@ export interface TaskRecord {
   urn: string;
   /** Short human name, e.g. "build_revenue". */
   name: string;
+  /**
+   * The task's standing job in one sentence, registered into the DataJob's own
+   * description field — so DataHub's UI and obsel's board show the same words.
+   *
+   * Optional as well as nullable, deliberately: artifacts captured before this
+   * field existed lack the key entirely and remain valid records of what was
+   * read at the time. Null when a task registered without one.
+   */
+  description?: string | null;
   /** Dataset URNs this task reads. `Consumes` edges. */
   reads: string[];
   /** Dataset URNs this task writes. `Produces` edges. */

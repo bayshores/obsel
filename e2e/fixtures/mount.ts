@@ -18,7 +18,9 @@
 
 import type { Page } from "@playwright/test";
 
+import { idle } from "./activity";
 import type { SwarmResponse } from "@/src/features/cockpit/use-swarm";
+import type { DemoActivity, DemoStep } from "@/src/server/runner/types";
 
 export interface Faults {
   consoleErrors: string[];
@@ -39,8 +41,17 @@ export interface Faults {
 export async function openCockpit(
   page: Page,
   body: SwarmResponse,
-): Promise<{ faults: Faults; serve: (next: SwarmResponse | "fail") => void }> {
+  activity: DemoActivity = idle(),
+): Promise<{
+  faults: Faults;
+  serve: (next: SwarmResponse | "fail") => void;
+  serveActivity: (next: DemoActivity) => void;
+  /** Every step the cockpit asked the launcher to start, in order. */
+  launches: DemoStep[];
+}> {
   let current: SwarmResponse | "fail" = body;
+  let currentActivity: DemoActivity = activity;
+  const launches: DemoStep[] = [];
 
   const faults: Faults = { consoleErrors: [], pageErrors: [], failedRequests: [] };
   page.on("console", (message) => {
@@ -65,6 +76,28 @@ export async function openCockpit(
     });
   });
 
+  // Same seam for the runner's two routes. The real activity handler would
+  // genuinely probe this machine — spawn `codex login status`, stat the venv —
+  // making every test a fact about the box it ran on; and the real launch
+  // handler would spawn a real agent run. Both are exercised live instead
+  // (see the README's verified section), never from this suite.
+  await page.route("**/api/demo/activity", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(currentActivity),
+    });
+  });
+  await page.route("**/api/demo/launch", async (route) => {
+    const step = (route.request().postDataJSON() as { step: DemoStep }).step;
+    launches.push(step);
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ ok: true, running: { step, startedAt: new Date().toISOString() } }),
+    });
+  });
+
   await page.goto("/");
   await page.evaluate(async () => {
     await document.fonts.ready;
@@ -72,5 +105,10 @@ export async function openCockpit(
   // One poll interval, so the first successful read has certainly landed.
   await page.waitForFunction(() => document.querySelectorAll("main li").length > 0 || true);
 
-  return { faults, serve: (next) => (current = next) };
+  return {
+    faults,
+    serve: (next) => (current = next),
+    serveActivity: (next) => (currentActivity = next),
+    launches,
+  };
 }

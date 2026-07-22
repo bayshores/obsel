@@ -72,7 +72,7 @@ const RELATIONSHIP_PAGE_SIZE = 200;
 const DEFAULT_TIMEOUT_MS = 20_000;
 
 /** Read lazily so a script or test can set the variable after importing this module. */
-function gmsUrl(): string {
+export function gmsUrl(): string {
   return process.env.DATAHUB_GMS_URL ?? "http://localhost:8080";
 }
 
@@ -233,6 +233,24 @@ export async function readTaskEntity(urn: string): Promise<DataJobEntity | null>
 
 export async function taskExists(urn: string): Promise<boolean> {
   return (await readTaskEntity(urn)) !== null;
+}
+
+/**
+ * Whether a tag entity exists, by the same genuine-404 predicate as tasks.
+ *
+ * Used by the demo preflight to tell whether `agents.run setup` has been run
+ * against this DataHub — obsel cannot create the tag itself at runtime, so
+ * detecting staleness without this tag would succeed and then silently fail to
+ * record anything a person can see.
+ */
+export async function tagExists(urn: string): Promise<boolean> {
+  const response = await gmsFetch(`/openapi/v3/entity/tag/${encodeURIComponent(urn)}`);
+  if (response.status === 404) return false;
+  if (!response.ok) {
+    const body = (await response.text()).slice(0, 500);
+    throw new DataHubError(`DataHub ${response.status} reading ${urn}: ${body}`, response.status);
+  }
+  return true;
 }
 
 /**
@@ -405,6 +423,11 @@ function toTaskRecord(entity: DataJobEntity): TaskRecord {
   return {
     urn: entity.urn,
     name: info?.name ?? taskName(entity.urn),
+    // The registration placeholder is not a job description; reading it back
+    // as one would put "obsel agent task" on every old row as though an agent
+    // had said it.
+    description:
+      info?.description && info.description !== "obsel agent task" ? info.description : null,
     reads: [...(io?.inputDatasets ?? [])],
     writes: [...(io?.outputDatasets ?? [])],
     status,
@@ -488,6 +511,7 @@ export async function registerTask(
   name: string,
   reads: string[],
   writes: string[],
+  description?: string,
 ): Promise<TaskRecord> {
   const urn = taskUrn(name);
 
@@ -496,7 +520,9 @@ export async function registerTask(
     dataJobInfo: {
       value: {
         name,
-        description: "obsel agent task",
+        // The agent's own one-sentence job when it declared one — real DataHub
+        // metadata, so DataHub's UI shows the same words the cockpit does.
+        description: description ?? "obsel agent task",
         type: { string: "COMMAND" },
         customProperties: { [PROP.status]: "registered" },
       },

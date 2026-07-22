@@ -34,8 +34,16 @@ DataHub and a signed-in Codex CLI, with every step's own assertions passing:
 | `rerun-same` | byte-identical output, 0 changed outputs, 0 marks, confirmed in 60 ms           |
 | `change`     | called `schema`; marked exactly 3 tasks at 1, 2 and 2 hops, in 2591 ms          |
 
-Five runs of `run` on the same machine measured 135.9 s, 119.4 s, 152.0 s, 134.0 s
-and 134.0 s. `clean_orders` wrote 39 rows from the 50-row seed every time.
+Later the same day the sequence was driven again — this time entirely from the
+cockpit's guide buttons, which spawn these same commands — including the reverse
+experiment order, `change` first and then `rerun-same` on the already-flagged
+board: byte-identical output, 0 changed outputs, 0 new marks confirmed in 89 ms,
+and the three existing marks untouched. (That order failed on its first live
+attempt and exposed a real bug — see the `rerun-same` section below.)
+
+Six full runs of `run` on the same machine measured 135.9 s, 119.4 s, 152.0 s,
+134.0 s, 134.0 s and 112.2 s. `clean_orders` wrote 39 rows from the 50-row seed
+every time.
 
 That is one clean pass of each step, not a pass rate. Each command states its
 expectation, compares it against what obsel returned, and prints `UNEXPECTED:` and
@@ -108,9 +116,11 @@ agents/.venv/bin/python -m agents.run register
 Tells obsel about the four tasks. obsel writes each one into DataHub as a
 `DataJob` with `Consumes` and `Produces` edges to the tables it reads and writes,
 so the swarm's structure is visible in DataHub's own lineage view before any work
-happens. The command checks that the URN obsel returns matches the one the agents
-expect, and stops if they disagree — a URN mismatch would make the traversal miss
-the task without any error.
+happens. Each task's one-sentence job (`summary` in `pipeline.py`) goes along and
+is stored as the DataJob's own description — DataHub's UI, obsel's ledger, and
+the guide all show the same words. The command checks that the URN obsel returns
+matches the one the agents expect, and stops if they disagree — a URN mismatch
+would make the traversal miss the task without any error.
 
 ### 3. `run`
 
@@ -177,6 +187,19 @@ the serialised value. Two things were wrong, and both are now fixed:
 
 With both in place the step passes: byte-identical output, nothing marked,
 confirmed by obsel in 60 ms.
+
+**And the step that failed second, later the same day.** Run for the first time
+_after_ `change` — from the cockpit's guide, on the flagged board — it reverted
+the rename and failed its own assertion. The re-run replayed the changed
+instruction ("name the column order_total_usd") but passed no column contract, so
+the worker fell back to the task's standing `output_columns` — the original
+names — and the contract won over the instruction. An instruction from one run
+paired with a contract from another can contradict each other, so a successful
+run now remembers **both together** (`_remember_run` in `worker.py`), and
+`rerun-same` replays the pair. obsel called every run in that incident correctly,
+including flagging the accidental revert as the genuine schema change it was.
+With the pair replayed the order passes: byte-identical output, 0 new marks in
+89 ms, and the three existing marks untouched.
 
 ### 5. `change` — the money moment
 

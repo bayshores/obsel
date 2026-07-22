@@ -469,25 +469,48 @@ class RunResult:
     start: str = "announced"
 
 
-def _remember_instruction(task_name: str, instruction: str, root: Path = REPO_ROOT) -> None:
-    """Record what a task was last told to do.
+def _remember_run(
+    task_name: str, instruction: str, columns: list[str], root: Path = REPO_ROOT
+) -> None:
+    """Record what a task was last told to do, and the columns it actually wrote.
 
-    `run.py rerun-same` needs this: re-running an agent with whatever instruction
-    it last used is the only way to demonstrate "no change, no alarm" honestly at
-    any point in the demo, including after the rename.
+    `run.py rerun-same` needs this: re-running an agent with whatever it last ran
+    is the only way to demonstrate "no change, no alarm" honestly at any point in
+    the demo, including after the rename.
+
+    The columns are remembered **together with** the instruction, and that is the
+    fix for a live failure on 2026-07-22: rerun-same replayed the changed
+    instruction ("name the column order_total_usd") but passed no column
+    contract, so the worker fell back to the task's standing `output_columns` —
+    the ORIGINAL names — and the contract won. The re-run reverted the rename,
+    obsel correctly flagged a genuine schema change, and the step's own assertion
+    failed. An instruction and a contract from two different runs can contradict
+    each other; a pair recorded by one successful run cannot.
     """
     path = root / ".obsel" / "state" / "instructions.json"
     path.parent.mkdir(parents=True, exist_ok=True)
     known = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
-    known[task_name] = instruction
+    known[task_name] = {"instruction": instruction, "columns": columns}
     path.write_text(json.dumps(known, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
-def last_instruction(task_name: str, root: Path = REPO_ROOT) -> str | None:
+def last_run(task_name: str, root: Path = REPO_ROOT) -> dict[str, Any] | None:
+    """The last successful run's instruction and output columns, or None.
+
+    Tolerates the pre-2026-07-22 format, where the value was the instruction
+    string alone — `columns` comes back None and the caller falls back to the
+    task's standing contract, which is exactly the old (buggy after a `change`)
+    behaviour; a `reset` clears such entries.
+    """
     path = root / ".obsel" / "state" / "instructions.json"
     if not path.exists():
         return None
-    return json.loads(path.read_text(encoding="utf-8")).get(task_name)
+    entry = json.loads(path.read_text(encoding="utf-8")).get(task_name)
+    if entry is None:
+        return None
+    if isinstance(entry, str):
+        return {"instruction": entry, "columns": None}
+    return entry
 
 
 def _inflight_path(task_name: str, root: Path = REPO_ROOT) -> Path:
@@ -665,7 +688,7 @@ def run_task(
 
     try:
         output_path = save_table(task.writes, output, root)
-        _remember_instruction(task.name, job, root)
+        _remember_run(task.name, job, list(output["columns"]), root)
 
         fingerprints = {
             pipeline.dataset_urn(task.writes): fingerprint(output["rows"], output["columns"])

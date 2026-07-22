@@ -29,13 +29,14 @@ import type {
   TaskRecord,
 } from "./types";
 
-/** Declare a task and what it will touch. */
+/** Declare a task, what it will touch, and its one-sentence job. */
 export async function registerTask(
   name: string,
   reads: string[],
   writes: string[],
+  description?: string,
 ): Promise<TaskRecord> {
-  return await writeTask(name, reads, writes);
+  return await writeTask(name, reads, writes, description);
 }
 
 /**

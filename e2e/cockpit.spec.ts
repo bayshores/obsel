@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
 
+import { codexSignedOut, runningStep } from "./fixtures/activity";
 import { calm, cascaded, empty } from "./fixtures/swarm";
 import { openCockpit } from "./fixtures/mount";
 
@@ -107,7 +108,7 @@ test.describe("typography", () => {
 });
 
 test.describe("fit", () => {
-  test("never scrolls horizontally, and fits vertically at the recording size", async ({
+  test("never scrolls horizontally; vertical fit holds at the recording size", async ({
     page,
     viewport,
   }) => {
@@ -123,13 +124,37 @@ test.describe("fit", () => {
     expect(box.scrollW, "horizontal scroll is always a bug here").toBeLessThanOrEqual(
       box.clientW + 1,
     );
-    expect(
-      box.scrollH,
-      `vertical fit at ${viewport?.width}x${viewport?.height}`,
-    ).toBeLessThanOrEqual(box.clientH + 1);
+
+    if ((viewport?.height ?? 0) >= 990) {
+      // The recording frame: everything, ledger and ribbon included, on screen.
+      expect(
+        box.scrollH,
+        `vertical fit at ${viewport?.width}x${viewport?.height}`,
+      ).toBeLessThanOrEqual(box.clientH + 1);
+    } else {
+      // A laptop may scroll, but what orients a newcomer — the guide and the
+      // whole graph — must be above the fold, not something they discover.
+      const tops = await page.evaluate(() => {
+        const guide = document.querySelector("main > section");
+        const graph = document.querySelector("main svg")?.closest("section");
+        return {
+          guideBottom: guide?.getBoundingClientRect().bottom ?? Number.NaN,
+          graphBottom: graph?.getBoundingClientRect().bottom ?? Number.NaN,
+        };
+      });
+      expect(tops.guideBottom, "guide fully visible").toBeLessThanOrEqual(box.clientH + 1);
+      expect(tops.graphBottom, "graph fully visible").toBeLessThanOrEqual(box.clientH + 1);
+    }
   });
 
-  test("the stat ribbon is above the fold — it holds the measured number", async ({ page }) => {
+  test("the stat ribbon is above the fold at the recording size — it holds the measured number", async ({
+    page,
+    viewport,
+  }) => {
+    test.skip(
+      (viewport?.height ?? 0) < 990,
+      "on a laptop the ribbon may scroll into view; the recording frame is where the fold is binding",
+    );
     await openCockpit(page, cascaded());
 
     const bottom = await page.evaluate(() => {
@@ -368,5 +393,54 @@ test.describe("paint", () => {
     // every lit edge invisible — the exact bug the reduced-motion block exists
     // to prevent.
     for (const offset of state) expect(offset).toBeCloseTo(0, 2);
+  });
+});
+
+test.describe("guide", () => {
+  test("an empty swarm offers register, and the click launches the real step", async ({ page }) => {
+    const { launches } = await openCockpit(page, empty());
+
+    const button = page.getByRole("button", { name: /Register the pipeline/ });
+    await expect(button).toBeVisible();
+    await button.click();
+
+    await expect.poll(() => launches).toEqual(["register"]);
+  });
+
+  test("a settled swarm offers the two experiments", async ({ page }) => {
+    await openCockpit(page, calm());
+
+    await expect(page.getByRole("button", { name: /Re-run the cleaner/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Change a requirement/ })).toBeVisible();
+  });
+
+  test("a cascaded swarm explains the flags and offers the re-run and reset, never change", async ({
+    page,
+  }) => {
+    await openCockpit(page, cascaded());
+
+    await expect(page.getByText("finished work just went out of date")).toBeVisible();
+    await expect(page.getByText(/never read the changed table/)).toBeVisible();
+    await expect(page.getByRole("button", { name: /Re-run the cleaner/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Reset the board/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Change a requirement/ })).toHaveCount(0);
+  });
+
+  test("a broken prerequisite turns the guide into preparation with the exact fix", async ({
+    page,
+  }) => {
+    await openCockpit(page, calm(), codexSignedOut());
+
+    await expect(page.getByText("one-time preparation")).toBeVisible();
+    await expect(page.getByText("codex login", { exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Re-run the cleaner/ })).toHaveCount(0);
+  });
+
+  test("while a step runs the buttons go away and its own output streams", async ({ page }) => {
+    await openCockpit(page, calm(), runningStep("rerun-same"));
+
+    await expect(page.getByText("rerun-same is live")).toBeVisible();
+    await expect(page.getByText("rerun-same: started")).toBeVisible();
+    await expect(page.getByRole("button", { name: /Re-run the cleaner/ })).toHaveCount(0);
   });
 });

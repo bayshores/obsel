@@ -1,0 +1,177 @@
+/*
+ * The guide panel: the one region written for someone who has never seen
+ * obsel. Prose is sans and measured; anything executable or quoted from a
+ * process is mono. It is content-sized — the graph, not the guide, is the
+ * region that absorbs slack — so every stage's copy has to stay short.
+ */
+
+.body {
+  display: grid;
+  gap: var(--mm-space-sm);
+}
+
+/*
+ * Wide enough, the guide runs two columns — the story on the left, the things
+ * to do (or the step running) on the right — because the cockpit's vertical
+ * budget is nearly spent: the graph has a 220px floor and the ledger is
+ * evidence that may not be compressed, so the guide buys its height back from
+ * its own width instead.
+ */
+@media (min-width: 900px) {
+  .body {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 46ch);
+    column-gap: var(--mm-space-xl);
+    align-items: start;
+  }
+}
+
+.prose,
+.side {
+  display: grid;
+  gap: var(--mm-space-sm);
+  min-width: 0;
+}
+
+/* A failed step concerns both columns, so it spans them. */
+.span {
+  grid-column: 1 / -1;
+}
+
+.narration {
+  margin: 0;
+  color: var(--mm-cream-dim);
+  font-family: var(--mm-font-sans);
+  font-size: var(--mm-text-lg);
+  line-height: var(--mm-leading-body);
+  text-wrap: pretty;
+  max-width: 78ch;
+}
+
+.narration code,
+.attention code,
+.result code {
+  font-family: var(--mm-font-mono);
+  font-size: 0.95em;
+  color: var(--mm-cream);
+  background: var(--mm-surface);
+  border: 1px solid var(--mm-rose-line);
+  padding: 0 4px;
+  overflow-wrap: anywhere;
+}
+
+/* One failed step, quoted on whatever stage the board is in. */
+.attention {
+  margin: 0;
+  color: var(--mm-cream);
+  font-family: var(--mm-font-sans);
+  font-size: var(--mm-text-lg);
+  line-height: var(--mm-leading-body);
+  border: 1px solid rgba(239, 71, 111, 0.35);
+  border-left: 3px solid var(--mm-red);
+  background: rgba(239, 71, 111, 0.07);
+  padding: var(--mm-space-xs) var(--mm-space-sm);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--mm-space-sm);
+}
+
+/*
+ * A real control, not a link pretending. The detail line rides inside the
+ * button on purpose: what the press genuinely does is part of the decision,
+ * not a tooltip afterthought.
+ */
+.action {
+  display: grid;
+  gap: 3px;
+  text-align: left;
+  padding: var(--mm-space-sm) var(--mm-space-md);
+  max-width: 44ch;
+  color: var(--mm-cream);
+  background: var(--mm-rose-soft);
+  border: 1px solid var(--mm-border-strong);
+  border-radius: var(--mm-radius-none);
+  cursor: pointer;
+}
+
+.action:hover:enabled {
+  border-color: var(--mm-rose);
+}
+
+.action:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.actionLabel {
+  font-family: var(--mm-font-mono);
+  font-size: var(--mm-text-lg);
+  font-weight: var(--mm-weight-semi);
+  letter-spacing: var(--mm-track-label);
+  color: var(--mm-rose);
+}
+
+.actionDetail {
+  font-family: var(--mm-font-sans);
+  font-size: var(--mm-text-md);
+  line-height: var(--mm-leading-body);
+  color: var(--mm-cream-dim);
+  text-wrap: pretty;
+}
+
+/* The live row while a launched step runs. */
+.running {
+  display: flex;
+  align-items: center;
+  gap: var(--mm-space-xs);
+  font-family: var(--mm-font-mono);
+  font-size: var(--mm-text-md);
+  color: var(--mm-green);
+}
+
+/* How the last step ended, one mono line. */
+.result {
+  margin: 0;
+  font-family: var(--mm-font-mono);
+  font-size: var(--mm-text-md);
+  color: var(--obsel-text-quiet);
+  overflow-wrap: anywhere;
+}
+
+/* The step's own printed output — evidence, never paraphrased. */
+.log {
+  margin: 0;
+  font-family: var(--mm-font-mono);
+  font-size: var(--mm-text-md);
+  line-height: 1.5;
+  color: var(--obsel-text-quiet);
+  background: var(--mm-surface);
+  border: 1px solid var(--mm-border);
+  padding: var(--mm-space-xs) var(--mm-space-sm);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.disclosure > summary {
+  cursor: pointer;
+  font-family: var(--mm-font-mono);
+  font-size: var(--mm-text-md);
+  color: var(--obsel-text-quiet);
+  list-style-position: inside;
+}
+
+.disclosure > summary:hover {
+  color: var(--mm-cream-dim);
+}
+
+/* The auxiliary feed failing is a footnote, not an alarm. */
+.aside {
+  margin: 0;
+  font-family: var(--mm-font-mono);
+  font-size: var(--mm-text-cap);
+  color: var(--obsel-text-quiet);
+}

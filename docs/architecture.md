@@ -254,29 +254,30 @@ every DataHub call.
 
 ## 8. What exists
 
-Checked against the working tree on 2026-07-21. Several of these files landed while this document
-was being written, so treat the shipped column as "present and readable", not as "covered by
-end-to-end evidence" — see [Evidence](#9-evidence) below.
+Checked against the working tree on 2026-07-22. Treat the shipped column as "present and
+readable", not as "covered by end-to-end evidence" — see [Evidence](#9-evidence) below.
 
-| Piece                                     | Path                                                               | State                                      |
-| ----------------------------------------- | ------------------------------------------------------------------ | ------------------------------------------ |
-| The contracts                             | `src/server/coordinator/types.ts`                                  | shipped                                    |
-| Staleness rules                           | `src/server/coordinator/staleness.ts`                              | shipped, 24 passing tests                  |
-| Coordinator IO                            | `src/server/coordinator/engine.ts`                                 | shipped, no automated test yet             |
-| GMS client                                | `src/server/datahub/client.ts`                                     | shipped, no automated test yet             |
-| MCP tag writes                            | `src/server/datahub/mcp.ts`                                        | shipped, no automated test yet             |
-| URN shapes                                | `src/server/datahub/urns.ts`                                       | shipped                                    |
-| HTTP API                                  | `app/api/swarm`, `app/api/tasks/{register,start,abandon,complete}` | shipped                                    |
-| Cockpit                                   | `app/page.tsx`, `src/features/cockpit/`                            | shipped, 113 unit + 30 browser tests       |
-| Live agent progress                       | `src/features/cockpit/progress.ts`                                 | shipped, 23 passing tests, seen live       |
-| Task registration and traversal in Python | `agents/graph.py`                                                  | shipped, verified live                     |
-| Fingerprinting                            | `agents/fingerprint.py`                                            | shipped, has a self-check                  |
-| Demo shape and seed data                  | `agents/pipeline.py`, `agents/seed_data.py`                        | shipped                                    |
-| Vocabulary setup                          | `agents/setup.py`                                                  | shipped                                    |
-| Agent worker and demo runner              | `agents/worker.py`, `agents/run.py`                                | shipped, no automated test yet             |
-| Demo reset                                | `app/api/demo/reset/route.ts`, `engine.resetSwarm`                 | shipped, no automated test yet             |
-| Agent output contract                     | `agents/worker.py` — `canonicalise_numbers`                        | shipped, 7 self-check properties           |
-| Sample outputs                            | `examples/`                                                        | shipped, illustrative rather than captured |
+| Piece                                     | Path                                                                                                       | State                                  |
+| ----------------------------------------- | ---------------------------------------------------------------------------------------------------------- | -------------------------------------- |
+| The contracts                             | `src/server/coordinator/types.ts`                                                                          | shipped                                |
+| Staleness rules                           | `src/server/coordinator/staleness.ts`                                                                      | shipped, 24 passing tests              |
+| Coordinator IO                            | `src/server/coordinator/engine.ts`                                                                         | shipped, no automated test yet         |
+| GMS client                                | `src/server/datahub/client.ts`                                                                             | shipped, no automated test yet         |
+| MCP tag writes                            | `src/server/datahub/mcp.ts`                                                                                | shipped, no automated test yet         |
+| URN shapes                                | `src/server/datahub/urns.ts`                                                                               | shipped                                |
+| HTTP API                                  | `app/api/swarm`, `app/api/tasks/{register,start,abandon,complete}`, `app/api/demo/{reset,launch,activity}` | shipped                                |
+| Cockpit                                   | `app/page.tsx`, `src/features/cockpit/`                                                                    | shipped, 132 unit + 39 browser tests   |
+| Live agent progress                       | `src/features/cockpit/progress.ts`                                                                         | shipped, 23 passing tests, seen live   |
+| The guide                                 | `src/features/cockpit/guide.ts`, `guide-panel.tsx`                                                         | shipped, 19 passing tests, driven live |
+| Demo runner                               | `src/server/runner/` — `steps.ts`, `launcher.ts`, `preflight.ts`                                           | shipped, 11 tests on the pure half     |
+| Task registration and traversal in Python | `agents/graph.py`                                                                                          | shipped, verified live                 |
+| Fingerprinting                            | `agents/fingerprint.py`                                                                                    | shipped, has a self-check              |
+| Demo shape, jobs and seed data            | `agents/pipeline.py`, `agents/seed_data.py`                                                                | shipped                                |
+| Vocabulary setup                          | `agents/setup.py`                                                                                          | shipped                                |
+| Agent worker and demo runner              | `agents/worker.py`, `agents/run.py`                                                                        | shipped, no automated test yet         |
+| Demo reset                                | `app/api/demo/reset/route.ts`, `engine.resetSwarm`                                                         | shipped, no automated test yet         |
+| Agent output contract                     | `agents/worker.py` — `canonicalise_numbers`                                                                | shipped, 7 self-check properties       |
+| Sample outputs                            | `examples/`                                                                                                | shipped, captured from a real run      |
 
 ## 9. Evidence
 
@@ -306,6 +307,13 @@ What has been verified directly, and what has not.
   `schema` rather than `both`, and marked exactly `build_revenue` (1 hop), `write_docs` and
   `write_report` (2 hops) in 2591 ms. That run exercises `engine.ts`, `client.ts` and `mcp.ts`
   against real DataHub, by hand rather than by an automated test.
+- **The same demo driven from the browser alone**, later on 2026-07-22: five clicks in the
+  cockpit's guide — reset, re-declare, run, identical re-run, change — with no terminal. Register
+  wrote each task's job description onto its DataJob and read it back in 506 ms; `run` took
+  112.2 s; the identical re-run reported 0 changed outputs and 0 marks confirmed in 106 ms; the
+  rename was called `schema` and marked the same three tasks in 2310 ms. Each button spawned the
+  real `agents.run` step through `POST /api/demo/launch`, and as a cross-check that the guide is
+  state-derived, the closing `reset` was run from a terminal — the board tracked it identically.
 - The agent output contract, by the self-check in `agents/worker.py`: `217` and `217.0` reach one
   fingerprint, an id column keeps its integers, and a value that genuinely moved still moves the
   hash. Added after a live run where a single value's spelling broke two demo steps at once.
@@ -336,7 +344,11 @@ What has been verified directly, and what has not.
 
 ## 11. The HTTP API
 
-Six routes. All of them are `force-dynamic`; nothing here is cached.
+Eight routes. All of them are `force-dynamic`; nothing here is cached. Six carry obsel's own
+protocol; the last two (`/api/demo/launch` and `/api/demo/activity`) belong to the demo runner —
+they execute and report the demo's own CLI steps on the machine obsel runs on, exist so the
+cockpit's guide can drive the demo without a terminal, and are not part of what an agent
+integrating with obsel would ever call.
 
 **One asymmetry to know before you call anything:** `POST /api/tasks/register` takes **short dataset
 names** — `clean_orders`, not a URN. Every other route, and every field in every response, uses full
@@ -357,13 +369,18 @@ shapes are not sampled there.
 
 ### `POST /api/tasks/register`
 
-Declare a task and what it will touch. Idempotent in the sense that re-registering resets the task
-to `registered` with no run state; it does not preserve fingerprints, so it is not the way to
-re-run a task.
+Declare a task, what it will touch, and optionally its job in one sentence. Idempotent in the
+sense that re-registering resets the task to `registered` with no run state; it does not preserve
+fingerprints, so it is not the way to re-run a task.
 
 ```jsonc
-// request — SHORT dataset names
-{ "name": "build_revenue", "reads": ["clean_orders"], "writes": ["daily_revenue"] }
+// request — SHORT dataset names; description optional, ≤300 chars
+{
+  "name": "build_revenue",
+  "reads": ["clean_orders"],
+  "writes": ["daily_revenue"],
+  "description": "totals the clean orders into one revenue row per day",
+}
 ```
 
 ```jsonc
@@ -371,6 +388,7 @@ re-run a task.
 {
   "urn": "urn:li:dataJob:(urn:li:dataFlow:(obsel,orders_pipeline,prod),build_revenue)",
   "name": "build_revenue",
+  "description": "totals the clean orders into one revenue row per day",
   "reads": ["urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_demo.clean_orders,PROD)"],
   "writes": ["urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_demo.daily_revenue,PROD)"],
   "status": "registered",
@@ -381,6 +399,14 @@ re-run a task.
   "stale": null,
 }
 ```
+
+The description is stored as the DataJob's own `dataJobInfo.description` — real graph metadata, so
+DataHub's UI shows the same sentence the cockpit does. Reading a task back returns it as
+`description`, null when the task registered without one (the placeholder older registrations
+carried is filtered out rather than shown as though an agent had said it). Confirmed live
+2026-07-22: registered through this route, read back off GMS at
+`/openapi/v3/entity/datajob/<urn>` with the sentence on the entity, in a measured 506 ms for all
+four tasks.
 
 The route fails rather than returning if DataHub stored a different number of inputs or outputs than
 were sent — a rejected aspect pair can be dropped without failing the write.
@@ -528,6 +554,71 @@ It deliberately does not delete the tasks. Their lineage edges are what the demo
 `reset` lists every task that was put back; `tagsCleared` lists only those that were actually
 carrying a mark, so an empty `tagsCleared` means there was nothing to clear rather than that
 clearing failed.
+
+### `POST /api/demo/launch`
+
+Run one demo step on this machine — the same `agents/.venv/bin/python -m agents.run <step>` the
+README documents, spawned verbatim with no shell and no interpolation: the step name is a Zod enum
+of the six commands, and nothing else from the request reaches the spawn. Answers immediately;
+progress is read from `/api/demo/activity` and from the swarm itself.
+
+One step at a time, enforced server-side with a 409 — the steps share the demo's tables, so a
+`change` racing a `run` would corrupt both. A missing `agents/.venv` is also a 409, carrying the
+exact commands that create it.
+
+This route executes local processes by design. obsel's demo is a local tool on the machine that
+owns the Codex login; nothing in this repository exposes it beyond localhost, and hosting was
+explicitly decided against.
+
+```jsonc
+// request
+{ "step": "run" } // "setup" | "register" | "run" | "rerun-same" | "change" | "reset"
+```
+
+```jsonc
+// 200
+{ "ok": true, "running": { "step": "run", "startedAt": "2026-07-22T…" } }
+```
+
+```jsonc
+// 409 — refused, with the fix when there is one
+{ "error": "run is already running — one step at a time, they share the same tables", "fix": null }
+```
+
+### `GET /api/demo/activity`
+
+What the demo runner is doing right now: the running step, how the last one ended, the step's own
+stdout/stderr tail (bounded to the newest 500 lines), and whether this machine's prerequisites
+hold. The cockpit polls it every two seconds beside `/api/swarm`. Task state itself is never in
+here — that lives in DataHub and comes back through the swarm read.
+
+Each preflight check is a genuine observation carrying the exact fix command when it fails:
+DataHub's `/config` answering, `agents/.venv` present, `codex login status` exiting 0 (cached ten
+seconds so polling does not spawn it constantly), and `urn:li:tag:obsel-stale` existing — checked
+with the genuine-404 predicate from [`environment-findings.md`](environment-findings.md) section 1,
+because without the tag staleness would be detected and silently not recorded.
+
+```jsonc
+// 200
+{
+  "running": null,
+  "lastResult": {
+    "step": "rerun-same",
+    "exitCode": 0, // null when killed by a signal instead
+    "signal": null,
+    "startedAt": "2026-07-22T…",
+    "finishedAt": "2026-07-22T…",
+    "durationMs": 61958, // start to exit, one clock — the server's
+  },
+  "log": ["$ agents/.venv/bin/python -m agents.run rerun-same", "…"],
+  "preflight": {
+    "datahub": { "ok": true, "detail": "DataHub answered at http://localhost:8080", "fix": null },
+    "vocabulary": { "ok": true, "detail": "urn:li:tag:obsel-stale is registered", "fix": null },
+    "venv": { "ok": true, "detail": "agents/.venv exists", "fix": null },
+    "codex": { "ok": false, "detail": "the Codex CLI is not signed in", "fix": "codex login" },
+  },
+}
+```
 
 ## 12. What the cockpit's two side panels may and may not say
 

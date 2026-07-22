@@ -34,6 +34,14 @@ function print(schema: string, content: string): OutputFingerprint {
   return { schema: hex(schema), content: hex(content) };
 }
 
+/** The same one-liners the real pipeline registers — words, not measurements. */
+const JOBS: Record<string, string> = {
+  clean_orders: "cleans the raw orders export into a tidy four-column table",
+  build_revenue: "totals the clean orders into one revenue row per day",
+  write_report: "writes the short revenue report an operations lead reads",
+  write_docs: "documents the daily_revenue table for the next engineer",
+};
+
 function task(
   name: string,
   reads: string[],
@@ -43,6 +51,7 @@ function task(
   return {
     urn: jobUrn(name),
     name,
+    description: JOBS[name] ?? null,
     reads: reads.map(ds),
     writes: writes.map(ds),
     status: "complete",

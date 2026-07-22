@@ -56,9 +56,11 @@ function sentence(event: FeedEvent): string {
     case "finished":
       return `${event.taskName} finished`;
     case "went-stale":
-      return `${event.taskName} is carrying a stale mark it was not carrying before`;
+      // "out of date", matching the status word on the ledger row — the feed
+      // and the board must not use two vocabularies for the same fact.
+      return `${event.taskName} went out of date — its recorded reason is on its row`;
     case "cleared":
-      return `${event.taskName} is no longer carrying a stale mark`;
+      return `${event.taskName} is no longer out of date — a fresh run earned its mark back`;
     case "output-changed":
       return `${event.taskName}'s recorded fingerprint for ${shortName(event.dataset ?? "")} differs from the last read`;
     case "left":

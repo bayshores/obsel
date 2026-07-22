@@ -16,26 +16,37 @@ That Do Real Work_. Apache-2.0.
 
 ## Status
 
-**The whole loop is built, and the whole demo now runs end to end with real agents.** `reset` →
-`run` → `rerun-same` → `change` completed and exited 0 on 2026-07-22, against a live DataHub with a
-live Codex CLI, with every step's own assertions passing.
+**The whole loop is built, and the whole demo now runs from the browser.** The cockpit carries a
+guide that reads the live state once a second and offers the next real action as a button —
+register the pipeline, put the agents to work, re-run one identically, change a requirement
+upstream. Each button launches the same `agents.run` step the terminal path runs, verbatim, and
+the step's own printed output streams onto the board. On 2026-07-22 the full journey — reset →
+re-declare → run → identical re-run → change — was driven end to end **with five clicks and no
+terminal**, against a live DataHub with a live Codex CLI, every step exiting 0.
+
+The guide is a lens, not a script: it derives its stage from what DataHub actually holds, so
+driving a step from the terminal instead moves the board the same way, and nothing on screen is
+staged or pre-recorded.
 
 Updated 2026-07-22. Everything described below this section is code that exists in this repository
 and type-checks, not a plan.
 
 ### Built
 
-| Piece                                                | Where                                                                      |
-| ---------------------------------------------------- | -------------------------------------------------------------------------- |
-| A task is a `DataJob` with real lineage edges        | `agents/graph.py`, `src/server/datahub/urns.ts`                            |
-| Output fingerprinting, schema and content separately | `agents/fingerprint.py`                                                    |
-| The staleness rules, pure and testable               | `src/server/coordinator/staleness.ts`                                      |
-| Marks written back into DataHub                      | `src/server/coordinator/engine.ts`, `src/server/datahub/mcp.ts`            |
-| Four demo agent workers, each a real Codex session   | `agents/worker.py`, `agents/run.py`                                        |
-| The agent output contract, names and number form     | `agents/worker.py` — `canonicalise_numbers`, with a self-check             |
-| The cockpit — graph, ledger, stats, feed, inspector  | `app/page.tsx`, `src/features/cockpit/`                                    |
-| Live agent progress on the board                     | `src/features/cockpit/progress.ts`                                         |
-| HTTP API, six routes including a demo reset          | `app/api/` — see [`docs/architecture.md`](docs/architecture.md) section 11 |
+| Piece                                                                           | Where                                                                      |
+| ------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| A task is a `DataJob` with real lineage edges                                   | `agents/graph.py`, `src/server/datahub/urns.ts`                            |
+| Output fingerprinting, schema and content separately                            | `agents/fingerprint.py`                                                    |
+| The staleness rules, pure and testable                                          | `src/server/coordinator/staleness.ts`                                      |
+| Marks written back into DataHub                                                 | `src/server/coordinator/engine.ts`, `src/server/datahub/mcp.ts`            |
+| Four demo agent workers, each a real Codex session                              | `agents/worker.py`, `agents/run.py`                                        |
+| The agent output contract, names and number form                                | `agents/worker.py` — `canonicalise_numbers`, with a self-check             |
+| The cockpit — graph, ledger, stats, feed, inspector                             | `app/page.tsx`, `src/features/cockpit/`                                    |
+| Live agent progress on the board                                                | `src/features/cockpit/progress.ts`                                         |
+| The guide — stage derived from live state, buttons that launch the real steps   | `src/features/cockpit/guide.ts`, `guide-panel.tsx`                         |
+| The demo runner — spawns `agents.run` steps, checks the machine's prerequisites | `src/server/runner/`                                                       |
+| Each task's job, stored on its DataJob in DataHub and read back onto the board  | `agents/pipeline.py`, `src/server/datahub/client.ts`                       |
+| HTTP API, eight routes including launch and activity                            | `app/api/` — see [`docs/architecture.md`](docs/architecture.md) section 11 |
 
 ### Verified directly
 
@@ -61,8 +72,20 @@ and type-checks, not a plan.
   dataset it reads, and the cascade is transitive. The full walk was measured at 92 ms. That
   measurement is of [`agents/graph.py`](agents/graph.py), the Python traversal, not the end-to-end
   path.
-- **The whole demo, end to end, with live agents**, on 2026-07-22 against a live DataHub and a
-  signed-in Codex CLI. `reset` → `run` → `rerun-same` → `change`, exit 0, every assertion passing:
+- **The whole demo, driven from the browser alone**, on 2026-07-22 against a live DataHub and a
+  signed-in Codex CLI — five clicks in the guide, no terminal: reset, then re-declare (which
+  wrote each task's job description onto its DataJob and read it back onto the board in a
+  measured **506 ms**), then `run` — four Codex sessions in **112.2 s**, watched live as
+  "in flight for N s" — then the identical re-run, which obsel answered with **0 changed outputs
+  and 0 marks, confirmed in 106 ms**, then the upstream rename, which obsel called **`schema`**
+  and answered by marking exactly `build_revenue` (1 hop), `write_docs` and `write_report`
+  (2 hops each) in a measured **2310 ms**. Every step exited 0 with its own assertions passing,
+  and the board followed each transition within a poll. As a cross-check that the guide derives
+  from state rather than following a script, the final `reset` was run from a terminal instead —
+  the board tracked it identically.
+- **The whole demo, end to end, from the terminal**, earlier on 2026-07-22 against the same live
+  DataHub and Codex CLI. `reset` → `run` → `rerun-same` → `change`, exit 0, every assertion
+  passing:
 
   - `run` — four Codex sessions in **134.0 s**, then `GET /api/swarm` read back to confirm 4 of 4
     complete with no marks. obsel held no previous fingerprint for any output, so it correctly
@@ -89,10 +112,11 @@ and type-checks, not a plan.
 
 ### Not done
 
-- **The demo has passed once, not repeatedly.** The sequence above is one clean run of each step on
-  one machine. It is not a pass rate. Codex is a live agent and its output is not guaranteed
-  identical between runs — see the next point for the one instance of that already found and fixed,
-  and expect the possibility of others in categories nobody has hit yet.
+- **The demo has passed a handful of times, not repeatedly.** Two full clean sequences on
+  2026-07-22 — one from the terminal, one from the browser — on one machine. That is not a pass
+  rate. Codex is a live agent and its output is not guaranteed identical between runs — see the
+  next point for the one instance of that already found and fixed, and expect the possibility of
+  others in categories nobody has hit yet.
 - **Codex's output needed pinning down twice, and may need it again.** Two separate instabilities
   have shown up in live runs, both of which made a re-run look like a real change: customer-name
   casing (fixed by pinning the instruction, see `agents/pipeline.py`) and numeric serialisation —
@@ -102,15 +126,18 @@ and type-checks, not a plan.
   anything is hashed. Both were caught by the demo's own assertions rather than seen on camera,
   which is the property worth keeping. obsel itself called every one of those runs correctly.
 - **There is no _automated_ test of the TypeScript path against a live DataHub.** `engine.ts`,
-  `client.ts`, and `mcp.ts` have been exercised by hand against a running instance, but nothing in
-  `pnpm test` stands DataHub up — those 137 tests cover pure decision logic only, by design, so
-  that `pnpm verify` needs no Docker. `pnpm e2e` runs a real browser but stubs the endpoint, so it
-  does not close this gap either.
-- **The end-to-end latency number is a single observation, not a benchmark.** 6867 ms was measured
-  once, on one machine, on 2026-07-21, against the quickstart stack. It is dominated by the bounded
-  polling that confirms each DataHub write actually landed. The separate 92 ms figure is the Python
-  traversal alone. `elapsedMs` in [`examples/`](examples/) is still a stand-in and its README says so.
-- The `examples/` artifacts are illustrative rather than captured from a real run.
+  `client.ts`, `mcp.ts` and the demo runner in `src/server/runner/` have been exercised by hand
+  against a running instance, but nothing in `pnpm test` stands DataHub up — those 167 tests cover
+  pure decision logic only, by design, so that `pnpm verify` needs no Docker. `pnpm e2e` runs a
+  real browser but stubs the endpoints, so it does not close this gap either.
+- **The detection latency numbers are single observations, not a benchmark.** Each cascade run has
+  produced one measured figure (6867 ms on 2026-07-21; 2591 ms and 2310 ms on separate runs on
+  2026-07-22), dominated by the bounded polling that confirms each DataHub write actually landed.
+  The separate 92 ms figure is the Python traversal alone.
+- **The `examples/` artifacts predate the guided cockpit.** They were captured from a real
+  terminal-driven run earlier on 2026-07-22 and every digest in them still reproduces, but they
+  carry no `description` field — task job descriptions were added to registration after that
+  capture, so the field is absent there rather than null.
 - The demo video is not recorded.
 
 ## Requirements
@@ -127,9 +154,26 @@ and type-checks, not a plan.
 
 ## Setup
 
-Seven steps, in this order. Each one has a way to tell whether it worked, because several of them
-fail quietly. The demo agents in `agents/` need their own Python environment — they are not
-installed by `pnpm install`.
+The short version — the app guides you through the rest:
+
+```bash
+datahub docker quickstart        # first run pulls images, takes a few minutes
+cp .env.example .env.local
+pnpm install && pnpm dev
+```
+
+Then open `http://localhost:3000` and follow the guide at the top of the board. It genuinely
+checks this machine — DataHub answering, the agents' Python environment, the Codex sign-in,
+obsel's vocabulary — and for anything missing it shows the exact command to run. Once the checks
+pass, the whole demo is buttons: register the pipeline, put the agents to work, re-run one
+identically, change a requirement upstream, reset. Each button runs the same `agents.run` command
+listed in step 7 below, verbatim, and streams that step's own output onto the board.
+
+### Every step, spelled out
+
+The same setup as seven explicit steps, for when something fails or you prefer the terminal. Each
+one has a way to tell whether it worked, because several of them fail quietly. The demo agents in
+`agents/` need their own Python environment — they are not installed by `pnpm install`.
 
 **1. Start DataHub.** The first run pulls several images and takes a few minutes.
 
@@ -183,17 +227,18 @@ This creates `urn:li:tag:obsel-stale` and the demo DataFlow. It is not optional:
 a tag at run time, so without this step staleness is detected and silently not recorded. The command
 fails loudly if either did not land.
 
-**7. Run the demo.**
+**7. Run the demo** — from the guide's buttons, or as the same commands:
 
 ```bash
-agents/.venv/bin/python -m agents.run register      # four tasks into DataHub
+agents/.venv/bin/python -m agents.run register      # four tasks into DataHub, each with its job
 agents/.venv/bin/python -m agents.run run           # four agents finish, nothing stale
 agents/.venv/bin/python -m agents.run rerun-same    # re-run produces the same table, marks nothing
 agents/.venv/bin/python -m agents.run change        # renames a column, three tasks go stale
 agents/.venv/bin/python -m agents.run reset         # back to the starting state
 ```
 
-[`agents/README.md`](agents/README.md) explains what each command should print.
+[`agents/README.md`](agents/README.md) explains what each command should print. The board follows
+either path identically, because the guide derives everything from what DataHub holds.
 
 ## Verified environment notes
 
@@ -213,11 +258,12 @@ produce wrong results silently. Worth reading before writing code that touches D
 ## Layout
 
 ```
-app/                     routing and composition (Next.js), and the five HTTP routes
-src/features/cockpit/    the cockpit: layout.ts, tone.ts, timing.ts, feed.ts, progress.ts (pure),
-                         then the pixels
+app/                     routing and composition (Next.js), and the eight HTTP routes
+src/features/cockpit/    the cockpit: layout.ts, tone.ts, timing.ts, feed.ts, progress.ts,
+                         guide.ts (pure), then the pixels
 src/server/coordinator/  types.ts, staleness.ts (pure rules), engine.ts (the IO half)
 src/server/datahub/      client.ts (GMS HTTP), mcp.ts (tag writes), urns.ts (URN shapes)
+src/server/runner/       the demo runner: steps.ts (pure), launcher.ts (spawn), preflight.ts
 src/server/domain/       reserved for deterministic logic; currently empty
 agents/                  the four demo agent workers, fingerprinting, and the demo runner
 docs/                    concept, architecture, environment findings, demo script
@@ -244,8 +290,8 @@ run, and it must stay free of Docker, DataHub and a browser download. The browse
 the cockpit's rendering of a snapshot, not that obsel produces the right snapshot. The pure rules
 cover that half.
 
-Checked 2026-07-21: `pnpm verify` succeeds end to end — `pnpm format:check`, `pnpm lint`,
-`pnpm typecheck`, `pnpm test` (137 passed), and `pnpm build`.
+Checked 2026-07-22: `pnpm verify` succeeds end to end — `pnpm format:check`, `pnpm lint`,
+`pnpm typecheck`, `pnpm test` (167 passed), and `pnpm build`.
 
 ## Documentation
 

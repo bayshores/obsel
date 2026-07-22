@@ -19,10 +19,13 @@ import { useState } from "react";
 
 import { Backdrop } from "./backdrop";
 import { Feed } from "./feed-panel";
+import { guide } from "./guide";
+import { GuidePanel } from "./guide-panel";
 import { Inspector } from "./inspector";
 import { Lineage } from "./lineage";
 import { LedgerRow } from "./ledger";
 import { Divider, Panel, PulseDot, StatCell, StatRibbon, Wordmark } from "./mmux";
+import { useActivity } from "./use-activity";
 import { ENDPOINT, POLL_MS, useSwarm } from "./use-swarm";
 import { clockTime, inDependencyOrder, summaryLine, totals } from "./timing";
 
@@ -32,6 +35,7 @@ const DASH = "—";
 
 export function Cockpit() {
   const { data, error, lastReadAt, roundTripMs, everRead, events } = useSwarm();
+  const { activity, error: activityError } = useActivity();
   // A URN, not a TaskRecord: the record is replaced by a new object on every
   // poll, so holding one would pin the inspector to a snapshot that is seconds
   // stale while the rest of the cockpit moves on.
@@ -45,14 +49,27 @@ export function Cockpit() {
   const selected = tasks.find((task) => task.urn === selectedUrn) ?? null;
   const stat = (value: string): string => (trusted ? value : DASH);
 
+  const guideView = guide({
+    trusted,
+    everRead,
+    tasks,
+    snapshotAt: data?.snapshot.at ?? null,
+    activity,
+  });
+
   return (
     <main className={styles.cockpit}>
       <header className={styles.header}>
-        <div className={styles.identity}>
-          <Wordmark text="obsel" size={20} />
-          <span className={styles.flow}>
-            ▸ {data?.snapshot.flow !== undefined ? shortFlow(data.snapshot.flow) : "no swarm"}
-          </span>
+        <div>
+          <div className={styles.identity}>
+            <Wordmark text="obsel" size={20} />
+            <span className={styles.flow}>
+              ▸ {data?.snapshot.flow !== undefined ? shortFlow(data.snapshot.flow) : "no swarm"}
+            </span>
+          </div>
+          <p className={styles.tagline}>
+            flags finished agent work when what it was built on changes
+          </p>
         </div>
 
         <div className={styles.lights}>
@@ -74,6 +91,8 @@ export function Cockpit() {
           </span>
         </div>
       </header>
+
+      <GuidePanel view={guideView} activity={activity} activityError={activityError} />
 
       {error !== null && (
         <div className={styles.alert} role="alert">

@@ -11,6 +11,9 @@ const Body = z.object({
   name: z.string().min(1),
   reads: z.array(z.string().min(1)),
   writes: z.array(z.string().min(1)),
+  // The task's standing job in one sentence, stored as the DataJob's own
+  // description. Bounded: this renders in the ledger and in DataHub's UI.
+  description: z.string().min(1).max(300).optional(),
 });
 
 export async function POST(request: Request) {
@@ -23,7 +26,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const task = await registerTask(parsed.name, parsed.reads, parsed.writes);
+    const task = await registerTask(parsed.name, parsed.reads, parsed.writes, parsed.description);
     return NextResponse.json(task);
   } catch (error) {
     const message = error instanceof Error ? error.message : "registration failed";

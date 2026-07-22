@@ -205,7 +205,14 @@ def cmd_register(args: argparse.Namespace) -> int:
         started = time.perf_counter()
         record = worker.post_json(
             f"{args.obsel_url}/api/tasks/register",
-            {"name": task.name, "reads": list(task.reads), "writes": [task.writes]},
+            {
+                "name": task.name,
+                "reads": list(task.reads),
+                "writes": [task.writes],
+                # The one-sentence job, stored as the DataJob's own description
+                # so DataHub's UI and obsel's board show the same words.
+                "description": task.summary,
+            },
         )
         elapsed = (time.perf_counter() - started) * 1000
 
@@ -306,11 +313,19 @@ def cmd_rerun_same(args: argparse.Namespace) -> int:
     print("  so nothing downstream should be touched.")
     print()
 
-    # Whatever this task was last told to do, so this is a true no-change re-run
-    # at any point in the demo, including after `change`.
-    instruction = worker.last_instruction(task.name) or task.instruction
+    # Whatever this task last ran — the instruction AND the column contract,
+    # together, so this is a true no-change re-run at any point in the demo,
+    # including after `change`. Replaying the instruction with a contract from a
+    # different run is how this step failed live on 2026-07-22: the changed
+    # instruction said order_total_usd, the standing contract said order_total,
+    # the contract won, and the re-run reverted the rename.
+    remembered = worker.last_run(task.name) or {}
+    instruction = remembered.get("instruction") or task.instruction
+    expect_columns = tuple(remembered.get("columns") or task.output_columns)
     before = worker.load_table(task.writes, REPO_ROOT)
-    result, was_first_run = _run_one(task, args, instruction=instruction)
+    result, was_first_run = _run_one(
+        task, args, instruction=instruction, expect_columns=expect_columns
+    )
     after = worker.load_table(task.writes, REPO_ROOT)
 
     where = f"{task.name}'s completion"
