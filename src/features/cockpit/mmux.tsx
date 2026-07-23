@@ -202,12 +202,25 @@ export function StatCell({
   unit,
   accent = false,
   glow = false,
+  preserveCase = false,
 }: {
   label: ReactNode;
   value: ReactNode;
   unit?: ReactNode;
   accent?: boolean;
   glow?: boolean;
+  /**
+   * Leave the label's capitalisation alone.
+   *
+   * obsel: labels are lowercased for a uniform look, which is right for
+   * "detection time" and wrong the moment a label contains someone else's product
+   * name. "written into DataHub" rendered as "written into datahub", misspelling
+   * DataHub on the one cell whose entire purpose is to credit it.
+   *
+   * Not the default, because lowercase is still correct for every other label and
+   * for obsel's own name, which is lowercase by rule.
+   */
+  preserveCase?: boolean;
 }) {
   return (
     <div style={{ display: "grid", gap: "var(--mm-space-2xs)", padding: "8px 14px" }}>
@@ -219,7 +232,7 @@ export function StatCell({
           // are the labels a viewer has to read to know what the number means.
           fontSize: "var(--mm-text-cap)",
           letterSpacing: "var(--mm-track-label)",
-          textTransform: "lowercase",
+          textTransform: preserveCase ? "none" : "lowercase",
         }}
       >
         {label}

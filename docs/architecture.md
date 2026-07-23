@@ -71,10 +71,48 @@ setup and are visible in DataHub's UI. The cost is no typing and no per-property
 obsel does not currently need because the cause lives inside the value.
 
 Alongside the properties, a stale task also gets the tag `urn:li:tag:obsel-stale`. The properties
-are what obsel reads back; the tag is what a person sees in DataHub's own UI without knowing obsel
+are what obsel reasons over; the tag is what a person sees in DataHub's own UI without knowing obsel
 exists. **obsel cannot create that tag at runtime** — open-source DataHub's MCP surface has
 `add_tags` but no `create_tag`, and applying an unregistered tag URN is rejected. It is created
 once by [`agents/setup.py`](../agents/setup.py), which fails loudly if it did not land.
+
+### The tag is read back onto the board
+
+`globalTags` is now parsed into every `TaskRecord` as `tags` (every tag URN DataHub reports, sorted)
+and `staleTagged` (whether obsel's own is among them), by
+[`src/server/datahub/tags.ts`](../src/server/datahub/tags.ts). This costs **no extra request**:
+`readTaskEntity` already returns the aspect, which is how `readTagUrns` has always worked, and
+`toTaskRecord` simply discarded it.
+
+**Neither field enters any decision.** `compareFingerprints` decides staleness, on sha256 and nothing
+else. They exist so the cockpit can show that obsel's contribution to the catalog actually landed
+rather than assert it: the stat ribbon reports `3 of 3 tagged`, and the details panel lists the tags
+in full and links to the entity page.
+
+Three consequences worth stating, because each is a claim the board can now make and could get wrong:
+
+- **A shortfall is usually a write in flight, not a failure.** obsel writes the mark and then the tag,
+  and DataHub's writes are asynchronous, so a marked task legitimately has no tag for a moment. The
+  ribbon therefore counts rather than ticks: `2 of 3` moving to `3 of 3` reads as progress, where a
+  cross would read as broken and be wrong.
+- **A tag with no mark never resolves itself**, and is counted separately as `left over`. It is what a
+  reset done by hand leaves behind, since the properties and the tag live on different aspects of the
+  same entity. [`docs/demo-script.md`](demo-script.md) calls that the most damaging frame the video
+  could contain, and the board can now say it out loud.
+- **Absent is not zero.** A snapshot captured before these fields existed carries no tag information,
+  and the board reports `not recorded`. Rendering `0 of 3` would claim DataHub is missing three tags
+  obsel never looked for. Understating obsel's own contribution is as much a false claim as
+  overstating it.
+
+`parseTagUrns` drops an unusable entry rather than raising, following `parseRun` and not `parseStale`:
+this is the one aspect obsel reads that it does not write, so a human or an ingestion recipe can put
+anything there, and a malformed entry must not fail a whole snapshot read. The visible cost is that an
+unreadable tag goes uncounted and the figure reads low, which errs toward understating obsel.
+
+It lives in its own module rather than in `client.ts` because `client.ts` carries `import
+"server-only"`, which makes it unimportable from a test as well as from the browser. That guard is why
+`client.ts` has no unit tests at all; a pure parser behind it would be a pure parser nothing can
+check.
 
 URN construction is in one place per language, and the two must agree character for character:
 [`src/server/datahub/urns.ts`](../src/server/datahub/urns.ts) and
@@ -277,9 +315,11 @@ Three constraints in that module are non-negotiable, each because the alternativ
     graph/cascade.ts   which edges lit, pure                      |
     lineage.tsx        React Flow + nodes.tsx                     |
     naming.ts          human names, pure                          |
+    datahub-link.ts    links out to DataHub's UI, pure             |
     trace-panel.tsx    polls GET /api/trace <--- app/api/trace/ --+
                                                                   |     client.ts  GMS HTTP
                                                                   +---- mcp.ts     MCP tag writes
+                                                                        tags.ts    reads globalTags
                                                                         urns.ts    URN shapes
                                                                              |
                                                                              v
@@ -300,31 +340,33 @@ every DataHub call.
 Checked against the working tree on 2026-07-23. Treat the shipped column as "present and
 readable", not as "covered by end-to-end evidence" — see [Evidence](#9-evidence) below.
 
-| Piece                                     | Path                                                                                                                        | State                                  |
-| ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- | -------------------------------------- |
-| The contracts                             | `src/server/coordinator/types.ts`                                                                                           | shipped                                |
-| Staleness rules                           | `src/server/coordinator/staleness.ts`                                                                                       | shipped, 34 passing tests              |
-| Coordinator IO                            | `src/server/coordinator/engine.ts`                                                                                          | shipped, no automated test yet         |
-| GMS client                                | `src/server/datahub/client.ts`                                                                                              | shipped, no automated test yet         |
-| MCP tag writes                            | `src/server/datahub/mcp.ts`                                                                                                 | shipped, no automated test yet         |
-| URN shapes                                | `src/server/datahub/urns.ts`                                                                                                | shipped                                |
-| HTTP API                                  | `app/api/swarm`, `app/api/trace`, `app/api/tasks/{register,start,abandon,complete}`, `app/api/demo/{reset,launch,activity}` | shipped                                |
-| Cockpit                                   | `app/page.tsx`, `src/features/cockpit/`                                                                                     | shipped, 133 unit + 51 browser tests   |
-| Live agent progress                       | `src/features/cockpit/progress.ts`                                                                                          | shipped, 23 passing tests, seen live   |
-| The guide                                 | `src/features/cockpit/guide.ts`, `guide-panel.tsx`                                                                          | shipped, 24 passing tests, driven live |
-| Human names for tasks and tables          | `src/features/cockpit/naming.ts`, `staleness.ts` — `tableLabel`, `taskLabel`                                                | shipped, 16 passing tests              |
-| The coordinator's live trace              | `src/server/coordinator/trace.ts`, `trace-buffer.ts`, `app/api/trace`, `trace-panel.tsx`                                    | shipped, 10 tests, seen live           |
-| The lineage graph                         | `src/features/cockpit/lineage.tsx`, `nodes.tsx`, `graph/positions.ts`, `graph/cascade.ts` — React Flow and dagre            | shipped, 33 unit + 4 browser tests     |
-| Naming which columns moved                | `src/server/coordinator/staleness.ts` — `columnChange`; `obsel.stale.columns`                                               | shipped, 9 tests, verified live        |
-| Demo runner                               | `src/server/runner/` — `steps.ts`, `launcher.ts`, `preflight.ts`                                                            | shipped, 11 tests on the pure half     |
-| Task registration and traversal in Python | `agents/graph.py`                                                                                                           | shipped, verified live                 |
-| Fingerprinting                            | `agents/fingerprint.py`                                                                                                     | shipped, has a self-check              |
-| Demo shape, jobs and seed data            | `agents/pipeline.py`, `agents/seed_data.py`                                                                                 | shipped                                |
-| Vocabulary setup                          | `agents/setup.py`                                                                                                           | shipped                                |
-| Agent worker and demo runner              | `agents/worker.py`, `agents/run.py`                                                                                         | shipped, no automated test yet         |
-| Demo reset                                | `app/api/demo/reset/route.ts`, `engine.resetSwarm`                                                                          | shipped, no automated test yet         |
-| Agent output contract                     | `agents/worker.py` — `canonicalise_numbers`                                                                                 | shipped, 7 self-check properties       |
-| Sample outputs                            | `examples/`                                                                                                                 | shipped, captured from a real run      |
+| Piece                                     | Path                                                                                                                        | State                                             |
+| ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
+| The contracts                             | `src/server/coordinator/types.ts`                                                                                           | shipped                                           |
+| Staleness rules                           | `src/server/coordinator/staleness.ts`                                                                                       | shipped, 34 passing tests                         |
+| Coordinator IO                            | `src/server/coordinator/engine.ts`                                                                                          | shipped, no automated test yet                    |
+| GMS client                                | `src/server/datahub/client.ts`                                                                                              | shipped, no automated test yet                    |
+| MCP tag writes                            | `src/server/datahub/mcp.ts`                                                                                                 | shipped, no automated test yet                    |
+| URN shapes                                | `src/server/datahub/urns.ts`                                                                                                | shipped                                           |
+| HTTP API                                  | `app/api/swarm`, `app/api/trace`, `app/api/tasks/{register,start,abandon,complete}`, `app/api/demo/{reset,launch,activity}` | shipped                                           |
+| Cockpit                                   | `app/page.tsx`, `src/features/cockpit/`                                                                                     | shipped, 133 unit + 51 browser tests              |
+| Live agent progress                       | `src/features/cockpit/progress.ts`                                                                                          | shipped, 23 passing tests, seen live              |
+| The guide                                 | `src/features/cockpit/guide.ts`, `guide-panel.tsx`                                                                          | shipped, 24 passing tests, driven live            |
+| Human names for tasks and tables          | `src/features/cockpit/naming.ts`, `staleness.ts` — `tableLabel`, `taskLabel`                                                | shipped, 16 passing tests                         |
+| The coordinator's live trace              | `src/server/coordinator/trace.ts`, `trace-buffer.ts`, `app/api/trace`, `trace-panel.tsx`                                    | shipped, 10 tests, seen live                      |
+| The lineage graph                         | `src/features/cockpit/lineage.tsx`, `nodes.tsx`, `graph/positions.ts`, `graph/cascade.ts` — React Flow and dagre            | shipped, 33 unit + 4 browser tests                |
+| Naming which columns moved                | `src/server/coordinator/staleness.ts` — `columnChange`; `obsel.stale.columns`                                               | shipped, 9 tests, verified live                   |
+| Reading the stale tag back onto the board | `src/server/datahub/tags.ts`, `timing.ts` — `totals`; the ribbon's write-back cell                                          | shipped, 14 unit + 6 browser tests                |
+| The link into DataHub's own UI            | `src/features/cockpit/datahub-link.ts`, `inspector.tsx`                                                                     | shipped, 8 tests, path read from DataHub's bundle |
+| Demo runner                               | `src/server/runner/` — `steps.ts`, `launcher.ts`, `preflight.ts`                                                            | shipped, 11 tests on the pure half                |
+| Task registration and traversal in Python | `agents/graph.py`                                                                                                           | shipped, verified live                            |
+| Fingerprinting                            | `agents/fingerprint.py`                                                                                                     | shipped, has a self-check                         |
+| Demo shape, jobs and seed data            | `agents/pipeline.py`, `agents/seed_data.py`                                                                                 | shipped                                           |
+| Vocabulary setup                          | `agents/setup.py`                                                                                                           | shipped                                           |
+| Agent worker and demo runner              | `agents/worker.py`, `agents/run.py`                                                                                         | shipped, no automated test yet                    |
+| Demo reset                                | `app/api/demo/reset/route.ts`, `engine.resetSwarm`                                                                          | shipped, no automated test yet                    |
+| Agent output contract                     | `agents/worker.py` — `canonicalise_numbers`                                                                                 | shipped, 7 self-check properties                  |
+| Sample outputs                            | `examples/`                                                                                                                 | shipped, captured from a real run                 |
 
 ## 9. Evidence
 
@@ -401,8 +443,21 @@ What has been verified directly, and what has not.
 - The agent output contract, by the self-check in `agents/worker.py`: `217` and `217.0` reach one
   fingerprint, an id column keeps its integers, and a value that genuinely moved still moves the
   hash. Added after a live run where a single value's spelling broke two demo steps at once.
+- **That the tag obsel writes is actually on the entity**, on 2026-07-23 from a reset board: `run`
+  140.5 s, `change` called `schema` and marked three tasks in 868 ms, and `GET /api/swarm` then
+  reported `urn:li:tag:obsel-stale` on exactly those three and no tag on `clean_orders`. `reset`
+  cleared both halves, after which every task reported no tags. This is the first time obsel's board
+  could show its DataHub contribution rather than assert it, and the first time the two halves of a
+  mark could be seen to agree.
 
 **Not verified:**
+
+- **The window between a mark landing and its tag landing.** `markStale` awaits the confirmed property
+  write and then `applyStaleTag`, so a marked task genuinely has no tag for a moment, and the ribbon
+  counts rather than ticks because of it. Polling the live board every two seconds on 2026-07-23, that
+  moment was never caught: the board went from nothing marked straight to `3 of 3`. So the partial
+  count is asserted by a unit test and a browser test against a fixture, and the live evidence says
+  only that the window is shorter than two seconds on this machine.
 
 - **The demo has passed once per step, which is not a pass rate.** Codex is a live agent and its
   output has twice proved unstable in ways that made a re-run look like a real change — name casing,
@@ -610,11 +665,25 @@ Everything the dashboard shows, in one read. Polled once a second.
   },
   "ready": [],
   "blocked": [{ "task": {}, "waitingOn": ["urn:li:dataset:(…)"] }],
+  "datahubUrl": "http://localhost:9002",
 }
 ```
 
 `tasks` is sorted by URN, so the board's row order does not depend on registration order. `ready`
 and `blocked` are derived by `staleness.ts` from the same snapshot rather than computed separately.
+
+Each task carries `tags` and `staleTagged`, read off `globalTags` — see section 2. Both are absent on
+a capture taken before they existed, which the board renders as `not recorded` rather than as zero.
+
+`datahubUrl` is `DATAHUB_FRONTEND_URL` from the server's environment, with any trailing slash
+stripped, and `null` when it is unset — in which case the cockpit offers no link rather than one that
+looks live and goes nowhere. It sits on the envelope and deliberately **not** inside `snapshot`: the
+snapshot is a domain value the coordinator writes and [`examples/`](../examples) captures as a record
+of what DataHub held, and a browser base URL is neither, so it would outlive its meaning the moment a
+capture were read on another machine.
+
+Port 9002 is DataHub's frontend proxy. `DATAHUB_GMS_URL` is not a substitute: 8080 answers the API and
+serves no entity pages.
 
 ### `POST /api/demo/reset`
 

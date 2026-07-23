@@ -296,6 +296,54 @@ function changeLine(mark: NonNullable<TaskRecord["stale"]>): string {
   return `the columns in ${table} changed after they finished`;
 }
 
+/**
+ * How many flagged tasks never read the table that changed.
+ *
+ * This is the fact obsel exists for and the board has never said in words. Until
+ * now it was on screen only as `· 2 hops` on two boxes, which is readable to
+ * someone who already knows what a hop is and invisible to everyone else. Anybody
+ * can watch a table change and flag whatever read it; flagging work that is two
+ * removes away, correctly, is the part that needs a lineage graph.
+ *
+ * Derived from `reads`, deliberately, and not from `hops > 1`. "Never read it" is a
+ * claim about what the task consumes, and `reads` is that claim directly, checkable
+ * against the record. Hops measure distance through the graph, which usually agrees
+ * and is not the same statement: a task could sit two hops out and still read the
+ * changed table on a second edge, and the sentence would then be false while the
+ * hop count stayed honest.
+ */
+function neverReadIt(marked: readonly TaskRecord[], causedBy: string): number {
+  return marked.filter((task) => !task.reads.includes(causedBy)).length;
+}
+
+/**
+ * The one line under the headline: what changed, and why it is not obvious.
+ *
+ * Three phrasings, because one template cannot say all three truthfully:
+ *
+ * - **None indirect** — the clause is dropped entirely. Every flagged task read the
+ *   changed table, so there is nothing counterintuitive on that board and "and 0 of
+ *   the 3 never read it" would spend words reporting an absence.
+ * - **All indirect, more than one** — "none of the 3 ever read it", because "3 of
+ *   the 3" is a ratio a reader has to do arithmetic on to find out it is all of them.
+ * - **All indirect, exactly one** — spelled out. "1 of the 1 never read it" is what
+ *   the ratio form produces here, and it reads like a bug.
+ */
+function flaggedSubline(
+  mark: NonNullable<TaskRecord["stale"]>,
+  marked: readonly TaskRecord[],
+): string {
+  const indirect = neverReadIt(marked, mark.causedBy);
+  const change = changeLine(mark);
+  if (indirect === 0) return change;
+  if (indirect < marked.length) {
+    return `${change}, and ${indirect} of the ${marked.length} never read it`;
+  }
+  return marked.length === 1
+    ? `${change}, and the one flagged agent never read it`
+    : `${change}, and none of the ${marked.length} ever read it`;
+}
+
 function flagged(tasks: TaskRecord[], attention: string | null): GuideView {
   const marked = tasks.filter(
     (task): task is TaskRecord & { stale: NonNullable<TaskRecord["stale"]> } => task.stale !== null,
@@ -318,7 +366,7 @@ function flagged(tasks: TaskRecord[], attention: string | null): GuideView {
   return {
     stage: "flagged",
     headline: `${marked.length} of ${finished} finished agents are out of date`,
-    subline: newest === null ? null : changeLine(newest),
+    subline: newest === null ? null : flaggedSubline(newest, marked),
     notes: [],
     actions: [
       {

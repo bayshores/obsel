@@ -191,6 +191,42 @@ export interface TaskRecord {
    * is what lets completion know there is a DataHub tag to take off.
    */
   stale: StaleMark | null;
+  /**
+   * Every tag DataHub reports on this job right now, sorted.
+   *
+   * **Never an input to any decision.** `compareFingerprints` decides staleness, on
+   * sha256 and nothing else; this is read back purely so the board can show that
+   * obsel's write landed rather than assert it. It exists because the one thing
+   * obsel contributes to DataHub that a human can see is a tag, and until now
+   * obsel's own board could not report whether that tag was actually there.
+   *
+   * Rendered in full in the details panel, which doubles as evidence that obsel's
+   * writes are additive: a human-authored tag appears beside `obsel-stale` rather
+   * than being replaced by it.
+   *
+   * Optional as well as nullable, for the same reason as `title` and
+   * `description`: artifacts captured before this field existed lack the key
+   * entirely and remain valid records of what was read at the time.
+   */
+  tags?: string[];
+  /**
+   * Whether `urn:li:tag:obsel-stale` is among `tags`.
+   *
+   * Derived here rather than in the browser on purpose. Browser code must never
+   * import from `src/server/`, so a client-side check would need its own copy of
+   * the tag URN — a second spelling of the one string that DataHub, the MCP writer
+   * and the reset path all key on. If the two ever drifted, the board would
+   * silently count fewer confirmed writes than there were, which is precisely the
+   * quiet under-reporting this field exists to catch. One boolean is cheaper than
+   * that risk.
+   *
+   * Deliberately independent of `stale`. The two disagreeing is a real state worth
+   * seeing, not an impossible one: obsel writes the mark before the tag, so during
+   * the asynchronous write window a marked task legitimately has no tag yet, and a
+   * tag surviving with no mark is the reset-by-hand fault `docs/demo-script.md`
+   * warns about.
+   */
+  staleTagged?: boolean;
 }
 
 /** Everything obsel knows about one swarm, as read out of DataHub. */

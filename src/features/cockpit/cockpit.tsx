@@ -28,6 +28,7 @@ import { useActivity } from "./use-activity";
 import { useTrace } from "./use-trace";
 import { useSwarm } from "./use-swarm";
 import { clockTime, inDependencyOrder, summaryLine, totals } from "./timing";
+import type { SwarmTotals } from "./timing";
 
 import styles from "./cockpit.module.css";
 
@@ -56,7 +57,6 @@ export function Cockpit() {
   // A failed read invalidates every derived number, not just the connection.
   const trusted = data !== null && error === null;
   const selected = tasks.find((task) => task.urn === selectedUrn) ?? null;
-  const stat = (value: string): string => (trusted ? value : BLANK);
 
   const guideView = guide({
     trusted,
@@ -210,6 +210,9 @@ export function Cockpit() {
               snapshotAt={data?.snapshot.at ?? null}
               readAt={trusted && lastReadAt !== null ? clockTime(lastReadAt) : null}
               roundTripMs={trusted ? roundTripMs : null}
+              // Not gated on `trusted`: this is where DataHub's UI lives, not a
+              // measurement of it, so a failed read does not make it wrong.
+              datahubUrl={data?.datahubUrl ?? null}
               onClose={() => setSelectedUrn(null)}
               style={{
                 flex: "1 1 0",
@@ -253,18 +256,26 @@ export function Cockpit() {
             accent={trusted && t.timing !== null}
             glow={trusted && t.timing !== null}
           />,
-          <StatCell
-            key="reach"
-            label="deepest reach"
-            value={t.deepestReach === null ? stat(BLANK) : stat(String(t.deepestReach))}
-            unit={
-              trusted && t.deepestReach !== null
-                ? t.deepestReach === 1
-                  ? "hop"
-                  : "hops"
-                : undefined
-            }
-          />,
+          /*
+           * What obsel put back into DataHub, counted from what DataHub reports.
+           *
+           * This slot held "deepest reach · 2 hops", which was the largest of the
+           * `· N hops` labels the graph's own boxes already carry: the ribbon
+           * restating the screen. What went here instead is the claim the board
+           * could not make at all. obsel writes a tag and its properties onto each
+           * marked job through the MCP server, and until now the only trace of that
+           * on screen was five grey words at the bottom of a scroller. This counts
+           * the tags back off the entities.
+           *
+           * A real check, not a badge. obsel writes the mark before the tag and
+           * DataHub's writes are asynchronous, so a marked task legitimately has no
+           * tag for a moment and the count reads low until it lands. That is why
+           * this is a count rather than a tick: a number moving from 2 of 3 to 3 of
+           * 3 reads as a write in flight, where a red cross would read as a failure
+           * and be wrong. The one state that never resolves itself is a tag with no
+           * mark, which is named separately.
+           */
+          writeBack(trusted, t),
         ]}
       </StatRibbon>
 
@@ -289,6 +300,49 @@ export function Cockpit() {
         {trusted ? summaryLine(t.tasks, t.finished, t.stale) : "Not reading the swarm."}
       </p>
     </main>
+  );
+}
+
+/**
+ * The write-back cell, in every state it can honestly be in.
+ *
+ * Five states, and the distinctions between them are the point:
+ *
+ * - **read failed** — withheld, like every other measured figure on the board.
+ * - **not recorded** — this snapshot predates obsel reading tags back, so it says
+ *   so. Rendering `0 of 3` would claim three tags are missing that obsel never
+ *   looked for, which understates its own contribution and is still a false claim.
+ * - **nothing marked** — a calm board. `0 of 0 tagged` is true and reads as a
+ *   failure, so it is worded rather than counted.
+ * - **left over** — DataHub holds a tag for work obsel considers clean. Unlike a
+ *   shortfall this never resolves by waiting, so it gets its own words.
+ * - **counted** — `N of M`, accented only when every write is confirmed.
+ */
+function writeBack(trusted: boolean, t: SwarmTotals): React.ReactElement {
+  // `preserveCase`, because the ribbon lowercases labels and this one carries
+  // DataHub's name. It rendered as "written into datahub" until this was added,
+  // misspelling the product on the one cell that exists to credit it.
+  const cell = (value: string, unit?: string, lit = false): React.ReactElement => (
+    <StatCell
+      key="written"
+      label="written into DataHub"
+      preserveCase
+      value={value}
+      unit={unit}
+      accent={lit}
+      glow={lit}
+    />
+  );
+
+  if (!trusted) return cell(BLANK);
+  if (t.tagged === null || t.leftOver === null) return cell(BLANK, "not recorded");
+  if (t.marked === 0) {
+    return t.leftOver > 0 ? cell(String(t.leftOver), "left over") : cell(BLANK, "nothing marked");
+  }
+  return cell(
+    `${t.tagged} of ${t.marked}`,
+    t.leftOver > 0 ? `tagged, ${t.leftOver} left over` : "tagged",
+    t.tagged === t.marked,
   );
 }
 

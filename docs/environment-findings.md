@@ -8,9 +8,12 @@ since abandoned — see `docs/concept.md` §8). The DataHub behavior is independ
 carries over unchanged; where the original rationale was specific to the old concept, it has been
 rewritten for obsel.
 
-Every claim here was measured on this machine on 2026-07-21 against GMS `v1.5.0.6`
-(`serverEnv: core`, `serverType: quickstart`) with `showcase-ecommerce` loaded. Commands are given
-so each is reproducible rather than asserted.
+Every claim here was measured on this machine against GMS `v1.5.0.6` (`serverEnv: core`,
+`serverType: quickstart`) with `showcase-ecommerce` loaded. Commands are given so each is
+reproducible rather than asserted.
+
+Sections 1 to 9 were measured on 2026-07-21. Section 10 was measured on 2026-07-23 and says so, so a
+reader can tell how old any given claim is rather than trusting one date for all of them.
 
 ---
 
@@ -428,3 +431,63 @@ silent-empty failure mode as section 7, arriving by a different route.
 
 The same applies to the `Consumes` and `Produces` hops, which come back from the same endpoint and
 are paged the same way.
+
+## 10. DataHub's UI needs a login, and its redirect throws away the path
+
+**Measured 2026-07-23**, unlike the sections above, which were measured 2026-07-21.
+
+The frontend at `:9002` requires the quickstart's own login. Requesting an entity page while signed
+out does not send you to a sign-in page that remembers where you were going: it redirects to `/` and
+the URN is gone.
+
+```bash
+# 200, and the body is the login form rather than the job
+curl -s -o /dev/null -w '%{http_code} %{url_effective}\n' -L \
+  'http://localhost:9002/tasks/urn:li:dataJob:(urn:li:dataFlow:(obsel,orders_pipeline,prod),write_docs)'
+```
+
+Observed in a browser: the address bar ended at `http://localhost:9002` and the page rendered
+"Welcome to DataHub" with username and password fields. Signing in from there lands on the home page,
+not on the job.
+
+The credentials are the quickstart's built-in local admin, `datahub` / `datahub`. **This is not an
+account anyone registers for.** The hackathon requires no DataHub account of any kind; DataHub Cloud
+is a separate hosted product obsel does not touch.
+
+### Consequence for obsel
+
+The details panel's `open this job in DataHub` link works for anyone whose DataHub tab is already
+signed in, which is the demo's own setup, and strands a cold visitor on a login form. The panel says
+so in words next to the link rather than letting it be discovered by clicking, and
+`docs/demo-script.md` already has DataHub signed in and parked on the lineage view.
+
+### The entity path, and the encoder that goes with it
+
+Two things the link depends on, both read out of the JavaScript bundle the running instance serves
+(`GET /assets/index-*.js`) rather than out of documentation:
+
+```js
+// DataHub's DataJob entity
+getGraphName = () => "dataJob";
+getPathName = () => "tasks";
+
+// how it escapes a URN for that path
+getEntityUrl(type, urn, params) { return `/${this.getPathName(type)}/${vR(urn)}…` }
+function vR(e) { return e && e
+  .replace(/%/g, "{{encoded_percent}}").replace(/\//g, "%2F")
+  .replace(/\?/g, "%3F").replace(/#/g, "%23")
+  .replace(/\[/g, "%5B").replace(/\]/g, "%5D") }
+```
+
+So the path is `/tasks/<urn>`, not `/dataJob/<urn>` — `dataJob` is the graph name, not the route.
+
+And **`encodeURIComponent` is the wrong function here**, which is the trap. DataHub escapes exactly
+six characters and leaves `:` `(` `)` `,` raw, so a fully percent-encoded URN hands its matching
+decoder `%` sequences it will transform again. A percent sign becomes the literal
+`{{encoded_percent}}` rather than `%25`, which looks like a bug and is how DataHub avoids
+double-decoding its own escapes.
+
+obsel reproduces the rule in `src/features/cockpit/datahub-link.ts` so the href is byte-identical to
+the one DataHub's own UI would generate. An obsel task URN happens to contain none of the six, so the
+raw URN would have worked by luck; the encoder makes it correct by construction instead, and
+`tests/datahub-link.test.ts` pins each case.

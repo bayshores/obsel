@@ -21,6 +21,7 @@
  * would be quietly lost.
  */
 
+import { datahubTaskUrl } from "./datahub-link";
 import { Panel } from "./mmux";
 import { taskTitle } from "./naming";
 import { activityNote } from "./progress";
@@ -44,6 +45,7 @@ export function Inspector({
   snapshotAt = null,
   readAt = null,
   roundTripMs = null,
+  datahubUrl = null,
   onClose,
   style,
 }: {
@@ -55,6 +57,12 @@ export function Inspector({
   readAt?: string | null;
   /** Measured round trip of that read, in milliseconds. */
   roundTripMs?: number | null;
+  /**
+   * Base URL of DataHub's UI, or null when the server has none configured, in
+   * which case no link is offered. A guessed default would render a link that
+   * looks live and goes nowhere.
+   */
+  datahubUrl?: string | null;
   onClose: () => void;
   style?: React.CSSProperties;
 }) {
@@ -89,6 +97,62 @@ export function Inspector({
           <Field label="task urn">
             <code className={styles.urn}>{task.urn}</code>
           </Field>
+
+          {/*
+            What DataHub currently holds, not what obsel intended to write.
+
+            This is the one thing obsel contributes to the catalog that a person
+            browsing DataHub can see without knowing obsel exists, and until now the
+            board could not report whether it was actually there. Read back off the
+            entity, so an empty list is a real answer.
+
+            It renders every tag rather than only obsel's, which is the point as much
+            as the tag itself: a human-authored tag sitting beside `obsel-stale` is
+            visible evidence that obsel's writes are additive and did not replace
+            anyone's metadata.
+          */}
+          <Field label="tags in DataHub">
+            {task.tags === undefined ? (
+              // Absent, not empty. A snapshot captured before obsel read tags back
+              // knows nothing about them, and saying "none" would claim DataHub
+              // holds no tags when obsel simply never looked.
+              "not recorded in this snapshot"
+            ) : task.tags.length === 0 ? (
+              "none"
+            ) : (
+              <ul className={styles.list}>
+                {task.tags.map((tag) => (
+                  <li key={tag}>
+                    <code className={styles.urn}>{tag}</code>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Field>
+
+          {datahubUrl !== null && (
+            <Field label="in DataHub's own UI">
+              <a
+                className={styles.link}
+                href={datahubTaskUrl(datahubUrl, task.urn)}
+                target="_blank"
+                rel="noreferrer"
+              >
+                open this job in DataHub
+              </a>
+              {/*
+                Said plainly rather than discovered by clicking. DataHub's UI
+                requires the quickstart login, and its redirect discards the path
+                it was asked for: observed 2026-07-23, a signed-out visit to
+                `/tasks/<urn>` landed on `/` with the URN gone, so signing in
+                afterwards lands on the home page rather than this job.
+              */}
+              <span className={styles.hint}>
+                needs a DataHub login, and a signed-out visit loses the link
+              </span>
+            </Field>
+          )}
+
           <Field label="last finished">
             {task.finishedAt === null ? "never" : clockTime(task.finishedAt)}
           </Field>

@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
 
 import { codexSignedOut, idle, runningStep } from "./fixtures/activity";
-import { calm, cascaded, empty } from "./fixtures/swarm";
+import { calm, cascaded, empty, leftOverTag, midWrite, withoutTagInfo } from "./fixtures/swarm";
 import { openCockpit } from "./fixtures/mount";
 import { cascadeSteps } from "./fixtures/trace";
 
@@ -300,6 +300,102 @@ test.describe("fit", () => {
   });
 });
 
+/*
+ * What obsel put back into DataHub.
+ *
+ * The judging criterion obsel scores best on is the one about contributing to the
+ * graph rather than only reading it, and until now the board could not show that at
+ * all: obsel wrote the tag and never read it back. These assertions are about the
+ * cell that reports it, and the distinctions between its states are the substance.
+ * A cell that said "written" unconditionally would be a badge, not a check.
+ */
+test.describe("the write-back is reported, not asserted", () => {
+  /** The value beside a ribbon label, read the way a viewer reads it. */
+  async function cell(page: Page, label: string) {
+    return page.evaluate((wanted) => {
+      const found = [...document.querySelectorAll("main span")].find(
+        (span) => span.textContent === wanted,
+      );
+      const box = found?.closest("div");
+      return box === null || box === undefined ? null : (box.textContent ?? "");
+    }, label);
+  }
+
+  test("counts the tags DataHub confirms, once they have all landed", async ({ page }) => {
+    await openCockpit(page, cascaded());
+    await expect
+      .poll(() => cell(page, "written into DataHub"))
+      .toMatch(/written into DataHub3 of 3tagged/);
+  });
+
+  test("reads low while a write is in flight, without claiming a failure", async ({ page }) => {
+    // obsel writes the mark before the tag and DataHub's writes are asynchronous, so
+    // this is a state every real cascade passes through. It has to look like a count
+    // moving, not like something broken.
+    await openCockpit(page, midWrite());
+    const text = await cell(page, "written into DataHub");
+    expect(text).toMatch(/2 of 3/);
+    expect(text?.toLowerCase()).not.toContain("fail");
+    expect(text?.toLowerCase()).not.toContain("error");
+  });
+
+  test("names a tag left on work obsel considers clean", async ({ page }) => {
+    // A reset done by hand clears the properties and leaves the tag. Unlike a write
+    // in flight this never resolves itself, so it gets its own words.
+    await openCockpit(page, leftOverTag());
+    await expect.poll(() => cell(page, "written into DataHub")).toMatch(/1left over/);
+  });
+
+  test("says nothing was marked rather than counting zero of zero", async ({ page }) => {
+    await openCockpit(page, calm());
+    const text = await cell(page, "written into DataHub");
+    expect(text).toContain("nothing marked");
+    expect(text).not.toContain("0 of 0");
+  });
+
+  test("admits it does not know on a snapshot with no tag information", async ({ page }) => {
+    // The honesty case. `0 of 3` would claim DataHub is missing three tags obsel
+    // never looked for, which understates obsel's own contribution and is still false.
+    await openCockpit(page, withoutTagInfo());
+    const text = await cell(page, "written into DataHub");
+    expect(text).toContain("not recorded");
+    expect(text).not.toContain("0 of 3");
+  });
+
+  test("the details panel shows the tag and links to the real entity", async ({ page }) => {
+    await openCockpit(page, cascaded());
+    await page.waitForSelector(".react-flow__node-task", { state: "attached" });
+    await page.locator(".react-flow__node-task").nth(1).click();
+    await expect(page.getByText("tags in DataHub")).toBeVisible();
+
+    const href = await page
+      .getByRole("link", { name: /open this job in DataHub/ })
+      .getAttribute("href");
+
+    // The URN the panel itself is showing, rather than a guess at which node the
+    // click landed on. The invariant that matters is that the link goes to the job
+    // on screen, and pinning a task name here only tests dagre's ordering.
+    const urn = await page.evaluate(() => {
+      const label = [...document.querySelectorAll("dt")].find((d) => d.textContent === "task urn");
+      return label?.nextElementSibling?.textContent ?? null;
+    });
+
+    expect(urn).not.toBeNull();
+    expect(href).toBe(`http://localhost:9002/tasks/${urn}`);
+
+    /*
+     * `/tasks/`, and the URN raw.
+     *
+     * DataHub registers `tasks` as the DataJob path name and escapes a URN with a
+     * partial rule that leaves `:` and `(` alone, both read out of the bundle the
+     * local instance serves. A percent-encoded URN here would look right and fail
+     * when clicked, which is the failure this asserts against.
+     */
+    expect(href).toContain("/tasks/urn:li:dataJob:(");
+    expect(href).not.toContain("%3A");
+  });
+});
+
 test.describe("honesty", () => {
   test("a failed read withholds every measured number", async ({ page }) => {
     const { serve } = await openCockpit(page, cascaded());
@@ -311,7 +407,7 @@ test.describe("honesty", () => {
         // status word first and reads a value out of the wrong element.
         const ribbon = document.querySelector('[aria-label="Detection"]');
         if (ribbon === null) return ["NO RIBBON"];
-        const labels = ["detection time", "deepest reach"];
+        const labels = ["detection time", "written into DataHub"];
         return labels.map((label) => {
           const span = [...ribbon.querySelectorAll("span")].find((s) => s.textContent === label);
           const cell = span?.closest("div");
@@ -320,7 +416,7 @@ test.describe("honesty", () => {
         });
       });
 
-    await expect.poll(readRibbon).toEqual(["118ms", "2hops"]);
+    await expect.poll(readRibbon).toEqual(["118ms", "3 of 3tagged"]);
 
     serve("fail");
 
@@ -714,14 +810,22 @@ test.describe("how much the board says", () => {
     });
 
     /*
-     * Measured on this commit: 195 on the page, of which 71 is the step log, 36
-     * is graph labels and 13 is the live region, leaving 75 words of prose.
+     * Measured on this commit: 206 on the page, of which 71 is the step log, 36 is
+     * graph labels and 13 is the live region, leaving 86 words of prose. Against the
+     * live board at the same viewport: 238 total, 94 prose, the difference being a
+     * real step log rather than this fixture's shortened one.
      *
-     * Before this pass the same board was 604 words with 498 of them prose, in
-     * two stacked panels of paragraphs. The ceilings sit above today's figures
-     * with room for a longer column name or another agent, and far below what
-     * they replaced: putting the ledger back would add 205 on its own. A failure
-     * here is not proof of a bug, but it is always a decision worth a second look.
+     * Up from 75 prose, and the 11 words bought two things the board could not say
+     * before: how many flagged agents never read the changed table, which is the
+     * whole argument for walking a lineage graph, and how many of obsel's marks
+     * DataHub confirms it tagged. Both replaced something that was already on screen
+     * elsewhere, which is why the total moved by less than the ceiling's headroom.
+     *
+     * Before this pass the same board was 604 words with 498 of them prose, in two
+     * stacked panels of paragraphs. The ceilings sit above today's figures with room
+     * for a longer column name or another agent, and far below what they replaced:
+     * putting the ledger back would add 205 on its own. A failure here is not proof
+     * of a bug, but it is always a decision worth a second look.
      */
     const where = `page ${counts.all}: prose ${counts.prose}, graph ${counts.graph}, log ${counts.log}, announced ${counts.announced}`;
     expect(counts.prose, where).toBeLessThan(110);

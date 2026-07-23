@@ -11,6 +11,7 @@
  * submission or quoted as a measurement.
  */
 
+import { STALE_TAG_URN } from "@/src/server/datahub/urns";
 import type { SwarmResponse } from "@/src/features/cockpit/use-swarm";
 import type { OutputFingerprint, StaleMark, TaskRecord } from "@/src/server/coordinator/types";
 
@@ -69,9 +70,23 @@ function task(
     startedAt: null,
     run: null,
     stale: null,
+    /*
+     * Present and empty by default, which is what a real read looks like.
+     *
+     * `toTaskRecord` always sets these now, so an untagged job carries an empty list
+     * rather than no list. The distinction is load-bearing on the board: absent means
+     * obsel never read tags, empty means DataHub reports none, and the ribbon says
+     * different things for each. A fixture that omitted the keys would silently
+     * exercise only the "not recorded" path.
+     */
+    tags: [],
+    staleTagged: false,
     ...extra,
   };
 }
+
+/** A job DataHub reports obsel's stale tag on. */
+const TAGGED: Partial<TaskRecord> = { tags: [STALE_TAG_URN], staleTagged: true };
 
 function mark(hops: number, reason: string): StaleMark {
   return {
@@ -100,7 +115,15 @@ const R2 =
   "built on work from Daily revenue, which is itself out of date because clean orders changed";
 
 function wrap(tasks: TaskRecord[]): SwarmResponse {
-  return { snapshot: { flow: FLOW, tasks, at: AT }, ready: [], blocked: [] };
+  return {
+    snapshot: { flow: FLOW, tasks, at: AT },
+    ready: [],
+    blocked: [],
+    // Set so the details panel's link is exercised. Nothing in the suite navigates
+    // to it — DataHub is not running under the browser tests — but the href it
+    // builds is asserted, which is the part that has to be right.
+    datahubUrl: "http://localhost:9002",
+  };
 }
 
 /** Four tasks finished, nothing marked. */
@@ -136,18 +159,75 @@ export function cascaded(): SwarmResponse {
       status: "stale",
       stale: mark(1, R1),
       fingerprints: { [ds("daily_revenue")]: print("c", "d") },
+      ...TAGGED,
     }),
     task("write_report", ["daily_revenue"], ["revenue_report"], {
       status: "stale",
       stale: mark(2, R2),
       fingerprints: { [ds("revenue_report")]: print("e", "f") },
+      ...TAGGED,
     }),
     task("write_docs", ["daily_revenue"], ["pipeline_docs"], {
       status: "stale",
       stale: mark(2, R2),
       fingerprints: { [ds("pipeline_docs")]: print("1", "2") },
+      ...TAGGED,
     }),
   ]);
+}
+
+/**
+ * The same cascade with one tag not yet landed.
+ *
+ * A moment every real cascade passes through rather than a fault: obsel writes the
+ * mark and then the tag, and DataHub's writes are asynchronous. The board has to
+ * report two of three without implying a failure, which is why the ribbon counts
+ * instead of ticking.
+ */
+export function midWrite(): SwarmResponse {
+  const response = cascaded();
+  const tasks = response.snapshot.tasks.map((task) =>
+    task.name === "write_docs" ? { ...task, tags: [], staleTagged: false } : task,
+  );
+  return { ...response, snapshot: { ...response.snapshot, tasks } };
+}
+
+/**
+ * A calm board with obsel's tag still on one job.
+ *
+ * What a reset done by hand leaves behind: the `obsel.*` properties are cleared and
+ * the tag is not, because they live on different aspects of the same entity. DataHub
+ * then shows a stale badge on work obsel says is fine, and unlike a write in flight
+ * this never resolves itself. `docs/demo-script.md` calls it the most damaging frame
+ * the video could contain.
+ */
+export function leftOverTag(): SwarmResponse {
+  const response = calm();
+  const tasks = response.snapshot.tasks.map((task) =>
+    task.name === "write_docs" ? { ...task, ...TAGGED } : task,
+  );
+  return { ...response, snapshot: { ...response.snapshot, tasks } };
+}
+
+/**
+ * A cascade read by a build that did not know about tags.
+ *
+ * `examples/*.json` captured before today looks exactly like this. obsel knows
+ * nothing about the tags, which is not the same as DataHub holding none, and the
+ * board has to say so rather than report zero.
+ */
+export function withoutTagInfo(): SwarmResponse {
+  const response = cascaded();
+  const tasks = response.snapshot.tasks.map((task) => {
+    // The keys are deleted rather than set to undefined, because that is the shape
+    // an older capture actually has: absent, not present-and-empty. The board
+    // distinguishes the two.
+    const stripped: TaskRecord = { ...task };
+    delete stripped.tags;
+    delete stripped.staleTagged;
+    return stripped;
+  });
+  return { ...response, snapshot: { ...response.snapshot, tasks } };
 }
 
 /** Connected, nothing registered. A real state at the start of the demo. */

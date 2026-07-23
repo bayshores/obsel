@@ -115,3 +115,35 @@
   font-family: var(--mm-font-mono);
   font-size: var(--mm-text-sm);
 }
+
+/*
+ * The one link on the board that leaves it, so it is allowed to look like a link.
+ *
+ * Underlined rather than distinguished by colour alone: the palette already spends
+ * green on "still true", amber on "out of date" and rose on "working now", and a
+ * fourth coloured string in a panel of coloured strings would read as another
+ * status rather than as somewhere to click.
+ */
+.link {
+  display: inline-block;
+  color: var(--mm-cream);
+  font-family: var(--mm-font-mono);
+  font-size: var(--mm-text-sm);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  overflow-wrap: anywhere;
+}
+
+.link:hover {
+  color: var(--mm-rose);
+}
+
+/* The caveat under the link. Dimmer than the link, because it is a footnote to it
+   rather than a second thing to read. */
+.hint {
+  display: block;
+  margin-top: 2px;
+  color: var(--obsel-text-quiet);
+  font-family: var(--mm-font-sans);
+  font-size: var(--mm-text-cap);
+}

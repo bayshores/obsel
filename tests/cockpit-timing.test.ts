@@ -8,6 +8,7 @@ import {
   summaryLine,
   totals,
 } from "@/src/features/cockpit/timing";
+import { STALE_TAG_URN } from "@/src/server/datahub/urns";
 import type { StaleMark, TaskRecord, TaskStatus } from "@/src/server/coordinator/types";
 
 const NOW = "2026-07-21T14:22:07.000Z";
@@ -146,21 +147,26 @@ describe("detectionTiming — never reports a number nobody measured", () => {
 });
 
 describe("totals", () => {
-  it("counts a calm swarm without inventing a reach or a timing", () => {
+  it("counts a calm swarm without inventing a timing", () => {
     expect(totals(pipeline())).toEqual({
       tasks: 4,
       finished: 4,
       stale: 0,
-      deepestReach: null,
       timing: null,
+      marked: 0,
+      // No task in this fixture carries a `tags` key, which is exactly what a
+      // snapshot captured before obsel read tags back looks like.
+      tagged: null,
+      leftOver: null,
     });
   });
 
-  it("reports the furthest hop a change actually travelled", () => {
+  it("counts marks without claiming a hop count the graph already labels", () => {
     const t = totals(cascaded());
     expect(t.stale).toBe(3);
-    expect(t.deepestReach).toBe(2);
+    expect(t.marked).toBe(3);
     expect(t.timing?.ms).toBe(118);
+    expect(t).not.toHaveProperty("deepestReach");
   });
 
   it("counts stale work as finished — it ran, it is just no longer trustworthy", () => {
@@ -172,6 +178,63 @@ describe("totals", () => {
     const result = totals(tasks);
     expect(result.finished).toBe(0);
     expect(result.stale).toBe(0);
+  });
+});
+
+describe("totals — what obsel wrote back into DataHub", () => {
+  /** A snapshot read by a build that reads tags: every task carries the key. */
+  function withTags(tasks: TaskRecord[], tagged: string[]): TaskRecord[] {
+    return tasks.map((task) => {
+      const has = tagged.includes(task.name);
+      return { ...task, tags: has ? [STALE_TAG_URN] : [], staleTagged: has };
+    });
+  }
+
+  it("counts every confirmed write once the tags have landed", () => {
+    const t = totals(withTags(cascaded(), ["build_revenue", "write_report", "write_docs"]));
+    expect(t.marked).toBe(3);
+    expect(t.tagged).toBe(3);
+    expect(t.leftOver).toBe(0);
+  });
+
+  it("reads low rather than wrong while a write is still in flight", () => {
+    // obsel writes the mark first and the tag second, and DataHub's writes are
+    // asynchronous, so this is a moment every real cascade passes through. It must
+    // count what DataHub actually reports, not what obsel intends to write.
+    const t = totals(withTags(cascaded(), ["build_revenue", "write_report"]));
+    expect(t.marked).toBe(3);
+    expect(t.tagged).toBe(2);
+  });
+
+  it("says it does not know, rather than zero, on a snapshot with no tag information", () => {
+    // The distinction that matters: `0 of 3` would claim DataHub is missing three
+    // tags. Null says obsel never looked. Understating obsel's own contribution is
+    // as much a false claim as overstating it.
+    const t = totals(cascaded());
+    expect(t.marked).toBe(3);
+    expect(t.tagged).toBeNull();
+    expect(t.leftOver).toBeNull();
+  });
+
+  it("counts a tag left on work obsel considers clean", () => {
+    // A reset done by hand clears the properties and leaves the tag, so DataHub
+    // shows a stale badge on a job obsel says is fine. This never resolves itself
+    // by waiting, which is why it is counted separately from a shortfall.
+    const t = totals(withTags(pipeline(), ["write_docs"]));
+    expect(t.marked).toBe(0);
+    expect(t.tagged).toBe(0);
+    expect(t.leftOver).toBe(1);
+  });
+
+  it("does not count an unrelated tag as obsel's own", () => {
+    const tasks = cascaded().map((task) => ({
+      ...task,
+      tags: ["urn:li:tag:pii"],
+      staleTagged: false,
+    }));
+    const t = totals(tasks);
+    expect(t.tagged).toBe(0);
+    expect(t.leftOver).toBe(0);
   });
 });
 

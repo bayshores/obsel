@@ -36,6 +36,7 @@ import type {
   TaskRecord,
   TaskStatus,
 } from "@/src/server/coordinator/types";
+import { hasStaleTag, parseTagUrns } from "./tags";
 import {
   DATASET_NAMESPACE,
   FLOW_URN,
@@ -280,9 +281,7 @@ export async function tagExists(urn: string): Promise<boolean> {
  * clear it explicitly rather than assume it went with the properties.
  */
 export async function readTagUrns(urn: string): Promise<string[]> {
-  const entity = await readTaskEntity(urn);
-  const tags = entity?.globalTags?.value?.tags ?? [];
-  return tags.map((entry) => entry.tag);
+  return parseTagUrns((await readTaskEntity(urn))?.globalTags?.value?.tags);
 }
 
 const STATUSES: readonly TaskStatus[] = ["registered", "running", "complete", "stale"];
@@ -473,6 +472,13 @@ function toTaskRecord(entity: DataJobEntity): TaskRecord {
   const status = parseStatus(props[PROP.status], entity.urn);
   const finishedAt = props[PROP.finishedAt];
   const startedAt = props[PROP.startedAt];
+  /*
+   * Free. `readTaskEntity` already returns `globalTags` — that is what
+   * `readTagUrns` has always read — and this function used to throw it away, so
+   * the one thing obsel writes into DataHub that a person can see was the one
+   * thing its own board could not report. No extra request.
+   */
+  const tags = parseTagUrns(entity.globalTags?.value?.tags);
 
   return {
     urn: entity.urn,
@@ -491,6 +497,8 @@ function toTaskRecord(entity: DataJobEntity): TaskRecord {
     startedAt: startedAt ? startedAt : null,
     run: parseRun(props),
     stale: parseStale(props, status, entity.urn),
+    tags,
+    staleTagged: hasStaleTag(tags),
   };
 }
 

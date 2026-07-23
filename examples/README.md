@@ -275,11 +275,36 @@ still type-check), because TypeScript cannot see JSON string literals through `r
 Those values were checked separately by walking the files and comparing against the unions in
 `types.ts`.
 
+## The board these responses produced
+
+<!--
+  SCREENSHOTS: uncomment once docs/images/settled.png and docs/images/flagged.png exist.
+
+  Commented rather than left dangling: a `![…]` at a missing path renders as a broken-image icon,
+  which reads worse than no image. See docs/images/README.md for the capture spec.
+
+| Everything true                                    | Three flagged                                     |
+| -------------------------------------------------- | ------------------------------------------------- |
+| ![The cockpit with four agents finished and nothing out of date.](../docs/images/settled.png) | ![The cockpit with three agents flagged, the changed table naming the column that left and the one that arrived, and an amber path running out two hops.](../docs/images/flagged.png) |
+
+_Captured YYYY-MM-DD from commit `SHA`, both from the same run against a live DataHub._
+-->
+
+Be clear about what a screenshot is worth here. It shows what obsel renders from the JSON in this
+directory, which is useful if you would rather not start Docker to see the board. It proves nothing
+about the reasoning: a picture of an amber box is a picture, and the evidence that the box is correct
+is the fingerprint pair in `swarm-before.json` and `swarm-after.json` and the traversal you can rerun
+yourself with `reproduce_fingerprints.py`. Read the images as a preview of the interface, and the
+JSON as the record.
+
 ## What is not in here
 
 - **The DataHub side.** These are obsel's HTTP responses. What lands in DataHub is a `DataJob` per
   task, `Consumes`/`Produces` edges, the `urn:li:tag:obsel-stale` tag, and the `obsel.*` custom
-  properties listed in [`docs/architecture.md`](../docs/architecture.md).
+  properties listed in [`docs/architecture.md`](../docs/architecture.md). The captures here predate
+  obsel reading that tag back onto the board, so their tasks carry no `tags` field. That is a valid
+  record of what was read at the time, and the cockpit renders it as `not recorded` rather than
+  claiming DataHub holds no tags.
 - **Failure shapes.** The API's error responses are not sampled here.
 - **The quiet case.** An identical re-run returns a `CoordinationResult` with empty `changedOutputs`
   and empty `affected`, which is the behaviour the whole design rests on. It has been observed

@@ -244,15 +244,28 @@ describe("no em dash reaches the screen", () => {
 });
 
 describe("the change line names the columns that moved", () => {
+  /*
+   * These fixtures read the changed table on purpose.
+   *
+   * A directly flagged task is one that consumed `clean_orders`, and saying so keeps
+   * these assertions about the column wording alone: a task marked without reading
+   * the changed table also earns the "never read it" clause, which belongs in its own
+   * block below rather than tangled into every column case.
+   */
+  function directlyFlagged(overrides: Partial<StaleMark> = {}): TaskRecord {
+    return task("build_revenue", {
+      status: "stale",
+      reads: [ds("clean_orders")],
+      stale: mark(overrides),
+    });
+  }
+
   it("says lost and gained, never renamed, because a rename cannot be observed", () => {
     const view = guide(
       input({
         tasks: [
           task("clean_orders"),
-          task("build_revenue", {
-            status: "stale",
-            stale: mark({ columns: { added: ["order_total_usd"], removed: ["order_total"] } }),
-          }),
+          directlyFlagged({ columns: { added: ["order_total_usd"], removed: ["order_total"] } }),
         ],
       }),
     );
@@ -265,50 +278,116 @@ describe("the change line names the columns that moved", () => {
   it("falls back to the kind of change when no columns were recorded", () => {
     // Marks written before obsel recorded column lists, and every content-only
     // change. The line still has to say something true.
-    const schema = guide(
-      input({
-        tasks: [task("build_revenue", { status: "stale", stale: mark({ columns: null }) })],
-      }),
-    );
+    const schema = guide(input({ tasks: [directlyFlagged({ columns: null })] }));
     expect(schema.subline).toBe("the columns in clean orders changed after they finished");
 
     const content = guide(
-      input({
-        tasks: [
-          task("build_revenue", {
-            status: "stale",
-            stale: mark({ changeKind: "content", columns: null }),
-          }),
-        ],
-      }),
+      input({ tasks: [directlyFlagged({ changeKind: "content", columns: null })] }),
     );
     expect(content.subline).toBe("the rows in clean orders changed after they finished");
   });
 
   it("reports a one-sided change without a dangling conjunction", () => {
     const added = guide(
-      input({
-        tasks: [
-          task("build_revenue", {
-            status: "stale",
-            stale: mark({ columns: { added: ["refund_total"], removed: [] } }),
-          }),
-        ],
-      }),
+      input({ tasks: [directlyFlagged({ columns: { added: ["refund_total"], removed: [] } })] }),
     );
     expect(added.subline).toBe("clean orders gained refund_total after they finished");
 
     const removed = guide(
+      input({ tasks: [directlyFlagged({ columns: { added: [], removed: ["order_total"] } })] }),
+    );
+    expect(removed.subline).toBe("clean orders lost order_total after they finished");
+  });
+});
+
+describe("the subline names work flagged without touching the change", () => {
+  /*
+   * The fact obsel exists for, and the one the board only ever showed as `· 2 hops`.
+   *
+   * Every count here is derived from `reads`, never from `hops`, so these fixtures
+   * set hop counts that would give a different answer where it matters. "Never read
+   * it" is a claim about what a task consumes; hops measure distance through the
+   * graph. They usually agree, and the sentence has to be true when they do not.
+   */
+  const changed = ds("clean_orders");
+
+  it("counts the indirect ones, and says so in words rather than in hops", () => {
+    const view = guide(
       input({
         tasks: [
+          task("clean_orders"),
           task("build_revenue", {
             status: "stale",
-            stale: mark({ columns: { added: [], removed: ["order_total"] } }),
+            reads: [changed],
+            stale: mark({ hops: 1 }),
+          }),
+          task("write_report", {
+            status: "stale",
+            reads: [ds("daily_revenue")],
+            stale: mark({ hops: 2 }),
+          }),
+          task("write_docs", {
+            status: "stale",
+            reads: [ds("daily_revenue")],
+            stale: mark({ hops: 2 }),
           }),
         ],
       }),
     );
-    expect(removed.subline).toBe("clean orders lost order_total after they finished");
+    expect(view.subline).toContain("2 of the 3 never read it");
+  });
+
+  it("says nothing extra when every flagged task read the changed table", () => {
+    const view = guide(
+      input({
+        tasks: [
+          task("build_revenue", { status: "stale", reads: [changed], stale: mark({ hops: 1 }) }),
+          task("write_report", { status: "stale", reads: [changed], stale: mark({ hops: 1 }) }),
+        ],
+      }),
+    );
+    expect(view.subline).not.toContain("never read");
+    expect(view.subline).not.toContain("0 of");
+  });
+
+  it("counts by what a task reads, not by how far away the graph puts it", () => {
+    // Two hops out and still reading the changed table on a second edge. The hop
+    // count is honest; "never read it" would not be, so it must not be claimed.
+    const view = guide(
+      input({
+        tasks: [
+          task("build_revenue", { status: "stale", reads: [changed], stale: mark({ hops: 1 }) }),
+          task("write_report", {
+            status: "stale",
+            reads: [ds("daily_revenue"), changed],
+            stale: mark({ hops: 2 }),
+          }),
+        ],
+      }),
+    );
+    expect(view.subline).not.toContain("never read");
+  });
+
+  it("spells out the all-indirect cases instead of stating a ratio of one to one", () => {
+    const alone = guide(
+      input({
+        tasks: [
+          task("write_docs", { status: "stale", reads: [ds("daily_revenue")], stale: mark() }),
+        ],
+      }),
+    );
+    expect(alone.subline).toContain("the one flagged agent never read it");
+    expect(alone.subline).not.toContain("1 of the 1");
+
+    const several = guide(
+      input({
+        tasks: [
+          task("write_report", { status: "stale", reads: [ds("daily_revenue")], stale: mark() }),
+          task("write_docs", { status: "stale", reads: [ds("daily_revenue")], stale: mark() }),
+        ],
+      }),
+    );
+    expect(several.subline).toContain("none of the 2 ever read it");
   });
 });
 

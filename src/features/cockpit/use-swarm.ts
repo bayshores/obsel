@@ -34,6 +34,14 @@ export interface SwarmResponse {
   snapshot: SwarmSnapshot;
   ready: TaskRecord[];
   blocked: { task: TaskRecord; waitingOn: string[] }[];
+  /**
+   * Base URL of DataHub's own UI, or null when the server has none configured.
+   *
+   * Optional as well as nullable so a response from a build that predates it
+   * parses rather than failing the read. Null and absent both mean the same thing
+   * to the cockpit: render no link.
+   */
+  datahubUrl?: string | null;
 }
 
 export interface SwarmState {

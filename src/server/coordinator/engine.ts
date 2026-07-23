@@ -192,9 +192,37 @@ export async function readSwarm(): Promise<{
   snapshot: SwarmSnapshot;
   ready: TaskRecord[];
   blocked: { task: TaskRecord; waitingOn: string[] }[];
+  datahubUrl: string | null;
 }> {
   const snapshot = await readSnapshot();
-  return { snapshot, ready: readyToStart(snapshot), blocked: blocked(snapshot) };
+  return {
+    snapshot,
+    ready: readyToStart(snapshot),
+    blocked: blocked(snapshot),
+    datahubUrl: datahubUrl(),
+  };
+}
+
+/**
+ * Where DataHub's own UI is, so the board can link a task to its real entity page.
+ *
+ * On the envelope rather than on `SwarmSnapshot`, deliberately. The snapshot is a
+ * domain value the coordinator writes and `examples/*.json` captures as a record of
+ * what DataHub held; a browser's base URL is neither of those things and would
+ * outlive its meaning the moment a capture were replayed on another machine.
+ *
+ * Null when `DATAHUB_FRONTEND_URL` is unset, which the cockpit renders as no link
+ * at all. A guessed default would produce a link that looks live and goes nowhere,
+ * which is worse than its absence.
+ *
+ * Port 9002 is the frontend proxy, not GMS. `DATAHUB_GMS_URL` is emphatically not a
+ * substitute: 8080 answers the API and serves no entity pages.
+ */
+function datahubUrl(): string | null {
+  const raw = process.env.DATAHUB_FRONTEND_URL?.trim();
+  if (!raw) return null;
+  // Trailing slash stripped here so every caller can join with a leading one.
+  return raw.replace(/\/+$/, "");
 }
 
 /**

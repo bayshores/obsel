@@ -12,6 +12,21 @@ work that never touched the change directly, only something built on it.
 Built for [Build with DataHub: The Agent Hackathon](https://datahub.devpost.com/), category _Agents
 That Do Real Work_. Apache-2.0.
 
+<!--
+  SCREENSHOTS: uncomment this block once docs/images/flagged.png exists.
+
+  Commented rather than left dangling on purpose. A `![…]` pointing at a missing file renders as a
+  broken-image icon on GitHub, which is worse for a submission than no image at all.
+  docs/images/README.md holds the capture spec: 1920 x 990, both shots from one real run.
+
+![The obsel cockpit with three agents flagged: the changed table shows order_total leaving and
+order_total_usd arriving, an amber path runs outward through two hops, and the ribbon reports the
+measured detection time and three of three marks tagged in DataHub.](docs/images/flagged.png)
+
+_The flagged board. Captured YYYY-MM-DD from commit `SHA` against a live DataHub and a live Codex
+CLI. Not a mockup: every number on it came from that run._
+-->
+
 ---
 
 ## Status
@@ -57,6 +72,23 @@ could not tell what it was.
   away on a node. Two checks in the suite hold the line, because ten rounds of hand-edited copy is
   what produced the 604 in the first place: a word ceiling on the flagged board, and an assertion
   that no em dash reaches the screen in any state.
+- **What obsel wrote into DataHub is on the board, and counted.** obsel tags each marked job
+  `urn:li:tag:obsel-stale` through the MCP server, which is the thing a person browsing DataHub sees
+  without knowing obsel exists, and the board used to mention it in five grey words at the bottom of a
+  scroller. obsel now reads `globalTags` back off the entity it was already fetching, so the ribbon
+  reports `3 of 3 tagged` and the details panel lists every tag on the job and links to its real
+  DataHub page. It is a check rather than a badge, and the states are distinguished on purpose: a
+  count that reads low is a write still in flight, since obsel writes the mark before the tag and
+  DataHub's writes are asynchronous; a tag with no mark never resolves and is reported separately as
+  `left over`; and a snapshot with no tag information says `not recorded` rather than zero, because
+  claiming DataHub is missing tags obsel never looked for would understate obsel's own contribution.
+  Neither field enters a staleness decision, which is still `compareFingerprints` on sha256 alone.
+- **The reason lineage is needed is stated in words.** Two of the three flagged agents never read the
+  changed table, which is the whole argument for walking a lineage graph rather than watching a file,
+  and it was on screen only as `· 2 hops`. The subline now reads "clean orders lost order_total and
+  gained order_total_usd after they finished, and 2 of the 3 never read it". The count comes from each
+  task's `reads`, not from its hop count, because "never read it" is a claim about what a task
+  consumes and the two can disagree.
 
 The guide is a lens, not a script: it derives its stage from what DataHub actually holds, so
 driving a step from the terminal instead moves the board the same way, and nothing on screen is
@@ -80,6 +112,8 @@ and type-checks, not a plan.
 | The guide — stage derived from live state, buttons that launch the real steps   | `src/features/cockpit/guide.ts`, `guide-panel.tsx`                         |
 | The demo runner — spawns `agents.run` steps, checks the machine's prerequisites | `src/server/runner/`                                                       |
 | Each task's job, stored on its DataJob in DataHub and read back onto the board  | `agents/pipeline.py`, `src/server/datahub/client.ts`                       |
+| The stale tag read back off the entity, and counted on the board                | `src/server/datahub/tags.ts`, `src/features/cockpit/timing.ts`             |
+| A link from any task to its real page in DataHub's UI                           | `src/features/cockpit/datahub-link.ts`, `inspector.tsx`                    |
 | HTTP API, eight routes including launch and activity                            | `app/api/` — see [`docs/architecture.md`](docs/architecture.md) section 11 |
 
 ### Verified directly
@@ -134,6 +168,24 @@ and type-checks, not a plan.
   a stale panel size, so after a resize all nine nodes sat outside a panel that clips its overflow.
   All three are fixed, each is written up in the code that fixes it, and the last is now asserted in
   `e2e/cockpit.spec.ts` across a resize.
+- **The write-back, read back off DataHub**, on 2026-07-23 against the same live stack. From a reset
+  board: `run` took **140.5 s** for four Codex sessions, then `change` was called **`schema`** and
+  marked three tasks in a measured **868 ms**. `GET /api/swarm` reported
+  `tags: ["urn:li:tag:obsel-stale"]` on exactly those three and `tags: []` on `clean_orders`, which is
+  the cause rather than a casualty, so the ribbon read **`3 of 3 tagged`** beside the detection time.
+  Clicking a flagged node showed the tag and a link resolving to
+  `http://localhost:9002/tasks/urn:li:dataJob:(...,build_revenue)`. `POST /api/demo/reset` then
+  reported clearing properties on all four and the tag from all three, after which every task read
+  `tags: []` and the cell read **`nothing marked`** with nothing left over. The board measured
+  **251 words**, 96 of them prose, **zero em dashes**, whole board inside 990 px with no scroll.
+  **Not observed live:** the moment between the mark landing and the tag landing. Polling every two
+  seconds, the board went straight from nothing marked to `3 of 3`, so the asynchronous window is
+  shorter than that in practice. The partial count is covered by a unit test and a browser test
+  against a fixture, not by a live sighting, and the ribbon is worded as a count for exactly that
+  reason.
+- **One flaw found by reading the rendered board rather than the code.** The ribbon lowercases its
+  labels, which was fine until a label carried DataHub's name: the cell crediting DataHub rendered as
+  "written into datahub". `StatCell` now takes `preserveCase`, used only there.
 - **The whole demo, driven from the browser alone**, on 2026-07-22 against a live DataHub and a
   signed-in Codex CLI — five clicks in the guide, no terminal: reset, then re-declare (which
   wrote each task's job description onto its DataJob and read it back onto the board in a

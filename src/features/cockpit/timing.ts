@@ -22,9 +22,28 @@ export interface SwarmTotals {
   tasks: number;
   finished: number;
   stale: number;
-  /** Hops of the furthest mark, or null when nothing is marked. */
-  deepestReach: number | null;
   timing: DetectionTiming | null;
+  /** Tasks carrying an unresolved mark of obsel's own. */
+  marked: number;
+  /**
+   * How many of those DataHub confirms it tagged.
+   *
+   * **Null means obsel does not know**, not zero. A snapshot captured before
+   * `tags` existed carries no tag information at all, and reporting `0 of 3` there
+   * would claim DataHub is missing three tags obsel never actually looked for.
+   * Understating obsel's own contribution is still a false claim.
+   */
+  tagged: number | null;
+  /**
+   * Tasks DataHub reports as tagged that carry no mark. Null under the same
+   * not-recorded rule as `tagged`.
+   *
+   * Unlike a shortfall in `tagged`, this never resolves itself by waiting. It is
+   * the reset-by-hand fault `docs/demo-script.md` calls the most damaging frame the
+   * video could contain: a tag from a previous take still on the entity while
+   * obsel's own properties say the task is clean.
+   */
+  leftOver: number | null;
 }
 
 /**
@@ -128,15 +147,30 @@ export function detectionTiming(tasks: TaskRecord[]): DetectionTiming | null {
   return { ms: Math.max(...measured), source: cause.name, flagged: fromSameChange.length };
 }
 
-/** Every count the stat ribbon shows, from one pass over the snapshot. */
+/**
+ * Every count the stat ribbon shows, from one pass over the snapshot.
+ *
+ * `deepestReach` used to be here, the maximum hop count across every mark. It was
+ * removed rather than kept: the graph labels each marked box with its own `· N
+ * hops`, so the ribbon was restating the largest number already on screen.
+ */
 export function totals(tasks: TaskRecord[]): SwarmTotals {
-  const marks = marksOf(tasks);
+  // A freshly read task always has a `tags` array, empty or not. All of them
+  // lacking the key means this snapshot predates obsel reading tags back, which is
+  // not the same as DataHub holding none.
+  const tagsKnown = tasks.some((task) => task.tags !== undefined);
+  const marked = tasks.filter((task) => task.stale !== null);
+
   return {
     tasks: tasks.length,
     finished: tasks.filter((t) => t.status === "complete" || t.status === "stale").length,
     stale: tasks.filter((t) => t.status === "stale").length,
-    deepestReach: marks.length === 0 ? null : Math.max(...marks.map((m) => m.hops)),
     timing: detectionTiming(tasks),
+    marked: marked.length,
+    tagged: tagsKnown ? marked.filter((task) => task.staleTagged === true).length : null,
+    leftOver: tagsKnown
+      ? tasks.filter((task) => task.staleTagged === true && task.stale === null).length
+      : null,
   };
 }
 
