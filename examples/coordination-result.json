@@ -11,20 +11,22 @@
       "task": {
         "urn": "urn:li:dataJob:(urn:li:dataFlow:(obsel,orders_pipeline,prod),build_revenue)",
         "name": "build_revenue",
+        "title": "Daily revenue",
+        "description": "totals the clean orders into one revenue row per day",
         "reads": ["urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_demo.clean_orders,PROD)"],
         "writes": ["urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_demo.daily_revenue,PROD)"],
         "status": "complete",
         "fingerprints": {
           "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_demo.daily_revenue,PROD)": {
             "schema": "e67a1da2bbcaa77efb95f7c30cfd667b89d31012dbb9ceb5d47a83a2b7cac5e3",
-            "content": "6f09e38211e0415ebfbc74d2188c591e7b93d797cc51c4073a3fb6f420d9f16b"
+            "content": "743933e56250798d370f835dd8ae4bfc40608b88fcd8498611d81d54db460531"
           }
         },
-        "finishedAt": "2026-07-22T08:35:52.677238+00:00",
-        "startedAt": "2026-07-22T08:35:37.381Z",
+        "finishedAt": "2026-07-23T01:51:04.989667+00:00",
+        "startedAt": "2026-07-23T01:50:44.201Z",
         "run": {
           "runner": "codex-cli 0.144.4",
-          "ms": 15175,
+          "ms": 20636,
           "outputs": {
             "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_demo.daily_revenue,PROD)": {
               "rows": 5,
@@ -39,29 +41,31 @@
         "causedByTask": "urn:li:dataJob:(urn:li:dataFlow:(obsel,orders_pipeline,prod),clean_orders)",
         "hops": 1,
         "changeKind": "schema",
-        "reason": "read clean_orders, and its columns changed after this finished",
-        "since": "2026-07-22T08:37:32.086Z",
-        "detectedMs": 1034
+        "reason": "read clean orders, and its columns changed after this finished",
+        "since": "2026-07-23T01:52:53.582Z",
+        "detectedMs": 745
       }
     },
     {
       "task": {
         "urn": "urn:li:dataJob:(urn:li:dataFlow:(obsel,orders_pipeline,prod),write_docs)",
         "name": "write_docs",
+        "title": "Table docs",
+        "description": "documents the daily_revenue table for the next engineer",
         "reads": ["urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_demo.daily_revenue,PROD)"],
         "writes": ["urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_demo.pipeline_docs,PROD)"],
         "status": "complete",
         "fingerprints": {
           "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_demo.pipeline_docs,PROD)": {
             "schema": "0a1d9d0244688f6ba6ef46ec05ba53b6e7bdb187a9ae0e4903b97c35ac24ee54",
-            "content": "160894e788195743546410e13f975e16b2d5350fd449dcde0689084b30f432a9"
+            "content": "a58fc7b506579d68fe6b64045bf71b458450867a0b00ae9d63796cbd33da24f2"
           }
         },
-        "finishedAt": "2026-07-22T08:36:15.526251+00:00",
-        "startedAt": "2026-07-22T08:35:52.787Z",
+        "finishedAt": "2026-07-23T01:51:34.235558+00:00",
+        "startedAt": "2026-07-23T01:51:05.101Z",
         "run": {
           "runner": "codex-cli 0.144.4",
-          "ms": 22617,
+          "ms": 28979,
           "outputs": {
             "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_demo.pipeline_docs,PROD)": {
               "rows": 5,
@@ -76,29 +80,31 @@
         "causedByTask": "urn:li:dataJob:(urn:li:dataFlow:(obsel,orders_pipeline,prod),clean_orders)",
         "hops": 2,
         "changeKind": "schema",
-        "reason": "built on work from build_revenue, which is itself out of date because clean_orders changed",
-        "since": "2026-07-22T08:37:32.086Z",
-        "detectedMs": 1034
+        "reason": "built on work from Daily revenue, which is itself out of date because clean orders changed",
+        "since": "2026-07-23T01:52:53.582Z",
+        "detectedMs": 745
       }
     },
     {
       "task": {
         "urn": "urn:li:dataJob:(urn:li:dataFlow:(obsel,orders_pipeline,prod),write_report)",
         "name": "write_report",
+        "title": "Revenue report",
+        "description": "writes the short revenue report an operations lead reads",
         "reads": ["urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_demo.daily_revenue,PROD)"],
         "writes": ["urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_demo.revenue_report,PROD)"],
         "status": "complete",
         "fingerprints": {
           "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_demo.revenue_report,PROD)": {
             "schema": "0a1d9d0244688f6ba6ef46ec05ba53b6e7bdb187a9ae0e4903b97c35ac24ee54",
-            "content": "31d7de2ad6d058b6a606169a32e007681b1780345486b0af452a4771100e156b"
+            "content": "584f5ab085c3ddf82642e2d92e9455abf8bdae04b00ff2f82111770422db23aa"
           }
         },
-        "finishedAt": "2026-07-22T08:36:40.650332+00:00",
-        "startedAt": "2026-07-22T08:36:15.679Z",
+        "finishedAt": "2026-07-23T01:51:58.797354+00:00",
+        "startedAt": "2026-07-23T01:51:34.360Z",
         "run": {
           "runner": "codex-cli 0.144.4",
-          "ms": 24828,
+          "ms": 24325,
           "outputs": {
             "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_demo.revenue_report,PROD)": {
               "rows": 4,
@@ -113,11 +119,11 @@
         "causedByTask": "urn:li:dataJob:(urn:li:dataFlow:(obsel,orders_pipeline,prod),clean_orders)",
         "hops": 2,
         "changeKind": "schema",
-        "reason": "built on work from build_revenue, which is itself out of date because clean_orders changed",
-        "since": "2026-07-22T08:37:32.086Z",
-        "detectedMs": 1034
+        "reason": "built on work from Daily revenue, which is itself out of date because clean orders changed",
+        "since": "2026-07-23T01:52:53.582Z",
+        "detectedMs": 745
       }
     }
   ],
-  "elapsedMs": 1034
+  "elapsedMs": 745
 }

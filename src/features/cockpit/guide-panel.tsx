@@ -101,23 +101,6 @@ export function GuidePanel({
         </div>
 
         <div className={styles.side}>
-          {view.actions.length > 0 && (
-            <div className={styles.actions}>
-              {view.actions.map((action) => (
-                <button
-                  key={action.step}
-                  type="button"
-                  className={styles.action}
-                  disabled={launching}
-                  onClick={() => void launch(action.step)}
-                >
-                  <span className={styles.actionLabel}>{action.label}</span>
-                  <span className={styles.actionDetail}>{action.detail}</span>
-                </button>
-              ))}
-            </div>
-          )}
-
           {running !== null && (
             <>
               <span className={styles.running}>
@@ -145,6 +128,36 @@ export function GuidePanel({
             </p>
           )}
         </div>
+
+        {/*
+          Its own full-width row, beneath both columns, rather than stacked
+          inside the narrow right-hand one.
+          Measured: in a 386px column the two buttons sat one above the other
+          with their detail lines wrapping three deep, making this panel 316px
+          tall while 130px of the 806px prose column stood empty beside them —
+          and pushing the stat ribbon that carries the measured detection time
+          off the bottom of a 990px recording frame. Across the full width they
+          sit side by side, and the panel is ~85px shorter for the same words.
+
+          Last in the DOM as well as on screen: read what is happening, then
+          choose what to do about it.
+        */}
+        {view.actions.length > 0 && (
+          <div className={`${styles.actions} ${styles.span}`}>
+            {view.actions.map((action) => (
+              <button
+                key={action.step}
+                type="button"
+                className={styles.action}
+                disabled={launching}
+                onClick={() => void launch(action.step)}
+              >
+                <span className={styles.actionLabel}>{action.label}</span>
+                <span className={styles.actionDetail}>{action.detail}</span>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     </Panel>
   );

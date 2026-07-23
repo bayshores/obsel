@@ -12,8 +12,6 @@
 
 import { useEffect, useState } from "react";
 
-import { appendEvents, diffSnapshots } from "./feed";
-import type { FeedEvent } from "./feed";
 import type { SwarmSnapshot, TaskRecord } from "@/src/server/coordinator/types";
 
 export const POLL_MS = 1000;
@@ -47,15 +45,6 @@ export interface SwarmState {
   roundTripMs: number | null;
   /** False until the first attempt settles, so "loading" is distinguishable. */
   everRead: boolean;
-  /**
-   * What changed between consecutive reads, newest first.
-   *
-   * Accumulated here rather than in a ref because the previous snapshot is
-   * already in this state: the functional updater sees it as `prev.data` and no
-   * ref is read or written during render, which `react-hooks/refs` forbids
-   * outright and which is a fatal lint error in this repo.
-   */
-  events: FeedEvent[];
 }
 
 export function useSwarm(): SwarmState {
@@ -65,7 +54,6 @@ export function useSwarm(): SwarmState {
     lastReadAt: null,
     roundTripMs: null,
     everRead: false,
-    events: [],
   });
 
   useEffect(() => {
@@ -92,20 +80,13 @@ export function useSwarm(): SwarmState {
         }
         if (cancelled) return;
         const roundTripMs = Math.round(performance.now() - startedAt);
-        setState((prev) => ({
+        setState({
           data: body,
           error: null,
           lastReadAt: new Date().toISOString(),
           roundTripMs,
           everRead: true,
-          // Diffed against the snapshot this hook already holds. A failed read
-          // leaves `prev.data` untouched, so the next success is compared
-          // against the last thing actually seen rather than against nothing.
-          events: appendEvents(
-            prev.events,
-            diffSnapshots(prev.data?.snapshot ?? null, body.snapshot),
-          ),
-        }));
+        });
       } catch (cause) {
         if (cancelled) return;
         // The last good snapshot is kept on screen, but the banner above it

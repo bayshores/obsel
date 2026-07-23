@@ -21,6 +21,7 @@
  * see `reserveText`.
  */
 
+import { datasetTitle, shortName, taskTitle } from "../naming";
 import type { TaskRecord } from "@/src/server/coordinator/types";
 
 /**
@@ -114,23 +115,6 @@ export interface GraphLayout {
    * the common graph reserves no space for it.
    */
   detourY: number | null;
-}
-
-/**
- * The last segment of a dataset URN's path — `clean_orders` out of
- * `urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_demo.clean_orders,PROD)`.
- *
- * Deliberately duplicated from `src/server/coordinator/staleness.ts` rather than
- * imported. This module is rendered in the browser, and CLAUDE.md forbids
- * browser code importing server modules — a rule about the dependency direction,
- * not about how expensive the function is. The two must stay in step; a test
- * asserts they agree.
- */
-export function shortName(datasetUrn: string): string {
-  const parts = datasetUrn.split(",");
-  const path = parts.length > 1 ? parts[1] : datasetUrn;
-  const segments = path.split(".");
-  return segments[segments.length - 1];
 }
 
 /**
@@ -264,14 +248,19 @@ export function layoutGraph(tasks: TaskRecord[], reserveText: string): GraphLayo
     if (group.task !== null) {
       w = Math.max(
         TASK_BOX.minWidth,
-        textWidth(group.task.name, 13) + TASK_BOX.padX * 2,
+        // Reserved for what is DRAWN, which is the human title, not the code
+        // identifier beneath it. Reserving for `name` while rendering the title
+        // is how text escapes a box — and the title is usually the longer of the
+        // two ("Orders cleaner" against "clean_orders" is a wash; "Daily
+        // revenue" against "build_revenue" is not).
+        textWidth(taskTitle(group.task), 13) + TASK_BOX.padX * 2,
         textWidth(reserveText, 11) + TASK_BOX.padX * 2,
         textWidth(CLOCK_RESERVE, 11) + TASK_BOX.padX * 2,
       );
       h = TASK_HEIGHT;
     }
     for (const dataset of group.datasets) {
-      w = Math.max(w, DATA_BOX.minWidth, textWidth(shortName(dataset), 11) + DATA_BOX.padX * 2);
+      w = Math.max(w, DATA_BOX.minWidth, textWidth(datasetTitle(dataset), 11) + DATA_BOX.padX * 2);
     }
     if (group.datasets.length > 0) {
       // one gap above the first box, then the boxes themselves stacked tight

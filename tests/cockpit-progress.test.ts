@@ -64,7 +64,7 @@ function mark(): StaleMark {
     causedByTask: null,
     hops: 1,
     changeKind: "schema",
-    reason: "read clean_orders, and its columns changed after this finished",
+    reason: "read clean orders, and its columns changed after this finished",
     since: "2026-07-21T14:25:00.000Z",
     detectedMs: 3216,
   };

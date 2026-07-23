@@ -56,11 +56,11 @@ function reasonFor(
   viaTask: TaskRecord | null,
   kind: ChangeKind,
 ): string {
-  const table = shortName(changedDataset);
+  const table = tableLabel(changedDataset);
   if (hops === 1) {
     return `read ${table}, and ${describe(kind)} after this finished`;
   }
-  const via = viaTask ? viaTask.name : "an upstream task";
+  const via = viaTask ? taskLabel(viaTask) : "an upstream task";
   return `built on work from ${via}, which is itself out of date because ${table} changed`;
 }
 
@@ -70,6 +70,38 @@ export function shortName(datasetUrn: string): string {
   const path = parts.length > 1 ? parts[1] : datasetUrn;
   const segments = path.split(".");
   return segments[segments.length - 1];
+}
+
+/**
+ * What to call a table in a sentence a person reads.
+ *
+ * `clean_orders` → `clean orders`. Underscores are how the table is spelled in
+ * a warehouse, not how it is spelled in English, and this string ends up in the
+ * one sentence on the board that has to land with someone who has never seen the
+ * pipeline: the reason a mark exists.
+ *
+ * Changed here rather than at render time on purpose. The ledger prints the
+ * stored reason verbatim, precisely so there is one authoritative wording of
+ * each fact instead of a stored form and a prettier displayed form that could
+ * disagree. Nothing machine-readable is lost: which dataset changed is carried
+ * exactly on `obsel.stale.causedBy` as a URN, and which task it came through on
+ * `obsel.stale.causedByTask`. This is the prose, and prose is for reading.
+ */
+export function tableLabel(datasetUrn: string): string {
+  return shortName(datasetUrn).replace(/_/g, " ");
+}
+
+/**
+ * What to call a task in a sentence a person reads: its registered human name.
+ *
+ * Falls back to the de-underscored identifier, so a pipeline registered without
+ * titles still reads as words rather than as code.
+ */
+export function taskLabel(task: Pick<TaskRecord, "name" | "title">): string {
+  const title = task.title;
+  return title !== undefined && title !== null && title !== ""
+    ? title
+    : task.name.replace(/_/g, " ");
 }
 
 /**

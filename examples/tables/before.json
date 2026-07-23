@@ -242,31 +242,31 @@
     "columns": ["order_date", "total_revenue", "order_count", "average_order_value"],
     "rows": [
       {
-        "average_order_value": 78.48,
+        "average_order_value": 78.476,
         "order_count": 5,
         "order_date": "2026-07-13",
         "total_revenue": 392.38
       },
       {
-        "average_order_value": 92.44,
+        "average_order_value": 92.438,
         "order_count": 10,
         "order_date": "2026-07-14",
         "total_revenue": 924.38
       },
       {
-        "average_order_value": 115.52,
+        "average_order_value": 115.524,
         "order_count": 5,
         "order_date": "2026-07-15",
         "total_revenue": 577.62
       },
       {
-        "average_order_value": 104.49,
+        "average_order_value": 104.48666666666666,
         "order_count": 12,
         "order_date": "2026-07-16",
         "total_revenue": 1253.84
       },
       {
-        "average_order_value": 131.63,
+        "average_order_value": 131.62571428571428,
         "order_count": 7,
         "order_date": "2026-07-17",
         "total_revenue": 921.38
@@ -279,27 +279,27 @@
       {
         "heading": "order_date",
         "section": "column",
-        "text": "The calendar date used to group the source orders, represented as an ISO 8601 date (YYYY-MM-DD) with no time component. It was derived by assigning each included order to its order date, then producing one daily aggregate row for that date."
+        "text": "The calendar date used to group orders, formatted as YYYY-MM-DD. Its unit is one calendar day. It was derived from each source order's date, with all represented orders sharing the same date collapsed into one daily row."
       },
       {
         "heading": "total_revenue",
         "section": "column",
-        "text": "The summed revenue from all included orders on order_date, in currency units rounded to two decimal places. It was derived by adding the revenue amounts of the orders assigned to that date. The source does not identify the currency."
+        "text": "The combined revenue of the represented orders for order_date. Its unit is currency, stored to two decimal places in the observed rows; the currency itself is not identified by this table. It was derived by summing the revenue amounts of all represented orders in that date's group."
       },
       {
         "heading": "order_count",
         "section": "column",
-        "text": "The number of included orders assigned to order_date, in orders. It was derived by counting those source orders."
+        "text": "The number of represented orders for order_date. Its unit is orders. It was derived by counting the source orders in that date's group."
       },
       {
         "heading": "average_order_value",
         "section": "column",
-        "text": "The mean revenue per included order on order_date, in the same unspecified currency units as total_revenue and rounded to two decimal places. It was derived as total_revenue divided by order_count."
+        "text": "The mean revenue per represented order for order_date. Its unit is currency per order, using the same unidentified currency as total_revenue. It was derived as total_revenue divided by order_count and is not rounded to two decimal places in storage."
       },
       {
-        "heading": "Deliberate exclusions",
+        "heading": "What the table deliberately excludes",
         "section": "exclusions",
-        "text": "This is a daily aggregate, so it deliberately excludes order-level rows and order-level attributes such as identifiers, timestamps, customers, products, quantities, statuses, and individual revenue amounts. It also contains no currency or timezone column and no dates without an aggregate row. The available data does not establish whether particular order statuses, taxes, discounts, shipping, refunds, or cancellations were excluded from the source revenue calculation."
+        "text": "This is a daily aggregate, so it excludes order-level fields and detail such as order identifiers, timestamps within a day, customers, line items, and payment attributes. It also has no columns for tax, shipping, discounts, refunds, cancellations, order status, or currency, so those components and their treatment cannot be separated or determined from this table. Dates without a row are not represented; the table does not supply explicit zero-revenue days."
       }
     ]
   },
@@ -613,23 +613,23 @@
     "rows": [
       {
         "heading": "Period total",
-        "section": "overview",
-        "text": "Revenue totalled 4069.60 from 2026-07-13 through 2026-07-17."
+        "section": "period",
+        "text": "Revenue for 2026-07-13 through 2026-07-17 totalled 4069.60."
       },
       {
-        "heading": "Strongest day",
-        "section": "high",
-        "text": "2026-07-16 was strongest at 1253.84 from 12 orders, with average order value of 104.49."
+        "heading": "Strongest and weakest days",
+        "section": "range",
+        "text": "2026-07-16 was strongest at 1253.84; 2026-07-13 was weakest at 392.38."
       },
       {
-        "heading": "Weakest day",
-        "section": "low",
-        "text": "2026-07-13 was weakest at 392.38 from 5 orders, with average order value of 78.48."
+        "heading": "What explains the difference",
+        "section": "driver",
+        "text": "Both order volume and order size contributed: the strongest day had 12 orders at an average_order_value of 104.48666666666666, versus 5 orders at 78.476 on the weakest day. The larger change was in order volume."
       },
       {
         "heading": "Bottom line",
         "section": "bottom_line",
-        "text": "Order volume was the main driver of the gap: the strongest day had 12 orders versus 5, while its higher average order value of 104.49 versus 78.48 also contributed."
+        "text": "Bottom line: the strongest day combined the highest order_count, 12, with a higher average_order_value than the weakest day."
       }
     ]
   }

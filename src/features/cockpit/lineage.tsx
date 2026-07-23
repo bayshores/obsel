@@ -12,7 +12,8 @@
  * interrupted transition cannot produce a wrong answer.
  */
 
-import { cascadeEdges, layoutGraph, reserveFor, shortName } from "./graph/layout";
+import { cascadeEdges, layoutGraph, reserveFor } from "./graph/layout";
+import { datasetTitle, taskTitle } from "./naming";
 import type { Box, GraphEdge, GraphLayout } from "./graph/layout";
 import { DATA_BOX, TASK_BOX } from "./graph/layout";
 import { clockTime, currentChange } from "./timing";
@@ -214,8 +215,12 @@ export function Lineage({ tasks }: { tasks: TaskRecord[] }) {
               strokeWidth="1"
               opacity="0.75"
             />
+            {/* The human name, which is what layout reserved this box's width
+                for. The code identifier is not repeated here — it would need a
+                fourth line in every box, and the ledger row and Details panel
+                both carry it where there is room to label it. */}
             <text x={box.x + TASK_BOX.padX} y={baseline} className={styles.taskName}>
-              {task.name}
+              {taskTitle(task)}
             </text>
             <text
               x={box.x + TASK_BOX.padX}
@@ -256,7 +261,7 @@ export function Lineage({ tasks }: { tasks: TaskRecord[] }) {
               strokeWidth={isOrigin ? 2 : 1}
             />
             <text x={box.x + DATA_BOX.padX} y={line(0)} className={styles.dataName}>
-              {shortName(datasetUrn)}
+              {datasetTitle(datasetUrn)}
             </text>
 
             {/* Both fingerprints, always. Which one moved is the entire answer,

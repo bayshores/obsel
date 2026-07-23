@@ -14,7 +14,7 @@
  * approximated.
  */
 
-import { shortName } from "./graph/layout";
+import { flowLine, taskTitle } from "./naming";
 import { formatDuration, inFlightMs } from "./progress";
 import type { DemoStep, DemoActivity } from "@/src/server/runner/types";
 import type { TaskRecord } from "@/src/server/coordinator/types";
@@ -140,7 +140,7 @@ function prepare(input: GuideInput, blockers: Blocker[]): GuideView {
       // The one prerequisite that is itself a demo step, so it can be a button.
       actions.push({
         step: "setup",
-        label: "Prepare DataHub",
+        label: "Set up DataHub for obsel",
         detail:
           "registers obsel's stale tag and the demo pipeline's DataFlow — one-time, obsel cannot create them mid-run",
       });
@@ -169,7 +169,7 @@ function empty(attention: string | null): GuideView {
     actions: [
       {
         step: "register",
-        label: "Register the pipeline",
+        label: "Set up the four agents",
         detail: "declares the four tasks and their lineage in DataHub — no agent runs yet",
       },
     ],
@@ -178,25 +178,31 @@ function empty(attention: string | null): GuideView {
 }
 
 function registered(tasks: TaskRecord[], finished: number, attention: string | null): GuideView {
+  /*
+   * Deliberately does NOT list the agents.
+   *
+   * It used to push one `Title — what it does` line per task here, which was
+   * right when the ledger showed a job description only before a task had run.
+   * The ledger now carries that line on every row in every state, so this loop
+   * was printing a second copy of the same four-item roster one panel above the
+   * first — the duplication the owner pointed at, and about 60px of the vertical
+   * budget that the stat ribbon needed to stay above the fold.
+   *
+   * So this says where the list is instead of being it. One roster, in the place
+   * that keeps it current.
+   */
   const narration: string[] = [
     finished === 0
-      ? `${tasks.length} tasks are declared and none has run. Each is a real agent with a standing job, and what it reads and writes are already lineage edges in DataHub — the graph below is drawn from those edges, not from a diagram:`
+      ? `${tasks.length} agents are declared and none has run yet. Each one is listed below with the job it registered, and what it reads and writes are already lineage edges in DataHub — the graph is drawn from those edges, not from a diagram.`
       : `${finished} of ${tasks.length} tasks have finished; the rest have not started. Putting the agents to work runs whatever is ready.`,
   ];
-  if (finished === 0) {
-    for (const task of tasks) {
-      // The description each agent registered, straight off its DataJob;
-      // the lineage line is the fallback for a task that declared none.
-      narration.push(`${task.name} — ${task.description ?? jobLine(task)}`);
-    }
-  }
   narration.push(
     "When an agent finishes, obsel records a fingerprint of what it produced — a receipt of the exact columns and rows. Everything that follows rests on comparing those receipts.",
   );
   const actions: GuideAction[] = [
     {
       step: "run",
-      label: "Put the agents to work",
+      label: "Start the four agents",
       detail:
         "each task becomes a live Codex session that reads its input and writes its table — expect a few minutes of real work",
     },
@@ -208,7 +214,7 @@ function registered(tasks: TaskRecord[], finished: number, attention: string | n
     // from the board at all.
     actions.push({
       step: "register",
-      label: "Re-declare the pipeline",
+      label: "Set up the four agents again",
       detail:
         "writes the four tasks, their lineage and their job descriptions again — safe to repeat before anything runs",
     });
@@ -228,7 +234,7 @@ function working(input: GuideInput, attention: string | null): GuideView {
   const narration = live.map((task) => {
     const elapsed = inFlightMs(task, input.snapshotAt);
     const since = elapsed === null ? "" : ` — in flight for ${formatDuration(elapsed)}`;
-    return `${task.name} is working${since}. ${jobLine(task)}.`;
+    return `${taskTitle(task)} is working${since}. It ${flowLine(task)}.`;
   });
   narration.push(
     "A task that is still running is never judged: its outputs are not final, and it will pick up any new input itself. Only finished work can go stale.",
@@ -258,13 +264,13 @@ function settled(tasks: TaskRecord[], attention: string | null): GuideView {
     actions: [
       {
         step: "rerun-same",
-        label: "Re-run the cleaner, same job",
+        label: "Run the orders cleaner again — no changes",
         detail:
           "same instruction, same input — if obsel flags anything on an identical re-run, it cried wolf and you should not trust it",
       },
       {
         step: "change",
-        label: "Change a requirement upstream",
+        label: "Change one agent's instructions",
         detail:
           "the money column is renamed order_total_usd and nothing downstream is told — exactly how finished work goes quietly wrong",
       },
@@ -279,16 +285,23 @@ function flagged(tasks: TaskRecord[], attention: string | null): GuideView {
   );
   const finished = tasks.filter((task) => task.finishedAt !== null).length;
   const narration: string[] = [
-    `${marked.length} of ${finished} finished tasks are built on something that changed. None of them re-ran and none of them failed — their work simply stopped being true underneath them. Each amber row in the ledger below carries obsel's recorded reason for that task, not a summary.`,
+    // Ends at "underneath them". A third sentence used to follow — "Each amber
+    // row in the ledger below carries obsel's recorded reason for that task, not
+    // a summary" — which was commentary about the screen rather than about the
+    // work, addressed to a reader who can already see the amber rows and their
+    // reasons a few hundred pixels below. Cutting it took one wrapped line off
+    // the tallest stage of the guide.
+    `${marked.length} of ${finished} finished tasks are built on something that changed. None of them re-ran and none of them failed — their work simply stopped being true underneath them.`,
   ];
   const transitive = marked.filter((task) => task.stale.hops > 1);
   if (transitive.length > 0) {
     narration.push(
-      `${transitive.map((task) => task.name).join(" and ")} never read the changed table at all — the change reached ${transitive.length === 1 ? "it" : "them"} through what ${transitive.length === 1 ? "it" : "they"} built on. That transitive reach is why the tasks are wired into DataHub's lineage graph.`,
+      `${transitive.map((task) => taskTitle(task)).join(" and ")} never read the changed table at all — the change reached ${transitive.length === 1 ? "it" : "them"} through what ${transitive.length === 1 ? "it" : "they"} built on. That transitive reach is why the tasks are wired into DataHub's lineage graph.`,
     );
   }
-  // That the marks are also written into DataHub itself is stated once, by the
-  // provenance line under the ledger, rather than repeated here.
+  // That the marks are also written into DataHub itself is stated once — by the
+  // trace panel's footer, beside the steps that did the writing — rather than
+  // repeated here.
   return {
     stage: "flagged",
     headline: "finished work just went out of date",
@@ -300,13 +313,13 @@ function flagged(tasks: TaskRecord[], attention: string | null): GuideView {
         // and obsel must add nothing to what is already marked. A tool that
         // only avoids false alarms on a calm board has not proved much.
         step: "rerun-same",
-        label: "Re-run the cleaner, same job",
+        label: "Run the orders cleaner again — no changes",
         detail:
           "the same agent runs its current job again — the same table should come out, no new marks, and the three existing marks must stay exactly as they are",
       },
       {
         step: "reset",
-        label: "Reset the board",
+        label: "Reset and start over",
         detail:
           "clears obsel's task state and the marks so the run can start over — the tasks and their lineage stay",
       },
@@ -318,15 +331,6 @@ function flagged(tasks: TaskRecord[], attention: string | null): GuideView {
 // ---------------------------------------------------------------------------
 // Shared derivations
 // ---------------------------------------------------------------------------
-
-/** "reads raw_orders, writes clean_orders" — from the task's real lineage edges. */
-function jobLine(task: TaskRecord): string {
-  const reads = task.reads.map(shortName).join(", ");
-  const writes = task.writes.map(shortName).join(", ");
-  if (reads === "" && writes === "") return "declares no reads or writes";
-  if (reads === "") return `writes ${writes}`;
-  return `reads ${reads}, writes ${writes}`;
-}
 
 interface Blocker {
   name: "venv" | "codex" | "vocabulary";

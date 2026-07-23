@@ -212,6 +212,9 @@ def cmd_register(args: argparse.Namespace) -> int:
                 # The one-sentence job, stored as the DataJob's own description
                 # so DataHub's UI and obsel's board show the same words.
                 "description": task.summary,
+                # The short human name the board leads with. `name` above stays
+                # the code identifier the URN is built from.
+                "title": task.title,
             },
         )
         elapsed = (time.perf_counter() - started) * 1000

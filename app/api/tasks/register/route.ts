@@ -14,6 +14,9 @@ const Body = z.object({
   // The task's standing job in one sentence, stored as the DataJob's own
   // description. Bounded: this renders in the ledger and in DataHub's UI.
   description: z.string().min(1).max(300).optional(),
+  // The short human name the board leads with. Tightly bounded because it is
+  // also what the graph reserves box width for.
+  title: z.string().min(1).max(60).optional(),
 });
 
 export async function POST(request: Request) {
@@ -26,7 +29,13 @@ export async function POST(request: Request) {
   }
 
   try {
-    const task = await registerTask(parsed.name, parsed.reads, parsed.writes, parsed.description);
+    const task = await registerTask(
+      parsed.name,
+      parsed.reads,
+      parsed.writes,
+      parsed.description,
+      parsed.title,
+    );
     return NextResponse.json(task);
   } catch (error) {
     const message = error instanceof Error ? error.message : "registration failed";

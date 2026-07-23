@@ -95,8 +95,21 @@ export interface StaleMark {
 export interface TaskRecord {
   /** DataJob URN. Stable identity across runs. */
   urn: string;
-  /** Short human name, e.g. "build_revenue". */
+  /** Code identifier, e.g. "build_revenue". The URN is built from it. */
   name: string;
+  /**
+   * The task's short human name, e.g. "Daily revenue" for `build_revenue`.
+   *
+   * Separate from `name` because that one is a code identifier the URN, every
+   * test and every traversal depend on, and renaming it would repoint the
+   * entity. This is what the board leads with; `name` stays visible beside it,
+   * because these being real DataHub entities is half the point.
+   *
+   * Optional as well as nullable for the same reason as `description`: captures
+   * taken before the field existed lack the key entirely. Consumers fall back to
+   * a humanised `name`.
+   */
+  title?: string | null;
   /**
    * The task's standing job in one sentence, registered into the DataJob's own
    * description field — so DataHub's UI and obsel's board show the same words.
@@ -153,6 +166,49 @@ export interface SwarmSnapshot {
   tasks: TaskRecord[];
   /** ISO timestamp this snapshot was taken. */
   at: string;
+}
+
+/**
+ * What kind of work one traced step was. Drives nothing but the colour it is
+ * shown in.
+ */
+export type TracePhase =
+  /** Reading state out of DataHub. */
+  | "read"
+  /** Comparing an output against the fingerprint recorded last time. */
+  | "compare"
+  /** Walking the lineage graph to find what was built on a change. */
+  | "walk"
+  /** Writing a stale mark and its tag back into DataHub. */
+  | "mark"
+  /** Any other write: a registration, a status change, a reset. */
+  | "write"
+  /** The end of one piece of coordination, with its measured duration. */
+  | "done";
+
+/**
+ * One step the coordinator actually took, in plain language.
+ *
+ * This exists because obsel's most interesting work is invisible: an agent
+ * posts a completion, and somewhere inside that one request obsel reads the
+ * graph, compares two hashes, walks the lineage, and writes marks back — and
+ * all a viewer ever saw was the result appearing. The board now narrates it.
+ *
+ * **Narration, never a decision.** Nothing reads these events back; removing
+ * every emit would change no outcome. Each one states what the code just did,
+ * with the values it did it with, so a step here can never claim more than
+ * happened.
+ */
+export interface TraceEvent {
+  /** Monotonic within a server process. Orders events that share a timestamp. */
+  seq: number;
+  /** ISO timestamp, stamped by the coordinator on its own clock. */
+  at: string;
+  phase: TracePhase;
+  /** What obsel did, as a sentence. */
+  message: string;
+  /** What came of it — a comparison verdict, a count, a duration. */
+  outcome: string | null;
 }
 
 /** A task the coordinator decided is stale, before the mark is written. */

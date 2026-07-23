@@ -72,10 +72,21 @@
   padding: var(--mm-space-xs) var(--mm-space-sm);
 }
 
+/*
+ * A row across the whole panel, wrapping only when it genuinely cannot fit.
+ * `flex: 1 1 22ch` lets two or three actions share the width evenly instead of
+ * each taking its natural size and leaving a ragged gap; the max-width on
+ * `.action` still stops a lone button from stretching across the frame.
+ */
 .actions {
   display: flex;
   flex-wrap: wrap;
   gap: var(--mm-space-sm);
+  align-items: stretch;
+}
+
+.actions > .action {
+  flex: 1 1 22ch;
 }
 
 /*
@@ -88,7 +99,13 @@
   gap: 3px;
   text-align: left;
   padding: var(--mm-space-sm) var(--mm-space-md);
-  max-width: 44ch;
+  /*
+   * 58ch, up from 44ch, now that these sit in a full-width row: at 44ch two
+   * buttons filled barely half the frame and the row read as unfinished. Still
+   * capped, because the cap is what stops a stage that offers ONE action from
+   * rendering it as a banner across the whole cockpit.
+   */
+  max-width: 58ch;
   color: var(--mm-cream);
   background: var(--mm-rose-soft);
   border: 1px solid var(--mm-border-strong);

@@ -19,7 +19,9 @@
 import type { Page } from "@playwright/test";
 
 import { idle } from "./activity";
+import { noSteps } from "./trace";
 import type { SwarmResponse } from "@/src/features/cockpit/use-swarm";
+import type { TraceEvent } from "@/src/server/coordinator/types";
 import type { DemoActivity, DemoStep } from "@/src/server/runner/types";
 
 export interface Faults {
@@ -42,15 +44,18 @@ export async function openCockpit(
   page: Page,
   body: SwarmResponse,
   activity: DemoActivity = idle(),
+  trace: TraceEvent[] = noSteps(),
 ): Promise<{
   faults: Faults;
   serve: (next: SwarmResponse | "fail") => void;
   serveActivity: (next: DemoActivity) => void;
+  serveTrace: (next: TraceEvent[] | "fail") => void;
   /** Every step the cockpit asked the launcher to start, in order. */
   launches: DemoStep[];
 }> {
   let current: SwarmResponse | "fail" = body;
   let currentActivity: DemoActivity = activity;
+  let currentTrace: TraceEvent[] | "fail" = trace;
   const launches: DemoStep[] = [];
 
   const faults: Faults = { consoleErrors: [], pageErrors: [], failedRequests: [] };
@@ -88,6 +93,24 @@ export async function openCockpit(
       body: JSON.stringify(currentActivity),
     });
   });
+  /*
+   * The coordinator's own narration, stubbed for the same reason as the rest.
+   * Unstubbed, this endpoint answers from the dev server's in-memory buffer,
+   * so the panel's content would be whatever this machine happened to have
+   * done — a test that passes or fails on session history rather than on code.
+   */
+  await page.route("**/api/trace", async (route) => {
+    if (currentTrace === "fail") {
+      await route.fulfill({ status: 500, contentType: "application/json", body: "{}" });
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ events: currentTrace }),
+    });
+  });
+
   await page.route("**/api/demo/launch", async (route) => {
     const step = (route.request().postDataJSON() as { step: DemoStep }).step;
     launches.push(step);
@@ -109,6 +132,7 @@ export async function openCockpit(
     faults,
     serve: (next) => (current = next),
     serveActivity: (next) => (currentActivity = next),
+    serveTrace: (next) => (currentTrace = next),
     launches,
   };
 }

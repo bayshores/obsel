@@ -42,6 +42,12 @@ class AgentTask:
     #: What sort of work this is, for the `shape` printout only. Nothing
     #: dispatches on it: the agent decides how to do the job.
     kind: str  # "clean" | "aggregate" | "write"
+    #: The short human name the board leads with, e.g. "Orders cleaner" for
+    #: `clean_orders`. Registered into DataHub as `obsel.title`. `name` stays the
+    #: code identifier the URN is built from; this is only what a reader sees.
+    #: Deliberately distinct from the table each task writes, because a job called
+    #: `clean_orders` writing a table called `clean_orders` is its own confusion.
+    title: str
     #: The job in one sentence, registered as the DataJob's own description in
     #: DataHub -- so DataHub's UI, obsel's ledger, and the guide all show the
     #: same words. Written for someone who has never seen this pipeline.
@@ -65,6 +71,7 @@ TASKS: tuple[AgentTask, ...] = (
     AgentTask(
         name="clean_orders",
         kind="clean",
+        title="Orders cleaner",
         summary="cleans the raw orders export into a tidy four-column table",
         reads=(SEED_TABLE,),
         writes="clean_orders",
@@ -95,6 +102,7 @@ TASKS: tuple[AgentTask, ...] = (
     AgentTask(
         name="build_revenue",
         kind="aggregate",
+        title="Daily revenue",
         summary="totals the clean orders into one revenue row per day",
         reads=("clean_orders",),
         writes="daily_revenue",
@@ -114,6 +122,7 @@ TASKS: tuple[AgentTask, ...] = (
     AgentTask(
         name="write_report",
         kind="write",
+        title="Revenue report",
         summary="writes the short revenue report an operations lead reads",
         reads=("daily_revenue",),
         writes="revenue_report",
@@ -130,6 +139,7 @@ TASKS: tuple[AgentTask, ...] = (
     AgentTask(
         name="write_docs",
         kind="write",
+        title="Table docs",
         summary="documents the daily_revenue table for the next engineer",
         reads=("daily_revenue",),
         writes="pipeline_docs",

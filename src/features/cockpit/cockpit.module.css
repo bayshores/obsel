@@ -166,6 +166,38 @@
   font-size: var(--mm-text-lg);
 }
 
+/*
+ * The colour key, bottom-left over the graph.
+ *
+ * Amber is the whole message of this board, and until now nothing on screen
+ * said so — a viewer had to be told out of band. Overlaid rather than given its
+ * own row because the column's vertical budget is fully spent, and inert to the
+ * pointer so it can never swallow a click aimed at a node behind it.
+ */
+.legend {
+  position: absolute;
+  left: 10px;
+  bottom: 8px;
+  z-index: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--mm-space-md);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  pointer-events: none;
+  font-family: var(--mm-font-mono);
+  font-size: var(--mm-text-cap);
+  letter-spacing: var(--mm-track);
+  color: var(--obsel-text-quiet);
+}
+
+.legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--mm-space-xs);
+}
+
 .ledger {
   display: grid;
   gap: var(--mm-space-sm);
@@ -202,12 +234,25 @@
   list-style: none;
 }
 
-.provenance {
-  margin: 0;
-  color: var(--obsel-text-quiet);
-  font-family: var(--mm-font-mono);
-  font-size: var(--mm-text-cap);
-  overflow-wrap: anywhere;
+/*
+ * Two columns where there is width for them.
+ *
+ * The cockpit is capped at 1280 and the recording frame is 1920, so a third of
+ * the picture is empty margin while the ledger — four rows at 96px, the tallest
+ * and the only region that grows with the swarm — was the thing pushing the
+ * board past the fold. Turning its length into width costs nothing that was
+ * being used and gets the whole cascade on screen at once.
+ *
+ * Each row stays a self-contained card: status, name, job, reason. The sequence
+ * the pipeline runs in is what the graph above draws; this is a set of verdicts,
+ * and reading them left-to-right then down loses nothing. 620px per column at
+ * the narrowest width this applies to, which holds a full reason sentence.
+ */
+@media (min-width: 1200px) {
+  .rows {
+    grid-template-columns: 1fr 1fr;
+    column-gap: var(--mm-space-sm);
+  }
 }
 
 .footer {

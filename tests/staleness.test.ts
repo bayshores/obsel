@@ -138,14 +138,41 @@ describe("affectedBy — following the chain", () => {
     for (const entry of found) expect(entry.mark.detectedMs).toBeNull();
   });
 
-  it("carries a plain-English reason that names the table", () => {
+  it("carries a plain-English reason that names the table in words, not in code", () => {
     const found = affectedBy(demoSwarm(), [{ dataset: ds("clean_orders"), kind: "schema" }], NOW);
     const direct = found.find((a) => a.task.name === "build_revenue");
-    expect(direct?.mark.reason).toContain("clean_orders");
+    // "clean orders", not "clean_orders". This sentence is the one the ledger
+    // prints verbatim and the tag carries into DataHub, so the underscores are
+    // dropped at the source rather than prettified at render time — one wording
+    // of the fact, everywhere. Which dataset it was stays exact on `causedBy`.
+    expect(direct?.mark.reason).toContain("clean orders");
+    expect(direct?.mark.reason).not.toContain("clean_orders");
     expect(direct?.mark.reason).toContain("columns changed");
+    // Still fully traceable: the identifier lives on the URN, not in the prose.
+    expect(direct?.mark.causedBy).toContain("clean_orders");
 
     const indirect = found.find((a) => a.task.name === "write_report");
-    expect(indirect?.mark.reason).toContain("build_revenue");
+    // The via-task, likewise in words. `demoSwarm` registers no titles, so this
+    // is the de-underscored-identifier fallback rather than a declared name.
+    expect(indirect?.mark.reason).toContain("build revenue");
+    expect(indirect?.mark.reason).not.toContain("build_revenue");
+    // `causedByTask` is the producer of the ORIGIN dataset, and this fixture
+    // registers no task that writes clean_orders — so it is legitimately null
+    // here. The URN that pins the cause in this case is `causedBy`, above.
+    expect(indirect?.mark.causedBy).toContain("clean_orders");
+  });
+
+  it("uses a task's registered title in the reason when it has one", () => {
+    const swarm = demoSwarm();
+    const via = swarm.tasks.find((task) => task.name === "build_revenue");
+    if (via === undefined) throw new Error("fixture must contain build_revenue");
+    // The same record the traversal will reach, now carrying a human name — the
+    // one an agent registers as `obsel.title`.
+    via.title = "Daily revenue";
+
+    const found = affectedBy(swarm, [{ dataset: ds("clean_orders"), kind: "schema" }], NOW);
+    const indirect = found.find((a) => a.task.name === "write_report");
+    expect(indirect?.mark.reason).toContain("built on work from Daily revenue");
   });
 });
 

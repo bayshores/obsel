@@ -48,6 +48,14 @@ import {
 /** `customProperties` keys obsel owns. Everything else on the aspect is left alone. */
 export const PROP = {
   status: "obsel.status",
+  /**
+   * The task's short human name, e.g. "Orders cleaner" for `clean_orders`.
+   *
+   * A property rather than the DataJob's `name`, which is the code identifier the
+   * URN is built from and which every assertion, test and traversal keys on.
+   * Display only: nothing obsel decides reads this.
+   */
+  title: "obsel.title",
   finishedAt: "obsel.finishedAt",
   startedAt: "obsel.startedAt",
   fingerprints: "obsel.fingerprints",
@@ -423,6 +431,7 @@ function toTaskRecord(entity: DataJobEntity): TaskRecord {
   return {
     urn: entity.urn,
     name: info?.name ?? taskName(entity.urn),
+    title: props[PROP.title] ? props[PROP.title] : null,
     // The registration placeholder is not a job description; reading it back
     // as one would put "obsel agent task" on every old row as though an agent
     // had said it.
@@ -512,6 +521,7 @@ export async function registerTask(
   reads: string[],
   writes: string[],
   description?: string,
+  title?: string,
 ): Promise<TaskRecord> {
   const urn = taskUrn(name);
 
@@ -524,7 +534,11 @@ export async function registerTask(
         // metadata, so DataHub's UI shows the same words the cockpit does.
         description: description ?? "obsel agent task",
         type: { string: "COMMAND" },
-        customProperties: { [PROP.status]: "registered" },
+        customProperties: {
+          [PROP.status]: "registered",
+          // Spread, so a task registered without a title carries no empty key.
+          ...(title ? { [PROP.title]: title } : {}),
+        },
       },
     },
     dataJobInputOutput: {

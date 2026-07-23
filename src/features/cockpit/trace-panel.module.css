@@ -1,5 +1,5 @@
 /*
- * The one scrolling surface in the cockpit, and it is contained.
+ * The coordinator's steps. The one scrolling surface in the cockpit, contained.
  *
  * `overscroll-behavior: contain` stops a scroll gesture that reaches the end of
  * this list from chaining to the page — which on the recording would drag the
@@ -17,6 +17,10 @@
   display: flex;
   flex-direction: column;
   gap: 1px;
+  /* Newest is at the BOTTOM, so the panel has to sit at the bottom to show it.
+     Anchoring keeps it there as steps arrive, without a scroll-into-view call
+     that would fight a viewer who has scrolled up to read an earlier step. */
+  overflow-anchor: auto;
 }
 
 .row {
@@ -36,19 +40,28 @@
   white-space: nowrap;
 }
 
+/*
+ * The step itself. Sans, not mono: these are sentences about what happened, and
+ * the panel they replaced set its rows in mono, which read as log output — the
+ * one thing this panel must not look like, since a viewer who reads it as a log
+ * will assume something somewhere depends on it.
+ */
 .text {
-  font-family: var(--mm-font-mono);
-  font-size: var(--mm-text-cap);
+  font-family: var(--mm-font-sans);
+  font-size: var(--mm-text-md);
+  line-height: var(--mm-leading);
   text-wrap: pretty;
 }
 
-/* The cause, on the one event kind that has one. */
-.because {
+/* What came of the step — a verdict, a count, a measured duration. */
+.outcome {
   grid-column: 2;
   color: var(--obsel-text-quiet);
   font-family: var(--mm-font-mono);
   font-size: var(--mm-text-cap);
   font-variant-numeric: tabular-nums;
+  letter-spacing: var(--mm-track);
+  overflow-wrap: anywhere;
 }
 
 .quiet {
@@ -62,21 +75,18 @@
 
 /*
  * Pinned below the scroller, never inside it. If this scrolled away, the panel
- * would spend most of its life showing rows with no statement of what they do
- * and do not mean — which is the whole reason the panel is allowed to exist.
+ * would spend most of its life showing steps with no statement of what they are
+ * — and a reader who takes them for a durable record would be trusting the
+ * wrong artifact. The marks in DataHub are the record.
  */
 .disclosure {
   flex: 0 0 auto;
   margin: 0;
   border-top: 1px solid var(--mm-rose-line);
-  padding: var(--mm-space-sm) var(--mm-space-md);
+  padding: 4px var(--mm-space-md);
   color: var(--obsel-text-quiet);
-  font-family: var(--mm-font-sans);
-  font-size: var(--mm-text-md);
-  line-height: var(--mm-leading);
-  text-wrap: pretty;
-}
-
-.disclosure code {
   font-family: var(--mm-font-mono);
+  font-size: var(--mm-text-cap);
+  letter-spacing: var(--mm-track);
+  line-height: var(--mm-leading);
 }

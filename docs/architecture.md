@@ -39,7 +39,7 @@ A `DataJob` gives us identity and edges. Everything else is carried in that Data
 | `obsel.stale.causedByTask` | task URN that wrote it, or empty                     | `urn:li:dataJob:(...,clean_orders)`                                                          |
 | `obsel.stale.hops`         | distance from the change, as a string                | `2`                                                                                          |
 | `obsel.stale.changeKind`   | `schema`, `content`, or `both`                       | `schema`                                                                                     |
-| `obsel.stale.reason`       | one plain-English sentence                           | `built on work from build_revenue, which is itself out of date because clean_orders changed` |
+| `obsel.stale.reason`       | one plain-English sentence                           | `built on work from Daily revenue, which is itself out of date because clean orders changed` |
 | `obsel.stale.since`        | ISO timestamp the mark was applied                   | `2026-07-21T14:05:52.244Z`                                                                   |
 
 The last four are display only: `startedAt` lets the cockpit say how long work in flight has been in
@@ -234,7 +234,8 @@ Three constraints in that module are non-negotiable, each because the alternativ
   src/features/cockpit/                                                    | writes via
     cockpit.tsx      polls GET /api/swarm  <--- app/api/swarm/ ---+        v
     graph/layout.ts  geometry, pure                               |   src/server/datahub/
-    feed.ts          diff of two reads, pure                      |
+    naming.ts        human names, pure                            |
+    trace-panel.tsx  polls GET /api/trace  <--- app/api/trace/ ---+
                                                                   |     client.ts  GMS HTTP
                                                                   +---- mcp.ts     MCP tag writes
                                                                         urns.ts    URN shapes
@@ -254,30 +255,32 @@ every DataHub call.
 
 ## 8. What exists
 
-Checked against the working tree on 2026-07-22. Treat the shipped column as "present and
+Checked against the working tree on 2026-07-23. Treat the shipped column as "present and
 readable", not as "covered by end-to-end evidence" — see [Evidence](#9-evidence) below.
 
-| Piece                                     | Path                                                                                                       | State                                  |
-| ----------------------------------------- | ---------------------------------------------------------------------------------------------------------- | -------------------------------------- |
-| The contracts                             | `src/server/coordinator/types.ts`                                                                          | shipped                                |
-| Staleness rules                           | `src/server/coordinator/staleness.ts`                                                                      | shipped, 24 passing tests              |
-| Coordinator IO                            | `src/server/coordinator/engine.ts`                                                                         | shipped, no automated test yet         |
-| GMS client                                | `src/server/datahub/client.ts`                                                                             | shipped, no automated test yet         |
-| MCP tag writes                            | `src/server/datahub/mcp.ts`                                                                                | shipped, no automated test yet         |
-| URN shapes                                | `src/server/datahub/urns.ts`                                                                               | shipped                                |
-| HTTP API                                  | `app/api/swarm`, `app/api/tasks/{register,start,abandon,complete}`, `app/api/demo/{reset,launch,activity}` | shipped                                |
-| Cockpit                                   | `app/page.tsx`, `src/features/cockpit/`                                                                    | shipped, 132 unit + 39 browser tests   |
-| Live agent progress                       | `src/features/cockpit/progress.ts`                                                                         | shipped, 23 passing tests, seen live   |
-| The guide                                 | `src/features/cockpit/guide.ts`, `guide-panel.tsx`                                                         | shipped, 19 passing tests, driven live |
-| Demo runner                               | `src/server/runner/` — `steps.ts`, `launcher.ts`, `preflight.ts`                                           | shipped, 11 tests on the pure half     |
-| Task registration and traversal in Python | `agents/graph.py`                                                                                          | shipped, verified live                 |
-| Fingerprinting                            | `agents/fingerprint.py`                                                                                    | shipped, has a self-check              |
-| Demo shape, jobs and seed data            | `agents/pipeline.py`, `agents/seed_data.py`                                                                | shipped                                |
-| Vocabulary setup                          | `agents/setup.py`                                                                                          | shipped                                |
-| Agent worker and demo runner              | `agents/worker.py`, `agents/run.py`                                                                        | shipped, no automated test yet         |
-| Demo reset                                | `app/api/demo/reset/route.ts`, `engine.resetSwarm`                                                         | shipped, no automated test yet         |
-| Agent output contract                     | `agents/worker.py` — `canonicalise_numbers`                                                                | shipped, 7 self-check properties       |
-| Sample outputs                            | `examples/`                                                                                                | shipped, captured from a real run      |
+| Piece                                     | Path                                                                                                                        | State                                  |
+| ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- | -------------------------------------- |
+| The contracts                             | `src/server/coordinator/types.ts`                                                                                           | shipped                                |
+| Staleness rules                           | `src/server/coordinator/staleness.ts`                                                                                       | shipped, 25 passing tests              |
+| Coordinator IO                            | `src/server/coordinator/engine.ts`                                                                                          | shipped, no automated test yet         |
+| GMS client                                | `src/server/datahub/client.ts`                                                                                              | shipped, no automated test yet         |
+| MCP tag writes                            | `src/server/datahub/mcp.ts`                                                                                                 | shipped, no automated test yet         |
+| URN shapes                                | `src/server/datahub/urns.ts`                                                                                                | shipped                                |
+| HTTP API                                  | `app/api/swarm`, `app/api/trace`, `app/api/tasks/{register,start,abandon,complete}`, `app/api/demo/{reset,launch,activity}` | shipped                                |
+| Cockpit                                   | `app/page.tsx`, `src/features/cockpit/`                                                                                     | shipped, 129 unit + 46 browser tests   |
+| Live agent progress                       | `src/features/cockpit/progress.ts`                                                                                          | shipped, 23 passing tests, seen live   |
+| The guide                                 | `src/features/cockpit/guide.ts`, `guide-panel.tsx`                                                                          | shipped, 19 passing tests, driven live |
+| Human names for tasks and tables          | `src/features/cockpit/naming.ts`, `staleness.ts` — `tableLabel`, `taskLabel`                                                | shipped, 16 passing tests              |
+| The coordinator's live trace              | `src/server/coordinator/trace.ts`, `trace-buffer.ts`, `app/api/trace`, `trace-panel.tsx`                                    | shipped, 10 tests, seen live           |
+| Demo runner                               | `src/server/runner/` — `steps.ts`, `launcher.ts`, `preflight.ts`                                                            | shipped, 11 tests on the pure half     |
+| Task registration and traversal in Python | `agents/graph.py`                                                                                                           | shipped, verified live                 |
+| Fingerprinting                            | `agents/fingerprint.py`                                                                                                     | shipped, has a self-check              |
+| Demo shape, jobs and seed data            | `agents/pipeline.py`, `agents/seed_data.py`                                                                                 | shipped                                |
+| Vocabulary setup                          | `agents/setup.py`                                                                                                           | shipped                                |
+| Agent worker and demo runner              | `agents/worker.py`, `agents/run.py`                                                                                         | shipped, no automated test yet         |
+| Demo reset                                | `app/api/demo/reset/route.ts`, `engine.resetSwarm`                                                                          | shipped, no automated test yet         |
+| Agent output contract                     | `agents/worker.py` — `canonicalise_numbers`                                                                                 | shipped, 7 self-check properties       |
+| Sample outputs                            | `examples/`                                                                                                                 | shipped, captured from a real run      |
 
 ## 9. Evidence
 
@@ -285,7 +288,7 @@ What has been verified directly, and what has not.
 
 **Verified:**
 
-- The staleness rules, by 24 deterministic tests in `tests/staleness.test.ts`, run 2026-07-21.
+- The staleness rules, by 25 deterministic tests in `tests/staleness.test.ts`.
   These cover the negative cases specifically: identical re-run marks nothing, an unrelated branch
   is untouched, a running task is neither marked nor walked through, a cycle terminates, a task
   reachable two ways is reported once at its shortest distance.
@@ -314,6 +317,19 @@ What has been verified directly, and what has not.
   rename was called `schema` and marked the same three tasks in 2310 ms. Each button spawned the
   real `agents.run` step through `POST /api/demo/launch`, and as a cross-check that the guide is
   state-derived, the closing `reset` was run from a terminal — the board tracked it identically.
+- **The board naming agents in words, and narrating its own work**, on 2026-07-23 against a live
+  DataHub and a signed-in Codex CLI. Driven from the browser: `reset` and `register` wrote each
+  task's `obsel.title` and job description onto its DataJob and read both back, so the graph, the
+  ledger, the guide and the trace all name `clean_orders` as "Orders cleaner" from DataHub rather
+  than from a map in the frontend; `run` took 142.6 s for four Codex sessions; the rename was called
+  `schema`, marked the same three tasks, and **`GET /api/trace` reported each step as it happened** —
+  the swarm read (4 tasks), the comparison ("its columns changed; the values did not"), the walk
+  ("Daily revenue (1 hop), Revenue report (2 hops), Table docs (2 hops)"), one step per confirmed
+  mark, and a close of 3424 ms end to end, matching what the ledger and the stat ribbon showed.
+- A second `reset` → `register` → `run` → `change` the same day, from the terminal with `--capture`,
+  which produced the current `examples/` set: `run` 124.1 s, the rename called `schema`, the same
+  three tasks marked in a measured 745 ms. Its fingerprints came out identical to the previous day's
+  capture, which is the column contract and `canonicalise_numbers` doing their job across runs.
 - The agent output contract, by the self-check in `agents/worker.py`: `217` and `217.0` reach one
   fingerprint, an id column keeps its integers, and a value that genuinely moved still moves the
   hash. Added after a live run where a single value's spelling broke two demo steps at once.
@@ -328,8 +344,14 @@ What has been verified directly, and what has not.
   exercised by a real run (above), but nothing in `pnpm test` stands DataHub up and asserts the
   result, by design, so that `pnpm verify` needs no Docker.
 - Whether obsel's marks survive a later re-ingestion.
-- Any end-to-end latency number. The 92 ms figure is the Python traversal alone. `elapsedMs` in
-  `examples/coordination-result.json` is a stand-in and is labelled as one.
+- **A latency figure that means anything beyond one machine.** Every number quoted above is a single
+  observation against a Docker quickstart on one laptop, and the spread across runs is wide — 745 ms,
+  2310 ms, 2591 ms, 3424 ms for the same cascade — because it is dominated by how long DataHub takes
+  to confirm each write, not by the deciding. `elapsedMs` in
+  `examples/coordination-result.json` is measured, not a stand-in, but it is one sample.
+- **The trace as anything more than narration.** It is emitted by the coordinator and has been
+  watched live, but nothing reads it back and it is not persisted, so it is evidence of nothing on
+  its own. The evidence is the marks in DataHub and the captures in `examples/`.
 
 ## 10. Deliberately not here
 
@@ -620,6 +642,40 @@ because without the tag staleness would be detected and silently not recorded.
 }
 ```
 
+### `GET /api/trace`
+
+The steps the coordinator took, in the order it took them, for the "what obsel is doing" panel.
+Oldest first. The cockpit polls it every second — faster than the activity feed, because a whole
+cascade arrives in one burst and a two-second poll would show it already finished.
+
+Emitted by `engine.ts` as it works: the swarm read, one step per fingerprint comparison **whichever
+way it goes**, the lineage walk with what it found, one step per mark once that mark's writes are
+confirmed, and a closing step carrying the measured end-to-end figure. Tables and tasks are named the
+way the stale reasons name them, through `tableLabel` and `taskLabel` in `staleness.ts`, so one task
+is never called two different things on one screen.
+
+Reads nothing from DataHub, so it answers even when GMS is unreachable — which is deliberate: a
+panel explaining what obsel is doing is most useful when something is wrong.
+
+**Narration, not a decision path, and a view rather than a record** — bounded to the newest 200
+steps, in memory, process-local, gone on restart. Section 12 sets out what this panel may and may not
+claim, and why the buffer is deliberately something nothing else depends on.
+
+```jsonc
+// 200
+{
+  "events": [
+    {
+      "seq": 42, // monotonic; survives a reset, so a fresh step is never mistaken for one already seen
+      "at": "2026-07-23T01:52:53.514Z",
+      "phase": "compare", // read | compare | walk | mark | write | done
+      "message": "Compared the new clean orders against the fingerprint recorded last time.",
+      "outcome": "its columns changed; the values did not", // null when the step has nothing to report
+    },
+  ],
+}
+```
+
 ## 12. What the cockpit's two side panels may and may not say
 
 Both sit in the gutter beside the lineage graph, and neither carries a demo beat.
@@ -627,25 +683,41 @@ Both sit in the gutter beside the lineage graph, and neither carries a demo beat
 **The inspector** shows one task's uncompressed values: full URNs, complete 64-character
 fingerprints, and every field of its stale mark. It computes nothing. In particular it never derives
 an age or a freshness — the cockpit knows when it _read_ a value, not when that value became true,
-and an inspector is exactly the place that distinction gets quietly lost. Opening it moves nothing
-in the graph or the ledger; a browser test asserts that, because a layout that shifts when someone
-is curious would cost a take.
+and an inspector is exactly the place that distinction gets quietly lost. It is mounted only while a
+task is selected. The gutter's height is fixed, so it appears without moving the graph, the ledger or
+the stat ribbon; it borrows its room from the trace beside it and gives it back on close.
 
-**The feed** is titled "changes between reads", and the title is load-bearing. It is a diff of two
-`GET /api/swarm` bodies polled a second apart, and it can establish that a field differs from the
-previous read and nothing else. It did not watch obsel read the lineage graph, compare a
-fingerprint, walk the cascade, or poll DataHub until a write was confirmed — none of that reaches
-the browser. Calling it a "log", a "recorder" or an "activity stream" would imply a witness that
-does not exist, and one word in a title undoes a paragraph of disclosure beneath it.
+**The trace** is titled "what obsel is doing", and it replaced a panel that diffed two `GET
+/api/swarm` bodies polled a second apart. That difference is the whole point of this section, so the
+old panel's limits are worth stating: a diff could establish that a field differed from the previous
+read and nothing else. It had not watched obsel read the lineage graph, compare a fingerprint, walk
+the cascade, or poll DataHub until a write was confirmed, because none of that reached the browser.
 
-The sharper hazard is an **asserted absence**. `coordinateCompletion` writes the finishing task's
-new fingerprints and its `complete` status _before_ it writes any stale mark, so there is a window
-at least one poll wide in which a diff can truthfully observe "a new output was recorded, and
-nothing was marked" — while the cascade that is about to mark three tasks is still in flight. That
-observation is true and the obvious sentence for it is a lie.
+It also had a sharper hazard — an **asserted absence**. `coordinateCompletion` writes the finishing
+task's new fingerprints and its `complete` status _before_ it writes any stale mark, so there is a
+window at least one poll wide in which a diff can truthfully observe "a new output was recorded, and
+nothing was marked" while the cascade that is about to mark three tasks is still in flight. That
+observation is true and the obvious sentence for it is a lie. The old panel therefore carried a
+standing rule that no event may assert an absence.
 
-So: **no event in the feed asserts an absence.** Every event states something that appeared or
-changed; none says nothing happened, nothing was marked, or anything is clear. A viewer inferring
-"no news is good news" from a quiet panel is a risk the data cannot remove, which is why the
-disclosure is pinned below the rows rather than left to be inferred from them, and why it is outside
-the scroller — a disclosure that scrolls out of view is not a disclosure.
+The trace does not need that rule, and understanding why is the point. Its steps are emitted by
+`coordinateCompletion` itself, in the order it performs them, so a step saying "Nothing was marked"
+is not an inference drawn from a quiet screen a poll after the fact — it is the coordinator reporting
+the result of a comparison it has finished making, in the same call, before it returns. The quiet
+case became reportable by moving the reporting to the only place that knows.
+
+Two limits still hold, and both are stated on the panel rather than left to be inferred:
+
+- **It is narration, not a decision path.** Nothing in obsel reads these events back. Deleting every
+  `emit` call would change no mark, no fingerprint and no traversal. That direction is deliberate: a
+  trace something depended on would be state, and state that duplicates DataHub is state that can
+  disagree with it.
+- **It is a view, not a record.** The buffer is in memory, process-local, bounded to the newest 200
+  steps, and does not survive a restart. The record is the marks in DataHub and the captures in
+  `examples/`. The panel's footer says so, pinned below the scroller rather than inside it, because a
+  disclosure that scrolls out of view is not a disclosure.
+
+Each step is emitted **after** the thing it describes has happened — a mark's step is emitted once
+`updateTaskProperties` and the tag write have been confirmed by bounded polling, not when the write
+was issued. So the panel is always describing completed work, and can never show an intent that
+subsequently failed.

@@ -47,6 +47,36 @@
   font-weight: var(--mm-weight-semi);
 }
 
+/*
+ * The code identifier, beside the human name rather than instead of it.
+ *
+ * Deliberately quiet and smaller: it is what you type into DataHub to find this
+ * job, not what tells you what the job is. Leading with it is what made a
+ * stranger unable to read this board at all.
+ */
+.code {
+  color: var(--obsel-text-quiet);
+  font-family: var(--mm-font-mono);
+  font-size: var(--mm-text-cap);
+  letter-spacing: var(--mm-track);
+}
+
+/*
+ * The agent's job, in its own registered words — the same sentence DataHub
+ * holds as this DataJob's description.
+ *
+ * Sans, not mono: it is a sentence for a person, and it sits above the reason so
+ * a reader learns what the agent IS before being told what happened to it.
+ */
+.job {
+  margin: 0;
+  color: var(--mm-cream-dim);
+  font-family: var(--mm-font-sans);
+  font-size: var(--mm-text-md);
+  line-height: var(--mm-leading);
+  text-wrap: pretty;
+}
+
 .hops {
   color: var(--obsel-stale);
   border: 1px solid var(--obsel-stale-line);

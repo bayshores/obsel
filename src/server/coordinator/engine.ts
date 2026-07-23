@@ -19,7 +19,15 @@ import {
   updateTaskProperties,
 } from "@/src/server/datahub/client";
 import { taskUrn } from "@/src/server/datahub/urns";
-import { affectedBy, blocked, compareFingerprints, readyToStart } from "./staleness";
+import {
+  affectedBy,
+  blocked,
+  compareFingerprints,
+  readyToStart,
+  tableLabel,
+  taskLabel,
+} from "./staleness";
+import { clear as clearTrace, emit } from "./trace";
 import type {
   AffectedTask,
   ChangeKind,
@@ -29,14 +37,34 @@ import type {
   TaskRecord,
 } from "./types";
 
-/** Declare a task, what it will touch, and its one-sentence job. */
+/** Declare a task, what it will touch, its human name, and its one-sentence job. */
 export async function registerTask(
   name: string,
   reads: string[],
   writes: string[],
   description?: string,
+  title?: string,
 ): Promise<TaskRecord> {
-  return await writeTask(name, reads, writes, description);
+  const task = await writeTask(name, reads, writes, description, title);
+  emit(
+    "write",
+    `Registered ${label(task)} in DataHub as a job, wired to what it reads and writes.`,
+    `${task.reads.length} in, ${task.writes.length} out`,
+  );
+  return task;
+}
+
+/*
+ * A traced step names a task the way the stale reasons do — `taskLabel` from
+ * `staleness.ts`, imported rather than reimplemented here. This file had its own
+ * copy of that fallback briefly, which meant the trace and the mark could have
+ * drifted into calling the same task two different things on one screen.
+ */
+const label = taskLabel;
+
+/** `1 hop`, `2 hops`. One place, so no traced step says "1 hops" again. */
+function hops(count: number): string {
+  return `${count} ${count === 1 ? "hop" : "hops"}`;
 }
 
 /**
@@ -61,13 +89,18 @@ export async function startTask(urn: string): Promise<TaskRecord> {
   if (!task) throw new Error(`cannot start ${urn}: no such task in DataHub`);
   if (task.status === "running") throw new Error(`task ${task.name} is already running`);
 
-  return await updateTaskProperties(urn, {
+  const started = await updateTaskProperties(urn, {
     [PROP.status]: "running",
     [PROP.startedAt]: new Date().toISOString(),
     [PROP.runRunner]: null,
     [PROP.runMs]: null,
     [PROP.runOutputs]: null,
   });
+  emit(
+    "write",
+    `${label(started)} says it has started. Marked it running in DataHub — work in flight is never judged.`,
+  );
+  return started;
 }
 
 /**
@@ -174,10 +207,27 @@ export async function coordinateCompletion(report: CompletionReport): Promise<Co
     throw new Error(`completion reported for ${report.taskUrn}, which is not in the swarm`);
   }
 
+  emit(
+    "read",
+    `${label(finishing)} reported that it finished. Read the whole swarm out of DataHub.`,
+    `${snapshot.tasks.length} tasks`,
+  );
+
   const changedOutputs: { dataset: string; kind: ChangeKind }[] = [];
   for (const dataset of Object.keys(report.fingerprints).sort()) {
-    const kind = compareFingerprints(finishing.fingerprints[dataset], report.fingerprints[dataset]);
+    const previous = finishing.fingerprints[dataset];
+    const kind = compareFingerprints(previous, report.fingerprints[dataset]);
     if (kind) changedOutputs.push({ dataset, kind });
+    // The comparison is the whole decision, so it is narrated whichever way it
+    // goes — a step that only spoke up when something changed would leave the
+    // quiet case, which is the one obsel's credibility rests on, invisible.
+    emit(
+      "compare",
+      previous === undefined
+        ? `Looked for a previous fingerprint of ${tableLabel(dataset)} to compare against.`
+        : `Compared the new ${tableLabel(dataset)} against the fingerprint recorded last time.`,
+      previous === undefined ? "none held — first version, nothing to compare" : verdict(kind),
+    );
   }
 
   await recordCompletion(finishing, report);
@@ -189,11 +239,32 @@ export async function coordinateCompletion(report: CompletionReport): Promise<Co
           excludeTasks: [report.taskUrn],
         });
 
+  if (changedOutputs.length > 0) {
+    emit(
+      "walk",
+      `Walked DataHub's lineage graph outwards from ${changedOutputs.map((c) => tableLabel(c.dataset)).join(", ")} to find finished work built on it.`,
+      affected.length === 0
+        ? "nothing finished downstream"
+        : affected
+            .map((entry) => `${label(entry.task)} (${hops(entry.mark.hops)})`)
+            .sort()
+            .join(", "),
+    );
+  }
+
   // Independent per task, so they are written together rather than in a queue
   // whose length would show up in the reported latency.
   await Promise.all(affected.map(markStale));
 
   const elapsedMs = Date.now() - startedAt;
+
+  emit(
+    "done",
+    affected.length === 0
+      ? "Nothing was marked."
+      : `Marked ${affected.length} ${affected.length === 1 ? "task" : "tasks"} out of date, in DataHub and on the board.`,
+    `${elapsedMs} ms end to end`,
+  );
 
   // Recorded onto the marks now that the real end-to-end figure is known, so the
   // dashboard can state a measured number instead of subtracting two timestamps
@@ -268,6 +339,14 @@ async function recordCompletion(finishing: TaskRecord, report: CompletionReport)
  * exists. Properties are written first so a tag never points at a task with no
  * recorded cause.
  */
+/** How a comparison came out, in words rather than in the enum's spelling. */
+function verdict(kind: ChangeKind | null): string {
+  if (kind === null) return "identical — nothing to do";
+  if (kind === "schema") return "its columns changed; the values did not";
+  if (kind === "content") return "its values changed; the columns did not";
+  return "both its columns and its values changed";
+}
+
 async function markStale(entry: AffectedTask): Promise<void> {
   const { task, mark } = entry;
 
@@ -291,6 +370,15 @@ async function markStale(entry: AffectedTask): Promise<void> {
   });
 
   await applyStaleTag([task.urn]);
+
+  // After the tag, not before: by here both halves of the mark have landed and
+  // been confirmed, so the step is reporting something that is true in DataHub
+  // rather than something that has been requested.
+  emit(
+    "mark",
+    `${label(task)} is built on it, ${hops(mark.hops)} away. Wrote its reason and the stale tag into DataHub.`,
+    mark.reason,
+  );
 }
 
 /**
@@ -332,6 +420,16 @@ export async function resetSwarm(): Promise<{ reset: string[]; tagsCleared: stri
         [PROP.staleSince]: null,
       }),
     ),
+  );
+
+  // Cleared, not appended to. The steps in the buffer describe a run whose state
+  // no longer exists, and leaving them would have the panel narrating the
+  // previous take over a board that has been wiped.
+  clearTrace();
+  emit(
+    "write",
+    "Reset. Put every task back to registered and took obsel's marks and tags off in DataHub.",
+    `${snapshot.tasks.length} tasks, ${tagged.length} ${tagged.length === 1 ? "tag" : "tags"} removed`,
   );
 
   return {

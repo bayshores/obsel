@@ -4,19 +4,15 @@
  * exactly what this panel exists to escape.
  */
 
-.hint,
 .note {
   margin: 0;
+  border-top: 1px solid var(--mm-rose-line);
   padding: var(--mm-space-sm) var(--mm-space-md);
   color: var(--obsel-text-quiet);
   font-family: var(--mm-font-sans);
   font-size: var(--mm-text-md);
   line-height: var(--mm-leading);
   text-wrap: pretty;
-}
-
-.note {
-  border-top: 1px solid var(--mm-rose-line);
 }
 
 .body {

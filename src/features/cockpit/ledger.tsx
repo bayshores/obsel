@@ -11,8 +11,8 @@
  * out as not actionable.
  */
 
-import { shortName } from "./graph/layout";
 import { Badge, PulseDot } from "./mmux";
+import { flowLine, taskTitle } from "./naming";
 import { activityNote, stampLabel } from "./progress";
 import { clockTime } from "./timing";
 import { STALE, STATUS_WORD, nodeTone } from "./tone";
@@ -21,32 +21,44 @@ import type { TaskRecord } from "@/src/server/coordinator/types";
 import styles from "./ledger.module.css";
 
 /**
- * What this row says about the task, in one sentence.
+ * What this agent is for, in its own registered words.
+ *
+ * Shown on every row whatever the status, because it is the line that tells a
+ * newcomer what `write_docs` actually is — and it used to appear only before the
+ * task had run, so the moment the demo got interesting every row lost its
+ * explanation. Falls back to the lineage the task declared, which is at least
+ * true of any task.
+ */
+function job(task: TaskRecord): string {
+  return task.description ?? flowLine(task);
+}
+
+/**
+ * Why this row is in the state it is in.
  *
  * The stale branch prints the reason the coordinator wrote, verbatim. It is not
  * rephrased here: the sentence stored on the mark is the same one written into
  * DataHub, and two wordings of the same fact invite the question of which is
- * authoritative.
+ * authoritative. Null when the status word plus the activity line already say
+ * everything — a row does not need a sentence restating its own badge.
  */
-function note(task: TaskRecord): string {
+function note(task: TaskRecord): string | null {
   if (task.status === "stale" && task.stale !== null) {
-    return `${task.name} ${task.stale.reason}.`;
+    return `${taskTitle(task)} ${task.stale.reason}.`;
   }
-  if (task.status === "complete") {
-    const wrote = task.writes[0];
-    return wrote === undefined
-      ? "finished · wrote nothing"
-      : `wrote ${shortName(wrote)} · fingerprint recorded`;
-  }
-  if (task.status === "running") return "working · its outputs are not final yet";
-  // Before a task has run, its row is where a newcomer learns what the agent
-  // is for — the registered job description, when the agent declared one.
-  const job = task.description ?? null;
-  const waiting =
-    task.reads.length === 0
-      ? "waiting to start"
-      : `waiting on ${task.reads.map(shortName).join(", ")}`;
-  return job === null ? waiting : `${job} · ${waiting}`;
+  if (task.status === "running") return "working now · its output is not final yet";
+  /*
+   * `registered` gets no line, deliberately.
+   *
+   * It used to read "waiting for clean orders", which said nothing the row was
+   * not already saying twice: the status word beside the name is "waiting", and
+   * the job line above names the input either in the agent's own words ("totals
+   * the clean orders into one revenue row per day") or, when it registered no
+   * description, in the lineage fallback ("reads clean orders · writes daily
+   * revenue"). Four rows × one redundant line was 68px, and it was the last of
+   * the overflow keeping the measured detection time below the fold.
+   */
+  return null;
 }
 
 export function LedgerRow({
@@ -71,6 +83,7 @@ export function LedgerRow({
   const tone = nodeTone(task.status, task.stale !== null);
   const mark = task.stale;
   const activity = activityNote(task, snapshotAt);
+  const reason = note(task);
 
   return (
     <li
@@ -84,7 +97,11 @@ export function LedgerRow({
         <span className={styles.status} style={{ color: tone.fill }}>
           {STATUS_WORD[task.status]}
         </span>
-        <span className={styles.name}>{task.name}</span>
+        <span className={styles.name}>{taskTitle(task)}</span>
+        {/* The identifier the URN is built from, kept beside the human name
+            rather than replaced by it: it is how you find this job in DataHub,
+            and dropping it would trade one kind of opacity for another. */}
+        <code className={styles.code}>{task.name}</code>
 
         {mark !== null && (
           <span className={styles.hops}>
@@ -127,9 +144,14 @@ export function LedgerRow({
         )}
       </div>
 
-      <p className={isStale ? `${styles.reason} ${styles.reasonStale}` : styles.reason}>
-        {note(task)}
-      </p>
+      {/* What this agent is for, always. The first thing a stranger needs. */}
+      <p className={styles.job}>{job(task)}</p>
+
+      {reason !== null && (
+        <p className={isStale ? `${styles.reason} ${styles.reasonStale}` : styles.reason}>
+          {reason}
+        </p>
+      )}
 
       {/* Only when something was actually measured. An agent that reported no
           detail leaves this out entirely rather than rendering an empty line —

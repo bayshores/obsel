@@ -42,6 +42,14 @@ const JOBS: Record<string, string> = {
   write_docs: "documents the daily_revenue table for the next engineer",
 };
 
+/** The human names the real pipeline registers as `obsel.title`. */
+const TITLES: Record<string, string> = {
+  clean_orders: "Orders cleaner",
+  build_revenue: "Daily revenue",
+  write_report: "Revenue report",
+  write_docs: "Table docs",
+};
+
 function task(
   name: string,
   reads: string[],
@@ -51,6 +59,7 @@ function task(
   return {
     urn: jobUrn(name),
     name,
+    title: TITLES[name] ?? null,
     description: JOBS[name] ?? null,
     reads: reads.map(ds),
     writes: writes.map(ds),
@@ -76,9 +85,9 @@ function mark(hops: number, reason: string): StaleMark {
   };
 }
 
-const R1 = "read clean_orders, and its columns changed after this finished";
+const R1 = "read clean orders, and its columns changed after this finished";
 const R2 =
-  "built on work from build_revenue, which is itself out of date because clean_orders changed";
+  "built on work from Daily revenue, which is itself out of date because clean orders changed";
 
 function wrap(tasks: TaskRecord[]): SwarmResponse {
   return { snapshot: { flow: FLOW, tasks, at: AT }, ready: [], blocked: [] };

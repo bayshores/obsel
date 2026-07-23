@@ -5,11 +5,19 @@ dashboard. Read them in the order below.
 
 ## These came off a real run
 
-Captured on **2026-07-22** from `agents/.venv/bin/python -m agents.run change --capture`, against a
+Captured on **2026-07-23** from `agents/.venv/bin/python -m agents.run change --capture`, against a
 live DataHub (GMS `v1.5.0.6`, quickstart) with a signed-in Codex CLI. The run that produced them was
-`reset` → `run` → `change`, which completed and exited 0 with every step's own assertions passing.
+`reset` → `register` → `run` → `change`, which completed and exited 0 with every step's own
+assertions passing.
 
-The four-step sequence including `rerun-same` also passed, earlier the same day, but that was a
+Re-captured that day because the wording of `reason` changed at the source: it now names tables and
+tasks in words (`clean orders`, `Daily revenue`) rather than in warehouse identifiers. The previous
+capture was a faithful record of a sentence the code no longer produces, and keeping it would have
+made the claim below — that these sentences are exactly what `staleness.ts` builds — quietly false.
+These files also carry the `title` and `description` each agent registers, which the earlier capture
+predated.
+
+A browser-driven `change` the same day marked the same three tasks in 3424 ms, but that was a
 separate run and no number from it is quoted here as though it belonged to this one.
 
 **All five files come from that one `change`.** They are written together or not at all, because a
@@ -24,10 +32,11 @@ Claim by claim, so you can check rather than trust:
 | Every file conforms to the current TypeScript contracts, field by field                            | Verified — see [Checking the shapes](#checking-the-shapes-against-the-types)                        |
 | Every digest is genuine sha256 output of `agents/fingerprint.py` **over the rows it was taken on** | Verified — one command, see [Reproducing the fingerprints](#reproducing-the-fingerprints)           |
 | The tables those digests were taken over are what four live Codex agents wrote                     | Captured, in `tables/` — not hand-written                                                           |
-| The `reason` sentences are exactly what `staleness.ts` builds for these hops and this change kind  | Verified against `reasonFor()`                                                                      |
+| The `reason` sentences are exactly what `staleness.ts` builds for these hops and this change kind  | Verified against `reasonFor()` as it stands in this commit                                          |
+| The `title` and `description` on each task are what the agent registered, read back out of DataHub | Verified — they round-trip through `obsel.title` and the DataJob description                        |
 | The order of `affected` is the traversal's own order                                               | Verified against `affectedBy()` — hop 1 first, then hop 2 sorted by URN                             |
 | The timestamps                                                                                     | Real, from the run                                                                                  |
-| `elapsedMs` and `detectedMs`                                                                       | **Measured.** 1034 ms, the coordinator's own figure for this completion.                            |
+| `elapsedMs` and `detectedMs`                                                                       | **Measured.** 745 ms, the coordinator's own figure for this completion.                             |
 | That another run would produce these same tables                                                   | **No.** Column names and number formats are held to a contract; rows and prose are the agents' own. |
 
 ## The scenario
@@ -70,6 +79,13 @@ needs (`ready`, `blocked`). Both are empty here because no task is waiting to st
 Look for:
 
 - Four tasks, all `"status": "complete"`, all with `"stale": null`.
+- `name`, `title` and `description` on each task, which are three different things and all three are
+  read back out of DataHub rather than mapped in the dashboard. `name` is the identifier the URN is
+  built from (`clean_orders`); `title` is the human name the agent registered as the `obsel.title`
+  custom property (`Orders cleaner`); `description` is its one-sentence job, stored as the DataJob's
+  own description (`cleans the raw orders export into a tidy four-column table`). A task registered
+  without a title still reads as words — the fallback de-underscores `name` — so an unknown pipeline
+  is legible without anything being hard-coded for this one.
 - `reads` and `writes` hold dataset URNs. These are not a description of the dependency — they are
   the actual `Consumes` and `Produces` lineage edges in DataHub. The graph is the coordination.
 - Each task carries a `fingerprints` entry per dataset it wrote, recorded at the moment it
@@ -81,7 +97,7 @@ Look for:
   digests. Both write tasks are held to the columns `["section", "heading", "text"]`, so any run at
   all must produce two tables of identical shape holding different documents.
 
-### `swarm-after.json` — the same swarm, 58 seconds later
+### `swarm-after.json` — the same swarm, 129 seconds later
 
 Look for:
 
@@ -98,11 +114,15 @@ Look for:
 - All three marks name the same `causedBy`: the `clean_orders` dataset, the table that actually
   moved, not the intermediate one the leaves happen to touch. `causedByTask` names the task that
   wrote it, so the trail leads back to a responsible actor rather than to a table.
-- The two-hop `reason` names `build_revenue`, the task in between. The one-hop `reason` names the
-  table. They are deliberately different sentences, because the useful explanation is different.
+- The two-hop `reason` names `Daily revenue` — the task in between, by the human name it registered
+  as `obsel.title`. The one-hop `reason` names the table. They are deliberately different sentences,
+  because the useful explanation is different. Both spell their subject in words rather than in
+  warehouse identifiers, which is decided in `reasonFor()` rather than at render time, so the
+  sentence stored on the mark and the sentence on the dashboard are the same string. The exact
+  identifiers are on `causedBy` and `causedByTask` beside them.
 - `finishedAt` on the stale tasks is unchanged, and so are their fingerprints. They have not re-run.
   Only the verdict changed.
-- Each mark carries `detectedMs: 1034` — the coordinator's own measurement of how long the whole
+- Each mark carries `detectedMs: 745` — the coordinator's own measurement of how long the whole
   job took, from the completion report arriving to every mark being written and confirmed in
   DataHub.
 
@@ -126,10 +146,12 @@ Look for:
 - Every mark's `detectedMs` equals the result's `elapsedMs`. That is what `engine.ts` does: it
   measures the call once and stamps that one figure onto every mark from it.
 
-**`elapsedMs: 1034` is a measurement, not a placeholder.** It covers the whole call: reading the
+**`elapsedMs: 745` is a measurement, not a placeholder.** It covers the whole call: reading the
 graph, comparing fingerprints, deciding, and writing every mark back including the DataHub tag,
 each confirmed by bounded polling. It is one observation on one machine against the quickstart
-stack, not a benchmark — the same step measured 2591 ms and 3796 ms on two other runs the same day.
+stack, not a benchmark — the same step measured 3424 ms when driven from the browser earlier the
+same day, and 2591 ms and 3796 ms on runs the day before. The spread is dominated by how long
+DataHub takes to confirm the writes, not by the deciding.
 
 ### `tables/before.json` and `tables/after.json`
 
@@ -263,7 +285,7 @@ Those values were checked separately by walking the files and comparing against 
   and empty `affected`, which is the behaviour the whole design rests on. It has been observed
   live — `rerun-same` reported 0 changed outputs and 0 marks on a separate run the same day — but
   this capture did not include that step, so there is no sample of it here.
-- **The `description` field.** Task job descriptions were added to registration later on
-  2026-07-22, after this capture, so no task here carries the key. The type declares it optional
-  for exactly this reason: these files remain a faithful record of what `GET /api/swarm` returned
-  at the time, and the conformance checks still hold over them.
+- **The coordinator's trace.** `GET /api/trace` narrates the steps obsel took to reach this answer
+  — the read, each fingerprint comparison, the lineage walk, each mark. It is deliberately not
+  captured here: it is in-memory narration of one process, not a record, and the record is these
+  files and the marks in DataHub.

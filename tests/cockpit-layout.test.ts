@@ -6,8 +6,8 @@ import {
   cascadeEdges,
   layoutGraph,
   reserveFor,
-  shortName,
 } from "@/src/features/cockpit/graph/layout";
+import { shortName } from "@/src/features/cockpit/naming";
 import { LONGEST_STATUS_WORD, STATUS_WORD, nodeTone } from "@/src/features/cockpit/tone";
 import { shortName as serverShortName } from "@/src/server/coordinator/staleness";
 import type { StaleMark, TaskRecord, TaskStatus } from "@/src/server/coordinator/types";
@@ -48,7 +48,7 @@ function mark(hops: number, causedBy: string, causedByTask: string | null): Stal
     causedByTask,
     hops,
     changeKind: "schema",
-    reason: "read clean_orders, and its columns changed after this finished",
+    reason: "read clean orders, and its columns changed after this finished",
     since: NOW,
     detectedMs: 118,
   };

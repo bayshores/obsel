@@ -46,7 +46,7 @@ function mark(overrides: Partial<StaleMark> = {}): StaleMark {
     causedByTask: taskUrn("clean_orders"),
     hops: 1,
     changeKind: "schema",
-    reason: "read clean_orders, and its columns changed after this finished",
+    reason: "read clean orders, and its columns changed after this finished",
     since: NOW,
     detectedMs: 118,
     ...overrides,

@@ -17,18 +17,32 @@ That Do Real Work_. Apache-2.0.
 ## Status
 
 **The whole loop is built, and the whole demo now runs from the browser.** The cockpit carries a
-guide that reads the live state once a second and offers the next real action as a button —
-register the pipeline, put the agents to work, re-run one identically, change a requirement
-upstream. Each button launches the same `agents.run` step the terminal path runs, verbatim, and
-the step's own printed output streams onto the board. On 2026-07-22 the full journey — reset →
-re-declare → run → identical re-run → change — was driven end to end **with five clicks and no
-terminal**, against a live DataHub with a live Codex CLI, every step exiting 0.
+guide that reads the live state once a second and offers the next real action as a button — set up
+the four agents, start them, run one again unchanged, change one agent's instructions. Each button
+launches the same `agents.run` step the terminal path runs, verbatim, and the step's own printed
+output streams onto the board. On 2026-07-22 the full journey — reset → re-declare → run →
+identical re-run → change — was driven end to end **with five clicks and no terminal**, against a
+live DataHub with a live Codex CLI, every step exiting 0.
+
+Two things were added on 2026-07-23, both for the same reason: a stranger looking at the board could
+not tell what it was.
+
+- **Agents and tables are named in words.** Every agent registers a human name and a one-sentence
+  job as real DataHub metadata — `obsel.title` and the DataJob's description — and the board reads
+  them back, so `clean_orders` appears as "Orders cleaner · cleans the raw orders export into a tidy
+  four-column table" everywhere, including in the reason written onto a stale mark. Nothing is mapped
+  in the frontend; a pipeline that registers no title still reads as words, via a fallback.
+- **obsel narrates its own work.** A panel beside the graph shows the steps the coordinator took, as
+  it takes them: the swarm read, each fingerprint comparison and its verdict, the lineage walk and
+  what it found, one line per mark once DataHub has confirmed the write, and a measured close. It is
+  narration, not a decision path — nothing reads it back, and it is not the record. The record is the
+  marks in DataHub.
 
 The guide is a lens, not a script: it derives its stage from what DataHub actually holds, so
 driving a step from the terminal instead moves the board the same way, and nothing on screen is
 staged or pre-recorded.
 
-Updated 2026-07-22. Everything described below this section is code that exists in this repository
+Updated 2026-07-23. Everything described below this section is code that exists in this repository
 and type-checks, not a plan.
 
 ### Built
@@ -54,7 +68,7 @@ and type-checks, not a plan.
   that nothing happens, which is deliberate — the failure that kills this kind of tool is a false
   alarm, not a miss. An identical re-run marks nothing, an unrelated branch is untouched, a running
   task is neither marked nor walked through, a cycle terminates.
-- **The cockpit's own logic**, by 113 further tests across `tests/cockpit-*.test.ts`. The load-bearing
+- **The cockpit's own logic**, by 129 further tests across `tests/cockpit-*.test.ts`. The load-bearing
   ones: graph geometry is byte-identical across every task status, so nothing moves on the frame
   three tasks flip amber; no label can overflow its box, checked against measured per-character
   advances; a six-task pipeline the layout has never seen draws correctly; amber fills a node if and
@@ -72,6 +86,18 @@ and type-checks, not a plan.
   dataset it reads, and the cascade is transitive. The full walk was measured at 92 ms. That
   measurement is of [`agents/graph.py`](agents/graph.py), the Python traversal, not the end-to-end
   path.
+- **The board naming its agents in words, and narrating its own work**, on 2026-07-23 against a live
+  DataHub and a signed-in Codex CLI, driven from the browser. `reset` and `register` wrote each
+  task's `obsel.title` and job description onto its DataJob and read both back, so every panel named
+  `clean_orders` as "Orders cleaner" from DataHub rather than from anything hard-coded. `run` took
+  **142.6 s** for four Codex sessions. The upstream rename was called **`schema`** and marked the
+  same three tasks, and `GET /api/trace` reported each step as it happened: the swarm read (4 tasks),
+  the comparison — _"its columns changed; the values did not"_ — the walk, _"Daily revenue (1 hop),
+  Revenue report (2 hops), Table docs (2 hops)"_, one line per confirmed mark, and a close of
+  **3424 ms** end to end. That figure matched what the ledger and the stat ribbon showed at the same
+  moment. A second sequence the same day, from the terminal with `--capture`, produced the current
+  `examples/` set: `run` **124.1 s**, the same three tasks marked in a measured **745 ms**, and
+  fingerprints identical to the previous day's capture — the column contract holding across runs.
 - **The whole demo, driven from the browser alone**, on 2026-07-22 against a live DataHub and a
   signed-in Codex CLI — five clicks in the guide, no terminal: reset, then re-declare (which
   wrote each task's job description onto its DataJob and read it back onto the board in a
@@ -112,9 +138,9 @@ and type-checks, not a plan.
 
 ### Not done
 
-- **The demo has passed a handful of times, not repeatedly.** Two full clean sequences on
-  2026-07-22 — one from the terminal, one from the browser — on one machine. That is not a pass
-  rate. Codex is a live agent and its output is not guaranteed identical between runs — see the
+- **The demo has passed a handful of times, not repeatedly.** Four full clean sequences across
+  2026-07-22 and 2026-07-23 — two from the terminal, two from the browser — on one machine. That is
+  not a pass rate. Codex is a live agent and its output is not guaranteed identical between runs — see the
   next point for the one instance of that already found and fixed, and expect the possibility of
   others in categories nobody has hit yet.
 - **Codex's output needed pinning down twice, and may need it again.** Two separate instabilities
@@ -127,17 +153,18 @@ and type-checks, not a plan.
   which is the property worth keeping. obsel itself called every one of those runs correctly.
 - **There is no _automated_ test of the TypeScript path against a live DataHub.** `engine.ts`,
   `client.ts`, `mcp.ts` and the demo runner in `src/server/runner/` have been exercised by hand
-  against a running instance, but nothing in `pnpm test` stands DataHub up — those 167 tests cover
+  against a running instance, but nothing in `pnpm test` stands DataHub up — those 175 tests cover
   pure decision logic only, by design, so that `pnpm verify` needs no Docker. `pnpm e2e` runs a
   real browser but stubs the endpoints, so it does not close this gap either.
 - **The detection latency numbers are single observations, not a benchmark.** Each cascade run has
-  produced one measured figure (6867 ms on 2026-07-21; 2591 ms and 2310 ms on separate runs on
-  2026-07-22), dominated by the bounded polling that confirms each DataHub write actually landed.
-  The separate 92 ms figure is the Python traversal alone.
-- **The `examples/` artifacts predate the guided cockpit.** They were captured from a real
-  terminal-driven run earlier on 2026-07-22 and every digest in them still reproduces, but they
-  carry no `description` field — task job descriptions were added to registration after that
-  capture, so the field is absent there rather than null.
+  produced one measured figure — 6867 ms on 2026-07-21; 2591 ms and 2310 ms on separate runs on
+  2026-07-22; 3424 ms and 745 ms on 2026-07-23 — and the spread is dominated by how long the bounded
+  polling waits for each DataHub write to be confirmed, not by the deciding. The separate 92 ms
+  figure is the Python traversal alone.
+- **The live trace is narration, not evidence.** It is emitted by the coordinator as it works and has
+  been watched during a real cascade, but nothing reads it back, it is bounded to the newest 200
+  steps, and it does not survive a restart. Anything it says is corroborated by the marks in DataHub
+  or it is not corroborated at all.
 - The demo video is not recorded.
 
 ## Requirements
@@ -258,10 +285,11 @@ produce wrong results silently. Worth reading before writing code that touches D
 ## Layout
 
 ```
-app/                     routing and composition (Next.js), and the eight HTTP routes
-src/features/cockpit/    the cockpit: layout.ts, tone.ts, timing.ts, feed.ts, progress.ts,
+app/                     routing and composition (Next.js), and the nine HTTP routes
+src/features/cockpit/    the cockpit: layout.ts, tone.ts, timing.ts, naming.ts, progress.ts,
                          guide.ts (pure), then the pixels
-src/server/coordinator/  types.ts, staleness.ts (pure rules), engine.ts (the IO half)
+src/server/coordinator/  types.ts, staleness.ts (pure rules), engine.ts (the IO half),
+                         trace-buffer.ts (pure) and trace.ts (the one instance)
 src/server/datahub/      client.ts (GMS HTTP), mcp.ts (tag writes), urns.ts (URN shapes)
 src/server/runner/       the demo runner: steps.ts (pure), launcher.ts (spawn), preflight.ts
 src/server/domain/       reserved for deterministic logic; currently empty
@@ -290,8 +318,10 @@ run, and it must stay free of Docker, DataHub and a browser download. The browse
 the cockpit's rendering of a snapshot, not that obsel produces the right snapshot. The pure rules
 cover that half.
 
-Checked 2026-07-22: `pnpm verify` succeeds end to end — `pnpm format:check`, `pnpm lint`,
-`pnpm typecheck`, `pnpm test` (167 passed), and `pnpm build`.
+Checked 2026-07-23: `pnpm verify` succeeds end to end — `pnpm format:check`, `pnpm lint`,
+`pnpm typecheck`, `pnpm test` (175 passed), and `pnpm build`. `pnpm e2e` passes 45 browser checks
+across both viewports, with one skipped by design — a recording-frame assertion that does not apply
+at laptop height.
 
 ## Documentation
 

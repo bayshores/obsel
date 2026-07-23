@@ -1,9 +1,10 @@
 import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
 
-import { codexSignedOut, runningStep } from "./fixtures/activity";
+import { codexSignedOut, idle, runningStep } from "./fixtures/activity";
 import { calm, cascaded, empty } from "./fixtures/swarm";
 import { openCockpit } from "./fixtures/mount";
+import { cascadeSteps } from "./fixtures/trace";
 
 /**
  * Everything here needs a real browser.
@@ -295,7 +296,13 @@ test.describe("honesty", () => {
 
     expect(amber.stale).toBe("#ffb020");
     expect(amber.litEdges, "nothing stale means no lit cascade edge").toBe(0);
-    await expect(page.getByText("nothing to explain")).toBeVisible();
+    /*
+     * And the board says so in words, not only in colour. This used to look for
+     * "nothing to explain", which was the empty state of the changes-between-
+     * reads panel the live trace replaced; the calm statement now comes from the
+     * guide's own headline, derived from the same snapshot.
+     */
+    await expect(page.getByText("nothing out of date")).toBeVisible();
   });
 });
 
@@ -400,7 +407,7 @@ test.describe("guide", () => {
   test("an empty swarm offers register, and the click launches the real step", async ({ page }) => {
     const { launches } = await openCockpit(page, empty());
 
-    const button = page.getByRole("button", { name: /Register the pipeline/ });
+    const button = page.getByRole("button", { name: /Set up the four agents/ });
     await expect(button).toBeVisible();
     await button.click();
 
@@ -410,8 +417,10 @@ test.describe("guide", () => {
   test("a settled swarm offers the two experiments", async ({ page }) => {
     await openCockpit(page, calm());
 
-    await expect(page.getByRole("button", { name: /Re-run the cleaner/ })).toBeVisible();
-    await expect(page.getByRole("button", { name: /Change a requirement/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Run the orders cleaner again/ })).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: /Change one agent's instructions/ }),
+    ).toBeVisible();
   });
 
   test("a cascaded swarm explains the flags and offers the re-run and reset, never change", async ({
@@ -421,9 +430,11 @@ test.describe("guide", () => {
 
     await expect(page.getByText("finished work just went out of date")).toBeVisible();
     await expect(page.getByText(/never read the changed table/)).toBeVisible();
-    await expect(page.getByRole("button", { name: /Re-run the cleaner/ })).toBeVisible();
-    await expect(page.getByRole("button", { name: /Reset the board/ })).toBeVisible();
-    await expect(page.getByRole("button", { name: /Change a requirement/ })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /Run the orders cleaner again/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Reset and start over/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Change one agent's instructions/ })).toHaveCount(
+      0,
+    );
   });
 
   test("a broken prerequisite turns the guide into preparation with the exact fix", async ({
@@ -433,7 +444,7 @@ test.describe("guide", () => {
 
     await expect(page.getByText("one-time preparation")).toBeVisible();
     await expect(page.getByText("codex login", { exact: true })).toBeVisible();
-    await expect(page.getByRole("button", { name: /Re-run the cleaner/ })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /Run the orders cleaner again/ })).toHaveCount(0);
   });
 
   test("while a step runs the buttons go away and its own output streams", async ({ page }) => {
@@ -441,6 +452,65 @@ test.describe("guide", () => {
 
     await expect(page.getByText("rerun-same is live")).toBeVisible();
     await expect(page.getByText("rerun-same: started")).toBeVisible();
-    await expect(page.getByRole("button", { name: /Re-run the cleaner/ })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /Run the orders cleaner again/ })).toHaveCount(0);
+  });
+});
+
+test.describe("what obsel is doing", () => {
+  test("the coordinator's steps render in the order it performed them", async ({ page }) => {
+    await openCockpit(page, cascaded(), idle(), cascadeSteps());
+
+    // Every step, in a browser, from the same shape `/api/trace` serves.
+    await expect(page.getByText("Read the swarm from DataHub.")).toBeVisible();
+    await expect(page.getByText("its columns changed; the values did not")).toBeVisible();
+    await expect(page.getByText(/Walked the lineage graph/)).toBeVisible();
+    await expect(page.getByText(/Marked Daily revenue out of date/)).toBeVisible();
+
+    /*
+     * Oldest first. A cascade only makes sense read forwards — the comparison
+     * that found the change, then the walk, then the marks it caused — so a
+     * panel that put the newest on top would show every mark above its own
+     * cause. Asserted on the rendered vertical positions rather than on the DOM
+     * order, because a `column-reverse` would satisfy one and not the other.
+     */
+    const tops = await page.evaluate(() => {
+      const rows = [...document.querySelectorAll("main ol li")];
+      return rows.map((r) => Math.round(r.getBoundingClientRect().top));
+    });
+    expect(tops.length).toBeGreaterThan(1);
+    expect([...tops].sort((a, b) => a - b)).toEqual(tops);
+  });
+
+  test("the newest step is the one on screen, not the oldest", async ({ page }) => {
+    await openCockpit(page, cascaded(), idle(), cascadeSteps());
+
+    // The panel is short and the steps overflow it, so this is only true if the
+    // list is scrolled to its end. Unpinned it opens on step 1 and the step that
+    // matters — the one obsel just took — is the one guaranteed to be hidden.
+    await expect
+      .poll(async () =>
+        page.evaluate(() => {
+          const list = document.querySelector("main ol");
+          if (list === null) return null;
+          return list.scrollHeight - list.scrollTop - list.clientHeight;
+        }),
+      )
+      .toBeLessThanOrEqual(48);
+  });
+
+  test("a failed trace read empties the panel and leaves the board alone", async ({ page }) => {
+    const { serveTrace } = await openCockpit(page, cascaded(), idle(), cascadeSteps());
+    await expect(page.getByText("Read the swarm from DataHub.")).toBeVisible();
+
+    serveTrace("fail");
+
+    // The steps go, because a step list held over from a read that is no longer
+    // working is a claim about what obsel is doing now that nobody can support.
+    await expect(page.getByText("Read the swarm from DataHub.")).toHaveCount(0);
+    await expect(page.getByText(/could not be read/)).toBeVisible();
+    // The swarm read is a different endpoint and is still healthy, so every
+    // measured number stays exactly where it was.
+    await expect(page.getByText("connected")).toBeVisible();
+    await expect(page.getByText(/never read the changed table/)).toBeVisible();
   });
 });

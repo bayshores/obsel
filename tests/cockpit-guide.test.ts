@@ -174,13 +174,14 @@ describe("stage derivation", () => {
     expect(view.narration[0]).toContain("obsel");
   });
 
-  it("registered introduces each agent by its registered description, or its lineage when it has none", () => {
+  it("registered counts the agents and points at the list rather than repeating it", () => {
     const view = guide(
       input({
         tasks: [
           task("clean_orders", {
             status: "registered",
             finishedAt: null,
+            title: "Orders cleaner",
             description: "cleans the raw orders export into a tidy four-column table",
           }),
           task("build_revenue", {
@@ -193,11 +194,21 @@ describe("stage derivation", () => {
       }),
     );
     expect(view.stage).toBe("registered");
-    expect(view.narration[0]).toContain("2 tasks are declared");
-    expect(view.narration).toContain(
-      "clean_orders — cleans the raw orders export into a tidy four-column table",
-    );
-    expect(view.narration).toContain("build_revenue — reads clean_orders, writes daily_revenue");
+    expect(view.narration[0]).toContain("2 agents are declared");
+
+    /*
+     * The roster must NOT be here. This stage used to push one
+     * `Title — what it does` line per task, and the ledger below now carries
+     * that line on every row in every state — so the board showed the same
+     * four-item list twice, one panel apart. Asserting the absence is the point
+     * of the test: nothing else fails if the duplication comes back.
+     */
+    const prose = view.narration.join("\n");
+    expect(prose).not.toContain("cleans the raw orders export");
+    expect(prose).not.toContain("reads clean orders · writes daily revenue");
+    // Still names where to look, so dropping the list did not drop the reader.
+    expect(view.narration[0]).toContain("listed below");
+
     // Run leads; re-declare is reachable here because the empty stage never
     // recurs on a DataHub that has seen the pipeline before.
     expect(view.actions.map((action) => action.step)).toEqual(["run", "register"]);
@@ -239,11 +250,19 @@ describe("stage derivation", () => {
 
   it("working narrates no elapsed when startedAt is missing, rather than inventing one", () => {
     const view = guide(
-      input({ tasks: [task("clean_orders", { status: "running", finishedAt: null })] }),
+      input({
+        tasks: [
+          task("clean_orders", {
+            status: "running",
+            finishedAt: null,
+            title: "Orders cleaner",
+          }),
+        ],
+      }),
     );
     expect(view.stage).toBe("working");
     expect(view.narration[0]).not.toContain("in flight for");
-    expect(view.narration[0]).toContain("clean_orders is working");
+    expect(view.narration[0]).toContain("Orders cleaner is working");
   });
 
   it("a stale task that is re-running lands on working — running wins, and the held mark is counted", () => {
@@ -265,22 +284,40 @@ describe("stage derivation", () => {
     expect(view.actions.map((action) => action.step)).toEqual(["rerun-same", "change"]);
   });
 
-  it("flagged counts the marks, directs to the ledger's recorded reasons, and calls out the transitive reach", () => {
+  it("flagged counts the marks and calls out the transitive reach, without narrating the screen", () => {
     const view = guide(
       input({
         tasks: [
-          task("clean_orders"),
-          task("build_revenue", { status: "stale", stale: mark({ hops: 1 }) }),
-          task("write_report", { status: "stale", stale: mark({ hops: 2 }) }),
-          task("write_docs", { status: "stale", stale: mark({ hops: 2 }) }),
+          task("clean_orders", { title: "Orders cleaner" }),
+          task("build_revenue", {
+            status: "stale",
+            title: "Daily revenue",
+            stale: mark({ hops: 1 }),
+          }),
+          task("write_report", {
+            status: "stale",
+            title: "Revenue report",
+            stale: mark({ hops: 2 }),
+          }),
+          task("write_docs", { status: "stale", title: "Table docs", stale: mark({ hops: 2 }) }),
         ],
       }),
     );
     expect(view.stage).toBe("flagged");
     const text = view.narration.join("\n");
     expect(text).toContain("3 of 4 finished tasks");
-    expect(text).toContain("ledger below");
-    expect(text).toContain("write_report and write_docs never read the changed table");
+    expect(text).toContain("stopped being true underneath them");
+    /*
+     * It must NOT point at the ledger. This stage used to end by explaining that
+     * each amber row carries a recorded reason — a sentence about the screen,
+     * for a reader who is looking at the screen and can see the amber rows and
+     * their reasons directly below. The guide's job here is the work, not a tour
+     * of the layout.
+     */
+    expect(text).not.toContain("ledger below");
+    // Named by their human titles, never by the code identifiers.
+    expect(text).toContain("Revenue report and Table docs never read the changed table");
+    expect(text).not.toContain("write_report");
     // The identical re-run stays available on a flagged board — proving no new
     // marks arrive and the existing three stay put — alongside reset. `change`
     // does not: re-issuing the same changed job proves nothing further.
