@@ -32,6 +32,78 @@
   background: var(--mm-surface);
 }
 
+/*
+ * One decision's heading: the completion that triggered it, and what obsel read.
+ *
+ * The list is a sequence of separate judgements and used to render as one stream. A
+ * `run` followed by a `change` produces five passes, four of which found nothing to
+ * do, and those four quiet judgements are half of what makes the fifth believable.
+ * Undivided they read as one long preamble in which nothing happened.
+ *
+ * `sticky` so the heading of the pass a reader is scrolling through stays in view,
+ * rather than scrolling away and leaving its steps belonging to nothing. Measured:
+ * scrolled 60px into the tallest group, the heading holds 3px from the top edge.
+ *
+ * It is not what fixed the clipped top row, though it helps. That defect was 63px
+ * cut off a 45px row, and what fixed it was rendering the whole trace instead of the
+ * last eight steps, which changed the scroll geometry: at rest the top edge now
+ * shows a 2px sliver of the previous group rather than most of a sentence.
+ *
+ * Opaque rather than translucent, because rows pass underneath it. `--mm-bg` is
+ * exactly right here: the panel body sets no background of its own, so this matches
+ * what the scroller sits on.
+ */
+.heading {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: baseline;
+  gap: var(--mm-space-sm);
+  padding: 4px var(--mm-space-md);
+  background: var(--mm-bg);
+  border-top: 1px solid var(--mm-rose-line);
+  border-bottom: 1px solid var(--mm-rose-line);
+}
+
+/* The trigger, e.g. "Orders cleaner finished". Brighter than a step's outcome:
+   this is the one line that says why the steps below it happened. */
+.headingText {
+  color: var(--mm-cream-dim);
+  font-family: var(--mm-font-mono);
+  font-size: var(--mm-text-cap);
+  letter-spacing: var(--mm-track-label);
+  white-space: nowrap;
+}
+
+/*
+ * What obsel read to begin, e.g. "read 4 tasks from DataHub".
+ *
+ * The middot is load-bearing, not decoration. Without it the heading rendered as
+ * "Orders cleaner finished read 4 tasks from DataHub", one run-on phrase: the two
+ * halves are set at the same size in the same face, so a gap alone did not separate
+ * them. This is the case the house rule allows, a genuine field separator in a log
+ * line, rather than an ornament between clauses.
+ *
+ * Ellipsised rather than wrapped, so a heading is always exactly one line tall and
+ * its sticky offset cannot change as the list scrolls.
+ */
+.headingNote {
+  color: var(--obsel-text-quiet);
+  font-family: var(--mm-font-mono);
+  font-size: var(--mm-text-cap);
+  letter-spacing: var(--mm-track);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.headingNote::before {
+  content: "· ";
+  /* Dimmer than the text it separates, so it reads as punctuation. */
+  opacity: 0.5;
+}
+
 .clock {
   color: var(--obsel-text-quiet);
   font-family: var(--mm-font-mono);

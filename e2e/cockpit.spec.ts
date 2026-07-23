@@ -4,7 +4,7 @@ import type { Page } from "@playwright/test";
 import { codexSignedOut, idle, runningStep } from "./fixtures/activity";
 import { calm, cascaded, empty, leftOverTag, midWrite, withoutTagInfo } from "./fixtures/swarm";
 import { openCockpit } from "./fixtures/mount";
-import { cascadeSteps } from "./fixtures/trace";
+import { cascadeSteps, manyDecisions } from "./fixtures/trace";
 
 /**
  * Everything here needs a real browser.
@@ -701,16 +701,25 @@ test.describe("what obsel is doing", () => {
     await expect(page.getByText("marked Daily revenue out of date")).toBeVisible();
 
     /*
-     * Oldest first. A cascade only makes sense read forwards — the comparison
-     * that found the change, then the walk, then the marks it caused — so a
-     * panel that put the newest on top would show every mark above its own
-     * cause. Asserted on the rendered vertical positions rather than on the DOM
-     * order, because a `column-reverse` would satisfy one and not the other.
+     * Oldest first. A cascade only makes sense read forwards — the comparison that
+     * found the change, then the walk, then the marks it caused — so a panel that put
+     * the newest on top would show every mark above its own cause. Asserted on laid
+     * out positions rather than on DOM order, because a `column-reverse` would satisfy
+     * one and not the other.
+     *
+     * Pass headings are excluded, because a heading is not a step. Each one is
+     * `sticky` so it stays visible while its group scrolls, which means its position
+     * is deliberately detached from the list's flow: once its group has scrolled past,
+     * it sits below rows that precede it. Measured on the laptop viewport, the
+     * positions came out [554, 509, 555, …] for a list that was in perfect order, and
+     * `offsetTop` reports the same displacement in Chromium rather than the layout
+     * position. What must be ordered is the steps.
      */
-    const tops = await page.evaluate(() => {
-      const rows = [...document.querySelectorAll("main ol li")];
-      return rows.map((r) => Math.round(r.getBoundingClientRect().top));
-    });
+    const tops = await page.evaluate(() =>
+      [...document.querySelectorAll<HTMLElement>("main ol li")]
+        .filter((li) => getComputedStyle(li).position !== "sticky")
+        .map((li) => Math.round(li.getBoundingClientRect().top)),
+    );
     expect(tops.length).toBeGreaterThan(1);
     expect([...tops].sort((a, b) => a - b)).toEqual(tops);
   });
@@ -730,6 +739,83 @@ test.describe("what obsel is doing", () => {
         }),
       )
       .toBeLessThanOrEqual(48);
+  });
+
+  test("separate judgements are shown as separate, each headed by what triggered it", async ({
+    page,
+  }) => {
+    /*
+     * A `run` followed by a `change` is five decisions, not one long stream, and four
+     * of them found nothing to do. Those four quiet judgements are half of what makes
+     * the fifth believable: anyone can flag whatever read a changed table, and a tool
+     * that shouts after every write is worthless.
+     *
+     * The heading is the completion that triggered the pass, deliberately not its
+     * conclusion. A heading carrying the conclusion would print "marked 3 out of date"
+     * directly above the step that says exactly that.
+     */
+    await openCockpit(page, cascaded(), idle(), manyDecisions());
+    await page.waitForSelector("main ol li", { state: "attached" });
+
+    const headings = await page.evaluate(() =>
+      [...document.querySelectorAll("main ol li")]
+        .filter((li) => getComputedStyle(li).position === "sticky")
+        .map((li) => li.textContent ?? ""),
+    );
+
+    // One per decision, and every one names its trigger.
+    expect(headings).toHaveLength(5);
+    expect(headings.filter((h) => h.includes("finished"))).toHaveLength(5);
+    expect(headings.some((h) => h.includes("marked 3 out of date"))).toBe(false);
+
+    // The header counts decisions, and every step it counts is in the DOM: the old
+    // "last 8 of 25" named 17 steps scrolling could never reach.
+    await expect(page.getByText("5 decisions, 17 steps")).toBeVisible();
+    const steps = await page.evaluate(() => document.querySelectorAll("main ol li").length);
+    expect(steps).toBe(17);
+  });
+
+  test("more narration does not put more words on screen", async ({ page }) => {
+    /*
+     * The guard for dropping the eight-step cap.
+     *
+     * The panel renders the whole trace now, so the DOM grows with the length of a
+     * run. What must not grow is what a viewer is confronted with: the scroller is a
+     * fixed height and shows about a dozen steps whatever it holds. Without this, the
+     * board's word ceiling would measure how much obsel narrated rather than how
+     * dense the board is, and the way to pass it would be to narrate less.
+     */
+    const onScreen = async () =>
+      page.evaluate(() => {
+        const list = document.querySelector("main ol");
+        if (list === null) return 0;
+        const box = list.getBoundingClientRect();
+        return [...list.querySelectorAll("li")]
+          .filter((li) => {
+            const b = li.getBoundingClientRect();
+            return b.bottom > box.top + 1 && b.top < box.bottom - 1;
+          })
+          .reduce(
+            (n, li) => n + (li.textContent ?? "").trim().split(/\s+/).filter(Boolean).length,
+            0,
+          );
+      });
+
+    await openCockpit(page, cascaded(), idle(), cascadeSteps());
+    await page.waitForSelector("main ol li", { state: "attached" });
+    const short = await onScreen();
+
+    await openCockpit(page, cascaded(), idle(), manyDecisions());
+    await page.waitForSelector("main ol li", { state: "attached" });
+    const long = await onScreen();
+
+    // Three times the trace, and the visible text is bounded by the panel rather than
+    // by the trace. Allow a modest band: which rows land inside the box depends on
+    // where the boundaries fall, not on how many steps are held.
+    expect(long).toBeGreaterThan(0);
+    expect(long, `${short} visible on a short trace, ${long} on a long one`).toBeLessThan(
+      short * 2,
+    );
   });
 
   test("a failed trace read empties the panel and leaves the board alone", async ({ page }) => {
@@ -783,43 +869,72 @@ test.describe("how much the board says", () => {
     await page.waitForSelector(".react-flow__edge", { state: "attached" });
 
     /*
-     * Split three ways, because the three are not the same kind of reading.
+     * Split, because these are not the same kind of reading.
      *
      * `prose` is the metric that matters and the one that went wrong: sentences a
      * reader has to actually read. `graph` is one- to three-word labels on boxes,
      * scanned rather than read. `log` is a scrolling step list, skimmed. Lumping
      * them together would let 40 words of new prose hide behind a shorter log.
      *
-     * The screen-reader-only live region is excluded. It is real text in the
-     * accessibility tree and it is deliberately never painted, so counting it
-     * against a budget about visual density would be measuring the wrong thing.
+     * Two exclusions, both for the same reason: this is a budget about what is on
+     * screen, so text that is not on screen must not count against it.
+     *
+     * - The screen-reader-only live region is real text in the accessibility tree and
+     *   is deliberately never painted.
+     * - **The log counts only its VISIBLE steps.** The panel used to slice the trace
+     *   to the most recent eight, and dropping that cap put the whole run in the DOM.
+     *   Counting all of it would make this ceiling track how much obsel narrated
+     *   rather than how dense the board is, and the fix for a failure would be to
+     *   narrate less, which is backwards. About a dozen steps are on screen at a time
+     *   however many are held.
      */
     const counts = await page.evaluate(() => {
       const count = (text: string): number => text.trim().split(/\s+/).filter(Boolean).length;
       const words = (el: Element | null): number =>
         el === null ? 0 : count((el as HTMLElement).innerText ?? "");
 
-      const all = words(document.body);
-      const log = words(document.querySelector('[aria-label="What obsel is doing"]'));
+      const panel = document.querySelector('[aria-label="What obsel is doing"]');
+      const list = panel?.querySelector("ol") ?? null;
+      const logAll = words(panel);
+      // Anything with pixels inside the scroller's box, so a step half under a
+      // sticky heading still counts: a reader can read part of it.
+      const logSeen =
+        list === null
+          ? 0
+          : (() => {
+              const box = list.getBoundingClientRect();
+              return [...list.querySelectorAll("li")]
+                .filter((li) => {
+                  const b = li.getBoundingClientRect();
+                  return b.bottom > box.top + 1 && b.top < box.bottom - 1;
+                })
+                .reduce((n, li) => n + count(li.textContent ?? ""), 0);
+            })();
+      // The panel's own chrome — its title, the count, the footnote — is on screen
+      // always, so it belongs in the visible figure.
+      const chrome = logAll - words(list);
+
       const graph = [...document.querySelectorAll(".react-flow__node")].reduce(
         (n, node) => n + count(node.textContent ?? ""),
         0,
       );
       const announced = words(document.querySelector('main [aria-live="polite"]'));
-      return { all, log, graph, announced, prose: all - log - graph - announced };
+      const log = logSeen + chrome;
+      const prose = words(document.body) - logAll - graph - announced;
+      return { all: prose + log + graph, log, logAll, graph, announced, prose };
     });
 
     /*
-     * Measured on this commit: 206 on the page, of which 71 is the step log, 36 is
-     * graph labels and 13 is the live region, leaving 86 words of prose. Against the
-     * live board at the same viewport: 238 total, 94 prose, the difference being a
-     * real step log rather than this fixture's shortened one.
+     * Measured on this commit, at the recording viewport: 185 words on screen, of
+     * which 63 is the step log (72 held, so 9 are scrolled out), 36 is graph labels
+     * and 13 is the live region, leaving 86 words of prose. The laptop viewport comes
+     * out at 178, showing seven fewer words of log in a shorter panel.
      *
-     * Up from 75 prose, and the 11 words bought two things the board could not say
-     * before: how many flagged agents never read the changed table, which is the
+     * Prose is up from 75, and those 11 words bought two things the board could not
+     * say before: how many flagged agents never read the changed table, which is the
      * whole argument for walking a lineage graph, and how many of obsel's marks
-     * DataHub confirms it tagged. Both replaced something that was already on screen
-     * elsewhere, which is why the total moved by less than the ceiling's headroom.
+     * DataHub confirms it tagged. Both replaced something already on screen
+     * elsewhere, which is why the total barely moved.
      *
      * Before this pass the same board was 604 words with 498 of them prose, in two
      * stacked panels of paragraphs. The ceilings sit above today's figures with room
@@ -827,7 +942,7 @@ test.describe("how much the board says", () => {
      * putting the ledger back would add 205 on its own. A failure here is not proof
      * of a bug, but it is always a decision worth a second look.
      */
-    const where = `page ${counts.all}: prose ${counts.prose}, graph ${counts.graph}, log ${counts.log}, announced ${counts.announced}`;
+    const where = `on screen ${counts.all}: prose ${counts.prose}, graph ${counts.graph}, log ${counts.log} of ${counts.logAll} held, announced ${counts.announced}`;
     expect(counts.prose, where).toBeLessThan(110);
     expect(counts.all, where).toBeLessThan(260);
   });

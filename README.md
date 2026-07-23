@@ -60,10 +60,14 @@ could not tell what it was.
   React Flow with a dagre layout now. The cascade edges animate continuously while the marks stand,
   where the old one drew once over 400 ms and then held still, so a screenshot of a finished cascade
   had nothing in it to say a change had travelled.
-- **obsel narrates its own work.** A strip under the graph shows the steps the coordinator took as it
-  takes them: the swarm read, each fingerprint comparison and its verdict, the lineage walk and what
-  it found, one line per mark once DataHub has confirmed the write, and a measured close. It is
-  narration, not a decision path: nothing reads it back, and it is not the record. The record is the
+- **obsel narrates its own work, grouped into the decisions it made.** A strip under the graph shows
+  the steps the coordinator took as it takes them: the swarm read, each fingerprint comparison and its
+  verdict, the lineage walk and what it found, one line per mark once DataHub has confirmed the write,
+  and a measured close. A `run` followed by a `change` is **five separate judgements**, four of which
+  found nothing to do, and the strip used to render all 25 steps as one undifferentiated stream. Each
+  pass is now headed by the completion that triggered it, so those four quiet judgements read as four
+  decisions rather than a preamble, which matters because they are what make the fifth believable. It
+  is narration, not a decision path: nothing reads it back, and it is not the record. The record is the
   marks in DataHub.
 - **The board says far less.** The flagged screen was 604 words in two stacked panels of prose, with
   nothing on it set larger than 13 px, so there was no entry point and the only way in was to read

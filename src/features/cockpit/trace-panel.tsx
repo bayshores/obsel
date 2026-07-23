@@ -15,9 +15,10 @@
  * last, so it reads top to bottom like the sequence it is.
  */
 
-import { useEffect, useRef } from "react";
+import { Fragment, useEffect, useRef } from "react";
 
 import { Panel } from "./mmux";
+import { passSummary, passesOf } from "./passes";
 import { clockTime } from "./timing";
 import { GREEN, MUTE, ROSE, STALE } from "./tone";
 import type { TraceEvent, TracePhase } from "@/src/server/coordinator/types";
@@ -34,19 +35,23 @@ import styles from "./trace-panel.module.css";
  */
 const NEAR_BOTTOM_PX = 48;
 
-/**
- * How many steps are rendered at once.
+/*
+ * There is no cap on how many steps are rendered, and there used to be.
  *
- * The buffer holds 200 and a single `run` emits around 21. At roughly six words
- * a step, rendering all of them would put more text on this board than
- * everything else combined, which is the problem this pass exists to fix. The
- * most recent eight are what a viewer can actually follow; the rest scrolled out
- * of a 220px panel anyway, so this bounds the DOM rather than hiding anything
- * that was legible.
+ * `SHOWN = 8` sliced the list to the most recent eight, which was defensible when
+ * this panel was 220px tall and indefensible once it grew. Measured on the live
+ * board at 1920 x 990: the scroller was 307px, a row was 45px, eight rows were in
+ * the DOM and **six** were fully visible, with the top one cut off entirely and a
+ * third of the second gone. Meanwhile the header read `last 8 of 25`, so it named
+ * 17 steps that were not in the DOM at all: scrolling up reached the top of the
+ * eight and stopped, and the promise had no way to be kept.
  *
- * `/api/trace` still returns the full tail, so nothing is lost from the record.
+ * Rendering everything makes the scroller mean what it looks like. The buffer is
+ * bounded at 200 by `trace-buffer.ts`, so this is bounded too, and 200 list items
+ * is nothing. The word-count guard in `e2e/cockpit.spec.ts` counts the log's
+ * VISIBLE rows for the same reason it excludes the screen-reader region: text
+ * behind a scroller is not visual density.
  */
-const SHOWN = 8;
 
 /**
  * Each phase's colour, from the same four the rest of the cockpit uses.
@@ -72,7 +77,7 @@ export function TracePanel({
   error: string | null;
   style?: React.CSSProperties;
 }) {
-  const shown = events.slice(-SHOWN);
+  const passes = passesOf(events);
   const list = useRef<HTMLOListElement>(null);
   /*
    * Whether the newest step should be scrolled into view.
@@ -115,15 +120,9 @@ export function TracePanel({
     <Panel
       title="what obsel is doing"
       label="What obsel is doing"
-      meta={
-        // Honest about the cap. "25 steps" above a list showing 8 sends the
-        // reader looking for the other 17.
-        events.length === 0
-          ? "idle"
-          : events.length > SHOWN
-            ? `last ${SHOWN} of ${events.length}`
-            : `${events.length} steps`
-      }
+      // Counts decisions, and promises nothing the scroller cannot reach. Every
+      // step it counts is in the DOM and scrolling up gets to the first of them.
+      meta={passSummary(passes)}
       padded={false}
       style={style}
       bodyStyle={{
@@ -142,31 +141,67 @@ export function TracePanel({
           following.current = el.scrollHeight - el.scrollTop - el.clientHeight <= NEAR_BOTTOM_PX;
         }}
       >
-        {events.length === 0 ? (
+        {passes.length === 0 ? (
           <li className={styles.quiet}>
             {error === null
               ? "nothing yet. Every step obsel takes appears here as it happens."
               : `could not be read (${error}). The board is unaffected.`}
           </li>
         ) : (
-          // Newest last. The steps are a sequence obsel performed in order, and
-          // reversing them to put the latest on top would read the cascade
-          // backwards: marks before the comparison that caused them.
-          shown.map((event) => (
-            <li
-              key={event.seq}
-              className={styles.row}
-              style={{ borderLeftColor: TONE[event.phase] }}
-            >
-              <span className={styles.clock}>{clockTime(event.at)}</span>
-              <span className={styles.text} style={{ color: TONE[event.phase] }}>
-                {event.message}
-              </span>
-              {/* Only when there is one. An outcome slot rendered empty would
-                  imply obsel had nothing to report from a step that did in fact
-                  report something. */}
-              {event.outcome !== null && <span className={styles.outcome}>{event.outcome}</span>}
-            </li>
+          /*
+           * Newest last, grouped by the decision each step belongs to.
+           *
+           * Order is never reversed. The steps are a sequence obsel performed, and
+           * putting the latest on top would read the cascade backwards: marks
+           * before the comparison that caused them.
+           *
+           * The grouping is what the flat list could not show. Four of the five
+           * passes a `run` plus a `change` produces are quiet ones, each a separate
+           * judgement that found nothing to do, and the four quiet judgements are
+           * half of what makes the noisy one believable. Undivided they read as one
+           * long stream in which nothing happened until the end.
+           */
+          passes.map((pass) => (
+            <Fragment key={pass.key}>
+              {/*
+                The `read` step, as the group's heading rather than as its first row.
+                Its message is already the trigger, "Orders cleaner finished", so it
+                identifies the decision without repeating anything inside it.
+
+                Sticky, so the heading of the pass a reader is scrolling through
+                stays in view. That also solves a measured defect: with the list
+                pinned to the bottom, the top edge used to cut a row in half, 63px
+                into a 45px row, so the first thing a viewer saw was a fragment of a
+                sentence. An opaque heading occupies that edge instead, and a row
+                passing under a heading reads as intended rather than as broken.
+              */}
+              {pass.header !== null && (
+                <li className={styles.heading}>
+                  <span className={styles.headingText}>{pass.header.message}</span>
+                  {pass.header.outcome !== null && (
+                    <span className={styles.headingNote}>{pass.header.outcome}</span>
+                  )}
+                </li>
+              )}
+              {pass.events.map((event) => (
+                <li
+                  key={event.seq}
+                  className={styles.row}
+                  style={{ borderLeftColor: TONE[event.phase] }}
+                >
+                  <span className={styles.clock}>{clockTime(event.at)}</span>
+                  <span className={styles.text} style={{ color: TONE[event.phase] }}>
+                    {event.message}
+                  </span>
+                  {/* Only when there is one. An outcome slot rendered empty would
+                      imply obsel had nothing to report from a step that did in fact
+                      report something. */}
+                  {event.outcome !== null && (
+                    <span className={styles.outcome}>{event.outcome}</span>
+                  )}
+                </li>
+              ))}
+            </Fragment>
           ))
         )}
       </ol>

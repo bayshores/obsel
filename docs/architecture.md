@@ -316,6 +316,7 @@ Three constraints in that module are non-negotiable, each because the alternativ
     lineage.tsx        React Flow + nodes.tsx                     |
     naming.ts          human names, pure                          |
     datahub-link.ts    links out to DataHub's UI, pure             |
+    passes.ts          groups the trace by decision, pure          |
     trace-panel.tsx    polls GET /api/trace <--- app/api/trace/ --+
                                                                   |     client.ts  GMS HTTP
                                                                   +---- mcp.ts     MCP tag writes
@@ -354,6 +355,7 @@ readable", not as "covered by end-to-end evidence" — see [Evidence](#9-evidenc
 | The guide                                 | `src/features/cockpit/guide.ts`, `guide-panel.tsx`                                                                          | shipped, 24 passing tests, driven live            |
 | Human names for tasks and tables          | `src/features/cockpit/naming.ts`, `staleness.ts` — `tableLabel`, `taskLabel`                                                | shipped, 16 passing tests                         |
 | The coordinator's live trace              | `src/server/coordinator/trace.ts`, `trace-buffer.ts`, `app/api/trace`, `trace-panel.tsx`                                    | shipped, 10 tests, seen live                      |
+| Grouping the trace into decisions         | `src/features/cockpit/passes.ts`                                                                                            | shipped, 15 unit + 2 browser tests                |
 | The lineage graph                         | `src/features/cockpit/lineage.tsx`, `nodes.tsx`, `graph/positions.ts`, `graph/cascade.ts` — React Flow and dagre            | shipped, 33 unit + 4 browser tests                |
 | Naming which columns moved                | `src/server/coordinator/staleness.ts` — `columnChange`; `obsel.stale.columns`                                               | shipped, 9 tests, verified live                   |
 | Reading the stale tag back onto the board | `src/server/datahub/tags.ts`, `timing.ts` — `totals`; the ribbon's write-back cell                                          | shipped, 14 unit + 6 browser tests                |
@@ -871,3 +873,52 @@ Each step is emitted **after** the thing it describes has happened — a mark's 
 `updateTaskProperties` and the tag write have been confirmed by bounded polling, not when the write
 was issued. So the panel is always describing completed work, and can never show an intent that
 subsequently failed.
+
+### Grouped by decision, because that is what the steps are
+
+The steps are a flat list and the work is not. Measured on a live board after one `run` and one
+`change`, the 25 steps held were five separate pieces of coordination:
+
+```
+write write | read compare done | read compare done | read compare done
+            | read compare done | read compare walk mark mark mark done
+```
+
+One judgement per agent completion, four of which found nothing to do, and the board rendered all 25
+as undifferentiated lines. That flattened the thing the demo's second half exists to establish: four
+_separate_ judgements that stayed quiet are what make the fifth believable, and undivided they read as
+one long preamble in which nothing happened.
+
+`src/features/cockpit/passes.ts` groups them, purely and with its own tests. `read` is the boundary,
+which is not a convention it imposes: `coordinateCompletion` cannot decide anything before
+`readSnapshot`, so every pass begins with one. The `read` step's own message is already the trigger,
+"Orders cleaner finished", so it becomes the group's **heading** rather than its first row. A heading
+carrying the pass's _conclusion_ instead would print "marked 3 out of date" directly above the step
+that says exactly that.
+
+Headings are `sticky`, so the heading of the pass a reader is scrolling through stays in view instead
+of leaving its steps belonging to nothing. Measured: scrolled 60px into the tallest group, a heading
+holds 3px from the top edge.
+
+A leading run of steps with no `read` gets no heading. The buffer is a bounded tail, so its oldest
+steps can be the middle of a pass whose `read` has already been dropped; those steps are shown, and
+what they do not get is a heading presenting a fragment as a whole decision.
+
+### The panel used to promise steps it did not hold
+
+It rendered only the most recent eight, which was defensible at 220px tall and stopped being so once
+the panel grew. Measured at 1920 x 990 before the fix: the scroller was 307px, a row 45px, eight rows
+were in the DOM and **six** were fully visible, with the first cut off entirely and a third of the
+second gone. The header meanwhile read `last 8 of 25`, naming 17 steps that were not in the DOM at
+all, so scrolling up reached the top of the eight and stopped.
+
+It renders the whole trace now. That is still bounded, by `trace-buffer.ts` at 200 steps. The header
+reads `5 decisions, 25 steps` and every step it counts is rendered, so the count is one a reader can
+act on. After the change, 11 rows are fully visible and the top edge shows a 2px sliver of the
+previous group rather than most of a sentence.
+
+One consequence for the board's word-count guard, which is worth naming because getting it wrong
+would invert the guard's purpose: `e2e/cockpit.spec.ts` counts the log's **visible** steps, not its
+DOM text. Counting all of it would make the ceiling track how much obsel narrated rather than how
+dense the board is, and the way to pass a failure would be to narrate less. A separate assertion
+holds the line directly: tripling the trace must not increase what is on screen.
