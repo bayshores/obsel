@@ -111,12 +111,29 @@ export function Cockpit() {
 
       <div className={styles.workbench}>
         <Panel
-          title="how the work connects"
-          // The subtitle said "each box is an agent; each panel beside it is a
-          // table it reads or writes". The boxes now carry legible names at 13px
-          // instead of hand-positioned 11px SVG text, and the arrows say which
-          // way the data moves, so the picture no longer needs a caption
-          // explaining how to read it.
+          /*
+           * The question obsel exists to answer, standing where a caption used to.
+           *
+           * The board never said what obsel is for. That was the complaint behind
+           * ten rounds of feedback, and every previous attempt answered it with a
+           * tagline in the header or a paragraph above the graph, which is how the
+           * screen reached 604 words. This is the version that costs almost nothing:
+           * the slot was already spent on "how the work connects", a caption telling
+           * a reader how to read a picture they can already read, since the boxes
+           * carry legible names and the arrows say which way the data moves.
+           *
+           * Deliberately obsel's whole scope, and its limits. It does not ask whether
+           * the work is good, whether the pipeline is healthy, or whether anything
+           * should be re-run. One question, and the two "still"s are both load
+           * bearing: the work is finished, and the thing it was built on may have
+           * moved since.
+           *
+           * A question rather than a statement, because the amber on the graph below
+           * is the answer to it. A statement would need the reader to connect two
+           * facts; a question makes the picture the second half of the sentence.
+           */
+          title="is this finished work still built on something that is still true?"
+          label="How the work connects"
           padded={false}
           /*
            * A fixed height, and NOT the region that absorbs the column's slack.

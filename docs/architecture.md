@@ -823,6 +823,21 @@ callers can read; what is bounded is how much of the board a 21-step run is allo
 
 Both sit in the strip under the lineage graph, and neither carries a demo beat.
 
+Before them, one thing about the graph panel itself. Its heading is **the question obsel answers**,
+"is this finished work still built on something that is still true?", and that is the only place on the
+board that states obsel's purpose. It reached that slot by replacing "how the work connects", a caption
+explaining how to read a picture whose boxes carry names and whose arrows show direction, so the
+statement cost an already-spent line rather than new prose. Two earlier attempts at the same job were
+prose, a header tagline and then paragraphs above the graph, and both were removed as part of cutting
+the board from 604 words; `guide.ts` was left holding a `WHAT_OBSEL_IS` constant that nothing read,
+which is now deleted.
+
+A question rather than a claim, because the graph beneath it is the answer: the amber path is what
+"no longer true" looks like. It also fixes obsel's scope by what it does not ask. Not whether the work
+is good, not whether the pipeline is healthy, not whether anything should be re-run.
+`e2e/cockpit.spec.ts` asserts it is present in the flagged, settled and empty states, because a purpose
+that appears only once something has gone wrong is not a statement of purpose.
+
 **The inspector** shows one task's uncompressed values: full URNs, complete 64-character
 fingerprints, and every field of its stale mark. It computes nothing. In particular it never derives
 an age or a freshness — the cockpit knows when it _read_ a value, not when that value became true,

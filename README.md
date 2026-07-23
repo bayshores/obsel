@@ -69,6 +69,14 @@ could not tell what it was.
   decisions rather than a preamble, which matters because they are what make the fifth believable. It
   is narration, not a decision path: nothing reads it back, and it is not the record. The record is the
   marks in DataHub.
+- **The board says what obsel is for.** It never did, which was the complaint underneath ten rounds
+  of feedback. Both previous attempts were prose, a tagline in the header and then paragraphs above
+  the graph, and both got deleted for the reason they should have been: they are how the screen reached
+  604 words. The graph's heading is the question obsel answers instead, in the slot that used to hold
+  "how the work connects", a caption explaining how to read a picture whose boxes are already named
+  and whose arrows already show direction. It is a question rather than a claim because the graph
+  underneath is the answer, and it states obsel's limits as much as its scope: not whether the work is
+  good, not whether the pipeline is healthy, just whether it is still built on something still true.
 - **The board says far less.** The flagged screen was 604 words in two stacked panels of prose, with
   nothing on it set larger than 13 px, so there was no entry point and the only way in was to read
   all of it. It is 238 words now, one headline leads, and the graph carries the mechanism. Nothing

@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
 
-import { codexSignedOut, idle, runningStep } from "./fixtures/activity";
+import { codexSignedOut, finishedStep, idle, runningStep } from "./fixtures/activity";
 import { calm, cascaded, empty, leftOverTag, midWrite, withoutTagInfo } from "./fixtures/swarm";
 import { openCockpit } from "./fixtures/mount";
 import { cascadeSteps, manyDecisions } from "./fixtures/trace";
@@ -864,8 +864,37 @@ test.describe("how much the board says", () => {
     }
   });
 
+  test("the board states what obsel is for, in every state", async ({ page }) => {
+    /*
+     * The complaint behind ten rounds of feedback was that a stranger could not tell
+     * what this board was, and the board genuinely never said. Previous attempts
+     * answered it with a header tagline and then with paragraphs above the graph,
+     * which is how the screen reached 604 words; both were removed and nothing
+     * replaced them. `guide.ts` even kept a `WHAT_OBSEL_IS` constant that no code read.
+     *
+     * It is the graph's heading now, so it costs one already-spent slot and is present
+     * whatever the swarm is doing. Asserted across every state, because a purpose that
+     * only appears once something has gone wrong is not a statement of purpose.
+     */
+    for (const [name, swarm] of [
+      ["flagged", cascaded()],
+      ["settled", calm()],
+      ["empty", empty()],
+    ] as const) {
+      await openCockpit(page, swarm, idle(), cascadeSteps());
+      await expect(
+        page.getByRole("heading", { name: /is this finished work still built on/ }),
+        `${name} should still say what obsel is for`,
+      ).toBeVisible();
+    }
+  });
+
   test("the flagged board stays under its word ceiling", async ({ page }) => {
-    await openCockpit(page, cascaded(), idle(), cascadeSteps());
+    // The heaviest honest state, not the lightest: a finished step behind it and a
+    // full session in the trace. Calibrating against `idle()` and a five-step trace
+    // put the ceiling 18 words of prose below the live board, so it guarded a screen
+    // nobody sees.
+    await openCockpit(page, cascaded(), finishedStep(), manyDecisions());
     await page.waitForSelector(".react-flow__edge", { state: "attached" });
 
     /*
@@ -925,22 +954,27 @@ test.describe("how much the board says", () => {
     });
 
     /*
-     * Measured on this commit, at the recording viewport: 185 words on screen, of
-     * which 63 is the step log (72 held, so 9 are scrolled out), 36 is graph labels
-     * and 13 is the live region, leaving 86 words of prose. The laptop viewport comes
-     * out at 178, showing seven fewer words of log in a shorter panel.
+     * Measured on this commit at the recording viewport: 245 words on screen, of which
+     * 105 is the step log (176 held, so 71 are scrolled out), 36 is graph labels and
+     * 13 is the live region, leaving **104 words of prose**. The laptop comes out at
+     * 224, showing 21 fewer words of log in a shorter panel. The live board at the
+     * recording size measures 258 with prose of 104, so the fixture now tracks it
+     * rather than flattering it.
      *
-     * Prose is up from 75, and those 11 words bought two things the board could not
-     * say before: how many flagged agents never read the changed table, which is the
-     * whole argument for walking a lineage graph, and how many of obsel's marks
-     * DataHub confirms it tagged. Both replaced something already on screen
-     * elsewhere, which is why the total barely moved.
+     * Prose is up from 86, and the additions each replaced something already on
+     * screen: how many flagged agents never read the changed table (the argument for
+     * walking a lineage graph at all), how many marks DataHub confirms it tagged, and
+     * the graph's heading becoming the question obsel answers instead of a caption
+     * telling a reader how to read a picture.
      *
-     * Before this pass the same board was 604 words with 498 of them prose, in two
-     * stacked panels of paragraphs. The ceilings sit above today's figures with room
-     * for a longer column name or another agent, and far below what they replaced:
-     * putting the ledger back would add 205 on its own. A failure here is not proof
-     * of a bug, but it is always a decision worth a second look.
+     * **The headroom is deliberately thin now.** It used to look generous because the
+     * fixture was lighter than any board a judge sees: `idle()` reports nothing having
+     * ever run, so the guide's result line was missing, and a five-step trace is a
+     * fifth of a real session. A guard with 6 words of slack that measures the real
+     * screen beats a roomy one measuring a thinner screen. Before all this the same
+     * board was 604 words with 498 of them prose, in two stacked panels of paragraphs;
+     * putting the ledger back would add 205 on its own. A failure here is not proof of
+     * a bug, but it is always a decision worth a second look.
      */
     const where = `on screen ${counts.all}: prose ${counts.prose}, graph ${counts.graph}, log ${counts.log} of ${counts.logAll} held, announced ${counts.announced}`;
     expect(counts.prose, where).toBeLessThan(110);

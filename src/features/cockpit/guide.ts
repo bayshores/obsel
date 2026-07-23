@@ -88,9 +88,16 @@ export interface GuideInput {
   activity: DemoActivity | null;
 }
 
-/** The one-sentence product definition, reused wherever the story is told. */
-export const WHAT_OBSEL_IS =
-  "When agents build on each other's data, an upstream change quietly invalidates finished work downstream. obsel watches for exactly that.";
+/*
+ * `WHAT_OBSEL_IS` used to sit here: a 24-word product definition described as
+ * "reused wherever the story is told", and referenced from nowhere at all. It was
+ * left behind when the tagline came off the header, so the board went from stating
+ * its purpose badly to not stating it while still carrying the sentence.
+ *
+ * What replaced it is on screen. The graph panel's heading in `cockpit.tsx` is the
+ * question obsel answers, and the graph beneath it is the answer, which is a job 24
+ * words of prose above a picture could never do as well as the picture.
+ */
 
 export function guide(input: GuideInput): GuideView {
   const attention = lastStepProblem(input.activity);
