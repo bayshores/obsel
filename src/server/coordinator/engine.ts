@@ -22,11 +22,13 @@ import { taskUrn } from "@/src/server/datahub/urns";
 import {
   affectedBy,
   blocked,
+  columnChange,
   compareFingerprints,
   readyToStart,
   tableLabel,
   taskLabel,
 } from "./staleness";
+import type { DatasetChange } from "./staleness";
 import { clear as clearTrace, emit } from "./trace";
 import type {
   AffectedTask,
@@ -46,11 +48,7 @@ export async function registerTask(
   title?: string,
 ): Promise<TaskRecord> {
   const task = await writeTask(name, reads, writes, description, title);
-  emit(
-    "write",
-    `Registered ${label(task)} in DataHub as a job, wired to what it reads and writes.`,
-    `${task.reads.length} in, ${task.writes.length} out`,
-  );
+  emit("write", `registered ${label(task)}`, `${task.reads.length} in, ${task.writes.length} out`);
   return task;
 }
 
@@ -80,9 +78,25 @@ function hops(count: number): string {
  * the agent would overstate every elapsed figure on screen by the confirmation
  * time.
  *
- * The previous run's detail is cleared in the same write. It described a run
- * that is over, and leaving it would caption work happening now with the row
- * count and duration of the last one.
+ * The previous run's detail is deliberately left in place too, for the same
+ * reason as the fingerprints, and this reverses an earlier decision.
+ *
+ * It used to be cleared here, on the argument that it described a run that was
+ * over and would caption work happening now with the last run's row count and
+ * duration. The argument was sound and the mechanism was the wrong one: nothing
+ * displays it during a run anyway, because `activityNote` in `progress.ts`
+ * returns an in-flight elapsed for a `running` task before it ever looks at
+ * `run`, and that is the only reader of the field.
+ *
+ * What clearing it did break was the column diff. `coordinateCompletion` names
+ * which columns moved by comparing the previous run's shapes against the
+ * incoming report's, and the previous shapes are exactly what this write was
+ * deleting a minute earlier. So every mark came back with `columns: null` and the
+ * board fell back to "the columns changed" instead of naming them, which is the
+ * one sentence that explains obsel at a glance.
+ *
+ * `run.outputs` is a baseline for describing a change, in the same way
+ * `fingerprints` is a baseline for detecting one. Both have to outlive the run.
  */
 export async function startTask(urn: string): Promise<TaskRecord> {
   const task = await readTask(urn);
@@ -92,14 +106,8 @@ export async function startTask(urn: string): Promise<TaskRecord> {
   const started = await updateTaskProperties(urn, {
     [PROP.status]: "running",
     [PROP.startedAt]: new Date().toISOString(),
-    [PROP.runRunner]: null,
-    [PROP.runMs]: null,
-    [PROP.runOutputs]: null,
   });
-  emit(
-    "write",
-    `${label(started)} says it has started. Marked it running in DataHub — work in flight is never judged.`,
-  );
+  emit("write", `started ${label(started)}`, "running, never judged in flight");
   return started;
 }
 
@@ -130,12 +138,18 @@ export async function startTask(urn: string): Promise<TaskRecord> {
  * successful run is compared against, and dropping them would make that run look
  * like a first run and mark nothing.
  *
- * The display detail of the *earlier* successful run does not come back — it was
- * cleared when this run announced, so that live work could not be captioned with
- * the previous run's row count and duration. A restored task therefore shows its
- * status and its fingerprints but no activity line until it runs again. That is
- * the honest trade: obsel holds no current detail for it, and shows none, rather
- * than showing a number that describes a different run.
+ * The earlier successful run's detail is kept, alongside its fingerprints, and
+ * this changed with `startTask`. It used to be cleared here because `startTask`
+ * had already cleared it and there was nothing to preserve. Now that the detail
+ * survives a run, clearing it on a failed run would destroy a true record of the
+ * last completion that did happen: the row count and columns that produced the
+ * fingerprints being kept two lines above. It would also silently disarm the
+ * column diff for the next real change, since that diff is computed against
+ * exactly these shapes.
+ *
+ * Nothing mis-captions as a result. The only reader, `activityNote`, returns an
+ * in-flight elapsed for a running task without consulting `run` at all, and a
+ * task restored by this function is no longer running.
  *
  * A task that is not running is left alone and reported as untouched. The agent
  * calls this from a failure path, where the run may have died before it ever
@@ -156,9 +170,6 @@ export async function abandonTask(urn: string): Promise<{ task: TaskRecord; reve
     // fingerprints, and blanking it would leave a finished task claiming it
     // never started.
     [PROP.startedAt]: restored === "registered" ? null : task.startedAt,
-    [PROP.runRunner]: null,
-    [PROP.runMs]: null,
-    [PROP.runOutputs]: null,
   });
   return { task: reverted, reverted: true };
 }
@@ -207,26 +218,41 @@ export async function coordinateCompletion(report: CompletionReport): Promise<Co
     throw new Error(`completion reported for ${report.taskUrn}, which is not in the swarm`);
   }
 
-  emit(
-    "read",
-    `${label(finishing)} reported that it finished. Read the whole swarm out of DataHub.`,
-    `${snapshot.tasks.length} tasks`,
-  );
+  emit("read", `${label(finishing)} finished`, `read ${snapshot.tasks.length} tasks from DataHub`);
 
-  const changedOutputs: { dataset: string; kind: ChangeKind }[] = [];
+  const changedOutputs: DatasetChange[] = [];
   for (const dataset of Object.keys(report.fingerprints).sort()) {
     const previous = finishing.fingerprints[dataset];
     const kind = compareFingerprints(previous, report.fingerprints[dataset]);
-    if (kind) changedOutputs.push({ dataset, kind });
+    if (kind) {
+      /*
+       * Named here because this is the only moment both column lists exist.
+       *
+       * `finishing` came from the snapshot read at the top of this function, so
+       * it still holds the PREVIOUS run's shapes; `report` carries the new ones;
+       * and `recordCompletion` below overwrites the former with the latter. A
+       * later pass could not reconstruct this, which is why the description is
+       * computed now and carried on the mark rather than derived at render time.
+       *
+       * It describes the change. It does not decide it: `kind` above is already
+       * settled, from the sha256 pair alone.
+       */
+      changedOutputs.push({
+        dataset,
+        kind,
+        columns: columnChange(
+          finishing.run?.outputs[dataset]?.columns,
+          report.run?.outputs[dataset]?.columns,
+        ),
+      });
+    }
     // The comparison is the whole decision, so it is narrated whichever way it
-    // goes — a step that only spoke up when something changed would leave the
+    // goes. A step that only spoke up when something changed would leave the
     // quiet case, which is the one obsel's credibility rests on, invisible.
     emit(
       "compare",
-      previous === undefined
-        ? `Looked for a previous fingerprint of ${tableLabel(dataset)} to compare against.`
-        : `Compared the new ${tableLabel(dataset)} against the fingerprint recorded last time.`,
-      previous === undefined ? "none held — first version, nothing to compare" : verdict(kind),
+      `compared ${tableLabel(dataset)}`,
+      previous === undefined ? "first version, nothing to compare" : verdict(kind),
     );
   }
 
@@ -242,7 +268,7 @@ export async function coordinateCompletion(report: CompletionReport): Promise<Co
   if (changedOutputs.length > 0) {
     emit(
       "walk",
-      `Walked DataHub's lineage graph outwards from ${changedOutputs.map((c) => tableLabel(c.dataset)).join(", ")} to find finished work built on it.`,
+      `walked lineage from ${changedOutputs.map((c) => tableLabel(c.dataset)).join(", ")}`,
       affected.length === 0
         ? "nothing finished downstream"
         : affected
@@ -260,9 +286,7 @@ export async function coordinateCompletion(report: CompletionReport): Promise<Co
 
   emit(
     "done",
-    affected.length === 0
-      ? "Nothing was marked."
-      : `Marked ${affected.length} ${affected.length === 1 ? "task" : "tasks"} out of date, in DataHub and on the board.`,
+    affected.length === 0 ? "nothing marked" : `marked ${affected.length} out of date`,
     `${elapsedMs} ms end to end`,
   );
 
@@ -316,6 +340,7 @@ async function recordCompletion(finishing: TaskRecord, report: CompletionReport)
     [PROP.staleCausedByTask]: null,
     [PROP.staleHops]: null,
     [PROP.staleChangeKind]: null,
+    [PROP.staleColumns]: null,
     [PROP.staleReason]: null,
     [PROP.staleSince]: null,
     [PROP.staleDetectedMs]: null,
@@ -341,10 +366,10 @@ async function recordCompletion(finishing: TaskRecord, report: CompletionReport)
  */
 /** How a comparison came out, in words rather than in the enum's spelling. */
 function verdict(kind: ChangeKind | null): string {
-  if (kind === null) return "identical — nothing to do";
-  if (kind === "schema") return "its columns changed; the values did not";
-  if (kind === "content") return "its values changed; the columns did not";
-  return "both its columns and its values changed";
+  if (kind === null) return "identical, nothing to do";
+  if (kind === "schema") return "columns changed, values did not";
+  if (kind === "content") return "values changed, columns did not";
+  return "columns and values both changed";
 }
 
 async function markStale(entry: AffectedTask): Promise<void> {
@@ -354,6 +379,10 @@ async function markStale(entry: AffectedTask): Promise<void> {
     [PROP.status]: "stale",
     [PROP.staleCausedBy]: mark.causedBy,
     [PROP.staleCausedByTask]: mark.causedByTask ?? "",
+    // Written when there is a diff to write, cleared when there is not, so a
+    // content-only change can never inherit the column names from a schema
+    // change that marked the same task earlier.
+    [PROP.staleColumns]: mark.columns ? JSON.stringify(mark.columns) : null,
     [PROP.staleHops]: String(mark.hops),
     [PROP.staleChangeKind]: mark.changeKind,
     [PROP.staleReason]: mark.reason,
@@ -374,11 +403,15 @@ async function markStale(entry: AffectedTask): Promise<void> {
   // After the tag, not before: by here both halves of the mark have landed and
   // been confirmed, so the step is reporting something that is true in DataHub
   // rather than something that has been requested.
-  emit(
-    "mark",
-    `${label(task)} is built on it, ${hops(mark.hops)} away. Wrote its reason and the stale tag into DataHub.`,
-    mark.reason,
-  );
+  /*
+   * The outcome is the distance, not the reason sentence.
+   *
+   * The reason is a dozen words, and it is already carried on the mark, written
+   * into DataHub, and shown verbatim when the task is opened. Repeating it here
+   * would put the trace's longest line beside the one place it adds nothing, in
+   * the panel whose whole purpose is being scannable.
+   */
+  emit("mark", `marked ${label(task)} out of date`, `${hops(mark.hops)} from the change`);
 }
 
 /**
@@ -416,8 +449,15 @@ export async function resetSwarm(): Promise<{ reset: string[]; tagsCleared: stri
         [PROP.staleCausedByTask]: null,
         [PROP.staleHops]: null,
         [PROP.staleChangeKind]: null,
+        [PROP.staleColumns]: null,
         [PROP.staleReason]: null,
         [PROP.staleSince]: null,
+        // `staleDetectedMs` was missing from this list. Harmless, because
+        // `parseStale` returns null once `causedBy` and `since` are gone and so
+        // never reads it, but it left one obsel property behind on a board the
+        // reset reports as wiped. A reset that half-clears is a worse thing to
+        // debug than one that does not exist.
+        [PROP.staleDetectedMs]: null,
       }),
     ),
   );
@@ -428,7 +468,7 @@ export async function resetSwarm(): Promise<{ reset: string[]; tagsCleared: stri
   clearTrace();
   emit(
     "write",
-    "Reset. Put every task back to registered and took obsel's marks and tags off in DataHub.",
+    "reset every task to waiting",
     `${snapshot.tasks.length} tasks, ${tagged.length} ${tagged.length === 1 ? "tag" : "tags"} removed`,
   );
 

@@ -1,12 +1,16 @@
+import { readFile } from "node:fs/promises";
+
 import { describe, expect, it } from "vitest";
 
+import { cascadeEdges } from "@/src/features/cockpit/graph/cascade";
 import {
-  DATA_BOX,
-  TASK_BOX,
-  cascadeEdges,
-  layoutGraph,
-  reserveFor,
-} from "@/src/features/cockpit/graph/layout";
+  DATA_SIZE,
+  DATA_SIZE_WITH_DIFF,
+  TASK_SIZE,
+  dataNodeId,
+  layoutPositions,
+  taskNodeId,
+} from "@/src/features/cockpit/graph/positions";
 import { shortName } from "@/src/features/cockpit/naming";
 import { LONGEST_STATUS_WORD, STATUS_WORD, nodeTone } from "@/src/features/cockpit/tone";
 import { shortName as serverShortName } from "@/src/server/coordinator/staleness";
@@ -83,25 +87,33 @@ function pipeline(): TaskRecord[] {
   ];
 }
 
-function reserve(tasks: TaskRecord[]): string {
-  return reserveFor(tasks, LONGEST_STATUS_WORD);
-}
-
-function geometry(tasks: TaskRecord[]): string {
-  const g = layoutGraph(tasks, reserve(tasks));
-  return JSON.stringify({ boxes: g.boxes, width: g.width, height: g.height });
-}
-
 /**
- * Measured advances for Geist Mono, repeated here on purpose.
+ * Every node's position and size, as one comparable string.
  *
- * If someone edits the table in layout.ts, these assertions must be re-measured
- * in a browser rather than silently following along — which is exactly what
- * importing the constant would let happen.
+ * Used to assert that geometry is a pure function of topology. dagre decides the
+ * numbers now, so what is checked is the property rather than any specific value.
  */
-const ADV = { 10: 6.28, 11: 6.885, 13: 8.06 } as const;
+function geometry(tasks: TaskRecord[]): string {
+  const placed = layoutPositions(tasks);
+  return JSON.stringify([...placed.nodes].sort((a, b) => a.id.localeCompare(b.id)));
+}
 
-describe("layoutGraph — geometry is a function of topology, never of status", () => {
+/** A node by id, or a failed assertion naming what was missing. */
+function nodeAt(tasks: TaskRecord[], id: string) {
+  const found = layoutPositions(tasks).nodes.find((n) => n.id === id);
+  expect(found, id).toBeDefined();
+  return found!;
+}
+
+describe("layoutPositions — geometry is a function of topology, never of status", () => {
+  /*
+   * The load-bearing invariant, kept from the hand-written layout it replaced.
+   *
+   * dagre is never told a status, so nothing can move when three tasks flip
+   * amber. That is what makes the cascade followable: colour and motion arrive on
+   * a stationary graph. If position depended on status, the entire picture would
+   * rearrange at the one moment somebody is trying to read it.
+   */
   it("produces byte-identical geometry across every status a task can hold", () => {
     const statuses: TaskStatus[] = ["registered", "running", "complete", "stale"];
     const baseline = geometry(pipeline());
@@ -113,7 +125,7 @@ describe("layoutGraph — geometry is a function of topology, never of status", 
     }
   });
 
-  it("does not move when the cascade lands — the moment nothing may move", () => {
+  it("does not move when the cascade lands, the moment nothing may move", () => {
     const calm = pipeline();
 
     const cascaded = pipeline();
@@ -139,65 +151,59 @@ describe("layoutGraph — geometry is a function of topology, never of status", 
     expect(geometry(during)).toBe(geometry(before));
   });
 
-  it("reserves width from the graph's shape, not from the current labels", () => {
-    // A cascade cannot reach further than there are tasks to reach.
-    expect(reserve(pipeline())).toBe("out of date  · 4 hops");
-    expect(reserve(pipeline().slice(0, 2))).toBe("out of date  · 2 hops");
+  it("is deterministic, so two identical reads cannot draw two pictures", () => {
+    // The cockpit re-lays out on every poll. A layout that varied between runs
+    // would jitter the board once a second.
+    expect(geometry(pipeline())).toBe(geometry(pipeline()));
   });
 });
 
-describe("layoutGraph — no text can overflow its box", () => {
-  it("fits every task's name, longest status line and clock", () => {
+describe("layoutPositions — the sizes dagre reserves match the sizes CSS draws", () => {
+  /*
+   * dagre reserves space from these numbers, and `nodes.module.css` draws the
+   * boxes from its own copy of them. If the two drift, a box overlaps a
+   * neighbour dagre believed it had cleared. Asserted rather than left to a
+   * comment, because a comment has never once stopped this from happening.
+   */
+  it("gives every node the declared footprint", () => {
     const tasks = pipeline();
-    const g = layoutGraph(tasks, reserve(tasks));
-    const inner = (w: number): number => w - TASK_BOX.padX * 2;
-
-    for (const t of tasks) {
-      const box = g.boxes[`t:${t.urn}`];
-      expect(box, t.name).toBeDefined();
-
-      expect(t.name.length * ADV[13], `${t.name} name`).toBeLessThanOrEqual(inner(box.w));
-
-      for (const status of Object.keys(STATUS_WORD) as TaskStatus[]) {
-        const line = `${STATUS_WORD[status]}  · 2 hops`;
-        expect(line.length * ADV[11], `${t.name} "${line}"`).toBeLessThanOrEqual(inner(box.w));
-      }
-
-      // the clock line is labelled: "finished 17:23:52" / "not finished yet"
-      for (const line of ["finished 00:00:00", "not finished yet"]) {
-        expect(line.length * ADV[11], `${t.name} "${line}"`).toBeLessThanOrEqual(inner(box.w));
-      }
+    for (const node of layoutPositions(tasks).nodes) {
+      const expected = node.kind === "task" ? TASK_SIZE : DATA_SIZE;
+      expect({ width: node.width, height: node.height }, node.id).toEqual({
+        width: expected.width,
+        height: expected.height,
+      });
     }
   });
 
-  it("fits every dataset's name and both fingerprint lines", () => {
+  it("reserves the taller footprint for a dataset that will show a column diff", () => {
     const tasks = pipeline();
-    const g = layoutGraph(tasks, reserve(tasks));
-    const inner = (w: number): number => w - DATA_BOX.padX * 2;
-
-    for (const key of Object.keys(g.boxes).filter((k) => k.startsWith("d:"))) {
-      const box = g.boxes[key];
-      const name = shortName(key.slice(2));
-      expect(name.length * ADV[11], `${name} name`).toBeLessThanOrEqual(inner(box.w));
-      // "s " plus eight hex characters, the widest print line drawn
-      expect("s 0123abcd".length * ADV[10], `${name} print`).toBeLessThanOrEqual(inner(box.w));
-      expect("external".length * ADV[10], `${name} source marker`).toBeLessThanOrEqual(
-        inner(box.w),
-      );
-    }
+    const origin = ds("clean_orders");
+    const node = layoutPositions(tasks, new Set([origin])).nodes.find(
+      (n) => n.id === dataNodeId(origin),
+    );
+    expect(node?.height).toBe(DATA_SIZE_WITH_DIFF.height);
+    expect(node?.width).toBe(DATA_SIZE_WITH_DIFF.width);
   });
 
-  it("widens a box for a long task name rather than clipping it", () => {
-    const long = "recompute_quarterly_revenue_attribution";
-    const tasks = [task(long, ["raw_orders"], ["out"])];
-    const g = layoutGraph(tasks, reserve(tasks));
-    const box = g.boxes[`t:${tasks[0].urn}`];
-    expect(long.length * ADV[13]).toBeLessThanOrEqual(box.w - TASK_BOX.padX * 2);
+  it("matches the pixel values in nodes.module.css", async () => {
+    const css = await readFile(
+      new URL("../src/features/cockpit/nodes.module.css", import.meta.url),
+      "utf8",
+    );
+    // .task is the only rule with a fixed width AND height; the data rules use
+    // min-height so a diff can grow them.
+    expect(css).toContain(`width: ${TASK_SIZE.width}px`);
+    expect(css).toContain(`height: ${TASK_SIZE.height}px`);
+    expect(css).toContain(`width: ${DATA_SIZE.width}px`);
+    expect(css).toContain(`min-height: ${DATA_SIZE.height}px`);
+    expect(css).toContain(`width: ${DATA_SIZE_WITH_DIFF.width}px`);
+    expect(css).toContain(`min-height: ${DATA_SIZE_WITH_DIFF.height}px`);
   });
 });
 
-describe("layoutGraph — nothing is hardcoded", () => {
-  it("draws a swarm it has never seen, of a different size and shape", () => {
+describe("layoutPositions — nothing is hardcoded", () => {
+  it("lays out a swarm it has never seen, of a different size and shape", () => {
     const tasks = [
       task("ingest", ["landing"], ["bronze"]),
       task("dedupe", ["bronze"], ["silver"]),
@@ -206,20 +212,21 @@ describe("layoutGraph — nothing is hardcoded", () => {
       task("publish_bi", ["gold"], ["bi_extract"]),
       task("alerting", ["gold"], ["alerts"]),
     ];
-    const g = layoutGraph(tasks, reserve(tasks));
+    const placed = layoutPositions(tasks);
 
     // six tasks, six written datasets, one source
-    expect(Object.keys(g.boxes)).toHaveLength(13);
-    for (const t of tasks) expect(g.boxes[`t:${t.urn}`]).toBeDefined();
-    expect(g.boxes[`d:${ds("landing")}`]).toBeDefined();
-    expect(g.width).toBeGreaterThan(0);
-    expect(g.height).toBeGreaterThan(0);
+    expect(placed.nodes).toHaveLength(13);
+    for (const t of tasks) expect(nodeAt(tasks, taskNodeId(t.urn))).toBeDefined();
+    expect(placed.width).toBeGreaterThan(0);
+    expect(placed.height).toBeGreaterThan(0);
   });
 
   it("places each task strictly to the right of the task feeding it", () => {
+    // Confirms the adapter wired `reads` and `writes` the right way round. A
+    // reversed edge would still lay out, just backwards, and the arrows would
+    // then claim the report feeds the cleaner.
     const tasks = pipeline();
-    const g = layoutGraph(tasks, reserve(tasks));
-    const x = (name: string): number => g.boxes[`t:${taskUrn(name)}`].x;
+    const x = (name: string): number => nodeAt(tasks, taskNodeId(taskUrn(name))).x;
 
     expect(x("clean_orders")).toBeLessThan(x("build_revenue"));
     expect(x("build_revenue")).toBeLessThan(x("write_report"));
@@ -230,69 +237,86 @@ describe("layoutGraph — nothing is hardcoded", () => {
 
   it("gives a source dataset its own column ahead of its reader", () => {
     const tasks = pipeline();
-    const g = layoutGraph(tasks, reserve(tasks));
-    expect(g.boxes[`d:${ds("raw_orders")}`].x).toBeLessThan(
-      g.boxes[`t:${taskUrn("clean_orders")}`].x,
+    expect(nodeAt(tasks, dataNodeId(ds("raw_orders"))).x).toBeLessThan(
+      nodeAt(tasks, taskNodeId(taskUrn("clean_orders"))).x,
     );
   });
 
   it("produces one read edge and one write edge per task", () => {
+    const placed = layoutPositions(pipeline());
+    expect(placed.edges.filter((e) => e.kind === "read")).toHaveLength(4);
+    expect(placed.edges.filter((e) => e.kind === "write")).toHaveLength(4);
+  });
+
+  it("keeps edge ids in the spelling cascadeEdges uses", () => {
+    // cascadeEdges keys its result on `${from}->${to}` built from raw URNs, and
+    // the renderer looks each edge up by that key to decide whether to light it.
+    // If the two spellings drift, every edge silently renders unlit and the
+    // cascade disappears from the board without any error.
     const tasks = pipeline();
-    const g = layoutGraph(tasks, reserve(tasks));
-    expect(g.edges.filter((e) => e.kind === "read")).toHaveLength(4);
-    expect(g.edges.filter((e) => e.kind === "write")).toHaveLength(4);
+    const ids = layoutPositions(tasks).edges.map((e) => e.id);
+    expect(ids).toContain(`${ds("clean_orders")}->${taskUrn("build_revenue")}`);
+    expect(ids).toContain(`${taskUrn("build_revenue")}->${ds("daily_revenue")}`);
+
+    const cascaded = pipeline();
+    markStale(cascaded[1], 1, ds("clean_orders"), cascaded[0].urn);
+    const lit = cascadeEdges(cascaded, ds("clean_orders"), cascaded[0].urn);
+    for (const key of Object.keys(lit)) expect(ids).toContain(key);
   });
 
   it("draws every output a task writes, not just the first", () => {
-    // POST /api/tasks/register accepts writes: string[]. A task with two
-    // outputs used to lose the second one entirely — no box, no edge, no error.
     const tasks = [
       task("clean_orders", ["raw_orders"], ["clean_orders", "orders_audit"]),
       task("build_revenue", ["clean_orders"], ["daily_revenue"]),
       task("audit_check", ["orders_audit"], ["audit_report"]),
     ];
-    const g = layoutGraph(tasks, reserve(tasks));
+    const placed = layoutPositions(tasks);
+    const ids = placed.nodes.map((n) => n.id);
 
-    expect(g.boxes[`d:${ds("clean_orders")}`], "first output").toBeDefined();
-    expect(g.boxes[`d:${ds("orders_audit")}`], "second output").toBeDefined();
-    expect(g.boxes[`d:${ds("audit_report")}`], "downstream of the second").toBeDefined();
+    expect(ids, "first output").toContain(dataNodeId(ds("clean_orders")));
+    expect(ids, "second output").toContain(dataNodeId(ds("orders_audit")));
+    expect(ids, "downstream of the second").toContain(dataNodeId(ds("audit_report")));
 
-    // and the edges that make the second output reachable
-    const ids = g.edges.map((e) => e.id);
-    expect(ids).toContain(`${taskUrn("clean_orders")}->${ds("orders_audit")}`);
-    expect(ids).toContain(`${ds("orders_audit")}->${taskUrn("audit_check")}`);
+    const edgeIds = placed.edges.map((e) => e.id);
+    expect(edgeIds).toContain(`${taskUrn("clean_orders")}->${ds("orders_audit")}`);
+    expect(edgeIds).toContain(`${ds("orders_audit")}->${taskUrn("audit_check")}`);
   });
 
-  it("stacks a task's outputs without overlapping them", () => {
-    const tasks = [task("many", ["src"], ["out_a", "out_b", "out_c"])];
-    const g = layoutGraph(tasks, reserve(tasks));
-    const boxes = ["out_a", "out_b", "out_c"].map((n) => g.boxes[`d:${ds(n)}`]);
-    for (const b of boxes) expect(b).toBeDefined();
-    const sorted = [...boxes].sort((a, b) => a.y - b.y);
-    for (let i = 1; i < sorted.length; i += 1) {
-      expect(sorted[i].y, "no overlap").toBeGreaterThanOrEqual(sorted[i - 1].y + sorted[i - 1].h);
+  it("never overlaps two boxes", () => {
+    // The property the hand-written version needed explicit stacking code for.
+    const tasks = [
+      task("many", ["src"], ["out_a", "out_b", "out_c"]),
+      task("fan", ["src"], ["out_d"]),
+    ];
+    const nodes = layoutPositions(tasks).nodes;
+    for (let i = 0; i < nodes.length; i += 1) {
+      for (let j = i + 1; j < nodes.length; j += 1) {
+        const a = nodes[i];
+        const b = nodes[j];
+        const apart =
+          a.x + a.width <= b.x ||
+          b.x + b.width <= a.x ||
+          a.y + a.height <= b.y ||
+          b.y + b.height <= a.y;
+        expect(apart, `${a.id} overlaps ${b.id}`).toBe(true);
+      }
     }
   });
 
-  it("names the same producer the engine does when two tasks write one dataset", () => {
-    // staleness.ts builds its map with an unconditional set, so the LAST writer
-    // wins. If the graph disagreed it would draw the other task's fingerprint
-    // as the evidence for a change the engine blamed on this one.
+  it("draws a dataset two tasks both write exactly once", () => {
     const alpha = task("alpha_writer", ["raw"], ["shared"]);
     const zeta = task("zeta_writer", ["raw"], ["shared"]);
     const reader = task("reader", ["shared"], ["out"]);
-    const g = layoutGraph([alpha, zeta, reader], reserve([alpha, zeta, reader]));
-    expect(g.producerOf[ds("shared")].name).toBe("zeta_writer");
-    // and it is drawn exactly once, under that task
-    expect(g.boxes[`d:${ds("shared")}`]).toBeDefined();
+    const ids = layoutPositions([alpha, zeta, reader]).nodes.map((n) => n.id);
+    expect(ids.filter((id) => id === dataNodeId(ds("shared")))).toHaveLength(1);
   });
 
   it("terminates on a cyclic graph rather than hanging", () => {
     const a = task("a", ["y"], ["x"]);
     const b = task("b", ["x"], ["y"]);
-    const g = layoutGraph([a, b], reserve([a, b]));
-    expect(Object.keys(g.boxes)).toHaveLength(4);
-    expect(g.width).toBeGreaterThan(0);
+    const placed = layoutPositions([a, b]);
+    expect(placed.nodes).toHaveLength(4);
+    expect(placed.width).toBeGreaterThan(0);
   });
 
   it("agrees with the coordinator's shortName", () => {
@@ -448,54 +472,5 @@ describe("nodeTone — amber fill means stale, and only stale", () => {
     for (const word of Object.values(STATUS_WORD)) {
       expect(word.length).toBeLessThanOrEqual(LONGEST_STATUS_WORD.length);
     }
-  });
-});
-
-describe("edges that skip a column are routed clear of the boxes between", () => {
-  /** An audit task reading both the source table and the final report. */
-  function spanning(): TaskRecord[] {
-    return [
-      task("clean_orders", ["raw_orders"], ["clean_orders"]),
-      task("build_revenue", ["clean_orders"], ["daily_revenue"]),
-      task("audit", ["raw_orders", "daily_revenue"], ["audit_log"]),
-    ];
-  }
-
-  it("reserves a lane only when an edge actually needs one", () => {
-    const plain = pipeline();
-    expect(layoutGraph(plain, reserve(plain)).detourY, "demo pipeline needs no lane").toBeNull();
-
-    const s = spanning();
-    expect(layoutGraph(s, reserve(s)).detourY, "spanning graph reserves one").not.toBeNull();
-  });
-
-  it("puts the lane below every box, and inside the viewBox", () => {
-    const s = spanning();
-    const g = layoutGraph(s, reserve(s));
-    const lane = g.detourY;
-    expect(lane).not.toBeNull();
-    for (const box of Object.values(g.boxes)) {
-      expect(box.y + box.h, "lane is below this box").toBeLessThanOrEqual(lane as number);
-    }
-    expect(lane as number).toBeLessThanOrEqual(g.height);
-  });
-
-  it("still keeps geometry independent of status", () => {
-    const calm = spanning();
-    const hot = spanning();
-    hot[2].status = "stale";
-    hot[2].stale = {
-      causedBy: ds("raw_orders"),
-      causedByTask: null,
-      hops: 1,
-      changeKind: "schema",
-      reason: "test",
-      since: NOW,
-      detectedMs: 1,
-    };
-    const a = layoutGraph(calm, reserve(calm));
-    const b = layoutGraph(hot, reserve(hot));
-    expect(JSON.stringify(b.boxes)).toBe(JSON.stringify(a.boxes));
-    expect(b.detourY).toBe(a.detourY);
   });
 });

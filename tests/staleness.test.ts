@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   affectedBy,
   blocked,
+  columnChange,
   compareFingerprints,
   readyToStart,
   shortName,
@@ -78,6 +79,86 @@ describe("compareFingerprints — telling a real change from a plain re-run", ()
     expect(compareFingerprints(before, fp("schema-b", "content-a"))).toBe("schema");
     expect(compareFingerprints(before, fp("schema-a", "content-b"))).toBe("content");
     expect(compareFingerprints(before, fp("schema-b", "content-b"))).toBe("both");
+  });
+});
+
+describe("columnChange — naming what moved, without guessing why", () => {
+  it("names the column that left and the one that arrived", () => {
+    const change = columnChange(
+      ["order_id", "customer", "order_total", "order_date"],
+      ["order_id", "customer", "order_total_usd", "order_date"],
+    );
+    expect(change).toEqual({ added: ["order_total_usd"], removed: ["order_total"] });
+  });
+
+  it("does not call it a rename, because it cannot know that it was one", () => {
+    // A column leaving and another arriving is indistinguishable from a drop
+    // plus an unrelated addition. The shape carries both facts and asserts no
+    // relationship between them; the UI renders a diff and lets the reader draw
+    // the conclusion. If this ever grows a `renamed` field, that is obsel
+    // claiming something it did not observe.
+    const change = columnChange(["a"], ["b"]);
+    expect(Object.keys(change ?? {}).sort()).toEqual(["added", "removed"]);
+  });
+
+  it("returns null for a pure reordering, which is exactly when the schema hash also holds", () => {
+    // agents/fingerprint.py:58 hashes the SORTED column names, so a reordering
+    // produces a byte-identical schema fingerprint. compareFingerprints
+    // therefore reports no schema change for it, and this must agree: two
+    // functions disagreeing about whether the columns moved would put a change
+    // on screen that no mark exists for.
+    expect(columnChange(["a", "b", "c"], ["c", "a", "b"])).toBeNull();
+  });
+
+  it("returns null when either side is unknown, rather than claiming nothing moved", () => {
+    // OutputShape is optional on a completion report, and marks written before
+    // obsel recorded shapes have neither side. Absent has to read as absent: an
+    // empty diff would assert the columns held, which obsel cannot support.
+    expect(columnChange(undefined, ["a"])).toBeNull();
+    expect(columnChange(["a"], undefined)).toBeNull();
+    expect(columnChange(undefined, undefined)).toBeNull();
+  });
+
+  it("handles additions and removals on their own", () => {
+    expect(columnChange(["a"], ["a", "b"])).toEqual({ added: ["b"], removed: [] });
+    expect(columnChange(["a", "b"], ["a"])).toEqual({ added: [], removed: ["b"] });
+  });
+
+  it("sorts both lists, so the same change always reads the same way", () => {
+    const change = columnChange(["a", "z", "m"], ["a", "c", "b"]);
+    expect(change).toEqual({ added: ["b", "c"], removed: ["m", "z"] });
+  });
+
+  it("is set logic, so a duplicated column name is not a change", () => {
+    expect(columnChange(["a", "a", "b"], ["b", "a"])).toBeNull();
+  });
+});
+
+describe("affectedBy — carrying the column diff to every marked task", () => {
+  it("gives a transitively stale task the ORIGIN's columns, not its own input's", () => {
+    // write_report is two hops out and never read clean_orders. Its mark names
+    // clean_orders on causedBy, so the columns it reports have to be the ones
+    // that moved on clean_orders. Re-deriving them per hop would describe
+    // daily_revenue, which did not change in the way being reported.
+    const columns = { added: ["order_total_usd"], removed: ["order_total"] };
+    const found = affectedBy(
+      demoSwarm(),
+      [{ dataset: ds("clean_orders"), kind: "schema", columns }],
+      NOW,
+    );
+
+    const direct = found.find((a) => a.task.name === "build_revenue");
+    const indirect = found.find((a) => a.task.name === "write_report");
+    expect(direct?.mark.hops).toBe(1);
+    expect(indirect?.mark.hops).toBe(2);
+    expect(direct?.mark.columns).toEqual(columns);
+    expect(indirect?.mark.columns).toEqual(columns);
+  });
+
+  it("leaves columns null when the caller had none to give", () => {
+    const found = affectedBy(demoSwarm(), [{ dataset: ds("clean_orders"), kind: "content" }], NOW);
+    expect(found.length).toBeGreaterThan(0);
+    for (const entry of found) expect(entry.mark.columns).toBeNull();
   });
 });
 

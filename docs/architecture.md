@@ -39,12 +39,29 @@ A `DataJob` gives us identity and edges. Everything else is carried in that Data
 | `obsel.stale.causedByTask` | task URN that wrote it, or empty                     | `urn:li:dataJob:(...,clean_orders)`                                                          |
 | `obsel.stale.hops`         | distance from the change, as a string                | `2`                                                                                          |
 | `obsel.stale.changeKind`   | `schema`, `content`, or `both`                       | `schema`                                                                                     |
+| `obsel.stale.columns`      | JSON: which columns left and arrived, or absent      | `{"added":["order_total_usd"],"removed":["order_total"]}`                                    |
 | `obsel.stale.reason`       | one plain-English sentence                           | `built on work from Daily revenue, which is itself out of date because clean orders changed` |
 | `obsel.stale.since`        | ISO timestamp the mark was applied                   | `2026-07-21T14:05:52.244Z`                                                                   |
 
-The last four are display only: `startedAt` lets the cockpit say how long work in flight has been in
-flight, and the `obsel.run.*` group is what an agent reports about its own run. obsel's staleness
-answer reads none of them, and a task carrying none of them still cascades correctly.
+`startedAt`, the `obsel.run.*` group and `obsel.stale.columns` are display only. `startedAt` lets the
+cockpit say how long work in flight has been in flight; `obsel.run.*` is what an agent reports about
+its own run; `obsel.stale.columns` names which columns moved so the board can show
+`- order_total / + order_total_usd` instead of a sha256. obsel's staleness answer reads none of them,
+and a task carrying none of them still cascades correctly.
+
+`obsel.stale.columns` describes a change rather than detecting one: `compareFingerprints` has already
+settled `changeKind` from the sha256 pair by the time it is computed. It is derived from
+`obsel.run.outputs`, which obsel already recorded, by comparing the previous run's column list
+against the incoming one, so no new evidence is collected. It is absent on a content-only change and
+on every mark written before 2026-07-23, and the board falls back to "the columns in clean orders
+changed" when it is.
+
+One consequence is worth naming because it reversed an earlier decision. `startTask` used to clear
+`obsel.run.*`, so that live work could not be captioned with the previous run's row count. Those are
+exactly the shapes the column diff is computed against, so clearing them left every mark with no
+columns to report. They now survive a run, like the fingerprints and for the same reason: one is the
+baseline for detecting a change, the other for describing it. Nothing mis-captions, because
+`activityNote` returns an in-flight elapsed for a running task without ever consulting `run`.
 
 `customProperties` was chosen over structured properties for a measured reason, not a stylistic
 one: a structured property has to be _defined_ before a value can be written, there is no MCP tool
@@ -111,13 +128,22 @@ The flow, in [`src/server/coordinator/engine.ts`](../src/server/coordinator/engi
 The cockpit is a separate, dumber path: it polls `GET /api/swarm` once a second and renders
 whatever DataHub currently says. It never computes staleness.
 
-What it _does_ compute is geometry and colour, and both are deliberately walled off from the
-answer. `src/features/cockpit/graph/layout.ts` decides where every node and edge sits, and it never
-receives a task's status — so the layout cannot move when three tasks flip to stale.
-`tone.ts` decides colour from exactly `(status, hasMark)` and reads no timer. Between them, the
-animation layer is left able to write only `stroke-dashoffset` and a caption's opacity: it is
-structurally incapable of changing what the cockpit claims is true, so a dropped frame or an
-interrupted transition cannot produce a wrong answer on camera.
+What it _does_ compute is position and colour, and both are deliberately walled off from the
+answer. `src/features/cockpit/graph/positions.ts` hands the swarm to dagre and never passes a task's
+status, so the layout cannot move when three tasks flip to stale. `tone.ts` decides colour from
+exactly `(status, hasMark)` and reads no timer. `graph/cascade.ts` decides which edges the change
+travelled along by reading hop counts off the marks obsel wrote, rather than re-deriving them from
+topology, so the picture cannot claim a change reached work obsel decided it did not reach. Between
+them, the animation layer is left able to write only `stroke-dashoffset`: it is structurally
+incapable of changing what the cockpit claims is true, so a dropped frame or an interrupted
+transition cannot produce a wrong answer on camera.
+
+The graph itself is [React Flow](https://reactflow.dev) with a dagre layout, which replaced about
+800 lines of hand-written SVG on 2026-07-23. Two things came with the change. The cascade edges
+animate continuously while the marks stand, where the previous version drew once over 400 ms and
+then held still for the session, so a screenshot showed a finished picture with nothing to say a
+change had travelled. And the nodes are HTML rather than positioned `<text>`, which is what lets the
+changed table carry a two-line column diff.
 
 Two invariants there are worth naming because breaking either produces a specific lie:
 
@@ -232,10 +258,12 @@ Three constraints in that module are non-negotiable, each because the alternativ
                                                                         no network, no clock)
                                                                            |
   src/features/cockpit/                                                    | writes via
-    cockpit.tsx      polls GET /api/swarm  <--- app/api/swarm/ ---+        v
-    graph/layout.ts  geometry, pure                               |   src/server/datahub/
-    naming.ts        human names, pure                            |
-    trace-panel.tsx  polls GET /api/trace  <--- app/api/trace/ ---+
+    cockpit.tsx        polls GET /api/swarm <--- app/api/swarm/ --+        v
+    graph/positions.ts dagre layout, pure                         |   src/server/datahub/
+    graph/cascade.ts   which edges lit, pure                      |
+    lineage.tsx        React Flow + nodes.tsx                     |
+    naming.ts          human names, pure                          |
+    trace-panel.tsx    polls GET /api/trace <--- app/api/trace/ --+
                                                                   |     client.ts  GMS HTTP
                                                                   +---- mcp.ts     MCP tag writes
                                                                         urns.ts    URN shapes
@@ -261,17 +289,19 @@ readable", not as "covered by end-to-end evidence" — see [Evidence](#9-evidenc
 | Piece                                     | Path                                                                                                                        | State                                  |
 | ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- | -------------------------------------- |
 | The contracts                             | `src/server/coordinator/types.ts`                                                                                           | shipped                                |
-| Staleness rules                           | `src/server/coordinator/staleness.ts`                                                                                       | shipped, 25 passing tests              |
+| Staleness rules                           | `src/server/coordinator/staleness.ts`                                                                                       | shipped, 34 passing tests              |
 | Coordinator IO                            | `src/server/coordinator/engine.ts`                                                                                          | shipped, no automated test yet         |
 | GMS client                                | `src/server/datahub/client.ts`                                                                                              | shipped, no automated test yet         |
 | MCP tag writes                            | `src/server/datahub/mcp.ts`                                                                                                 | shipped, no automated test yet         |
 | URN shapes                                | `src/server/datahub/urns.ts`                                                                                                | shipped                                |
 | HTTP API                                  | `app/api/swarm`, `app/api/trace`, `app/api/tasks/{register,start,abandon,complete}`, `app/api/demo/{reset,launch,activity}` | shipped                                |
-| Cockpit                                   | `app/page.tsx`, `src/features/cockpit/`                                                                                     | shipped, 129 unit + 46 browser tests   |
+| Cockpit                                   | `app/page.tsx`, `src/features/cockpit/`                                                                                     | shipped, 133 unit + 51 browser tests   |
 | Live agent progress                       | `src/features/cockpit/progress.ts`                                                                                          | shipped, 23 passing tests, seen live   |
-| The guide                                 | `src/features/cockpit/guide.ts`, `guide-panel.tsx`                                                                          | shipped, 19 passing tests, driven live |
+| The guide                                 | `src/features/cockpit/guide.ts`, `guide-panel.tsx`                                                                          | shipped, 24 passing tests, driven live |
 | Human names for tasks and tables          | `src/features/cockpit/naming.ts`, `staleness.ts` — `tableLabel`, `taskLabel`                                                | shipped, 16 passing tests              |
 | The coordinator's live trace              | `src/server/coordinator/trace.ts`, `trace-buffer.ts`, `app/api/trace`, `trace-panel.tsx`                                    | shipped, 10 tests, seen live           |
+| The lineage graph                         | `src/features/cockpit/lineage.tsx`, `nodes.tsx`, `graph/positions.ts`, `graph/cascade.ts` — React Flow and dagre            | shipped, 33 unit + 4 browser tests     |
+| Naming which columns moved                | `src/server/coordinator/staleness.ts` — `columnChange`; `obsel.stale.columns`                                               | shipped, 9 tests, verified live        |
 | Demo runner                               | `src/server/runner/` — `steps.ts`, `launcher.ts`, `preflight.ts`                                                            | shipped, 11 tests on the pure half     |
 | Task registration and traversal in Python | `agents/graph.py`                                                                                                           | shipped, verified live                 |
 | Fingerprinting                            | `agents/fingerprint.py`                                                                                                     | shipped, has a self-check              |
@@ -288,7 +318,7 @@ What has been verified directly, and what has not.
 
 **Verified:**
 
-- The staleness rules, by 25 deterministic tests in `tests/staleness.test.ts`.
+- The staleness rules, by 34 deterministic tests in `tests/staleness.test.ts`.
   These cover the negative cases specifically: identical re-run marks nothing, an unrelated branch
   is untouched, a running task is neither marked nor walked through, a cycle terminates, a task
   reachable two ways is reported once at its shortest distance.
@@ -320,12 +350,36 @@ What has been verified directly, and what has not.
 - **The board naming agents in words, and narrating its own work**, on 2026-07-23 against a live
   DataHub and a signed-in Codex CLI. Driven from the browser: `reset` and `register` wrote each
   task's `obsel.title` and job description onto its DataJob and read both back, so the graph, the
-  ledger, the guide and the trace all name `clean_orders` as "Orders cleaner" from DataHub rather
-  than from a map in the frontend; `run` took 142.6 s for four Codex sessions; the rename was called
-  `schema`, marked the same three tasks, and **`GET /api/trace` reported each step as it happened** —
-  the swarm read (4 tasks), the comparison ("its columns changed; the values did not"), the walk
-  ("Daily revenue (1 hop), Revenue report (2 hops), Table docs (2 hops)"), one step per confirmed
-  mark, and a close of 3424 ms end to end, matching what the ledger and the stat ribbon showed.
+  guide and the trace all name `clean_orders` as "Orders cleaner" from DataHub rather than from a map
+  in the frontend; `run` took 142.6 s for four Codex sessions; the rename was called `schema`, marked
+  the same three tasks, and **`GET /api/trace` reported each step as it happened**: the swarm read
+  (4 tasks), the comparison, the walk ("Daily revenue (1 hop), Revenue report (2 hops), Table docs
+  (2 hops)"), one step per confirmed mark, and a close of 3424 ms end to end, matching what the stat
+  ribbon showed.
+- **The graph rebuilt on React Flow, and the change named rather than hashed**, on 2026-07-23 against
+  the same live DataHub and Codex CLI. `reset` → `run` → `change` from the terminal: `run` took
+  143.1 s, the rename was called `schema`, and the same three tasks were marked in a measured
+  3281 ms. Then confirmed in the browser at 1920 x 990 and 1280 x 800:
+  - `GET /api/swarm` returned `columns: {"added":["order_total_usd"],"removed":["order_total"]}` on
+    all three marks, including the two at two hops, which never read `clean_orders`.
+  - The changed table's node rendered `clean orders / - order_total / + order_total_usd`, which is
+    the fact the same node previously rendered as `s f7b62a66`.
+  - 9 nodes and 8 edges, of which exactly 6 carried the cascade animation: the path from the changed
+    table through both hops. Sampled ten times over four seconds and stable at those counts.
+  - The animation reported `playState: "running"` with an unbounded iteration count, and its
+    `stroke-dashoffset` advanced between samples, so the cascade is still moving after the run has
+    settled rather than having played once.
+  - 238 words on the page, zero em dashes, no horizontal scroll, and the whole board inside the
+    990 px frame.
+
+  Two defects were found by measuring rather than by looking, and both are recorded in the code that
+  fixes them. React Flow drew **zero edges** while the poll handed it a new `nodes` array every
+  second, because node measurement never settled and unmeasured endpoints are silently skipped; the
+  graph is now rebuilt only when a signature of the swarm changes. And putting the log strip beside
+  the graph left it 928 px at a 1280 laptop, which is zoom 0.59 and node labels at **eight pixels**,
+  less legible than the 11 px SVG the rebuild replaced; the strip sits under the graph at every
+  width, which holds the labels at 10.5 px on a laptop and 15 px at the recording size.
+
 - A second `reset` → `register` → `run` → `change` the same day, from the terminal with `--capture`,
   which produced the current `examples/` set: `run` 124.1 s, the rename called `schema`, the same
   three tasks marked in a measured 745 ms. Its fingerprints came out identical to the previous day's
@@ -345,9 +399,9 @@ What has been verified directly, and what has not.
   result, by design, so that `pnpm verify` needs no Docker.
 - Whether obsel's marks survive a later re-ingestion.
 - **A latency figure that means anything beyond one machine.** Every number quoted above is a single
-  observation against a Docker quickstart on one laptop, and the spread across runs is wide — 745 ms,
-  2310 ms, 2591 ms, 3424 ms for the same cascade — because it is dominated by how long DataHub takes
-  to confirm each write, not by the deciding. `elapsedMs` in
+  observation against a Docker quickstart on one laptop, and the spread across runs is wide: 745 ms,
+  1611 ms, 2310 ms, 2591 ms, 3281 ms and 3424 ms for the same cascade, because it is dominated by how
+  long DataHub takes to confirm each write rather than by the deciding. `elapsedMs` in
   `examples/coordination-result.json` is measured, not a stand-in, but it is one sample.
 - **The trace as anything more than narration.** It is emitted by the coordinator and has been
   watched live, but nothing reads it back and it is not persisted, so it is evidence of nothing on
@@ -657,9 +711,13 @@ is never called two different things on one screen.
 Reads nothing from DataHub, so it answers even when GMS is unreachable — which is deliberate: a
 panel explaining what obsel is doing is most useful when something is wrong.
 
-**Narration, not a decision path, and a view rather than a record** — bounded to the newest 200
+**Narration, not a decision path, and a view rather than a record**: bounded to the newest 200
 steps, in memory, process-local, gone on restart. Section 12 sets out what this panel may and may not
 claim, and why the buffer is deliberately something nothing else depends on.
+
+Steps are written at log length rather than as sentences, and the panel renders only the newest
+eight. Both are deliberate. The route still returns the full tail, so nothing is dropped from what
+callers can read; what is bounded is how much of the board a 21-step run is allowed to occupy.
 
 ```jsonc
 // 200
@@ -669,8 +727,8 @@ claim, and why the buffer is deliberately something nothing else depends on.
       "seq": 42, // monotonic; survives a reset, so a fresh step is never mistaken for one already seen
       "at": "2026-07-23T01:52:53.514Z",
       "phase": "compare", // read | compare | walk | mark | write | done
-      "message": "Compared the new clean orders against the fingerprint recorded last time.",
-      "outcome": "its columns changed; the values did not", // null when the step has nothing to report
+      "message": "compared clean orders", // log length, not a sentence
+      "outcome": "columns changed, values did not", // null when the step has nothing to report
     },
   ],
 }
@@ -678,14 +736,23 @@ claim, and why the buffer is deliberately something nothing else depends on.
 
 ## 12. What the cockpit's two side panels may and may not say
 
-Both sit in the gutter beside the lineage graph, and neither carries a demo beat.
+Both sit in the strip under the lineage graph, and neither carries a demo beat.
 
 **The inspector** shows one task's uncompressed values: full URNs, complete 64-character
 fingerprints, and every field of its stale mark. It computes nothing. In particular it never derives
 an age or a freshness — the cockpit knows when it _read_ a value, not when that value became true,
 and an inspector is exactly the place that distinction gets quietly lost. It is mounted only while a
-task is selected. The gutter's height is fixed, so it appears without moving the graph, the ledger or
-the stat ribbon; it borrows its room from the trace beside it and gives it back on close.
+task is selected, which is now done by clicking a box on the graph. The strip's height is fixed, so
+it appears without moving the graph or the stat ribbon; it borrows its room from the trace beside it
+and gives it back on close.
+
+Since 2026-07-23 it is also where the ledger's content went. The ledger rendered all four tasks as
+cards carrying a status word, a human name, a code identifier, a job sentence, a reason sentence, a
+timestamp and a line of runner metadata: 311 px and 205 words describing the same four tasks the
+graph above already drew. Every one of those facts is here instead, including the mark's `reason`,
+which is still stored on the mark, still written into DataHub, and still shown verbatim rather than
+summarised. `e2e/cockpit.spec.ts` asserts it opens in full and is neither clipped nor ellipsised, so
+the rule that a mark carries a traceable cause is unaffected by the move.
 
 **The trace** is titled "what obsel is doing", and it replaced a panel that diffed two `GET
 /api/swarm` bodies polled a second apart. That difference is the whole point of this section, so the

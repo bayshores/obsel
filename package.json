@@ -22,7 +22,9 @@
     "e2e:ui": "playwright test --ui"
   },
   "dependencies": {
+    "@dagrejs/dagre": "3.0.0",
     "@modelcontextprotocol/sdk": "1.29.0",
+    "@xyflow/react": "12.11.2",
     "geist": "^1.7.2",
     "next": "16.2.10",
     "react": "19.2.7",

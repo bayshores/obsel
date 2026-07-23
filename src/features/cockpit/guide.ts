@@ -14,7 +14,7 @@
  * approximated.
  */
 
-import { flowLine, taskTitle } from "./naming";
+import { datasetTitle, taskTitle } from "./naming";
 import { formatDuration, inFlightMs } from "./progress";
 import type { DemoStep, DemoActivity } from "@/src/server/runner/types";
 import type { TaskRecord } from "@/src/server/coordinator/types";
@@ -46,13 +46,31 @@ export interface GuideAction {
 
 export interface GuideView {
   stage: GuideStage;
+  /**
+   * The one sentence the board leads with, set large.
+   *
+   * This replaced `narration: string[]`, which was up to four paragraphs and
+   * measured 156 words on screen in the flagged state. The board was 604 words in
+   * total with nothing set larger than 13px, so nothing led and a reader had no
+   * entry point: the only way in was to read all of it. A headline plus one line
+   * is the whole budget now, and the graph carries the rest.
+   */
   headline: string;
-  /** Short plain-language paragraphs, rendered in order. */
-  narration: string[];
+  /** One short line under the headline. Null when the headline says it all. */
+  subline: string | null;
+  /**
+   * Extra lines, for setup and failure stages only.
+   *
+   * Empty on every stage a judge watching the demo will see. It exists because
+   * `connect` and `prepare` have to hand over a shell command that fixes a broken
+   * machine, and compressing that into one line would trade a usable instruction
+   * for a word count nobody is counting on those stages.
+   */
+  notes: string[];
   actions: GuideAction[];
   /**
-   * One line that must not be missed, independent of stage — currently the
-   * last step ending badly. Null when there is nothing to flag.
+   * One line that must not be missed, independent of stage. Currently the last
+   * step ending badly. Null when there is nothing to flag.
    */
   attention: string | null;
 }
@@ -78,19 +96,16 @@ export function guide(input: GuideInput): GuideView {
   const attention = lastStepProblem(input.activity);
   const running = input.activity?.running ?? null;
 
-  // While a launched step is live, the buttons go away rather than grey out —
-  // the launcher would refuse a second step anyway (they share the tables),
-  // and a disabled button with no explanation is a puzzle, not guidance.
+  // While a launched step is live, the buttons go away rather than grey out. The
+  // launcher would refuse a second step anyway (they share the tables), and a
+  // disabled button with no explanation is a puzzle, not guidance.
   const withActions = (view: GuideView): GuideView =>
     running === null
       ? view
       : {
           ...view,
           actions: [],
-          narration: [
-            ...view.narration,
-            `\`${running.step}\` is running now — its own output is streaming below, and the board above follows it live.`,
-          ],
+          subline: `\`${running.step}\` is running now, and the board follows it live`,
         };
 
   if (!input.trusted) return connect(input, attention);
@@ -116,11 +131,10 @@ function connect(input: GuideInput, attention: string | null): GuideView {
   const fix = input.activity?.preflight.datahub;
   return {
     stage: "connect",
-    headline: input.everRead ? "obsel cannot read the swarm" : "connecting",
-    narration: [
-      WHAT_OBSEL_IS,
-      "Right now obsel cannot read DataHub, so nothing on this board can be trusted — every number is withheld rather than guessed.",
-      ...(fix && !fix.ok ? [`What was observed: ${fix.detail}.`] : []),
+    headline: input.everRead ? "can't reach obsel" : "connecting",
+    subline: "every number is withheld until a read succeeds",
+    notes: [
+      ...(fix && !fix.ok ? [`Observed: ${fix.detail}.`] : []),
       ...(fix && !fix.ok && fix.fix ? [`Fix it in a terminal: \`${fix.fix}\``] : []),
     ],
     actions: [],
@@ -129,30 +143,28 @@ function connect(input: GuideInput, attention: string | null): GuideView {
 }
 
 function prepare(input: GuideInput, blockers: Blocker[]): GuideView {
-  const narration: string[] = [
-    "obsel is connected, but this machine is not ready to run the demo agents yet. Each item below was genuinely checked a moment ago, not assumed.",
-  ];
+  const notes: string[] = [];
   const actions: GuideAction[] = [];
 
   for (const blocker of blockers) {
-    narration.push(`${blocker.name}: ${blocker.check.detail}.`);
+    notes.push(`${blocker.name}: ${blocker.check.detail}.`);
     if (blocker.name === "vocabulary" && venvOk(input)) {
       // The one prerequisite that is itself a demo step, so it can be a button.
       actions.push({
         step: "setup",
         label: "Set up DataHub for obsel",
-        detail:
-          "registers obsel's stale tag and the demo pipeline's DataFlow — one-time, obsel cannot create them mid-run",
+        detail: "registers obsel's tag and pipeline, once",
       });
     } else if (blocker.check.fix !== null) {
-      narration.push(`Fix it in a terminal: \`${blocker.check.fix}\``);
+      notes.push(`Fix it in a terminal: \`${blocker.check.fix}\``);
     }
   }
 
   return {
     stage: "prepare",
-    headline: "one-time preparation",
-    narration,
+    headline: "one-time setup",
+    subline: "each item below was checked a moment ago, not assumed",
+    notes,
     actions,
     attention: lastStepProblem(input.activity),
   };
@@ -161,16 +173,16 @@ function prepare(input: GuideInput, blockers: Blocker[]): GuideView {
 function empty(attention: string | null): GuideView {
   return {
     stage: "empty",
-    headline: "nothing is registered yet",
-    narration: [
-      WHAT_OBSEL_IS,
-      "The board is empty because no work has been declared. Register the demo pipeline: four agents, each reading a table another one writes. Each becomes a real node in DataHub, wired to the data it reads and the data it produces — that wiring is what obsel walks later.",
-    ],
+    headline: "nothing registered yet",
+    // The only stage that states what obsel is for, because it is the only one
+    // with no graph on screen to show it.
+    subline: "four agents, each one reading a table another one writes",
+    notes: [],
     actions: [
       {
         step: "register",
         label: "Set up the four agents",
-        detail: "declares the four tasks and their lineage in DataHub — no agent runs yet",
+        detail: "declares them in DataHub, nothing runs yet",
       },
     ],
     attention,
@@ -179,50 +191,38 @@ function empty(attention: string | null): GuideView {
 
 function registered(tasks: TaskRecord[], finished: number, attention: string | null): GuideView {
   /*
-   * Deliberately does NOT list the agents.
+   * Says nothing about which agents exist, and nothing about what they do.
    *
-   * It used to push one `Title — what it does` line per task here, which was
-   * right when the ledger showed a job description only before a task had run.
-   * The ledger now carries that line on every row in every state, so this loop
-   * was printing a second copy of the same four-item roster one panel above the
-   * first — the duplication the owner pointed at, and about 60px of the vertical
-   * budget that the stat ribbon needed to stay above the fold.
-   *
-   * So this says where the list is instead of being it. One roster, in the place
-   * that keeps it current.
+   * Both were here once, as a line per task. The graph draws all four boxes with
+   * their names and the tables between them, so a roster in prose above it was
+   * the same four facts a second time, in the slower medium. This stage now
+   * carries one fact the graph cannot show: what obsel does when a task finishes.
    */
-  const narration: string[] = [
-    finished === 0
-      ? `${tasks.length} agents are declared and none has run yet. Each one is listed below with the job it registered, and what it reads and writes are already lineage edges in DataHub — the graph is drawn from those edges, not from a diagram.`
-      : `${finished} of ${tasks.length} tasks have finished; the rest have not started. Putting the agents to work runs whatever is ready.`,
-  ];
-  narration.push(
-    "When an agent finishes, obsel records a fingerprint of what it produced — a receipt of the exact columns and rows. Everything that follows rests on comparing those receipts.",
-  );
   const actions: GuideAction[] = [
     {
       step: "run",
       label: "Start the four agents",
-      detail:
-        "each task becomes a live Codex session that reads its input and writes its table — expect a few minutes of real work",
+      detail: "real Codex sessions, a few minutes",
     },
   ];
   if (finished === 0) {
-    // Without this, `register` is only reachable while the swarm is empty —
-    // which on a returning DataHub it never is again, and a pipeline
-    // definition change (a new task, a reworded job) could not be re-declared
-    // from the board at all.
+    // Without this, `register` is only reachable while the swarm is empty, which
+    // on a returning DataHub it never is again, and a pipeline definition change
+    // could not be re-declared from the board at all.
     actions.push({
       step: "register",
       label: "Set up the four agents again",
-      detail:
-        "writes the four tasks, their lineage and their job descriptions again — safe to repeat before anything runs",
+      detail: "safe to repeat before anything runs",
     });
   }
   return {
     stage: "registered",
-    headline: "the pipeline is declared",
-    narration,
+    headline:
+      finished === 0
+        ? `${tasks.length} agents ready to run`
+        : `${finished} of ${tasks.length} finished`,
+    subline: "when one finishes, obsel records a fingerprint of what it produced",
+    notes: [],
     actions,
     attention,
   };
@@ -230,24 +230,17 @@ function registered(tasks: TaskRecord[], finished: number, attention: string | n
 
 function working(input: GuideInput, attention: string | null): GuideView {
   const live = input.tasks.filter((task) => task.status === "running");
-  const held = input.tasks.filter((task) => task.stale !== null).length;
-  const narration = live.map((task) => {
-    const elapsed = inFlightMs(task, input.snapshotAt);
-    const since = elapsed === null ? "" : ` — in flight for ${formatDuration(elapsed)}`;
-    return `${taskTitle(task)} is working${since}. It ${flowLine(task)}.`;
-  });
-  narration.push(
-    "A task that is still running is never judged: its outputs are not final, and it will pick up any new input itself. Only finished work can go stale.",
-  );
-  if (held > 0) {
-    narration.push(
-      `${held} finished task(s) still carry their mark from the last change — a mark is only earned back by a run that completes.`,
-    );
-  }
+  const elapsed = live.length === 1 ? inFlightMs(live[0], input.snapshotAt) : null;
+  const since = elapsed === null ? "" : `, ${formatDuration(elapsed)} in`;
+
   return {
     stage: "working",
-    headline: `${live.length} agent${live.length === 1 ? " is" : "s are"} working`,
-    narration,
+    headline:
+      live.length === 1
+        ? `${taskTitle(live[0])} is working${since}`
+        : `${live.length} agents are working`,
+    subline: "work in flight is never judged, only finished work can go stale",
+    notes: [],
     actions: [],
     attention,
   };
@@ -256,27 +249,51 @@ function working(input: GuideInput, attention: string | null): GuideView {
 function settled(tasks: TaskRecord[], attention: string | null): GuideView {
   return {
     stage: "settled",
-    headline: "all finished, nothing out of date",
-    narration: [
-      `All ${tasks.length} tasks finished and obsel holds a fingerprint for every output. Everything each task was built on is still true — for now.`,
-      "This is where obsel earns or loses trust, so try to break it. Both buttons run the same real agent again; the difference is whether its requirement changed.",
-    ],
+    headline: `all ${tasks.length} finished, nothing out of date`,
+    subline: "now try to break it",
+    notes: [],
     actions: [
       {
         step: "rerun-same",
-        label: "Run the orders cleaner again — no changes",
-        detail:
-          "same instruction, same input — if obsel flags anything on an identical re-run, it cried wolf and you should not trust it",
+        label: "Run the orders cleaner again, no changes",
+        detail: "if obsel flags anything, it cried wolf",
       },
       {
         step: "change",
         label: "Change one agent's instructions",
-        detail:
-          "the money column is renamed order_total_usd and nothing downstream is told — exactly how finished work goes quietly wrong",
+        detail: "renames a column, tells nothing downstream",
       },
     ],
     attention,
   };
+}
+
+/**
+ * The one line that has to explain obsel to a stranger.
+ *
+ * Built from the mark's own recorded change rather than from any stored script.
+ * When obsel recorded which columns moved, it names them: "clean orders lost
+ * order_total and gained order_total_usd" is the sentence that makes the whole
+ * premise land, and it is the fact the board used to render as `s f7b62a66`.
+ *
+ * Says lost and gained, never renamed. A column leaving while another arrives is
+ * indistinguishable from a drop plus an unrelated addition, and the reader can
+ * draw that conclusion without obsel asserting it.
+ */
+function changeLine(mark: NonNullable<TaskRecord["stale"]>): string {
+  const table = datasetTitle(mark.causedBy);
+  const columns = mark.columns;
+
+  if (columns) {
+    const lost = columns.removed.length > 0 ? `lost ${columns.removed.join(", ")}` : null;
+    const gained = columns.added.length > 0 ? `gained ${columns.added.join(", ")}` : null;
+    const both = [lost, gained].filter((part): part is string => part !== null).join(" and ");
+    return `${table} ${both} after they finished`;
+  }
+
+  // No column record: describe the kind of change, which is always known.
+  if (mark.changeKind === "content") return `the rows in ${table} changed after they finished`;
+  return `the columns in ${table} changed after they finished`;
 }
 
 function flagged(tasks: TaskRecord[], attention: string | null): GuideView {
@@ -284,44 +301,39 @@ function flagged(tasks: TaskRecord[], attention: string | null): GuideView {
     (task): task is TaskRecord & { stale: NonNullable<TaskRecord["stale"]> } => task.stale !== null,
   );
   const finished = tasks.filter((task) => task.finishedAt !== null).length;
-  const narration: string[] = [
-    // Ends at "underneath them". A third sentence used to follow — "Each amber
-    // row in the ledger below carries obsel's recorded reason for that task, not
-    // a summary" — which was commentary about the screen rather than about the
-    // work, addressed to a reader who can already see the amber rows and their
-    // reasons a few hundred pixels below. Cutting it took one wrapped line off
-    // the tallest stage of the guide.
-    `${marked.length} of ${finished} finished tasks are built on something that changed. None of them re-ran and none of them failed — their work simply stopped being true underneath them.`,
-  ];
-  const transitive = marked.filter((task) => task.stale.hops > 1);
-  if (transitive.length > 0) {
-    narration.push(
-      `${transitive.map((task) => taskTitle(task)).join(" and ")} never read the changed table at all — the change reached ${transitive.length === 1 ? "it" : "them"} through what ${transitive.length === 1 ? "it" : "they"} built on. That transitive reach is why the tasks are wired into DataHub's lineage graph.`,
-    );
-  }
-  // That the marks are also written into DataHub itself is stated once — by the
-  // trace panel's footer, beside the steps that did the writing — rather than
-  // repeated here.
+
+  /*
+   * Two paragraphs used to live here, 62 words between them: one saying no task
+   * re-ran or failed, one naming the transitively affected tasks and explaining
+   * why lineage matters. Both are now visible rather than described. The graph
+   * shows the amber path travelling outward from the changed table through each
+   * hop, which is the transitive reach the second paragraph was spelling out, and
+   * it shows it continuously rather than in a sentence a reader has to hold.
+   */
+  const newest = marked.reduce<NonNullable<TaskRecord["stale"]> | null>((best, task) => {
+    if (best === null) return task.stale;
+    return Date.parse(task.stale.since) > Date.parse(best.since) ? task.stale : best;
+  }, null);
+
   return {
     stage: "flagged",
-    headline: "finished work just went out of date",
-    narration,
+    headline: `${marked.length} of ${finished} finished agents are out of date`,
+    subline: newest === null ? null : changeLine(newest),
+    notes: [],
     actions: [
       {
-        // The re-run stays offered here on purpose — it replays whatever the
-        // cleaner was last told to do, so even now it produces the same table
-        // and obsel must add nothing to what is already marked. A tool that
-        // only avoids false alarms on a calm board has not proved much.
+        // The re-run stays offered here on purpose. It replays whatever the
+        // cleaner was last told to do, so even now it produces the same table and
+        // obsel must add nothing to what is already marked. A tool that only
+        // avoids false alarms on a calm board has not proved much.
         step: "rerun-same",
-        label: "Run the orders cleaner again — no changes",
-        detail:
-          "the same agent runs its current job again — the same table should come out, no new marks, and the three existing marks must stay exactly as they are",
+        label: "Run the orders cleaner again, no changes",
+        detail: "no new marks, and these three must stay",
       },
       {
         step: "reset",
         label: "Reset and start over",
-        detail:
-          "clears obsel's task state and the marks so the run can start over — the tasks and their lineage stay",
+        detail: "clears the marks, keeps the lineage",
       },
     ],
     attention,
@@ -368,5 +380,5 @@ function lastStepProblem(activity: DemoActivity | null): string | null {
     last.exitCode === null
       ? `was stopped${last.signal ? ` by ${last.signal}` : ""} before it finished`
       : `exited ${last.exitCode}`;
-  return `The last step, \`${last.step}\`, ${how}. Its own output below says why — the board still shows exactly what DataHub holds.`;
+  return `The last step, \`${last.step}\`, ${how}. Its own output below says why. The board still shows exactly what DataHub holds.`;
 }

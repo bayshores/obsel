@@ -1,53 +1,81 @@
 /*
- * The guide panel: the one region written for someone who has never seen
- * obsel. Prose is sans and measured; anything executable or quoted from a
- * process is mono. It is content-sized — the graph, not the guide, is the
- * region that absorbs slack — so every stage's copy has to stay short.
+ * The headline block: the board's entry point.
+ *
+ * This region used to be a two-column panel of prose, 156 words in the flagged
+ * state, titled `00 · guide — …`. The problem it was solving, that a stranger
+ * could not tell what the board was, is real; paragraphs were the wrong
+ * instrument. Of 109 text nodes on the old screen, 77 were 13px or smaller, so
+ * nothing led and the only way in was to read everything.
+ *
+ * One sentence leads now, at roughly 30px, and the graph below carries the
+ * mechanism. Everything here is content-sized: the graph absorbs the slack.
  */
 
-.body {
-  display: grid;
-  gap: var(--mm-space-sm);
-}
-
-/*
- * Wide enough, the guide runs two columns — the story on the left, the things
- * to do (or the step running) on the right — because the cockpit's vertical
- * budget is nearly spent: the graph has a 220px floor and the ledger is
- * evidence that may not be compressed, so the guide buys its height back from
- * its own width instead.
- */
-@media (min-width: 900px) {
-  .body {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 46ch);
-    column-gap: var(--mm-space-xl);
-    align-items: start;
-  }
-}
-
-.prose,
-.side {
-  display: grid;
-  gap: var(--mm-space-sm);
+.headliner {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mm-space-xs);
   min-width: 0;
 }
 
-/* A failed step concerns both columns, so it spans them. */
-.span {
-  grid-column: 1 / -1;
+/*
+ * The largest text on the board, and the only element above 20px.
+ *
+ * `clamp` rather than a fixed size so the sentence holds one or two lines from a
+ * 1280px laptop to a 1920px recording frame. Sans, because this is the one line
+ * written to be read as a sentence rather than inspected as a value.
+ */
+.headline {
+  margin: 0;
+  font-family: var(--mm-font-sans);
+  font-size: clamp(1.35rem, 2.1vw, 1.9rem);
+  font-weight: var(--mm-weight-semi);
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+  color: var(--mm-cream);
+  text-wrap: balance;
 }
 
-.narration {
+/*
+ * One line under the headline, carrying what changed.
+ *
+ * On the flagged stage this is the sentence naming the columns that moved, which
+ * is the fact the board previously rendered as `s f7b62a66`.
+ */
+.subline {
   margin: 0;
   color: var(--mm-cream-dim);
   font-family: var(--mm-font-sans);
   font-size: var(--mm-text-lg);
   line-height: var(--mm-leading-body);
   text-wrap: pretty;
-  max-width: 78ch;
+  max-width: 82ch;
 }
 
-.narration code,
+/* Setup and failure stages only. Never on a stage the demo passes through. */
+.notes {
+  display: grid;
+  gap: var(--mm-space-xs);
+  min-width: 0;
+}
+
+.note {
+  margin: 0;
+  color: var(--mm-cream-dim);
+  font-family: var(--mm-font-sans);
+  font-size: var(--mm-text-md);
+  line-height: var(--mm-leading-body);
+  max-width: 82ch;
+}
+
+.side {
+  display: grid;
+  gap: var(--mm-space-xs);
+  min-width: 0;
+}
+
+.subline code,
+.note code,
 .attention code,
 .result code {
   font-family: var(--mm-font-mono);
@@ -73,20 +101,23 @@
 }
 
 /*
- * A row across the whole panel, wrapping only when it genuinely cannot fit.
- * `flex: 1 1 22ch` lets two or three actions share the width evenly instead of
- * each taking its natural size and leaving a ragged gap; the max-width on
- * `.action` still stops a lone button from stretching across the frame.
+ * A row, wrapping only when it genuinely cannot fit.
+ *
+ * `flex: 0 1 auto` rather than the `1 1 22ch` this had while the buttons were
+ * carrying 28-word detail lines: at ~8 words they no longer need to be stretched
+ * to share the frame, and letting them size to their content stops two short
+ * labels from being spread into a pair of banners.
  */
 .actions {
   display: flex;
   flex-wrap: wrap;
   gap: var(--mm-space-sm);
   align-items: stretch;
+  margin-top: var(--mm-space-xs);
 }
 
 .actions > .action {
-  flex: 1 1 22ch;
+  flex: 0 1 auto;
 }
 
 /*

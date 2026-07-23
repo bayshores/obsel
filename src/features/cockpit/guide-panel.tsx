@@ -13,7 +13,7 @@
 import { Fragment, useState } from "react";
 import type { ReactNode } from "react";
 
-import { Panel, PulseDot } from "./mmux";
+import { PulseDot } from "./mmux";
 import { formatDuration } from "./progress";
 import type { GuideView } from "./guide";
 import type { DemoActivity, DemoStep } from "@/src/server/runner/types";
@@ -76,90 +76,98 @@ export function GuidePanel({
   const log = activity?.log ?? [];
 
   return (
-    <Panel
-      title={`00 · guide — ${view.headline}`}
-      meta="derived from the board every second · not a script"
-    >
-      <div className={styles.body}>
-        {view.attention !== null && (
-          <p className={`${styles.attention} ${styles.span}`} role="status">
-            {inlineCode(view.attention)}
-          </p>
-        )}
-        {refused !== null && (
-          <p className={`${styles.attention} ${styles.span}`} role="status">
-            {inlineCode(refused)}
-          </p>
-        )}
+    /*
+     * No Panel wrapper, and no panel title.
+     *
+     * This was `00 · guide — <headline>` with the subtitle "derived from the board
+     * every second · not a script". Both were furniture: the first buried the one
+     * sentence that should lead the board inside a panel caption, and the second
+     * described the machinery to a reader who had not yet been told what they were
+     * looking at. The headline is now the largest thing on screen, which is the
+     * entry point the board did not have.
+     */
+    <section className={styles.headliner} aria-label="What just happened">
+      {view.attention !== null && (
+        <p className={styles.attention} role="status">
+          {inlineCode(view.attention)}
+        </p>
+      )}
+      {refused !== null && (
+        <p className={styles.attention} role="status">
+          {inlineCode(refused)}
+        </p>
+      )}
 
-        <div className={styles.prose}>
-          {view.narration.map((paragraph) => (
-            <p key={paragraph} className={styles.narration}>
-              {inlineCode(paragraph)}
+      <h2 className={styles.headline}>{view.headline}</h2>
+      {view.subline !== null && <p className={styles.subline}>{inlineCode(view.subline)}</p>}
+
+      {/* Setup and failure stages only, where a shell command is worth more than
+          a word count. Empty on every stage the demo actually passes through. */}
+      {view.notes.length > 0 && (
+        <div className={styles.notes}>
+          {view.notes.map((note) => (
+            <p key={note} className={styles.note}>
+              {inlineCode(note)}
             </p>
           ))}
         </div>
+      )}
 
-        <div className={styles.side}>
-          {running !== null && (
-            <>
-              <span className={styles.running}>
-                <PulseDot pulse color="var(--mm-green)" />
-                {running.step} is live — its own output:
-              </span>
-              <pre className={styles.log}>{log.slice(-TAIL_LINES).join("\n")}</pre>
-            </>
-          )}
-
-          {running === null && last !== null && (
-            <details className={styles.disclosure}>
-              <summary>
-                {last.step} {describeEnd(last.exitCode, last.signal)} in{" "}
-                {formatDuration(last.durationMs)} — output
-              </summary>
-              <pre className={styles.log}>{log.join("\n")}</pre>
-            </details>
-          )}
-
-          {activityError !== null && (
-            <p className={styles.aside}>
-              the runner feed could not be read ({activityError}) — buttons may refuse until it
-              returns; the board above is unaffected
-            </p>
-          )}
-        </div>
+      <div className={styles.side}>
+        {running !== null && (
+          <>
+            <span className={styles.running}>
+              <PulseDot pulse color="var(--mm-green)" />
+              {running.step} is live
+            </span>
+            <pre className={styles.log}>{log.slice(-TAIL_LINES).join("\n")}</pre>
+          </>
+        )}
 
         {/*
-          Its own full-width row, beneath both columns, rather than stacked
-          inside the narrow right-hand one.
-          Measured: in a 386px column the two buttons sat one above the other
-          with their detail lines wrapping three deep, making this panel 316px
-          tall while 130px of the 806px prose column stood empty beside them —
-          and pushing the stat ribbon that carries the measured detection time
-          off the bottom of a 990px recording frame. Across the full width they
-          sit side by side, and the panel is ~85px shorter for the same words.
+          Closed by default, which is the point of it.
 
-          Last in the DOM as well as on screen: read what is happening, then
-          choose what to do about it.
+          A finished step's whole stdout is hundreds of lines of real Codex
+          output. It is genuine evidence and it stays one click away, but on the
+          board it is a single summary line.
         */}
-        {view.actions.length > 0 && (
-          <div className={`${styles.actions} ${styles.span}`}>
-            {view.actions.map((action) => (
-              <button
-                key={action.step}
-                type="button"
-                className={styles.action}
-                disabled={launching}
-                onClick={() => void launch(action.step)}
-              >
-                <span className={styles.actionLabel}>{action.label}</span>
-                <span className={styles.actionDetail}>{action.detail}</span>
-              </button>
-            ))}
-          </div>
+        {running === null && last !== null && (
+          <details className={styles.disclosure}>
+            <summary>
+              {last.step} {describeEnd(last.exitCode, last.signal)} in{" "}
+              {formatDuration(last.durationMs)}
+            </summary>
+            <pre className={styles.log}>{log.join("\n")}</pre>
+          </details>
+        )}
+
+        {activityError !== null && (
+          <p className={styles.aside}>
+            the runner feed could not be read ({activityError}), so buttons may refuse until it
+            returns. The board is unaffected.
+          </p>
         )}
       </div>
-    </Panel>
+
+      {/* Last in the DOM as well as on screen: read what happened, then choose
+          what to do about it. */}
+      {view.actions.length > 0 && (
+        <div className={styles.actions}>
+          {view.actions.map((action) => (
+            <button
+              key={action.step}
+              type="button"
+              className={styles.action}
+              disabled={launching}
+              onClick={() => void launch(action.step)}
+            >
+              <span className={styles.actionLabel}>{action.label}</span>
+              <span className={styles.actionDetail}>{action.detail}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </section>
   );
 }
 

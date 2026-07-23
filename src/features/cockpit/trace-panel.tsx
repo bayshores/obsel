@@ -35,6 +35,20 @@ import styles from "./trace-panel.module.css";
 const NEAR_BOTTOM_PX = 48;
 
 /**
+ * How many steps are rendered at once.
+ *
+ * The buffer holds 200 and a single `run` emits around 21. At roughly six words
+ * a step, rendering all of them would put more text on this board than
+ * everything else combined, which is the problem this pass exists to fix. The
+ * most recent eight are what a viewer can actually follow; the rest scrolled out
+ * of a 220px panel anyway, so this bounds the DOM rather than hiding anything
+ * that was legible.
+ *
+ * `/api/trace` still returns the full tail, so nothing is lost from the record.
+ */
+const SHOWN = 8;
+
+/**
  * Each phase's colour, from the same four the rest of the cockpit uses.
  *
  * Amber appears for exactly one phase, holding the invariant the whole board
@@ -58,6 +72,7 @@ export function TracePanel({
   error: string | null;
   style?: React.CSSProperties;
 }) {
+  const shown = events.slice(-SHOWN);
   const list = useRef<HTMLOListElement>(null);
   /*
    * Whether the newest step should be scrolled into view.
@@ -99,7 +114,16 @@ export function TracePanel({
   return (
     <Panel
       title="what obsel is doing"
-      meta={events.length === 0 ? "idle" : `${events.length} steps`}
+      label="What obsel is doing"
+      meta={
+        // Honest about the cap. "25 steps" above a list showing 8 sends the
+        // reader looking for the other 17.
+        events.length === 0
+          ? "idle"
+          : events.length > SHOWN
+            ? `last ${SHOWN} of ${events.length}`
+            : `${events.length} steps`
+      }
       padded={false}
       style={style}
       bodyStyle={{
@@ -121,14 +145,14 @@ export function TracePanel({
         {events.length === 0 ? (
           <li className={styles.quiet}>
             {error === null
-              ? "obsel has done nothing yet. Every step it takes — reading DataHub, comparing a result against last time, following the chain, writing a mark — appears here as it happens."
-              : `The step feed could not be read (${error}). The board above is unaffected.`}
+              ? "nothing yet. Every step obsel takes appears here as it happens."
+              : `could not be read (${error}). The board is unaffected.`}
           </li>
         ) : (
           // Newest last. The steps are a sequence obsel performed in order, and
           // reversing them to put the latest on top would read the cascade
-          // backwards — marks before the comparison that caused them.
-          events.map((event) => (
+          // backwards: marks before the comparison that caused them.
+          shown.map((event) => (
             <li
               key={event.seq}
               className={styles.row}
@@ -148,19 +172,11 @@ export function TracePanel({
       </ol>
 
       {/*
-        Two facts, tersely. This was a three-sentence footnote, which in a 220px
-        gutter cost more height than the steps it was describing — its careful
-        distinctions paid for by the thing they were about.
-
-        The second clause moved here from under the ledger, where it sat as a
-        standalone line saying the same thing about the same writes. This is
-        where it belongs: the panel above is obsel writing to DataHub, and the
-        reason that matters is that the marks are not private to this screen.
+        One fact, and the one that matters: the marks are not private to this
+        screen. Whittled from three sentences, then from two, because in a 220px
+        gutter this footnote cost more height than the steps it described.
       */}
-      <p className={styles.disclosure}>
-        each step recorded after it happened · marks land in DataHub itself, so anything else
-        reading the graph sees them
-      </p>
+      <p className={styles.disclosure}>marks are written into DataHub itself</p>
     </Panel>
   );
 }

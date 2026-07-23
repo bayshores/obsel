@@ -24,19 +24,39 @@ output streams onto the board. On 2026-07-22 the full journey — reset → re-d
 identical re-run → change — was driven end to end **with five clicks and no terminal**, against a
 live DataHub with a live Codex CLI, every step exiting 0.
 
-Two things were added on 2026-07-23, both for the same reason: a stranger looking at the board could
-not tell what it was.
+Several things were rebuilt on 2026-07-23, all for the same reason: a stranger looking at the board
+could not tell what it was.
 
 - **Agents and tables are named in words.** Every agent registers a human name and a one-sentence
-  job as real DataHub metadata — `obsel.title` and the DataJob's description — and the board reads
-  them back, so `clean_orders` appears as "Orders cleaner · cleans the raw orders export into a tidy
-  four-column table" everywhere, including in the reason written onto a stale mark. Nothing is mapped
-  in the frontend; a pipeline that registers no title still reads as words, via a fallback.
-- **obsel narrates its own work.** A panel beside the graph shows the steps the coordinator took, as
-  it takes them: the swarm read, each fingerprint comparison and its verdict, the lineage walk and
-  what it found, one line per mark once DataHub has confirmed the write, and a measured close. It is
-  narration, not a decision path — nothing reads it back, and it is not the record. The record is the
+  job as real DataHub metadata, `obsel.title` and the DataJob's description, and the board reads them
+  back, so `clean_orders` appears as "Orders cleaner" everywhere, including in the reason written
+  onto a stale mark. Nothing is mapped in the frontend; a pipeline that registers no title still
+  reads as words, via a fallback.
+- **The change is named, not hashed.** The demo renames a column, and the board used to render that
+  fact as `s f7b62a66`: obsel's real evidence, and unreadable. The changed table now shows
+  `- order_total` and `+ order_total_usd`, and the headline reads "clean orders lost order_total and
+  gained order_total_usd after they finished". It says lost and gained rather than renamed, because a
+  column leaving while another arrives cannot be told apart from a drop plus an unrelated addition,
+  and obsel reports what it observed. Staleness is still decided by comparing sha256 fingerprints and
+  by nothing else; the column list is a description of a change already detected, derived from
+  `obsel.run.outputs`, which obsel already recorded.
+- **The graph is a real graph library, and it moves.** It was about 800 lines of hand-written SVG:
+  bezier control points, a collision test for edges crossing boxes, hand-rolled arrowheads. It is
+  React Flow with a dagre layout now. The cascade edges animate continuously while the marks stand,
+  where the old one drew once over 400 ms and then held still, so a screenshot of a finished cascade
+  had nothing in it to say a change had travelled.
+- **obsel narrates its own work.** A strip under the graph shows the steps the coordinator took as it
+  takes them: the swarm read, each fingerprint comparison and its verdict, the lineage walk and what
+  it found, one line per mark once DataHub has confirmed the write, and a measured close. It is
+  narration, not a decision path: nothing reads it back, and it is not the record. The record is the
   marks in DataHub.
+- **The board says far less.** The flagged screen was 604 words in two stacked panels of prose, with
+  nothing on it set larger than 13 px, so there was no entry point and the only way in was to read
+  all of it. It is 238 words now, one headline leads, and the graph carries the mechanism. Nothing
+  was deleted from the system: every reason, fingerprint, timing and code identifier is one click
+  away on a node. Two checks in the suite hold the line, because ten rounds of hand-edited copy is
+  what produced the 604 in the first place: a word ceiling on the flagged board, and an assertion
+  that no em dash reaches the screen in any state.
 
 The guide is a lens, not a script: it derives its stage from what DataHub actually holds, so
 driving a step from the terminal instead moves the board the same way, and nothing on screen is
@@ -55,7 +75,7 @@ and type-checks, not a plan.
 | Marks written back into DataHub                                                 | `src/server/coordinator/engine.ts`, `src/server/datahub/mcp.ts`            |
 | Four demo agent workers, each a real Codex session                              | `agents/worker.py`, `agents/run.py`                                        |
 | The agent output contract, names and number form                                | `agents/worker.py` — `canonicalise_numbers`, with a self-check             |
-| The cockpit — graph, ledger, stats, feed, inspector                             | `app/page.tsx`, `src/features/cockpit/`                                    |
+| The cockpit — graph, headline, stats, step log, details                         | `app/page.tsx`, `src/features/cockpit/`                                    |
 | Live agent progress on the board                                                | `src/features/cockpit/progress.ts`                                         |
 | The guide — stage derived from live state, buttons that launch the real steps   | `src/features/cockpit/guide.ts`, `guide-panel.tsx`                         |
 | The demo runner — spawns `agents.run` steps, checks the machine's prerequisites | `src/server/runner/`                                                       |
@@ -68,7 +88,7 @@ and type-checks, not a plan.
   that nothing happens, which is deliberate — the failure that kills this kind of tool is a false
   alarm, not a miss. An identical re-run marks nothing, an unrelated branch is untouched, a running
   task is neither marked nor walked through, a cycle terminates.
-- **The cockpit's own logic**, by 129 further tests across `tests/cockpit-*.test.ts`. The load-bearing
+- **The cockpit's own logic**, by 133 further tests across `tests/cockpit-*.test.ts`. The load-bearing
   ones: graph geometry is byte-identical across every task status, so nothing moves on the frame
   three tasks flip amber; no label can overflow its box, checked against measured per-character
   advances; a six-task pipeline the layout has never seen draws correctly; amber fills a node if and
@@ -94,10 +114,23 @@ and type-checks, not a plan.
   same three tasks, and `GET /api/trace` reported each step as it happened: the swarm read (4 tasks),
   the comparison — _"its columns changed; the values did not"_ — the walk, _"Daily revenue (1 hop),
   Revenue report (2 hops), Table docs (2 hops)"_, one line per confirmed mark, and a close of
-  **3424 ms** end to end. That figure matched what the ledger and the stat ribbon showed at the same
-  moment. A second sequence the same day, from the terminal with `--capture`, produced the current
-  `examples/` set: `run` **124.1 s**, the same three tasks marked in a measured **745 ms**, and
-  fingerprints identical to the previous day's capture — the column contract holding across runs.
+  **3424 ms** end to end. That figure matched what the stat ribbon showed at the same moment. A
+  second sequence the same day, from the terminal with `--capture`, produced the current `examples/`
+  set: `run` **124.1 s**, the same three tasks marked in a measured **745 ms**, and fingerprints
+  identical to the previous day's capture, the column contract holding across runs.
+- **The rebuilt board, measured rather than eyeballed**, on 2026-07-23 against the same live DataHub
+  and Codex CLI. `run` took **143.1 s**; the rename was called **`schema`** and marked the same three
+  tasks in a measured **3281 ms**. `GET /api/swarm` returned
+  `columns: {"added":["order_total_usd"],"removed":["order_total"]}` on all three marks, including
+  the two at two hops that never read `clean_orders`, and the changed node rendered
+  `clean orders / - order_total / + order_total_usd`. In the browser at 1920 x 990: 9 nodes, 8 edges,
+  exactly **6 of them animated** (the cascade path), stable across ten samples over four seconds,
+  with the animation reporting an unbounded iteration count and a `stroke-dashoffset` still advancing
+  between samples. **238 words** on the page, **zero em dashes**, no horizontal scroll, whole board
+  inside the frame. Two defects were caught by measuring rather than looking: React Flow drew **zero
+  edges** while the poll replaced its node array every second, and the log strip beside the graph
+  squeezed node labels to **8 px** on a 1280 laptop. Both are fixed and both are written up in the
+  code that fixes them.
 - **The whole demo, driven from the browser alone**, on 2026-07-22 against a live DataHub and a
   signed-in Codex CLI — five clicks in the guide, no terminal: reset, then re-declare (which
   wrote each task's job description onto its DataJob and read it back onto the board in a
@@ -138,8 +171,8 @@ and type-checks, not a plan.
 
 ### Not done
 
-- **The demo has passed a handful of times, not repeatedly.** Four full clean sequences across
-  2026-07-22 and 2026-07-23 — two from the terminal, two from the browser — on one machine. That is
+- **The demo has passed a handful of times, not repeatedly.** Six full clean sequences across
+  2026-07-22 and 2026-07-23 — four from the terminal, two from the browser — on one machine. That is
   not a pass rate. Codex is a live agent and its output is not guaranteed identical between runs — see the
   next point for the one instance of that already found and fixed, and expect the possibility of
   others in categories nobody has hit yet.
@@ -153,18 +186,26 @@ and type-checks, not a plan.
   which is the property worth keeping. obsel itself called every one of those runs correctly.
 - **There is no _automated_ test of the TypeScript path against a live DataHub.** `engine.ts`,
   `client.ts`, `mcp.ts` and the demo runner in `src/server/runner/` have been exercised by hand
-  against a running instance, but nothing in `pnpm test` stands DataHub up — those 175 tests cover
+  against a running instance, but nothing in `pnpm test` stands DataHub up — those 188 tests cover
   pure decision logic only, by design, so that `pnpm verify` needs no Docker. `pnpm e2e` runs a
   real browser but stubs the endpoints, so it does not close this gap either.
 - **The detection latency numbers are single observations, not a benchmark.** Each cascade run has
   produced one measured figure — 6867 ms on 2026-07-21; 2591 ms and 2310 ms on separate runs on
-  2026-07-22; 3424 ms and 745 ms on 2026-07-23 — and the spread is dominated by how long the bounded
+  2026-07-22; 3424 ms, 1611 ms, 745 ms and 3281 ms on 2026-07-23 — and the spread is dominated by how long the bounded
   polling waits for each DataHub write to be confirmed, not by the deciding. The separate 92 ms
   figure is the Python traversal alone.
 - **The live trace is narration, not evidence.** It is emitted by the coordinator as it works and has
   been watched during a real cascade, but nothing reads it back, it is bounded to the newest 200
   steps, and it does not survive a restart. Anything it says is corroborated by the marks in DataHub
   or it is not corroborated at all.
+- **The word ceiling is a guard, not a design proof.** `e2e/cockpit.spec.ts` fails the build if the
+  flagged board goes past 110 words of prose or 260 words in total, which stops the density that
+  prompted this rebuild from creeping back. It cannot tell whether what remains is the right 238
+  words, and no test can.
+- **The graph has only been laid out for one pipeline shape.** dagre handles arbitrary DAGs and the
+  unit suite exercises a six-task fan-out and a cycle, but every visual check has been of the same
+  four-task demo. A swarm with many more parallel branches would be taller than the strip reserved
+  for it, and nothing yet says what should give.
 - The demo video is not recorded.
 
 ## Requirements
@@ -286,7 +327,8 @@ produce wrong results silently. Worth reading before writing code that touches D
 
 ```
 app/                     routing and composition (Next.js), and the nine HTTP routes
-src/features/cockpit/    the cockpit: layout.ts, tone.ts, timing.ts, naming.ts, progress.ts,
+src/features/cockpit/    the cockpit: lineage.tsx and nodes.tsx (React Flow), graph/positions.ts
+                         (dagre) and graph/cascade.ts, tone.ts, timing.ts, naming.ts, progress.ts,
                          guide.ts (pure), then the pixels
 src/server/coordinator/  types.ts, staleness.ts (pure rules), engine.ts (the IO half),
                          trace-buffer.ts (pure) and trace.ts (the one instance)
@@ -319,7 +361,7 @@ the cockpit's rendering of a snapshot, not that obsel produces the right snapsho
 cover that half.
 
 Checked 2026-07-23: `pnpm verify` succeeds end to end — `pnpm format:check`, `pnpm lint`,
-`pnpm typecheck`, `pnpm test` (175 passed), and `pnpm build`. `pnpm e2e` passes 45 browser checks
+`pnpm typecheck`, `pnpm test` (188 passed), and `pnpm build`. `pnpm e2e` passes 51 browser checks
 across both viewports, with one skipped by design — a recording-frame assertion that does not apply
 at laptop height.
 

@@ -13,6 +13,8 @@ the one judgement call is written out in full rather than summarised.
 | `acryl-datahub` (Python SDK) | Apache-2.0        | Creating entities and the tag, which MCP cannot do |
 | `@modelcontextprotocol/sdk`  | MIT               | Speaking MCP from TypeScript                       |
 | Next.js, React               | MIT               | The cockpit                                        |
+| `@xyflow/react` 12.11.2      | MIT               | The lineage graph on the board                     |
+| `@dagrejs/dagre` 3.0.0       | MIT               | Laying that graph out left to right                |
 | `geist` (Vercel)             | SIL OFL-1.1 / MIT | Geist and Geist Mono, self-hosted                  |
 | Codex CLI (`openai/codex`)   | Apache-2.0        | Running each demo agent — see the note below       |
 
@@ -22,12 +24,27 @@ The fonts are installed from npm and served by obsel itself, never fetched from
 build time so a machine with no network would fail to build. The mmux design system's own token
 sheet uses a Google Fonts `@import`; obsel's copy deliberately does not.
 
-**There is no shader or visualisation library.** The cockpit's WebGL backdrop is about sixty lines
-of GLSL in `src/features/cockpit/backdrop-shader.ts`, written for this project. A commercial
-shader library was evaluated and rejected — its licence makes integration code derivative and
-still subject to that licence, which cannot be reconciled with obsel being Apache-2.0 in a public
-repository, and it renders only under WebGPU, so it would have drawn nothing at all, silently, on
-a judge's machine without it.
+**There is no shader library.** The cockpit's WebGL backdrop is about sixty lines of GLSL in
+`src/features/cockpit/backdrop-shader.ts`, written for this project. A commercial shader library
+was evaluated and rejected: its licence makes integration code derivative and still subject to that
+licence, which cannot be reconciled with obsel being Apache-2.0 in a public repository, and it
+renders only under WebGPU, so it would have drawn nothing at all, silently, on a judge's machine
+without it.
+
+**The lineage graph is a library, and this line used to claim otherwise.** It said "there is no
+shader or visualisation library", which was true when written and stopped being true on
+2026-07-23. The graph was about 800 lines of hand-written SVG: bezier control points, a collision
+test that searched for a clear lane when an edge would otherwise cross a box, two `<marker>`
+definitions for the arrowheads, and per-character width reservation so labels could not overflow.
+It worked, and it was a layered-graph renderer being reinvented. React Flow and dagre replaced it,
+which deleted roughly 250 lines of geometry outright and gave the cascade an edge animation that
+runs continuously rather than once.
+
+React Flow's attribution badge is left visible in the bottom-right of the graph. The MIT licence
+does not compel that; removing it is what xyflow asks Pro subscribers to pay for, and leaving it is
+the honest position for a public hackathon entry. It is toned down in
+`src/features/cockpit/lineage.module.css` so it does not compete with the data, and it is not
+hidden.
 
 Node and Python dependency licences are recorded in `pnpm-lock.yaml` and
 `agents/requirements.txt`.

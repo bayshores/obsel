@@ -27,6 +27,7 @@ import "server-only";
 
 import type {
   ChangeKind,
+  ColumnChange,
   OutputFingerprint,
   OutputShape,
   RunDetail,
@@ -66,6 +67,16 @@ export const PROP = {
   staleCausedByTask: "obsel.stale.causedByTask",
   staleHops: "obsel.stale.hops",
   staleChangeKind: "obsel.stale.changeKind",
+  /**
+   * Which columns moved, as `{"added":[…],"removed":[…]}`.
+   *
+   * Describes the change `staleChangeKind` names, so the board can show
+   * `order_total` leaving and `order_total_usd` arriving instead of a sha256.
+   * Display only, like `title`: nothing obsel decides reads it, and staleness is
+   * settled by `fingerprints` alone. Absent on a content-only change and on every
+   * mark written before obsel recorded it.
+   */
+  staleColumns: "obsel.stale.columns",
   staleReason: "obsel.stale.reason",
   staleSince: "obsel.stale.since",
   staleDetectedMs: "obsel.stale.detectedMs",
@@ -368,6 +379,40 @@ function parseRun(props: Record<string, string>): RunDetail | null {
 }
 
 /**
+ * Read back which columns moved, when the mark recorded it.
+ *
+ * Null on anything unusable, never a partial or empty diff. This follows
+ * `parseRun`'s rule rather than `parseStale`'s: the column names are display
+ * material that nothing obsel decides depends on, so a malformed value renders as
+ * absent instead of failing the whole snapshot read. `parseStale` raises on a
+ * half-written mark because a mark with no traceable cause is not actionable;
+ * that argument does not reach a description of the cause.
+ *
+ * An empty diff is treated as absent too. `{"added":[],"removed":[]}` would be a
+ * schema change with nothing to show, which `columnChange` never produces, so
+ * seeing one means the value is wrong rather than meaningful.
+ */
+function parseColumns(raw: string | undefined): ColumnChange | null {
+  if (!raw) return null;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return null;
+
+  const value = parsed as Partial<Record<"added" | "removed", unknown>>;
+  const strings = (input: unknown): string[] =>
+    Array.isArray(input) ? input.filter((name): name is string => typeof name === "string") : [];
+
+  const added = strings(value.added);
+  const removed = strings(value.removed);
+  if (added.length === 0 && removed.length === 0) return null;
+  return { added, removed };
+}
+
+/**
  * Read back an unresolved stale mark, if the task carries one.
  *
  * Deliberately keyed on the mark's own properties rather than on `status`. A task
@@ -412,6 +457,7 @@ function parseStale(
     causedByTask: causedByTask ? causedByTask : null,
     hops,
     changeKind: changeKind as ChangeKind,
+    columns: parseColumns(props[PROP.staleColumns]),
     reason: props[PROP.staleReason] ?? "",
     since: props[PROP.staleSince] ?? "",
     // Absent on marks written before this was recorded, which is a missing
@@ -471,7 +517,7 @@ export async function readSnapshot(): Promise<SwarmSnapshot> {
       const entity = await readTaskEntity(urn);
       if (!entity) {
         throw new DataHubError(
-          `flow ${FLOW_URN} lists task ${urn}, but reading it returned 404 — the graph and the aspect store disagree`,
+          `flow ${FLOW_URN} lists task ${urn}, but reading it returned 404, so the graph and the aspect store disagree`,
         );
       }
       return toTaskRecord(entity);

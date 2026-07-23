@@ -82,6 +82,236 @@ const FOUR_COMPLETE = [
   task("write_docs"),
 ];
 
+/**
+ * Every word a stage puts on screen, as one string.
+ *
+ * The view used to expose `narration: string[]`, and most assertions here read
+ * `narration.join("\n")`. That field is gone: a stage now yields a headline, one
+ * optional subline, and notes only on the setup and failure stages. These tests
+ * are about which facts a stage states, not about which field carries them, so
+ * they assert against the whole rendered text.
+ */
+function allText(view: ReturnType<typeof guide>): string {
+  return [
+    view.headline,
+    view.subline ?? "",
+    ...view.notes,
+    view.attention ?? "",
+    ...view.actions.flatMap((a) => [a.label, a.detail]),
+  ].join("\n");
+}
+
+describe("no em dash reaches the screen", () => {
+  /*
+   * A guard, not a preference dressed as one.
+   *
+   * The owner asked for em dashes to go. Ten rounds of hand-editing copy had
+   * already put 194 of them into this directory and 10 onto the board at once, so
+   * the only version of "removed" that survives another pass of edits is one the
+   * build enforces. `e2e/cockpit.spec.ts` makes the same assertion against the
+   * fully rendered page; this one covers every stage, including the failure and
+   * setup stages a browser test would have to break the machine to reach.
+   */
+  const EM_DASH = "—";
+
+  function everyStage(): { name: string; view: ReturnType<typeof guide> }[] {
+    const failing: StepResult = {
+      step: "run",
+      exitCode: 1,
+      signal: null,
+      durationMs: 4000,
+      startedAt: AT,
+      finishedAt: AT,
+    };
+    return [
+      { name: "connect", view: guide(input({ trusted: false })) },
+      {
+        name: "connect with a fix to offer",
+        view: guide(
+          input({
+            trusted: false,
+            activity: activity({
+              preflight: {
+                datahub: {
+                  ok: false,
+                  detail: "nothing answered",
+                  fix: "datahub docker quickstart",
+                },
+                vocabulary: ok(),
+                venv: ok(),
+                codex: ok(),
+              },
+            }),
+          }),
+        ),
+      },
+      {
+        name: "prepare",
+        view: guide(
+          input({
+            activity: activity({
+              preflight: {
+                datahub: ok(),
+                vocabulary: { ok: false, detail: "the tag is missing", fix: null },
+                venv: ok(),
+                codex: { ok: false, detail: "not installed", fix: "brew install codex" },
+              },
+            }),
+          }),
+        ),
+      },
+      { name: "empty", view: guide(input({ tasks: [] })) },
+      {
+        name: "registered",
+        view: guide(input({ tasks: [task("clean_orders", { finishedAt: null })] })),
+      },
+      {
+        name: "working",
+        view: guide(
+          input({
+            tasks: [
+              task("clean_orders", {
+                status: "running",
+                finishedAt: null,
+                startedAt: "2026-07-22T09:00:00.000Z",
+              }),
+            ],
+          }),
+        ),
+      },
+      { name: "settled", view: guide(input({ tasks: FOUR_COMPLETE })) },
+      {
+        name: "flagged",
+        view: guide(
+          input({
+            tasks: [
+              task("clean_orders"),
+              task("build_revenue", { status: "stale", stale: mark() }),
+            ],
+          }),
+        ),
+      },
+      {
+        name: "flagged with a named column change",
+        view: guide(
+          input({
+            tasks: [
+              task("clean_orders"),
+              task("build_revenue", {
+                status: "stale",
+                stale: mark({ columns: { added: ["order_total_usd"], removed: ["order_total"] } }),
+              }),
+            ],
+          }),
+        ),
+      },
+      {
+        name: "a failed step",
+        view: guide(input({ activity: activity({ lastResult: failing }) })),
+      },
+      {
+        name: "a live step",
+        view: guide(
+          input({
+            tasks: FOUR_COMPLETE,
+            activity: activity({ running: { step: "run", startedAt: AT } }),
+          }),
+        ),
+      },
+    ];
+  }
+
+  it("never puts one in a headline, a subline, a note, an action or an attention line", () => {
+    for (const { name, view } of everyStage()) {
+      expect(allText(view), name).not.toContain(EM_DASH);
+    }
+  });
+
+  it("covers every stage the guide can produce, so none can slip through unchecked", () => {
+    // Without this, adding a stage and forgetting to list it above would leave
+    // the guard passing while the new stage went unchecked.
+    const covered = new Set(everyStage().map(({ view }) => view.stage));
+    expect([...covered].sort()).toEqual([
+      "connect",
+      "empty",
+      "flagged",
+      "prepare",
+      "registered",
+      "settled",
+      "working",
+    ]);
+  });
+});
+
+describe("the change line names the columns that moved", () => {
+  it("says lost and gained, never renamed, because a rename cannot be observed", () => {
+    const view = guide(
+      input({
+        tasks: [
+          task("clean_orders"),
+          task("build_revenue", {
+            status: "stale",
+            stale: mark({ columns: { added: ["order_total_usd"], removed: ["order_total"] } }),
+          }),
+        ],
+      }),
+    );
+    expect(view.subline).toBe(
+      "clean orders lost order_total and gained order_total_usd after they finished",
+    );
+    expect(view.subline).not.toContain("renamed");
+  });
+
+  it("falls back to the kind of change when no columns were recorded", () => {
+    // Marks written before obsel recorded column lists, and every content-only
+    // change. The line still has to say something true.
+    const schema = guide(
+      input({
+        tasks: [task("build_revenue", { status: "stale", stale: mark({ columns: null }) })],
+      }),
+    );
+    expect(schema.subline).toBe("the columns in clean orders changed after they finished");
+
+    const content = guide(
+      input({
+        tasks: [
+          task("build_revenue", {
+            status: "stale",
+            stale: mark({ changeKind: "content", columns: null }),
+          }),
+        ],
+      }),
+    );
+    expect(content.subline).toBe("the rows in clean orders changed after they finished");
+  });
+
+  it("reports a one-sided change without a dangling conjunction", () => {
+    const added = guide(
+      input({
+        tasks: [
+          task("build_revenue", {
+            status: "stale",
+            stale: mark({ columns: { added: ["refund_total"], removed: [] } }),
+          }),
+        ],
+      }),
+    );
+    expect(added.subline).toBe("clean orders gained refund_total after they finished");
+
+    const removed = guide(
+      input({
+        tasks: [
+          task("build_revenue", {
+            status: "stale",
+            stale: mark({ columns: { added: [], removed: ["order_total"] } }),
+          }),
+        ],
+      }),
+    );
+    expect(removed.subline).toBe("clean orders lost order_total after they finished");
+  });
+});
+
 describe("stage derivation", () => {
   it("connect when the swarm read is not trusted, whatever else is true", () => {
     const view = guide(input({ trusted: false, tasks: FOUR_COMPLETE }));
@@ -107,8 +337,8 @@ describe("stage derivation", () => {
         }),
       }),
     );
-    expect(view.narration.join("\n")).toContain("nothing answered");
-    expect(view.narration.join("\n")).toContain("datahub docker quickstart");
+    expect(allText(view)).toContain("nothing answered");
+    expect(allText(view)).toContain("datahub docker quickstart");
   });
 
   it("prepare when the machine is broken while the swarm reads fine", () => {
@@ -126,7 +356,7 @@ describe("stage derivation", () => {
       }),
     );
     expect(view.stage).toBe("prepare");
-    expect(view.narration.join("\n")).toContain("codex login");
+    expect(allText(view)).toContain("codex login");
   });
 
   it("prepare offers setup as a button only when the venv can actually launch it", () => {
@@ -158,7 +388,7 @@ describe("stage derivation", () => {
       }),
     );
     expect(withoutVenv.actions).toEqual([]);
-    expect(withoutVenv.narration.join("\n")).toContain("python3 -m venv agents/.venv");
+    expect(allText(withoutVenv)).toContain("python3 -m venv agents/.venv");
   });
 
   it("an unreadable activity feed never blocks the journey — unknown is not broken", () => {
@@ -167,11 +397,14 @@ describe("stage derivation", () => {
     expect(view.actions.map((action) => action.step)).toEqual(["register"]);
   });
 
-  it("empty offers register and tells the product story", () => {
+  it("empty offers register and says what is about to be set up", () => {
+    // The only stage with no graph on screen, so the only one that describes the
+    // pipeline in words instead of drawing it.
     const view = guide(input({ tasks: [] }));
     expect(view.stage).toBe("empty");
     expect(view.actions.map((action) => action.step)).toEqual(["register"]);
-    expect(view.narration[0]).toContain("obsel");
+    expect(allText(view)).toContain("nothing registered yet");
+    expect(allText(view)).toContain("reading a table another one writes");
   });
 
   it("registered counts the agents and points at the list rather than repeating it", () => {
@@ -194,20 +427,20 @@ describe("stage derivation", () => {
       }),
     );
     expect(view.stage).toBe("registered");
-    expect(view.narration[0]).toContain("2 agents are declared");
+    expect(allText(view)).toContain("2 agents ready to run");
 
     /*
      * The roster must NOT be here. This stage used to push one
-     * `Title — what it does` line per task, and the ledger below now carries
-     * that line on every row in every state — so the board showed the same
-     * four-item list twice, one panel apart. Asserting the absence is the point
-     * of the test: nothing else fails if the duplication comes back.
+     * `Title, what it does` line per task. The graph draws all of them, with
+     * their names and the tables between them, so a list in prose above it was
+     * the same facts a second time in the slower medium. Asserting the absence is
+     * the point of the test: nothing else fails if the duplication comes back.
      */
-    const prose = view.narration.join("\n");
+    const prose = allText(view);
     expect(prose).not.toContain("cleans the raw orders export");
-    expect(prose).not.toContain("reads clean orders · writes daily revenue");
-    // Still names where to look, so dropping the list did not drop the reader.
-    expect(view.narration[0]).toContain("listed below");
+    expect(prose).not.toContain("reads clean orders");
+    // What it does carry is the one fact the graph cannot draw.
+    expect(prose).toContain("obsel records a fingerprint");
 
     // Run leads; re-declare is reachable here because the empty stage never
     // recurs on a DataHub that has seen the pipeline before.
@@ -224,7 +457,7 @@ describe("stage derivation", () => {
       }),
     );
     expect(view.stage).toBe("registered");
-    expect(view.narration[0]).toContain("1 of 2");
+    expect(allText(view)).toContain("1 of 2");
     // No re-declare once anything has finished: register resets every task's
     // status, which would demote finished work below the cascade's notice.
     expect(view.actions.map((action) => action.step)).toEqual(["run"]);
@@ -244,7 +477,7 @@ describe("stage derivation", () => {
       }),
     );
     expect(view.stage).toBe("working");
-    expect(view.narration[0]).toContain("in flight for 10.0 s");
+    expect(allText(view)).toContain("10.0 s in");
     expect(view.actions).toEqual([]);
   });
 
@@ -261,11 +494,18 @@ describe("stage derivation", () => {
       }),
     );
     expect(view.stage).toBe("working");
-    expect(view.narration[0]).not.toContain("in flight for");
-    expect(view.narration[0]).toContain("Orders cleaner is working");
+    expect(allText(view)).not.toMatch(/\d+\.\d+ s in/);
+    expect(allText(view)).toContain("Orders cleaner is working");
   });
 
-  it("a stale task that is re-running lands on working — running wins, and the held mark is counted", () => {
+  it("a stale task that is re-running lands on working, because running wins", () => {
+    /*
+     * This used to also assert a "1 finished task(s) still carry their mark"
+     * line. That line is gone from the guide, not from the board: a mark held by
+     * work that is not itself stale renders as an amber OUTLINE on the node,
+     * which is the rule `nodeTone` enforces and `cockpit-layout.test.ts` covers.
+     * The guide stating it again was the same fact in the slower medium.
+     */
     const view = guide(
       input({
         tasks: [
@@ -275,7 +515,8 @@ describe("stage derivation", () => {
       }),
     );
     expect(view.stage).toBe("working");
-    expect(view.narration.join("\n")).toContain("1 finished task(s) still carry their mark");
+    expect(view.actions).toEqual([]);
+    expect(allText(view)).toContain("only finished work can go stale");
   });
 
   it("settled offers the two experiments once everything finished clean", () => {
@@ -304,20 +545,23 @@ describe("stage derivation", () => {
       }),
     );
     expect(view.stage).toBe("flagged");
-    const text = view.narration.join("\n");
-    expect(text).toContain("3 of 4 finished tasks");
-    expect(text).toContain("stopped being true underneath them");
+    const text = allText(view);
+    expect(text).toContain("3 of 4 finished agents are out of date");
     /*
-     * It must NOT point at the ledger. This stage used to end by explaining that
-     * each amber row carries a recorded reason — a sentence about the screen,
-     * for a reader who is looking at the screen and can see the amber rows and
-     * their reasons directly below. The guide's job here is the work, not a tour
-     * of the layout.
+     * It must NOT describe the screen, and it must NOT list the affected tasks.
+     *
+     * Two paragraphs used to do both: one pointing at the ledger's recorded
+     * reasons, one naming the transitively marked tasks and explaining why
+     * lineage matters. The graph now shows that reach directly, as an amber path
+     * travelling outward from the changed table through each hop, continuously.
      */
     expect(text).not.toContain("ledger below");
-    // Named by their human titles, never by the code identifiers.
-    expect(text).toContain("Revenue report and Table docs never read the changed table");
+    expect(text).not.toContain("never read the changed table");
+    // Code identifiers never reach the screen, whatever the stage says.
     expect(text).not.toContain("write_report");
+    expect(text).not.toContain("clean_orders");
+    // The subline names the changed table, in words.
+    expect(text).toContain("clean orders");
     // The identical re-run stays available on a flagged board — proving no new
     // marks arrive and the existing three stay put — alongside reset. `change`
     // does not: re-issuing the same changed job proves nothing further.
@@ -330,7 +574,7 @@ describe("stage derivation", () => {
         tasks: [task("build_revenue", { status: "stale", stale: mark({ detectedMs: null }) })],
       }),
     );
-    const text = view.narration.join("\n");
+    const text = allText(view);
     expect(text).not.toContain("null");
     expect(text).not.toContain("NaN");
     expect(text).not.toContain("marked in");
@@ -343,7 +587,7 @@ describe("the running step and the failed step", () => {
   it("actions disappear while a launched step is live, and the narration says which", () => {
     const view = guide(input({ tasks: [], activity: activity({ running }) }));
     expect(view.actions).toEqual([]);
-    expect(view.narration.join("\n")).toContain("`run` is running now");
+    expect(allText(view)).toContain("`run` is running now");
   });
 
   it("a failed last step is flagged on whatever stage the board is in", () => {

@@ -70,7 +70,7 @@ export function refusal(running: RunningStep | null, venvPresent: boolean): Laun
   if (running !== null) {
     return {
       status: 409,
-      error: `${running.step} is already running — one step at a time, they share the same tables`,
+      error: `${running.step} is already running. One step at a time, they share the same tables`,
       fix: null,
     };
   }

@@ -24,6 +24,29 @@ export interface OutputFingerprint {
 
 export type ChangeKind = "schema" | "content" | "both";
 
+/**
+ * Which columns left and which arrived, when a schema moved.
+ *
+ * This is a *description* of a change, never the detection of one. Staleness is
+ * decided by `compareFingerprints` on the sha256 pair above and by nothing else;
+ * this exists because `changeKind: "schema"` is unreadable to a person, while
+ * "`order_total` left, `order_total_usd` arrived" explains obsel's entire point
+ * at a glance. Both lists are derived from `OutputShape.columns`, which obsel
+ * already records under `obsel.run.outputs`, so no new evidence is collected.
+ *
+ * Deliberately NOT called a rename. A column leaving and another arriving is
+ * indistinguishable from a drop plus an unrelated addition, and obsel reports
+ * what it observed rather than the intent it would take to guess. Rendered as a
+ * diff, which lets the reader draw the obvious conclusion without obsel
+ * asserting it.
+ */
+export interface ColumnChange {
+  /** Present after, absent before. Sorted. */
+  added: string[];
+  /** Present before, absent after. Sorted. */
+  removed: string[];
+}
+
 /** What one output table turned out to be, as the agent that wrote it counted it. */
 export interface OutputShape {
   rows: number;
@@ -73,6 +96,17 @@ export interface StaleMark {
   hops: number;
   /** Which part of the upstream output moved. */
   changeKind: ChangeKind;
+  /**
+   * Which columns moved, when `changeKind` involved the schema and both column
+   * lists were known.
+   *
+   * Optional in both directions: absent on a content-only change, and absent on
+   * every mark written before obsel recorded this, so an older mark still reads
+   * correctly rather than rendering an empty diff. Never consulted when deciding
+   * anything; it exists so the board can name the change instead of showing a
+   * hash of it.
+   */
+  columns?: ColumnChange | null;
   /** Plain-English sentence for the dashboard and the DataHub property. */
   reason: string;
   /** ISO timestamp of when the mark was applied. */

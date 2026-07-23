@@ -151,7 +151,7 @@ async function callTagTool(tool: "add_tags" | "remove_tags", taskUrns: string[])
   if (result.isError) {
     const detail = resultText(result) || "no detail returned";
     const hint = detail.includes("Urn does not exist")
-      ? ` ${STALE_TAG_URN} has to be registered in DataHub during setup — obsel cannot create a tag at runtime.`
+      ? ` ${STALE_TAG_URN} has to be registered in DataHub during setup. obsel cannot create a tag at runtime.`
       : "";
     throw new McpUnavailableError(`${tool} failed for ${taskUrns.join(", ")}: ${detail}.${hint}`);
   }

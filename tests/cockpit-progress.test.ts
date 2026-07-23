@@ -124,9 +124,11 @@ describe("formatDuration", () => {
   });
 
   it("refuses to format a negative or non-finite duration as a number", () => {
-    expect(formatDuration(-1)).toBe("—");
-    expect(formatDuration(Number.NaN)).toBe("—");
-    expect(formatDuration(Number.POSITIVE_INFINITY)).toBe("—");
+    // The same placeholder the cockpit uses for any withheld figure. It changed
+    // from an em dash; what it must never become is a number.
+    expect(formatDuration(-1)).toBe("··");
+    expect(formatDuration(Number.NaN)).toBe("··");
+    expect(formatDuration(Number.POSITIVE_INFINITY)).toBe("··");
   });
 });
 

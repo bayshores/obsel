@@ -22,17 +22,24 @@ import { guide } from "./guide";
 import { GuidePanel } from "./guide-panel";
 import { Inspector } from "./inspector";
 import { Lineage } from "./lineage";
-import { LedgerRow } from "./ledger";
-import { Divider, Panel, PulseDot, StatCell, StatRibbon, Wordmark } from "./mmux";
+import { Panel, PulseDot, StatCell, StatRibbon, Wordmark } from "./mmux";
 import { TracePanel } from "./trace-panel";
 import { useActivity } from "./use-activity";
 import { useTrace } from "./use-trace";
-import { POLL_MS, useSwarm } from "./use-swarm";
+import { useSwarm } from "./use-swarm";
 import { clockTime, inDependencyOrder, summaryLine, totals } from "./timing";
 
 import styles from "./cockpit.module.css";
 
-const DASH = "—";
+/**
+ * What a withheld number reads as.
+ *
+ * Was an em dash. The honesty rule it serves is unchanged: when a read fails,
+ * every derived figure renders as this rather than holding its last value,
+ * because a stale "0 out of date" beside a broken connection is exactly the false
+ * all-clear obsel exists to prevent. Only the character changed.
+ */
+const BLANK = "··";
 
 export function Cockpit() {
   const { data, error, lastReadAt, roundTripMs, everRead } = useSwarm();
@@ -49,7 +56,7 @@ export function Cockpit() {
   // A failed read invalidates every derived number, not just the connection.
   const trusted = data !== null && error === null;
   const selected = tasks.find((task) => task.urn === selectedUrn) ?? null;
-  const stat = (value: string): string => (trusted ? value : DASH);
+  const stat = (value: string): string => (trusted ? value : BLANK);
 
   const guideView = guide({
     trusted,
@@ -61,43 +68,32 @@ export function Cockpit() {
 
   return (
     <main className={styles.cockpit}>
+      {/*
+        One line: who this is, which pipeline, and whether the board is live.
+
+        The tagline ("flags finished agent work when what it was built on
+        changes") and the poll description ("reading obsel once a second") both
+        lived here. The tagline is what the headline below now says in terms of
+        what actually happened, and the poll rate is machinery, not news. Both are
+        still recorded, in the details panel and the README.
+      */}
       <header className={styles.header}>
-        <div>
-          <div className={styles.identity}>
-            <Wordmark text="obsel" size={20} />
-            <span className={styles.flow}>
-              ▸ {data?.snapshot.flow !== undefined ? shortFlow(data.snapshot.flow) : "no swarm"}
-            </span>
-          </div>
-          <p className={styles.tagline}>
-            flags finished agent work when what it was built on changes
-          </p>
+        <div className={styles.identity}>
+          <Wordmark text="obsel" size={20} />
+          <span className={styles.flow}>
+            {data?.snapshot.flow !== undefined ? shortFlow(data.snapshot.flow) : "no swarm"}
+          </span>
         </div>
 
-        <div className={styles.lights}>
-          {/* Two lights, and only two. /api/health does not exist yet, so the
-              cockpit reports what the browser genuinely observed and nothing
-              more — a fabricated "datahub: ok" would be a claim nobody checked. */}
-          <span className={styles.light}>
-            <PulseDot color={trusted ? "var(--mm-green)" : "var(--mm-red)"} />
-            <span style={{ color: trusted ? "var(--mm-green)" : "var(--mm-red)" }}>
-              {trusted ? "connected" : "can't reach obsel"}
-            </span>
+        {/* One light. /api/health does not exist, so the cockpit reports what the
+            browser genuinely observed and nothing more: a fabricated
+            "datahub: ok" would be a claim nobody checked. */}
+        <span className={styles.light}>
+          <PulseDot color={trusted ? "var(--mm-green)" : "var(--mm-red)"} />
+          <span style={{ color: trusted ? "var(--mm-green)" : "var(--mm-red)" }}>
+            {trusted ? "connected" : everRead ? "showing the last good read" : "connecting"}
           </span>
-          {/* The read latency and the answered-at clock used to sit here as
-              "board round trip 51 ms · answered 17:22:16", which is the first
-              thing a newcomer's eye lands on and means nothing to them. Both are
-              still reported — in the Details panel, labelled — and what stays
-              here is the one fact this line existed to carry: whether what is on
-              screen is current. */}
-          <span className={styles.reading}>
-            {trusted
-              ? "reading obsel once a second"
-              : everRead
-                ? "showing the last good read"
-                : "connecting"}
-          </span>
-        </div>
+        </span>
       </header>
 
       <GuidePanel view={guideView} activity={activity} activityError={activityError} />
@@ -116,18 +112,23 @@ export function Cockpit() {
       <div className={styles.workbench}>
         <Panel
           title="how the work connects"
-          meta="each box is an agent; each panel beside it is a table it reads or writes"
+          // The subtitle said "each box is an agent; each panel beside it is a
+          // table it reads or writes". The boxes now carry legible names at 13px
+          // instead of hand-positioned 11px SVG text, and the arrows say which
+          // way the data moves, so the picture no longer needs a caption
+          // explaining how to read it.
           padded={false}
-          // The one region that takes the leftover height. 220px is the floor at
-          // which the graph is still readable in a recording.
-          style={{ flex: "1 1 auto", minHeight: 220, display: "flex", flexDirection: "column" }}
+          // The region that takes all the leftover height, which is the whole
+          // point of this pass: the graph was 16.8% of the frame and 166px tall,
+          // making the board's one explanatory picture its smallest region.
+          style={{ flex: "1 1 auto", minHeight: 260, display: "flex", flexDirection: "column" }}
           bodyStyle={{ flex: 1, minHeight: 0, position: "relative", overflow: "hidden" }}
         >
           <Backdrop alert={t.stale > 0} />
           <div className={styles.grid} />
           <div className={styles.graphBody}>
             {tasks.length > 0 ? (
-              <Lineage tasks={tasks} />
+              <Lineage tasks={tasks} onSelect={setSelectedUrn} />
             ) : (
               // Gated on `trusted`, not on `everRead && data !== null`. `data` is
               // deliberately retained across a failed read, so those two are true
@@ -188,6 +189,9 @@ export function Cockpit() {
           {selected !== null && (
             <Inspector
               task={selected}
+              snapshotAt={data?.snapshot.at ?? null}
+              readAt={trusted && lastReadAt !== null ? clockTime(lastReadAt) : null}
+              roundTripMs={trusted ? roundTripMs : null}
               onClose={() => setSelectedUrn(null)}
               style={{
                 flex: "1 1 0",
@@ -213,34 +217,28 @@ export function Cockpit() {
       </div>
 
       {/*
-        Above the ledger, not below it, and that ordering is load-bearing.
+        Two figures, down from five.
 
-        The ledger is both the tallest region and the only one whose height grows
-        with the swarm — four rows at 96px in the cascaded state — so it is
-        always what pushes the column past the viewport. With the ribbon beneath
-        it, the first thing to go off the bottom of a 990px recording frame was
-        the measured detection time: the one number the whole demo is trying to
-        establish, hidden by the rows it is the summary of.
-
-        Put first, the summary and its measured figures are above the fold in
-        every state, and any overflow comes out of per-row detail that the
-        viewer can scroll to — which is the right thing to lose, and the reason
-        this is a structural fix rather than a pass of pixel trimming.
+        `tasks`, `finished` and `out of date` all left: every one of them is
+        countable off the graph, and between this ribbon, the headline and the
+        ledger's divider the board was stating "3 of 4" four separate times.
+        What is left is the pair a reader cannot derive by looking, and the one
+        the whole demo exists to establish.
       */}
-      <StatRibbon label="Swarm totals">
+      <StatRibbon label="Detection">
         {[
-          <StatCell key="tasks" label="tasks" value={stat(String(t.tasks))} />,
-          <StatCell key="finished" label="finished" value={stat(String(t.finished))} />,
           <StatCell
-            key="stale"
-            label="out of date"
-            value={stat(String(t.stale))}
-            accent={trusted && t.stale > 0}
+            key="detection"
+            label="detection time"
+            value={trusted && t.timing !== null ? String(t.timing.ms) : BLANK}
+            unit={trusted ? (t.timing !== null ? "ms" : "not measured") : undefined}
+            accent={trusted && t.timing !== null}
+            glow={trusted && t.timing !== null}
           />,
           <StatCell
             key="reach"
             label="deepest reach"
-            value={t.deepestReach === null ? stat(DASH) : stat(String(t.deepestReach))}
+            value={t.deepestReach === null ? stat(BLANK) : stat(String(t.deepestReach))}
             unit={
               trusted && t.deepestReach !== null
                 ? t.deepestReach === 1
@@ -249,71 +247,29 @@ export function Cockpit() {
                 : undefined
             }
           />,
-          // "not measured" sits in the unit slot rather than the value slot.
-          // It is a sentence, not a reading, and at the value's size it wrapped
-          // across two lines and read like a number that had gone wrong.
-          <StatCell
-            key="detection"
-            label="detection time"
-            value={trusted && t.timing !== null ? String(t.timing.ms) : DASH}
-            unit={trusted ? (t.timing !== null ? "ms" : "not measured") : undefined}
-            accent={trusted && t.timing !== null}
-            glow={trusted && t.timing !== null}
-          />,
         ]}
       </StatRibbon>
 
-      <section className={styles.ledger} aria-label="Cascade ledger">
-        {/*
-          The whole point of the demo — three tasks flipping to stale — changed
-          four places in the DOM and was announced to nobody. This is the one
-          live region: `summaryLine` states the counts in a sentence and only
-          changes when the counts do, so it is not chatter on every poll.
-        */}
-        <p className={styles.announce} role="status" aria-live="polite">
-          {trusted ? summaryLine(t.tasks, t.finished, t.stale) : "Not reading the swarm."}
-        </p>
-        <Divider
-          label={
-            t.stale > 0
-              ? `each agent — ${t.stale} of ${t.finished} finished agents are built on something that changed`
-              : "each agent — what it is for, and whether its work still holds"
-          }
-        />
-        <ul className={styles.rows}>
-          {tasks.map((task) => (
-            <LedgerRow
-              key={task.urn}
-              task={task}
-              // The snapshot's own timestamp, so an in-flight elapsed is
-              // measured entirely on obsel's clock. It advances once per poll,
-              // which is what makes the figure tick without a second timer —
-              // and it freezes when reads fail, so a broken connection stops
-              // the count rather than letting it run on unattended.
-              snapshotAt={data?.snapshot.at ?? null}
-              selected={task.urn === selectedUrn}
-              onSelect={() => setSelectedUrn(task.urn === selectedUrn ? null : task.urn)}
-            />
-          ))}
-        </ul>
-      </section>
+      {/*
+        The ledger is gone from the board, and its content is not.
 
-      {/* One line, not two. The summary that used to lead this row is the same
-          sentence the ledger's live region already announces and the divider
-          above already states in numbers — three copies of one fact, on a screen
-          whose problem was density. What is left is the framing a newcomer
-          cannot get from anywhere else on the board. */}
-      <footer className={styles.footer}>
-        <span>
-          obsel does not judge whether work is good, only whether it is still built on something
-          true.
-        </span>
-        <span>
-          {trusted
-            ? `re-read every ${POLL_MS / 1000}s${roundTripMs === null ? "" : ` · last read took ${roundTripMs} ms`}${lastReadAt === null ? "" : `, answered ${clockTime(lastReadAt)}`}`
-            : "not reading — every measured number above is withheld"}
-        </span>
-      </footer>
+        It rendered all four tasks as cards carrying a status word, a human name, a
+        code identifier, a job sentence, a reason sentence, a timestamp and a line
+        of runner metadata: 311px and 205 words, describing the same four tasks the
+        graph above draws. Two renderings of one thing, and together the largest
+        single source of the 604 words on this screen.
+
+        Every one of those facts now lives in the details panel, opened by clicking
+        a box on the graph. The mark's `reason` is unchanged, still stored on the
+        mark, still written into DataHub, and still shown verbatim rather than
+        summarised, so the rule that a mark carries a traceable cause is untouched.
+
+        The live region stays. It is the only thing that announced the cascade to a
+        screen reader, and it costs no pixels.
+      */}
+      <p className={styles.announce} role="status" aria-live="polite">
+        {trusted ? summaryLine(t.tasks, t.finished, t.stale) : "Not reading the swarm."}
+      </p>
     </main>
   );
 }

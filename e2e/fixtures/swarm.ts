@@ -79,6 +79,16 @@ function mark(hops: number, reason: string): StaleMark {
     causedByTask: jobUrn("clean_orders"),
     hops,
     changeKind: "schema",
+    /*
+     * The column diff every mark from a schema change carries.
+     *
+     * Present on the two-hop marks as well as the one-hop mark, because it
+     * describes the ORIGIN's change and every task in the cascade is stale
+     * because of that same change. A fixture that omitted it here would exercise
+     * only the fallback wording and leave the sentence that actually explains
+     * obsel, naming the column that moved, untested in a browser.
+     */
+    columns: { added: ["order_total_usd"], removed: ["order_total"] },
     reason,
     since: AT,
     detectedMs: 118,

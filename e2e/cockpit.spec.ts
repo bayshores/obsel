@@ -30,9 +30,6 @@ function obselAlert(page: Page) {
   return page.locator('main [role="alert"]');
 }
 
-/** The per-character advances graph/layout.ts reserves box widths from. */
-const ADVANCE: Record<number, number> = { 10: 6.28, 11: 6.885, 13: 8.06 };
-
 test.describe("typography", () => {
   test("the real faces resolved, not a fallback", async ({ page }) => {
     await openCockpit(page, cascaded());
@@ -50,61 +47,79 @@ test.describe("typography", () => {
     // and merely looks slightly off. No unit test can see a resolved font.
   });
 
-  test("the ADVANCE table is true of the face that actually rendered", async ({ page }) => {
+  /*
+   * Two tests used to live here that measured `main svg text`: one checking a
+   * table of per-character advances for Geist Mono, one checking that no text
+   * escaped the rectangle it was centred in. Both existed because the graph was
+   * hand-positioned SVG whose box widths were reserved by counting characters, so
+   * a font substitution clipped labels on camera with nothing to catch it.
+   *
+   * The graph is React Flow now and its nodes are HTML, so the browser lays the
+   * text out and CSS ellipsis handles anything too long. What replaced those
+   * tests is the check below, which is the concern that survived the rewrite:
+   * dagre reserves a footprint per node, and if the DOM renders a node LARGER
+   * than that, dagre has packed boxes that overlap in reality while its own
+   * numbers, and the unit tests over them, stay perfectly consistent.
+   */
+  test("no node renders larger than the footprint dagre reserved for it", async ({ page }) => {
     await openCockpit(page, cascaded());
+    await page.waitForSelector(".react-flow__node", { state: "attached" });
 
-    const samples = await page.evaluate(() => {
-      const out: { text: string; size: number; perChar: number }[] = [];
-      for (const node of document.querySelectorAll("main svg text")) {
-        const text = node.textContent ?? "";
-        // Skip anything non-ASCII: U+00B7 is narrower than a Geist Mono cell,
-        // so length × advance over-reserves. That is the safe direction and the
-        // check must not be bent to accommodate it.
-        if (text.length === 0 || !/^[\x20-\x7e]+$/.test(text)) continue;
-        const size = Math.round(Number.parseFloat(getComputedStyle(node).fontSize));
-        out.push({ text, size, perChar: (node as SVGTextElement).getBBox().width / text.length });
+    const bad = await page.evaluate(() => {
+      const problems: string[] = [];
+      const nodes = [...document.querySelectorAll<HTMLElement>(".react-flow__node")];
+      // The CSS sizes, read back undoing React Flow's viewport zoom.
+      const zoom = Number(
+        /matrix\(([^,]+)/.exec(
+          getComputedStyle(document.querySelector(".react-flow__viewport")!).transform,
+        )?.[1] ?? 1,
+      );
+      for (const node of nodes) {
+        const box = node.getBoundingClientRect();
+        const id = node.getAttribute("data-id") ?? "?";
+        const isTask = node.classList.contains("react-flow__node-task");
+        const isOrigin = node.querySelector('[data-origin="true"]') !== null;
+        const limit = isTask ? { w: 168, h: 56 } : isOrigin ? { w: 176, h: 84 } : { w: 152, h: 56 };
+        const w = box.width / zoom;
+        const h = box.height / zoom;
+        // A pixel of slack for subpixel rounding at fractional zoom.
+        if (w > limit.w + 1) problems.push(`${id} is ${w.toFixed(1)}px wide, reserved ${limit.w}`);
+        if (h > limit.h + 1) problems.push(`${id} is ${h.toFixed(1)}px tall, reserved ${limit.h}`);
       }
-      return out;
+      return problems;
     });
 
-    expect(samples.length, "should have measured some text").toBeGreaterThan(3);
-    for (const s of samples) {
-      const expected = ADVANCE[s.size];
-      expect(expected, `no ADVANCE entry for ${s.size}px ("${s.text}")`).toBeDefined();
-      const drift = Math.abs(s.perChar - expected) / expected;
-      expect(drift, `"${s.text}" at ${s.size}px measured ${s.perChar.toFixed(3)}`).toBeLessThan(
-        0.01,
-      );
-    }
-
-    // This is the only assertion in the project that can falsify the unit
-    // suite: if the face changes, tests/cockpit-layout.test.ts keeps passing
-    // against a table that no longer describes reality, and text clips on
-    // camera.
+    expect(bad).toEqual([]);
   });
 
-  test("no text escapes its box, in pixels", async ({ page }) => {
+  test("no two nodes overlap once the browser has laid them out", async ({ page }) => {
+    // The unit suite asserts this of dagre's numbers. This asserts it of pixels,
+    // which is the thing a viewer actually sees.
     await openCockpit(page, cascaded());
+    await page.waitForSelector(".react-flow__node", { state: "attached" });
 
-    const overflows = await page.evaluate(() => {
-      const bad: string[] = [];
-      for (const group of document.querySelectorAll("main svg g")) {
-        const rect = group.querySelector("rect");
-        if (rect === null) continue;
-        const rx = Number(rect.getAttribute("x"));
-        const rw = Number(rect.getAttribute("width"));
-        for (const node of group.querySelectorAll("text")) {
-          if (node.classList.length > 0 && node.textContent?.startsWith("changed")) continue;
-          const box = (node as SVGTextElement).getBBox();
-          if (box.x < rx - 0.5 || box.x + box.width > rx + rw + 0.5) {
-            bad.push(`${node.textContent ?? ""} (${box.width.toFixed(1)} in ${rw})`);
-          }
+    const overlaps = await page.evaluate(() => {
+      const found: string[] = [];
+      const nodes = [...document.querySelectorAll(".react-flow__node")].map((n) => ({
+        id: n.getAttribute("data-id") ?? "?",
+        r: n.getBoundingClientRect(),
+      }));
+      for (let i = 0; i < nodes.length; i += 1) {
+        for (let j = i + 1; j < nodes.length; j += 1) {
+          const a = nodes[i].r;
+          const b = nodes[j].r;
+          const apart =
+            a.right <= b.left + 0.5 ||
+            b.right <= a.left + 0.5 ||
+            a.bottom <= b.top + 0.5 ||
+            b.bottom <= a.top + 0.5;
+          if (!apart) found.push(`${nodes[i].id} overlaps ${nodes[j].id}`);
         }
       }
-      return bad;
+      return found;
     });
 
-    expect(overflows).toEqual([]);
+    expect(overlaps).toEqual([]);
   });
 });
 
@@ -127,17 +142,17 @@ test.describe("fit", () => {
     );
 
     if ((viewport?.height ?? 0) >= 990) {
-      // The recording frame: everything, ledger and ribbon included, on screen.
+      // The recording frame: the whole board, ribbon included, on screen.
       expect(
         box.scrollH,
         `vertical fit at ${viewport?.width}x${viewport?.height}`,
       ).toBeLessThanOrEqual(box.clientH + 1);
     } else {
-      // A laptop may scroll, but what orients a newcomer — the guide and the
-      // whole graph — must be above the fold, not something they discover.
+      // A laptop may scroll, but what orients a newcomer, the headline and the
+      // whole graph, must be above the fold rather than something they discover.
       const tops = await page.evaluate(() => {
-        const guide = document.querySelector("main > section");
-        const graph = document.querySelector("main svg")?.closest("section");
+        const guide = document.querySelector('[aria-label="What just happened"]');
+        const graph = document.querySelector(".react-flow");
         return {
           guideBottom: guide?.getBoundingClientRect().bottom ?? Number.NaN,
           graphBottom: graph?.getBoundingClientRect().bottom ?? Number.NaN,
@@ -172,49 +187,67 @@ test.describe("fit", () => {
     );
   });
 
-  test("no reason sentence is clipped or ellipsised", async ({ page }) => {
+  /*
+   * The reason sentence is no longer on the board, so it can no longer be clipped
+   * there. It moved into the details panel, which opens on a click, and the rule
+   * it was protecting still holds: the sentence is shown in full and verbatim,
+   * never truncated. Asserted below, after opening a node.
+   */
+  test("a mark's recorded reason opens in full, never truncated", async ({ page }) => {
     await openCockpit(page, cascaded());
+    await page.waitForSelector(".react-flow__node-task", { state: "attached" });
 
-    const clipped = await page.evaluate(() => {
-      const bad: string[] = [];
-      for (const p of document.querySelectorAll('[aria-label="Cascade ledger"] li p')) {
-        const el = p as HTMLElement;
-        if (el.scrollHeight > el.clientHeight + 1 || el.scrollWidth > el.clientWidth + 1) {
-          bad.push(el.textContent ?? "");
-        }
-        if (getComputedStyle(el).textOverflow === "ellipsis")
-          bad.push(`ellipsis: ${el.textContent}`);
-      }
-      return bad;
+    // Clicking a box on the graph is now how a viewer asks "why this one?".
+    await page.locator(".react-flow__node-task").nth(1).click();
+    await expect(page.getByText("mark · reason")).toBeVisible();
+
+    const reason = await page.evaluate(() => {
+      const label = [...document.querySelectorAll("dt")].find(
+        (d) => d.textContent === "mark · reason",
+      );
+      const value = label?.nextElementSibling as HTMLElement | null;
+      if (value === null || value === undefined) return null;
+      return {
+        text: value.textContent ?? "",
+        clipped:
+          value.scrollHeight > value.clientHeight + 1 || value.scrollWidth > value.clientWidth + 1,
+        ellipsis: getComputedStyle(value).textOverflow === "ellipsis",
+      };
     });
 
-    expect(clipped).toEqual([]);
+    expect(reason).not.toBeNull();
+    // The sentence the coordinator stored, in words rather than identifiers.
+    expect(reason?.text).toContain("clean orders");
+    expect(reason?.text).not.toContain("clean_orders");
+    expect(reason?.clipped, "a truncated reason is a mark with no traceable cause").toBe(false);
+    expect(reason?.ellipsis).toBe(false);
   });
 
-  test("opening the inspector moves nothing in the graph or the ledger", async ({ page }) => {
+  test("opening the details panel moves nothing in the graph", async ({ page }) => {
     await openCockpit(page, cascaded());
+    await page.waitForSelector(".react-flow__node", { state: "attached" });
 
     const measure = () =>
       page.evaluate(() => {
-        const svg = document.querySelector("main svg");
-        // Scoped to the ledger. `main li` also matches the feed's rows and the
-        // inspector's URN lists, which DO appear when the inspector opens —
-        // that is the panel doing its job, not the ledger moving.
-        const rows = [...document.querySelectorAll('[aria-label="Cascade ledger"] li')];
+        const nodes = [...document.querySelectorAll(".react-flow__node")];
         return {
-          graph: svg?.getBoundingClientRect().height ?? 0,
-          rowTops: rows.map((r) => Math.round(r.getBoundingClientRect().top)),
+          graph: Math.round(
+            document.querySelector(".react-flow")?.getBoundingClientRect().height ?? 0,
+          ),
+          nodeTops: nodes.map((n) => Math.round(n.getBoundingClientRect().top)),
           scrollH: document.documentElement.scrollHeight,
         };
       });
 
     const before = await measure();
-    await page.getByRole("button", { name: "inspect" }).first().click();
+    await page.locator(".react-flow__node-task").first().click();
     await expect(page.getByText("task urn")).toBeVisible();
     const after = await measure();
 
+    // The details panel takes room from the log strip beside it, never from the
+    // graph, so nothing a viewer is looking at jumps when it opens.
     expect(after.graph).toBe(before.graph);
-    expect(after.rowTops).toEqual(before.rowTops);
+    expect(after.nodeTops).toEqual(before.nodeTops);
     expect(after.scrollH).toBe(before.scrollH);
   });
 });
@@ -226,11 +259,11 @@ test.describe("honesty", () => {
     // Every stat cell value, read out of the ribbon.
     const readRibbon = () =>
       page.evaluate(() => {
-        // Scoped to the ribbon. Unscoped, "out of date" matches the ledger
-        // row's status word first and reads a value out of the wrong element.
-        const ribbon = document.querySelector('[aria-label="Swarm totals"]');
+        // Scoped to the ribbon. Unscoped, "out of date" matches a graph node's
+        // status word first and reads a value out of the wrong element.
+        const ribbon = document.querySelector('[aria-label="Detection"]');
         if (ribbon === null) return ["NO RIBBON"];
-        const labels = ["tasks", "finished", "out of date", "deepest reach", "detection time"];
+        const labels = ["detection time", "deepest reach"];
         return labels.map((label) => {
           const span = [...ribbon.querySelectorAll("span")].find((s) => s.textContent === label);
           const cell = span?.closest("div");
@@ -239,15 +272,16 @@ test.describe("honesty", () => {
         });
       });
 
-    await expect.poll(readRibbon).toEqual(["4", "4", "3", "2hops", "118ms"]);
+    await expect.poll(readRibbon).toEqual(["118ms", "2hops"]);
 
     serve("fail");
 
     // Polled, not measured once: the cockpit only learns the read failed on its
     // next tick, up to POLL_MS later. Asserting immediately after `serve` is a
     // race that passes or fails on scheduling rather than on behaviour.
-    // Not "most" of the numbers — all five.
-    await expect.poll(readRibbon, { timeout: 8_000 }).toEqual(["—", "—", "—", "—", "—"]);
+    // Not "most" of the numbers: both of them, and as the withheld placeholder
+    // rather than as a stale last-known value.
+    await expect.poll(readRibbon, { timeout: 8_000 }).toEqual(["··", "··"]);
     await expect(obselAlert(page)).toBeVisible();
   });
 
@@ -362,44 +396,97 @@ test.describe("paint", () => {
     ).toBeLessThan(2);
   });
 
-  test("the cascade animation lands and holds its end state", async ({ page }) => {
+  /*
+   * The cascade must keep moving, which is the whole reason the graph was rebuilt.
+   *
+   * The two tests these replaced asserted the opposite property: that a one-shot
+   * `animation: … forwards` had reached its end state and held it. It had, and
+   * that was the defect. The propagation played once over 400ms and then froze
+   * for the rest of the session, so a screenshot and anyone who arrived a second
+   * late saw a static picture with nothing to say a change had travelled.
+   */
+  test("the cascade keeps moving, rather than playing once and freezing", async ({ page }) => {
     await openCockpit(page, cascaded());
-    // longer than the 400ms draw plus the 400ms maximum stagger
-    await page.waitForTimeout(1200);
+    await page.waitForSelector(".react-flow__edge.animated", { state: "attached" });
+    // Well past any plausible one-shot duration.
+    await page.waitForTimeout(1500);
 
-    const edges = await page.evaluate(() =>
-      [...document.querySelectorAll("main svg path")]
-        .filter((p) => getComputedStyle(p).animationName.includes("draw-edge"))
-        .map((p) => ({
-          offset: getComputedStyle(p).strokeDashoffset,
-          fill: getComputedStyle(p).animationFillMode,
-        })),
-    );
+    const state = await page.evaluate(() => {
+      const paths = [
+        ...document.querySelectorAll<SVGPathElement>(
+          ".react-flow__edge.animated path.react-flow__edge-path",
+        ),
+      ];
+      return paths.map((p) => {
+        const anims = p.getAnimations();
+        const iterations = anims[0]?.effect?.getTiming().iterations;
+        return {
+          count: anims.length,
+          // Resolved to a boolean in the page rather than shipped as a number.
+          // An unbounded animation reports `Infinity`, which does not survive
+          // JSON serialisation across the bridge intact.
+          bounded: typeof iterations === "number" ? Number.isFinite(iterations) : true,
+          playState: anims[0]?.playState ?? "none",
+        };
+      });
+    });
 
-    expect(edges.length, "the cascade should light some edges").toBeGreaterThan(0);
-    for (const edge of edges) {
-      // Without fill-mode forwards the keyframe REVERTS and every lit edge
-      // silently disappears when the run ends.
-      expect(edge.fill).toBe("forwards");
-      expect(Number.parseFloat(edge.offset)).toBeCloseTo(0, 2);
+    expect(state.length, "the cascade should light some edges").toBeGreaterThan(0);
+    for (const edge of state) {
+      expect(edge.count, "a lit edge must carry a running animation").toBeGreaterThan(0);
+      // A bounded iteration count is the one-shot bug returning: it would play
+      // through once and then hold still for the rest of the session.
+      expect(edge.bounded, "the dash must repeat forever").toBe(false);
+      expect(edge.playState).toBe("running");
     }
   });
 
-  test("reduced motion still leaves the cascade drawn", async ({ page }) => {
+  test("the lit path advances between two samples, in pixels", async ({ page }) => {
+    // Not just "an animation is attached": that it is actually progressing.
+    await openCockpit(page, cascaded());
+    await page.waitForSelector(".react-flow__edge.animated", { state: "attached" });
+
+    const read = () =>
+      page.evaluate(
+        () =>
+          getComputedStyle(
+            document.querySelector(".react-flow__edge.animated path.react-flow__edge-path")!,
+          ).strokeDashoffset,
+      );
+
+    const first = Number.parseFloat(await read());
+    await page.waitForTimeout(320);
+    const second = Number.parseFloat(await read());
+    expect(second).not.toBeCloseTo(first, 2);
+  });
+
+  test("reduced motion stops the movement but keeps the path visible", async ({ page }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });
     await openCockpit(page, cascaded());
+    await page.waitForSelector(".react-flow__edge.animated", { state: "attached" });
 
-    const state = await page.evaluate(() =>
-      [...document.querySelectorAll("main svg path")]
-        .filter((p) => [...p.classList].some((c) => c.includes("edgeCascade")))
-        .map((p) => Number.parseFloat(getComputedStyle(p).strokeDashoffset)),
-    );
+    const state = await page.evaluate(() => {
+      const paths = [
+        ...document.querySelectorAll<SVGPathElement>(
+          ".react-flow__edge.animated path.react-flow__edge-path",
+        ),
+      ];
+      return paths.map((p) => ({
+        animations: p.getAnimations().length,
+        stroke: getComputedStyle(p).stroke,
+        width: getComputedStyle(p).strokeWidth,
+      }));
+    });
 
     expect(state.length).toBeGreaterThan(0);
-    // Cancelling the animation without declaring the end state would leave
-    // every lit edge invisible — the exact bug the reduced-motion block exists
-    // to prevent.
-    for (const offset of state) expect(offset).toBeCloseTo(0, 2);
+    for (const edge of state) {
+      expect(edge.animations, "no movement under reduced motion").toBe(0);
+      // Which edges the change travelled along must still be legible. Cancelling
+      // the animation without leaving the path drawn would hide the cascade
+      // entirely, which is the failure the reduced-motion block exists to avoid.
+      expect(edge.width).toBe("2px");
+      expect(edge.stroke).not.toBe("none");
+    }
   });
 });
 
@@ -428,8 +515,11 @@ test.describe("guide", () => {
   }) => {
     await openCockpit(page, cascaded());
 
-    await expect(page.getByText("finished work just went out of date")).toBeVisible();
-    await expect(page.getByText(/never read the changed table/)).toBeVisible();
+    // The headline now leads the board, and the subline names what moved. The
+    // sentence about the transitively reached tasks is gone: the graph draws that
+    // reach as an amber path travelling outward, continuously.
+    await expect(page.getByText("3 of 4 finished agents are out of date")).toBeVisible();
+    await expect(page.getByText(/clean orders lost order_total/)).toBeVisible();
     await expect(page.getByRole("button", { name: /Run the orders cleaner again/ })).toBeVisible();
     await expect(page.getByRole("button", { name: /Reset and start over/ })).toBeVisible();
     await expect(page.getByRole("button", { name: /Change one agent's instructions/ })).toHaveCount(
@@ -442,7 +532,7 @@ test.describe("guide", () => {
   }) => {
     await openCockpit(page, calm(), codexSignedOut());
 
-    await expect(page.getByText("one-time preparation")).toBeVisible();
+    await expect(page.getByText("one-time setup")).toBeVisible();
     await expect(page.getByText("codex login", { exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: /Run the orders cleaner again/ })).toHaveCount(0);
   });
@@ -461,10 +551,10 @@ test.describe("what obsel is doing", () => {
     await openCockpit(page, cascaded(), idle(), cascadeSteps());
 
     // Every step, in a browser, from the same shape `/api/trace` serves.
-    await expect(page.getByText("Read the swarm from DataHub.")).toBeVisible();
-    await expect(page.getByText("its columns changed; the values did not")).toBeVisible();
-    await expect(page.getByText(/Walked the lineage graph/)).toBeVisible();
-    await expect(page.getByText(/Marked Daily revenue out of date/)).toBeVisible();
+    await expect(page.getByText("Orders cleaner finished")).toBeVisible();
+    await expect(page.getByText("columns changed, values did not")).toBeVisible();
+    await expect(page.getByText("walked lineage from clean orders")).toBeVisible();
+    await expect(page.getByText("marked Daily revenue out of date")).toBeVisible();
 
     /*
      * Oldest first. A cascade only makes sense read forwards — the comparison
@@ -500,17 +590,93 @@ test.describe("what obsel is doing", () => {
 
   test("a failed trace read empties the panel and leaves the board alone", async ({ page }) => {
     const { serveTrace } = await openCockpit(page, cascaded(), idle(), cascadeSteps());
-    await expect(page.getByText("Read the swarm from DataHub.")).toBeVisible();
+    await expect(page.getByText("compared clean orders")).toBeVisible();
 
     serveTrace("fail");
 
     // The steps go, because a step list held over from a read that is no longer
     // working is a claim about what obsel is doing now that nobody can support.
-    await expect(page.getByText("Read the swarm from DataHub.")).toHaveCount(0);
+    await expect(page.getByText("compared clean orders")).toHaveCount(0);
     await expect(page.getByText(/could not be read/)).toBeVisible();
-    // The swarm read is a different endpoint and is still healthy, so every
-    // measured number stays exactly where it was.
+    // The swarm read is a different endpoint and is still healthy, so the board
+    // and every measured number stay exactly where they were.
     await expect(page.getByText("connected")).toBeVisible();
-    await expect(page.getByText(/never read the changed table/)).toBeVisible();
+    await expect(page.getByText("3 of 4 finished agents are out of date")).toBeVisible();
+  });
+});
+
+/*
+ * Two guards on how much the board says, and how it says it.
+ *
+ * These are here because ten rounds of hand-editing copy is what produced the
+ * state they check against: 604 words and 111 lines of text on one screen, with
+ * 10 em dashes among them. Both defects were introduced gradually, by edits that
+ * each looked reasonable, and neither was visible to any test. A preference that
+ * only lives in a review comment is a preference that comes back.
+ *
+ * `tests/cockpit-guide.test.ts` makes the em dash assertion against every stage
+ * the guide can derive, including the setup and failure stages a browser test
+ * would have to break the machine to reach. This pair asserts it of the fully
+ * rendered page, which is the thing a reader actually looks at.
+ */
+test.describe("how much the board says", () => {
+  test("no em dash reaches the rendered page, in any state", async ({ page }) => {
+    for (const [name, swarm, activity] of [
+      ["cascaded", cascaded(), idle()],
+      ["settled", calm(), idle()],
+      ["empty", empty(), idle()],
+      ["a broken prerequisite", calm(), codexSignedOut()],
+      ["a step running", calm(), runningStep("rerun-same")],
+    ] as const) {
+      await openCockpit(page, swarm, activity, cascadeSteps());
+      const text = await page.evaluate(() => document.body.innerText);
+      expect(text, `${name} put an em dash on screen`).not.toContain("—");
+    }
+  });
+
+  test("the flagged board stays under its word ceiling", async ({ page }) => {
+    await openCockpit(page, cascaded(), idle(), cascadeSteps());
+    await page.waitForSelector(".react-flow__edge", { state: "attached" });
+
+    /*
+     * Split three ways, because the three are not the same kind of reading.
+     *
+     * `prose` is the metric that matters and the one that went wrong: sentences a
+     * reader has to actually read. `graph` is one- to three-word labels on boxes,
+     * scanned rather than read. `log` is a scrolling step list, skimmed. Lumping
+     * them together would let 40 words of new prose hide behind a shorter log.
+     *
+     * The screen-reader-only live region is excluded. It is real text in the
+     * accessibility tree and it is deliberately never painted, so counting it
+     * against a budget about visual density would be measuring the wrong thing.
+     */
+    const counts = await page.evaluate(() => {
+      const count = (text: string): number => text.trim().split(/\s+/).filter(Boolean).length;
+      const words = (el: Element | null): number =>
+        el === null ? 0 : count((el as HTMLElement).innerText ?? "");
+
+      const all = words(document.body);
+      const log = words(document.querySelector('[aria-label="What obsel is doing"]'));
+      const graph = [...document.querySelectorAll(".react-flow__node")].reduce(
+        (n, node) => n + count(node.textContent ?? ""),
+        0,
+      );
+      const announced = words(document.querySelector('main [aria-live="polite"]'));
+      return { all, log, graph, announced, prose: all - log - graph - announced };
+    });
+
+    /*
+     * Measured on this commit: 195 on the page, of which 71 is the step log, 36
+     * is graph labels and 13 is the live region, leaving 75 words of prose.
+     *
+     * Before this pass the same board was 604 words with 498 of them prose, in
+     * two stacked panels of paragraphs. The ceilings sit above today's figures
+     * with room for a longer column name or another agent, and far below what
+     * they replaced: putting the ledger back would add 205 on its own. A failure
+     * here is not proof of a bug, but it is always a decision worth a second look.
+     */
+    const where = `page ${counts.all}: prose ${counts.prose}, graph ${counts.graph}, log ${counts.log}, announced ${counts.announced}`;
+    expect(counts.prose, where).toBeLessThan(110);
+    expect(counts.all, where).toBeLessThan(260);
   });
 });

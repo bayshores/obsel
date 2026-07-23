@@ -23,6 +23,7 @@
 
 import { Panel } from "./mmux";
 import { taskTitle } from "./naming";
+import { activityNote } from "./progress";
 import { clockTime } from "./timing";
 import { STATUS_WORD } from "./tone";
 import type { TaskRecord } from "@/src/server/coordinator/types";
@@ -40,17 +41,28 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 export function Inspector({
   task,
+  snapshotAt = null,
+  readAt = null,
+  roundTripMs = null,
   onClose,
   style,
 }: {
   /** Never null: the cockpit mounts this only once something is selected. */
   task: TaskRecord;
+  /** The snapshot's own clock, so an in-flight elapsed uses obsel's time. */
+  snapshotAt?: string | null;
+  /** When the last successful read was answered, already formatted. */
+  readAt?: string | null;
+  /** Measured round trip of that read, in milliseconds. */
+  roundTripMs?: number | null;
   onClose: () => void;
   style?: React.CSSProperties;
 }) {
+  const run = activityNote(task, snapshotAt);
+
   return (
     <Panel
-      title={`details — ${taskTitle(task)}`}
+      title={`details · ${taskTitle(task)}`}
       meta="raw values, uncompressed"
       padded={false}
       style={style}
@@ -122,6 +134,11 @@ export function Inspector({
               </Field>
             ))}
 
+          {/* What the last run reported about itself. This was a line on every
+              ledger row; it belongs here, where there is room to label it as the
+              agent's own account rather than obsel's measurement. */}
+          {run !== null && <Field label="last run reported">{run}</Field>}
+
           {task.stale !== null && (
             <>
               <Field label="mark · caused by">
@@ -132,6 +149,24 @@ export function Inspector({
               </Field>
               <Field label="mark · hops">{task.stale.hops}</Field>
               <Field label="mark · change kind">{task.stale.changeKind}</Field>
+              {/* The diff the graph draws on the changed table, in full. Absent
+                  on a content-only change and on marks written before obsel
+                  recorded it, which is why it is conditional rather than
+                  rendered as an empty pair of lists. */}
+              {task.stale.columns != null && (
+                <Field label="mark · columns">
+                  {[
+                    task.stale.columns.removed.length > 0
+                      ? `left: ${task.stale.columns.removed.join(", ")}`
+                      : null,
+                    task.stale.columns.added.length > 0
+                      ? `arrived: ${task.stale.columns.added.join(", ")}`
+                      : null,
+                  ]
+                    .filter((part): part is string => part !== null)
+                    .join(" · ")}
+                </Field>
+              )}
               <Field label="mark · since">{clockTime(task.stale.since)}</Field>
               <Field label="mark · detected in">
                 {/* Null is a real state, not a missing value: the engine
@@ -144,9 +179,20 @@ export function Inspector({
           )}
         </dl>
 
+        {/*
+          Where these values came from, and when.
+
+          The read latency and the answered-at clock used to sit in the cockpit's
+          footer as "re-read every 1s · last read took 33 ms, answered 21:42:43".
+          They are diagnostics about the read rather than news about the work, so
+          they belong beside the sentence that already says these are polled
+          values. Both are measured; neither is shown when the read failed.
+        */}
         <p className={styles.note}>
-          Read from <code>GET /api/swarm</code>. These are the values DataHub returned when the
-          cockpit last polled, not a live read of the entity.
+          Read from <code>GET /api/swarm</code>
+          {readAt === null ? "" : ` at ${readAt}`}
+          {roundTripMs === null ? "" : `, round trip ${roundTripMs} ms`}. These are the values
+          DataHub returned when the cockpit last polled, not a live read of the entity.
         </p>
       </div>
     </Panel>

@@ -70,7 +70,7 @@ async function checkDataHub(): Promise<PreflightCheck> {
   } catch {
     return {
       ok: false,
-      detail: `nothing answered at ${url} — DataHub is not running, or Docker is not`,
+      detail: `nothing answered at ${url}, so DataHub is not running, or Docker is not`,
       fix: "datahub docker quickstart",
     };
   }
@@ -88,7 +88,7 @@ async function checkVocabulary(datahubOk: boolean): Promise<PreflightCheck> {
       ? { ok: true, detail: `${STALE_TAG_URN} is registered`, fix: null }
       : {
           ok: false,
-          detail: `${STALE_TAG_URN} does not exist yet — obsel cannot create it at runtime, so staleness would be detected and silently not recorded`,
+          detail: `${STALE_TAG_URN} does not exist yet. obsel cannot create it at runtime, so staleness would be detected and silently not recorded`,
           fix: "agents/.venv/bin/python -m agents.run setup",
         };
   } catch (cause) {
@@ -126,7 +126,7 @@ function checkCodex(): Promise<PreflightCheck> {
           ? {
               ok: false,
               detail:
-                "the Codex CLI is not installed — each demo agent is a real Codex session, there is no API-key path",
+                "the Codex CLI is not installed. Each demo agent is a real Codex session, there is no API-key path",
               fix: null,
             }
           : { ok: false, detail: "the Codex CLI is not signed in", fix: "codex login" },

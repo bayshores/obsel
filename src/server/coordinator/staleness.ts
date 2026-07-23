@@ -9,11 +9,20 @@
 import type {
   AffectedTask,
   ChangeKind,
+  ColumnChange,
   OutputFingerprint,
   StaleMark,
   SwarmSnapshot,
   TaskRecord,
 } from "./types";
+
+/** One upstream output that moved, as `affectedBy` is told about it. */
+export interface DatasetChange {
+  dataset: string;
+  kind: ChangeKind;
+  /** Which columns moved, when known. Described, never used to decide. */
+  columns?: ColumnChange | null;
+}
 
 /**
  * What moved between two fingerprints, or null when nothing did.
@@ -37,6 +46,40 @@ export function compareFingerprints(
   if (schemaMoved) return "schema";
   if (contentMoved) return "content";
   return null;
+}
+
+/**
+ * Which columns left and which arrived between two runs of the same output.
+ *
+ * Set difference, sorted, and null whenever there is nothing nameable to show.
+ * The null cases are the interesting ones:
+ *
+ * - **Either list unknown.** `OutputShape` is optional on a completion report,
+ *   and a mark written before obsel recorded shapes has neither side. Absent is
+ *   reported as absent rather than as "no columns changed", which would be a
+ *   claim obsel cannot support.
+ * - **Equal sets.** `agents/fingerprint.py:58` hashes the *sorted* column names,
+ *   so two runs whose column sets match have byte-identical schema fingerprints.
+ *   This function returning null therefore lines up exactly with
+ *   `compareFingerprints` declining to report a schema change: a pure reordering
+ *   is invisible to both, and neither invents a difference the other denies.
+ *
+ * Pure set logic, so a column moving position, appearing twice, or the lists
+ * arriving in different orders cannot change the answer.
+ */
+export function columnChange(
+  before: readonly string[] | undefined,
+  after: readonly string[] | undefined,
+): ColumnChange | null {
+  if (before === undefined || after === undefined) return null;
+
+  const had = new Set(before);
+  const has = new Set(after);
+  const removed = [...had].filter((column) => !has.has(column)).sort();
+  const added = [...has].filter((column) => !had.has(column)).sort();
+
+  if (removed.length === 0 && added.length === 0) return null;
+  return { added, removed };
 }
 
 function describe(kind: ChangeKind): string {
@@ -124,7 +167,7 @@ export function taskLabel(task: Pick<TaskRecord, "name" | "title">): string {
  */
 export function affectedBy(
   snapshot: SwarmSnapshot,
-  changes: { dataset: string; kind: ChangeKind }[],
+  changes: DatasetChange[],
   now: string,
   options: { excludeTasks?: string[] } = {},
 ): AffectedTask[] {
@@ -149,6 +192,15 @@ export function affectedBy(
     dataset: string;
     origin: string;
     kind: ChangeKind;
+    /**
+     * The ORIGIN's column change, carried unchanged however far the walk goes.
+     *
+     * A task five hops out is stale because of what happened to the origin, and
+     * its mark names the origin on `causedBy`, so the columns it reports must be
+     * the origin's too. Re-deriving them at each hop would describe the wrong
+     * table.
+     */
+    columns: ColumnChange | null;
   }
 
   const seenDatasets = new Set<string>(changes.map((c) => c.dataset));
@@ -159,6 +211,7 @@ export function affectedBy(
     dataset: c.dataset,
     origin: c.dataset,
     kind: c.kind,
+    columns: c.columns ?? null,
   }));
   let hops = 0;
 
@@ -186,6 +239,7 @@ export function affectedBy(
           causedByTask: producerOf.get(pending.origin)?.urn ?? null,
           hops,
           changeKind: pending.kind,
+          columns: pending.columns,
           reason: reasonFor(
             hops,
             pending.origin,
@@ -204,7 +258,12 @@ export function affectedBy(
         for (const output of task.writes) {
           if (seenDatasets.has(output)) continue;
           seenDatasets.add(output);
-          next.push({ dataset: output, origin: pending.origin, kind: pending.kind });
+          next.push({
+            dataset: output,
+            origin: pending.origin,
+            kind: pending.kind,
+            columns: pending.columns,
+          });
         }
       }
     }

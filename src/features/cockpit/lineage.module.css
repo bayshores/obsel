@@ -1,119 +1,96 @@
 /*
- * The lineage graph's type and its one animation.
+ * The graph canvas.
  *
- * Sizes here are duplicated as numbers in graph/layout.ts, which uses them to
- * decide how wide a box must be. They cannot drift apart unnoticed: a test
- * asserts every string fits inside the box the layout gives it, using measured
- * per-character advances for this exact face.
+ * React Flow measures its own container, so this must have a real height rather
+ * than deriving one from its contents. The cockpit gives it a flex row that
+ * absorbs the frame's slack, which is where the graph's share of the screen comes
+ * from: it was 16.8% of the frame as a 166px SVG, and the point of this rebuild is
+ * that the board's one explanatory picture should not also be its smallest region.
  */
 
-.svg {
-  display: block;
-  /* Fills the out-of-flow .graphBody. See its note on why that matters. */
+.canvas {
   width: 100%;
   height: 100%;
-}
-
-.taskName {
-  fill: var(--mm-cream);
-  font-family: var(--mm-font-mono);
-  font-size: 13px;
-  font-weight: var(--mm-weight-semi);
-}
-
-.taskStatus {
-  font-family: var(--mm-font-mono);
-  font-size: 11px;
-}
-
-.taskClock {
-  fill: var(--obsel-text-quiet);
-  font-family: var(--mm-font-mono);
-  font-size: 11px;
-}
-
-.dataName {
-  fill: var(--mm-cream-dim);
-  font-family: var(--mm-font-mono);
-  font-size: 11px;
-}
-
-.print {
-  fill: var(--obsel-text-quiet);
-  font-family: var(--mm-font-mono);
-  font-size: 10px;
-}
-
-.caption {
-  font-family: var(--mm-font-mono);
-  font-size: 11px;
-}
-
-/* The rose glow on the task that caused the change. Rose, not amber: it is the
-   cause and it is complete, not a casualty. */
-.cause {
-  filter: drop-shadow(0 0 7px rgba(232, 93, 146, 0.5));
+  min-height: 0;
 }
 
 /*
- * The cascade. Each lit edge draws itself along its own length, ordered by how
- * many hops it sits from the change.
+ * Transparent, so the WebGL backdrop and the telemetry grid behind it still show.
  *
- * `forwards` is not optional. Without it the keyframe REVERTS when the run
- * ends and every lit edge silently disappears — on the normal path, not only
- * under reduced motion. The lit-ness of an edge is bound to whether a mark
- * exists, never to whether an animation is currently running.
+ * React Flow's own stylesheet paints `.react-flow` and its viewport, which would
+ * otherwise cover the backdrop with a flat panel. `:global` is required because
+ * these are React Flow's class names, not this module's, so CSS Modules must not
+ * hash them.
  */
-.edgeCascade {
-  /*
-   * 1, not 400 — the paths carry `pathLength="1"`, which renormalises every
-   * dash unit to a fraction of that path's own length.
-   *
-   * A fixed 400 user units was wrong in both directions at once, because real
-   * path lengths come from the topology. A write edge is exactly ATTACH_GAP =
-   * 16 units long, so it was fully drawn once the offset fell below 384 — 4% of
-   * the travel, i.e. it snapped into existence almost instantly. A read edge
-   * spanning two columns measured 497 units, so 400 could never cover it and it
-   * stayed permanently clipped. Normalising makes every edge take its full
-   * duration and finish exactly at the end, whatever the graph's shape.
-   */
-  stroke-dasharray: 1;
-  stroke-dashoffset: 1;
-  animation: obsel-draw-edge var(--mm-dur-long) var(--mm-ease) forwards;
-  animation-delay: calc(min((var(--hop) - 1) * 180ms, 400ms));
+.canvas :global(.react-flow),
+.canvas :global(.react-flow__pane),
+.canvas :global(.react-flow__viewport) {
+  background: transparent;
 }
 
-@keyframes obsel-draw-edge {
+/*
+ * The attribution badge, kept.
+ *
+ * React Flow is MIT, so the licence does not compel this, but removing the badge
+ * is what xyflow asks Pro subscribers to pay for. Keeping it is the honest
+ * position for a public hackathon entry, and it is recorded in
+ * THIRD_PARTY_NOTICES.md. Toned down rather than hidden: it should not compete
+ * with the data, and it should not be a claim that obsel drew this itself.
+ */
+.canvas :global(.react-flow__attribution) {
+  background: transparent;
+  font-family: var(--mm-font-mono);
+  font-size: var(--mm-text-cap);
+}
+
+.canvas :global(.react-flow__attribution a) {
+  color: var(--obsel-text-quiet);
+  opacity: 0.55;
+  text-decoration: none;
+}
+
+/* The dot grid React Flow draws, pushed well back. mmux's own grid is already
+   behind the data, and two competing textures read as noise. */
+.dots {
+  opacity: 0.25;
+}
+
+.dots :global(.react-flow__background-pattern) {
+  color: var(--mm-rose-line);
+}
+
+/*
+ * The cascade's moving dash.
+ *
+ * React Flow's `animated` edge is an infinite dash animation, which is the whole
+ * reason this replaced the hand-rolled version: that one was
+ * `animation: … forwards`, so it drew once over one duration and then held still
+ * for the rest of the session. A viewer arriving late, or looking at a
+ * screenshot, saw a static picture of a finished cascade with nothing to say a
+ * change had travelled. Slowed from React Flow's default, which reads as urgent
+ * traffic rather than as one change spreading.
+ */
+.canvas :global(.react-flow__edge.animated path.react-flow__edge-path) {
+  animation: obsel-dash 1.4s linear infinite;
+  stroke-dasharray: 6 4;
+}
+
+@keyframes obsel-dash {
   to {
-    stroke-dashoffset: 0;
-  }
-}
-
-.originCaption {
-  opacity: 0;
-  animation: obsel-fade-caption var(--mm-dur-short) var(--mm-ease) forwards;
-}
-
-@keyframes obsel-fade-caption {
-  to {
-    opacity: 1;
+    /* One dash period, so the loop is seamless. */
+    stroke-dashoffset: -10;
   }
 }
 
 /*
- * The global reduced-motion block cuts durations and delays, but that alone is
- * not enough here: a stroke-dashoffset keyframe still has to LAND somewhere,
- * and cancelling the animation without declaring the end state would leave
- * every lit edge invisible. So the end state is declared outright.
+ * Motion is a preference, and the cascade must survive its absence.
+ *
+ * The lit path stays amber, thicker, and dashed, so which edges the change
+ * travelled along is still legible without anything moving. Only the movement
+ * goes.
  */
 @media (prefers-reduced-motion: reduce) {
-  .edgeCascade {
-    stroke-dashoffset: 0;
-    animation: none;
-  }
-
-  .originCaption {
-    opacity: 1;
+  .canvas :global(.react-flow__edge.animated path.react-flow__edge-path) {
     animation: none;
   }
 }

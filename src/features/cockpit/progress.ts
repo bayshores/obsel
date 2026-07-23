@@ -51,7 +51,8 @@ export function inFlightMs(task: TaskRecord, snapshotAt: string | null): number 
  * the decimal is noise and the minutes matter more.
  */
 export function formatDuration(ms: number): string {
-  if (!Number.isFinite(ms) || ms < 0) return "—";
+  // Matches the cockpit's BLANK placeholder: a withheld measurement, not a zero.
+  if (!Number.isFinite(ms) || ms < 0) return "··";
   if (ms < 1000) return `${Math.round(ms)} ms`;
   if (ms < 60_000) return `${(ms / 1000).toFixed(1)} s`;
 

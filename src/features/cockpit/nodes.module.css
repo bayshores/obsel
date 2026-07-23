@@ -1,0 +1,132 @@
+/*
+ * The graph's boxes.
+ *
+ * Sizes here are the ones `graph/positions.ts` hands dagre to reserve space
+ * with, so the two files have to agree or a box overlaps a neighbour dagre
+ * thought it had cleared. `tests/cockpit-layout.test.ts` asserts they match
+ * rather than trusting a comment to keep them in step.
+ *
+ * Text is larger than the SVG version it replaces. The old graph rendered its
+ * labels at 11px and its fingerprints at 10px, which made the most important
+ * region on the board its least legible: 77 of 109 text nodes on screen were
+ * 13px or smaller, so nothing led and the eye had no entry point.
+ */
+
+.task,
+.data {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  padding: var(--mm-space-xs) var(--mm-space-sm);
+  background: var(--mm-surface);
+  border: 1px solid var(--mm-rose-line);
+  font-family: var(--mm-font-mono);
+  /* Not a control. React Flow makes nodes draggable by default; a demo board
+     whose boxes can be dragged out of place on camera is a liability. */
+  cursor: default;
+}
+
+/* 168 x 56, matching TASK_SIZE. */
+.task {
+  width: 168px;
+  height: 56px;
+  /* The status bar. Its colour is set inline from nodeTone and nowhere else. */
+  border-left-width: 3px;
+  border-left-style: solid;
+}
+
+.taskName {
+  color: var(--mm-cream);
+  font-size: var(--mm-text-lg);
+  line-height: 1.2;
+  /* One line. A wrapped title would grow the box past what dagre reserved. */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.taskStatus {
+  font-size: var(--mm-text-md);
+  line-height: 1.2;
+  letter-spacing: var(--mm-track);
+}
+
+/* 152 x 56, matching DATA_SIZE. Ink rather than surface, so a table reads as a
+   different kind of thing from an agent without needing a label to say so. */
+.data {
+  width: 152px;
+  min-height: 56px;
+  background: var(--mm-ink-2);
+}
+
+/* 176 x 84, matching DATA_SIZE_WITH_DIFF: two more lines for the column diff. */
+.data[data-origin="true"] {
+  width: 176px;
+  min-height: 84px;
+  border-width: 2px;
+}
+
+.dataName {
+  color: var(--mm-cream-dim);
+  font-size: var(--mm-text-md);
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.diff {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  font-size: var(--mm-text-md);
+  line-height: 1.25;
+}
+
+/*
+ * What left, and what arrived.
+ *
+ * The departing column is dimmed rather than struck through: a strikethrough at
+ * this size fights the underscore in `order_total_usd` and both become mush in a
+ * compressed recording. The arriving one is amber, which is consistent with the
+ * board's one colour rule, since this is the change that put everything
+ * downstream out of date.
+ */
+.columnOut {
+  color: var(--obsel-text-quiet);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.columnIn {
+  color: var(--obsel-stale);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.changed {
+  color: var(--obsel-stale);
+  font-size: var(--mm-text-md);
+  letter-spacing: var(--mm-track);
+}
+
+.external {
+  color: var(--obsel-text-quiet);
+  font-size: var(--mm-text-cap);
+  letter-spacing: var(--mm-track);
+}
+
+/*
+ * The edge anchors, invisible.
+ *
+ * `visibility: hidden` rather than `display: none`: React Flow reads a handle's
+ * position to route its edges, and a handle that is not laid out reports the
+ * wrong one, which collapses every edge to the node's top-left corner.
+ */
+.port {
+  visibility: hidden;
+}

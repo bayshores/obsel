@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
@@ -77,14 +77,33 @@ describe("the obsel token block is complete", () => {
 });
 
 describe("no stray colour literals in the cockpit's own source", () => {
-  it("keeps the palette in globals.css — the shader triples are the sole exception", () => {
+  /*
+   * Enumerated from disk, not listed by hand.
+   *
+   * This was a hardcoded array of four filenames, and deleting one of them broke
+   * the test outright. The worse failure was the silent one: every stylesheet
+   * added since the list was written, including the new node components, was
+   * never checked at all. Reading the directory means a new file is covered the
+   * moment it exists.
+   *
+   * `backdrop-shader.ts` is the one exemption, and it is exempt by name because
+   * GLSL has no custom properties to reference: its colours are float triples
+   * that a test elsewhere asserts against the tokens they mirror.
+   */
+  const FILES = readdirSync(new URL("../src/features/cockpit/", import.meta.url))
+    .filter((name) => name.endsWith(".module.css") || name === "tone.ts")
+    .sort();
+
+  it("checks every stylesheet in the directory, so a new one cannot go unexamined", () => {
+    expect(FILES).toContain("cockpit.module.css");
+    expect(FILES).toContain("lineage.module.css");
+    expect(FILES).toContain("nodes.module.css");
+    expect(FILES).toContain("tone.ts");
+  });
+
+  it("keeps the palette in globals.css, with the shader triples the sole exception", () => {
     const offenders: string[] = [];
-    for (const file of [
-      "cockpit.module.css",
-      "ledger.module.css",
-      "lineage.module.css",
-      "tone.ts",
-    ]) {
+    for (const file of FILES) {
       const source = readFileSync(
         new URL(`../src/features/cockpit/${file}`, import.meta.url),
         "utf8",

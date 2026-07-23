@@ -110,6 +110,7 @@ export function Divider({ label, style }: { label?: ReactNode; style?: CSSProper
 export function Panel({
   title,
   meta,
+  label,
   children,
   padded = true,
   style,
@@ -117,6 +118,16 @@ export function Panel({
 }: {
   title?: ReactNode;
   meta?: ReactNode;
+  /**
+   * An accessible name for the section, when the title alone is not a stable
+   * handle.
+   *
+   * A `<section>` with no accessible name is not exposed as a landmark, so the
+   * page's regions were invisible to a rotor even though each one had a visible
+   * heading. It also gives tests something to scope to that does not break when
+   * the visible title is reworded.
+   */
+  label?: string;
   children?: ReactNode;
   padded?: boolean;
   style?: CSSProperties;
@@ -133,6 +144,7 @@ export function Panel({
 
   return (
     <section
+      aria-label={label}
       style={{
         border: "1px solid var(--mm-border)",
         borderRadius: "var(--mm-radius-none)",

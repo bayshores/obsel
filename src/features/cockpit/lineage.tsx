@@ -1,329 +1,244 @@
 "use client";
 
 /**
- * obsel's read of the lineage graph, drawn.
+ * obsel's read of the lineage graph, drawn by React Flow.
  *
- * Every position on screen comes from `graph/layout.ts`, which never sees a
- * task's status — so nothing moves when three tasks flip amber. Every colour
- * comes from `nodeTone`, which takes exactly `(status, hasMark)` and reads no
- * timer. Between them, the animation layer is left able to write only
- * `stroke-dashoffset` and caption opacity: it is structurally incapable of
- * changing what the cockpit claims is true, so a dropped frame or an
- * interrupted transition cannot produce a wrong answer.
+ * This replaced roughly 800 lines of hand-written SVG: bezier control points, a
+ * collision test that searched for a clear horizontal lane whenever an edge would
+ * otherwise cross a box, two `<marker>` definitions for the arrowheads, and
+ * per-character width reservation so a label could never overflow the rectangle
+ * it was centred in. It worked. It was also a layered-graph renderer being
+ * reinvented, and it looked like one.
+ *
+ * Two properties of the old version are kept deliberately, because they are about
+ * correctness rather than drawing:
+ *
+ * - **Position never depends on status.** `layoutPositions` is not given a status,
+ *   so nothing moves when three tasks flip amber. The cascade arrives as colour
+ *   and motion on a stationary graph, which is what makes it followable.
+ * - **`cascadeEdges` decides which path is lit**, by reading hop counts off the
+ *   marks obsel wrote rather than re-deriving them from topology. A path is drawn
+ *   only through tasks obsel actually marked.
+ *
+ * The animation is now continuous rather than a one-shot. The previous version
+ * used `animation: … forwards`, so the cascade drew once over one duration and
+ * then froze for the rest of the session: in a screenshot, and for anyone who
+ * arrived a second late, the propagation the whole product is about was simply
+ * not there.
  */
 
-import { cascadeEdges, layoutGraph, reserveFor } from "./graph/layout";
-import { datasetTitle, taskTitle } from "./naming";
-import type { Box, GraphEdge, GraphLayout } from "./graph/layout";
-import { DATA_BOX, TASK_BOX } from "./graph/layout";
-import { clockTime, currentChange } from "./timing";
-import { LONGEST_STATUS_WORD, ROSE, STALE, STATUS_WORD, nodeTone } from "./tone";
-import type { TaskRecord } from "@/src/server/coordinator/types";
+import { useEffect, useRef } from "react";
+import {
+  Background,
+  BackgroundVariant,
+  MarkerType,
+  ReactFlow,
+  useEdgesState,
+  useNodesState,
+} from "@xyflow/react";
+import type { Edge, Node } from "@xyflow/react";
 
+import { cascadeEdges } from "./graph/cascade";
+import { dataNodeId, layoutPositions, taskNodeId } from "./graph/positions";
+import { DataNode, TaskNode } from "./nodes";
+import type { DataNodeData, TaskNodeData } from "./nodes";
+import { currentChange } from "./timing";
+import { STALE } from "./tone";
+import type { StaleMark, TaskRecord } from "@/src/server/coordinator/types";
+
+import "@xyflow/react/dist/style.css";
 import styles from "./lineage.module.css";
 
-/** First eight characters of a fingerprint — enough to see one differ. */
-function hex8(value: string | undefined): string | null {
-  return value === undefined ? null : value.slice(0, 8);
-}
-
-function subtitleOf(task: TaskRecord): string {
-  const word = STATUS_WORD[task.status];
-  if (task.stale === null) return word;
-  const { hops } = task.stale;
-  return `${word}  · ${hops} ${hops === 1 ? "hop" : "hops"}`;
-}
+/** Registered once, outside the component: React Flow warns on a new object per render. */
+const NODE_TYPES = { task: TaskNode, data: DataNode };
 
 /**
- * The task box's third line, LABELLED.
+ * Interaction is off.
  *
- * The graph shows when the task last finished; the ledger's right-hand column
- * shows when a mark was applied. For a stale task those are different instants,
- * and both were rendered as a bare `17:23:52` in the same monospace face — two
- * unlabelled numbers that disagreed with each other for no visible reason.
- * Deliberately the same formatter as the ledger; see clockTime's own note.
+ * This is a board someone reads, and during a recording it is a board someone
+ * points a camera at. Pan, zoom, node dragging and selection all offer ways for
+ * the picture to end up somewhere other than where it was laid out, with no
+ * upside for a four-node graph that fits.
  */
-const clockOf = (task: TaskRecord): string =>
-  task.finishedAt === null ? "not finished yet" : `finished ${clockTime(task.finishedAt)}`;
+const LOCKED = {
+  nodesDraggable: false,
+  nodesConnectable: false,
+  elementsSelectable: false,
+  panOnDrag: false,
+  panOnScroll: false,
+  zoomOnScroll: false,
+  zoomOnPinch: false,
+  zoomOnDoubleClick: false,
+  preventScrolling: false,
+} as const;
 
-function pathFor(edge: GraphEdge, graph: GraphLayout): string {
-  const a = graph.boxes[edge.from];
-  const b = graph.boxes[edge.to];
-  if (edge.kind === "write") {
-    // A task and the dataset it writes share a column, one above the other.
-    const x = a.x + a.w / 2;
-    return `M ${x} ${a.y + a.h} L ${x} ${b.y}`;
-  }
-  const x1 = a.x + a.w;
-  const y1 = a.y + a.h / 2;
-  const x2 = b.x;
-  const y2 = b.y + b.h / 2;
-
-  /*
-   * An edge that passes over a box takes the clear lane below everything
-   * instead of ploughing through the names and status text in between.
-   * `detourY` is only non-null when the graph actually contains such an edge,
-   * and this edge only uses it when a box really is in its way.
-   */
-  if (graph.detourY !== null && crossesABox(a, b, graph)) {
-    const lane = graph.detourY;
-    return `M ${x1} ${y1} C ${x1 + 24} ${y1}, ${x1 + 24} ${lane}, ${x1 + 48} ${lane} L ${x2 - 48} ${lane} C ${x2 - 24} ${lane}, ${x2 - 24} ${y2}, ${x2} ${y2}`;
-  }
-
-  if (Math.abs(y1 - y2) < 0.5) return `M ${x1} ${y1} L ${x2} ${y2}`;
-  const mx = (x1 + x2) / 2;
-  return `M ${x1} ${y1} C ${mx} ${y1}, ${mx} ${y2}, ${x2} ${y2}`;
+/**
+ * Everything the picture depends on, as one comparable string.
+ *
+ * Deliberately not the whole snapshot. `SwarmSnapshot.at` is restamped on every
+ * poll, so no signature that included it could ever match twice, and the point of
+ * this is to recognise the common case: a second passed and nothing changed.
+ * Timestamps a node actually displays are absent for the same reason they are
+ * absent from the nodes: the graph shows status, hops and the column diff, and
+ * nothing that ticks.
+ */
+function graphSignature(tasks: TaskRecord[], origin: StaleMark | null): string {
+  return JSON.stringify([
+    tasks.map((task) => [
+      task.urn,
+      task.title,
+      task.status,
+      task.reads,
+      task.writes,
+      task.stale && [task.stale.causedBy, task.stale.hops],
+    ]),
+    origin && [origin.causedBy, origin.causedByTask, origin.columns],
+  ]);
 }
 
-/** Is a third box sitting in the corridor this edge would take? */
-function crossesABox(a: Box, b: Box, graph: GraphLayout): boolean {
-  const left = a.x + a.w;
-  const right = b.x;
-  if (right <= left) return false;
-  const top = Math.min(a.y, b.y);
-  const bottom = Math.max(a.y + a.h, b.y + b.h);
-  return Object.values(graph.boxes).some(
-    (box) =>
-      box !== a &&
-      box !== b &&
-      box.x < right &&
-      box.x + box.w > left &&
-      box.y < bottom &&
-      box.y + box.h > top,
-  );
-}
-
-export function Lineage({ tasks }: { tasks: TaskRecord[] }) {
-  const graph = layoutGraph(tasks, reserveFor(tasks, LONGEST_STATUS_WORD));
-
-  // The same rule the stat ribbon uses. Picking `marks[0]` here instead — the
-  // first in dependency order — made the graph caption one dataset while the
-  // ribbon timed a different one, as soon as two cascades coexisted.
-  const origin = currentChange(tasks);
+/** Pure: the swarm in, React Flow's nodes and edges out. */
+function buildGraph(
+  tasks: TaskRecord[],
+  origin: StaleMark | null,
+): { nodes: Node[]; edges: Edge[] } {
   const originDataset = origin?.causedBy ?? null;
   const causeTaskUrn = origin?.causedByTask ?? null;
   const lit = cascadeEdges(tasks, originDataset, causeTaskUrn);
 
-  /* The caption sits above the whole group, never in the 16px seam between a
-     task and the dataset it writes. */
-  const groupTop = (datasetUrn: string): number => {
-    const writer = graph.producerOf[datasetUrn];
-    const box =
-      writer === undefined ? graph.boxes[`d:${datasetUrn}`] : graph.boxes[`t:${writer.urn}`];
-    return box === undefined ? 0 : box.y;
-  };
+  // Only the origin renders a diff, and only when obsel recorded one, so only
+  // that node needs the taller footprint reserved for it.
+  const withDiff = new Set<string>(
+    originDataset !== null && origin?.columns ? [originDataset] : [],
+  );
+  const placed = layoutPositions(tasks, withDiff);
 
-  const datasetKeys = Object.keys(graph.boxes).filter((key) => key.startsWith("d:"));
+  const writers = new Set<string>();
+  for (const task of tasks) for (const output of task.writes) writers.add(output);
+
+  const byUrn = new Map(tasks.map((task) => [taskNodeId(task.urn), task]));
+
+  const nodes: Node[] = placed.nodes.map((node) => {
+    /*
+     * Position from dagre; size left for React Flow to measure.
+     *
+     * Passing `width`/`height` here looked like the obvious way to make edges
+     * computable on the first render, and it was wrong. React Flow treats given
+     * dimensions as a reason to skip its own measurement pass, and that pass is
+     * what populates each node's `handleBounds`. Without handle bounds
+     * `getEdgePosition` returns null and every edge is silently dropped: nine
+     * boxes on screen, zero lines between them, and no warning anywhere. A
+     * lineage graph with no lineage in it.
+     */
+    const box = { position: { x: node.x, y: node.y }, draggable: false };
+    if (node.kind === "task") {
+      const task = byUrn.get(node.id);
+      const data: TaskNodeData = { task: task as TaskRecord, isCause: causeTaskUrn === task?.urn };
+      return { id: node.id, type: "task", data, ...box };
+    }
+    const urn = node.id.slice(2);
+    const data: DataNodeData = {
+      urn,
+      isOrigin: originDataset === urn,
+      columns: originDataset === urn ? (origin?.columns ?? null) : null,
+      external: !writers.has(urn),
+    };
+    return { id: node.id, type: "data", data, ...box };
+  });
+
+  const edges: Edge[] = placed.edges.map((edge) => {
+    // `lit` is keyed on exactly this id spelling. A test asserts the two agree,
+    // because a mismatch would unlight the whole cascade with nothing to show it.
+    const isLit = lit[edge.id] !== undefined;
+    return {
+      id: edge.id,
+      source: edge.from,
+      target: edge.to,
+      type: "smoothstep",
+      // The moving dash, for as long as the marks stand.
+      animated: isLit,
+      style: { stroke: isLit ? STALE : "var(--mm-rose-line)", strokeWidth: isLit ? 2 : 1 },
+      markerEnd: {
+        type: MarkerType.ArrowClosed,
+        width: 14,
+        height: 14,
+        color: isLit ? STALE : "var(--mm-rose-line)",
+      },
+    };
+  });
+
+  return { nodes, edges };
+}
+
+export function Lineage({
+  tasks,
+  onSelect,
+}: {
+  tasks: TaskRecord[];
+  /** Opening a task's details. Datasets are not selectable; they carry no mark. */
+  onSelect?: (urn: string) => void;
+}) {
+  const origin = currentChange(tasks);
+
+  /*
+   * React Flow owns the nodes and edges, and they are replaced only when the
+   * picture genuinely changed.
+   *
+   * This was a `useMemo` keyed on `[tasks, origin]`, which are both rebuilt by
+   * every poll. That handed React Flow a brand-new array once a second, and each
+   * one restarted node measurement, so `handleBounds` never settled and the board
+   * drew nine boxes with no edges between them.
+   *
+   * The signature is what makes it stop: an unchanged second produces the same
+   * string, the effect returns early, and React Flow's own state is left
+   * untouched. Measurement completes once and stays completed. It also means the
+   * cascade animation runs continuously, because the `<path>` elements are never
+   * replaced underneath it.
+   */
+  const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
+  // Read and written only inside the effect below. Reading a ref during render is
+  // what `react-hooks/refs` forbids, and this deliberately does not.
+  const lastSignature = useRef<string | null>(null);
+  const signature = graphSignature(tasks, origin);
+
+  useEffect(() => {
+    if (lastSignature.current === signature) return;
+    lastSignature.current = signature;
+    const built = buildGraph(tasks, origin);
+    setNodes(built.nodes);
+    setEdges(built.edges);
+  }, [signature, tasks, origin, setNodes, setEdges]);
 
   return (
-    <svg
-      viewBox={`0 0 ${graph.width} ${graph.height}`}
-      preserveAspectRatio="xMidYMid meet"
-      width="100%"
-      height="100%"
-      className={styles.svg}
-      role="img"
-      aria-label="Lineage graph: each agent task, the data it reads and writes, and the path a change travelled."
-    >
-      <defs>
-        <marker
-          id="obsel-tip-rest"
-          viewBox="0 0 6 6"
-          refX="5"
-          refY="3"
-          markerWidth="6"
-          markerHeight="6"
-          orient="auto"
-        >
-          <path d="M 0 0 L 5.5 3 L 0 6 z" fill="var(--mm-rose-line)" />
-        </marker>
-        <marker
-          id="obsel-tip-lit"
-          viewBox="0 0 6 6"
-          refX="5"
-          refY="3"
-          markerWidth="6"
-          markerHeight="6"
-          orient="auto"
-        >
-          <path d="M 0 0 L 5.5 3 L 0 6 z" fill="var(--obsel-stale)" />
-        </marker>
-      </defs>
-
-      {/* Resting edges. Never removed — the lit stroke draws on top of them, so
-          the graph's shape is legible whether or not anything is stale. */}
-      {graph.edges.map((edge) => (
-        <path
-          key={edge.id}
-          d={pathFor(edge, graph)}
-          fill="none"
-          stroke="var(--mm-rose-line)"
-          strokeWidth="1"
-          markerEnd="url(#obsel-tip-rest)"
-        />
-      ))}
-
-      {/* The cascade. Ordered by hop, staggered min((hop-1) × 180, 400) ms —
-          every value on mmux's ladder, and Math.min makes the ceiling a
-          property of the code rather than a fact about a four-task graph. */}
-      {graph.edges
-        .filter((edge) => lit[edge.id] !== undefined)
-        .map((edge) => (
-          <path
-            key={`lit-${edge.id}`}
-            className={styles.edgeCascade}
-            style={{ "--hop": lit[edge.id] } as React.CSSProperties}
-            d={pathFor(edge, graph)}
-            fill="none"
-            stroke="var(--obsel-stale)"
-            strokeWidth="2"
-            // Renormalises this path's length to 1 so the dash animation in
-            // lineage.module.css is a fraction of its own length rather than a
-            // fixed count of user units. See the note on .edgeCascade.
-            pathLength={1}
-            markerEnd="url(#obsel-tip-lit)"
-          />
-        ))}
-
-      {tasks.map((task) => {
-        const box = graph.boxes[`t:${task.urn}`];
-        if (box === undefined) return null;
-        const tone = nodeTone(task.status, task.stale !== null);
-        const isCause = causeTaskUrn === task.urn;
-        const baseline = box.y + TASK_BOX.padY + 13;
-
-        return (
-          <g key={task.urn}>
-            <rect
-              x={box.x}
-              y={box.y}
-              width={box.w}
-              height={box.h}
-              fill="var(--mm-surface)"
-              stroke={isCause ? ROSE : (tone.outline ?? "var(--mm-rose-line)")}
-              strokeWidth={isCause || tone.outline !== null ? 2 : 1}
-              className={isCause ? styles.cause : undefined}
-            />
-            {/* The status bar. This is the amber, and it is bound to status. */}
-            <rect x={box.x} y={box.y} width="3" height={box.h} fill={tone.fill} />
-            {/* Corner tick — instrument, not ornament: it marks which box a
-                reading belongs to when two sit close together. */}
-            <path
-              d={`M ${box.x + box.w - 9} ${box.y + 1} L ${box.x + box.w - 1} ${box.y + 1} L ${box.x + box.w - 1} ${box.y + 9}`}
-              fill="none"
-              stroke={isCause ? ROSE : tone.fill}
-              strokeWidth="1"
-              opacity="0.75"
-            />
-            {/* The human name, which is what layout reserved this box's width
-                for. The code identifier is not repeated here — it would need a
-                fourth line in every box, and the ledger row and Details panel
-                both carry it where there is room to label it. */}
-            <text x={box.x + TASK_BOX.padX} y={baseline} className={styles.taskName}>
-              {taskTitle(task)}
-            </text>
-            <text
-              x={box.x + TASK_BOX.padX}
-              y={baseline + TASK_BOX.lineSub}
-              fill={tone.fill}
-              className={styles.taskStatus}
-            >
-              {subtitleOf(task)}
-            </text>
-            <text
-              x={box.x + TASK_BOX.padX}
-              y={baseline + TASK_BOX.lineSub * 2}
-              className={styles.taskClock}
-            >
-              {clockOf(task)}
-            </text>
-          </g>
-        );
-      })}
-
-      {datasetKeys.map((key) => {
-        const datasetUrn = key.slice(2);
-        const box = graph.boxes[key];
-        const writer = graph.producerOf[datasetUrn];
-        const print = writer === undefined ? undefined : writer.fingerprints[datasetUrn];
-        const isOrigin = originDataset === datasetUrn;
-        const line = (n: number): number => box.y + DATA_BOX.padY + 10 + DATA_BOX.line * n;
-
-        return (
-          <g key={key}>
-            <rect
-              x={box.x}
-              y={box.y}
-              width={box.w}
-              height={box.h}
-              fill="var(--mm-ink-2)"
-              stroke={isOrigin ? STALE : "var(--mm-rose-line)"}
-              strokeWidth={isOrigin ? 2 : 1}
-            />
-            <text x={box.x + DATA_BOX.padX} y={line(0)} className={styles.dataName}>
-              {datasetTitle(datasetUrn)}
-            </text>
-
-            {/* Both fingerprints, always. Which one moved is the entire answer,
-                and it is only readable next to the one that did not.
-
-                The highlight goes through `style`, not the `fill` attribute.
-                `fill` is an SVG presentation attribute, which sits BELOW the
-                stylesheet in the cascade, so `.print { fill: … }` silently won
-                and the changed fingerprint rendered in the same grey as the
-                unchanged one — the graph quietly withholding the one detail it
-                exists to point at. */}
-            {writer === undefined ? (
-              <text x={box.x + DATA_BOX.padX} y={line(1)} className={styles.print}>
-                external
-              </text>
-            ) : print === undefined ? (
-              <text x={box.x + DATA_BOX.padX} y={line(1)} className={styles.print}>
-                no print
-              </text>
-            ) : (
-              <>
-                <text
-                  x={box.x + DATA_BOX.padX}
-                  y={line(1)}
-                  className={styles.print}
-                  style={
-                    isOrigin && origin !== null && origin.changeKind !== "content"
-                      ? { fill: STALE }
-                      : undefined
-                  }
-                >
-                  {`s ${hex8(print.schema) ?? ""}`}
-                </text>
-                <text
-                  x={box.x + DATA_BOX.padX}
-                  y={line(2)}
-                  className={styles.print}
-                  style={
-                    isOrigin && origin !== null && origin.changeKind !== "schema"
-                      ? { fill: STALE }
-                      : undefined
-                  }
-                >
-                  {`c ${hex8(print.content) ?? ""}`}
-                </text>
-              </>
-            )}
-
-            {isOrigin && origin !== null && (
-              <text
-                x={box.x + box.w / 2}
-                y={groupTop(datasetUrn) - 11}
-                textAnchor="middle"
-                fill={STALE}
-                className={`${styles.caption} ${styles.originCaption}`}
-              >
-                {`changed · ${origin.changeKind}`}
-              </text>
-            )}
-          </g>
-        );
-      })}
-    </svg>
+    <div className={styles.canvas}>
+      <ReactFlow
+        nodes={nodes}
+        edges={edges}
+        onNodesChange={onNodesChange}
+        onEdgesChange={onEdgesChange}
+        nodeTypes={NODE_TYPES}
+        fitView
+        /*
+         * `maxZoom` is a ceiling on scaling UP, so a two-task swarm on a large
+         * display cannot render as a pair of enormous boxes. 1.25 rather than 1:
+         * the demo's layout is wider than it is tall, so width pins the zoom
+         * before this ceiling is reached anyway, and on a 1920 frame the extra
+         * headroom is the difference between 13px and 15px node labels in a
+         * recording. Padding leaves room for the arrowheads and for the changed
+         * table's taller box.
+         */
+        fitViewOptions={{ padding: 0.08, maxZoom: 1.25 }}
+        proOptions={{ hideAttribution: false }}
+        onNodeClick={(_event, node) => {
+          if (onSelect && node.type === "task") onSelect(node.id.slice(2));
+        }}
+        {...LOCKED}
+      >
+        <Background variant={BackgroundVariant.Dots} gap={18} size={1} className={styles.dots} />
+      </ReactFlow>
+    </div>
   );
 }
+
+/** Exported for tests: the node id spellings the cascade and the layout share. */
+export { dataNodeId, taskNodeId };
