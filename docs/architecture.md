@@ -348,7 +348,7 @@ readable", not as "covered by end-to-end evidence" — see [Evidence](#9-evidenc
 | Coordinator IO                            | `src/server/coordinator/engine.ts`                                                                                          | shipped, 14 integration tests vs a live DataHub     |
 | GMS client                                | `src/server/datahub/client.ts`                                                                                              | shipped, exercised by those 14 plus 14 on `tags.ts` |
 | MCP tag writes                            | `src/server/datahub/mcp.ts`                                                                                                 | shipped, 8 integration tests vs the real MCP server |
-| The integration harness                   | `tests/live/`, `vitest.live.config.ts`, `tests/support/server-only.ts`                                                      | shipped, 40 tests, no stand-ins                     |
+| The integration harness                   | `tests/live/`, `vitest.live.config.ts`, `tests/support/server-only.ts`                                                      | shipped, 44 tests, no stand-ins                     |
 | URN shapes                                | `src/server/datahub/urns.ts`                                                                                                | shipped                                             |
 | HTTP API                                  | `app/api/swarm`, `app/api/trace`, `app/api/tasks/{register,start,abandon,complete}`, `app/api/demo/{reset,launch,activity}` | shipped                                             |
 | Cockpit                                   | `app/page.tsx`, `src/features/cockpit/`                                                                                     | shipped, 133 unit + 51 browser tests                |
@@ -528,13 +528,27 @@ What has been verified directly, and what has not.
   a run that wrote nothing would validate, fingerprint unchanged, and report a failed run as a
   successful no-change re-run.
 
+- **`worker.py`'s `run_task` as a whole**, by `tests/live/run-task.live.test.ts`: a real agent run
+  against a real obsel and a real DataHub, from announcement to confirmed completion. Three ordering
+  decisions are checked because each is silent when wrong, and all three were confirmed to fail when
+  the behavior is mutated. Inputs load **before** the announcement, so an agent that cannot read its
+  upstream table never tells obsel it began — moving the announcement first fails that test and wedges
+  every later one at `running`, which is the failure itself. A failed agent hands its announcement
+  back, so nothing is left at `running` where the cascade would skip it — deleting the `_abandon_running`
+  call fails with `expected 'running' to be 'complete'`. And the hand-back restores what the dead run
+  left untouched, so a failure while re-running an already-complete task returns it to `complete`
+  rather than erasing the good result. The fingerprint obsel records is also compared against one
+  recomputed from the saved file, because canonicalising after the save instead of before would leave
+  the record and the bytes permanently out of step; moving that call fails the test.
+
 **Not verified:**
 
-- **`worker.py`'s `run_task` as a whole.** Both ends are covered against the real thing and the
-  Codex call in the middle now is too, but the sequence joining them — announce, run, canonicalise,
-  save, report, and the abandon path when the agent raises — is exercised only by real demo runs. Its
-  output is held to a contract that _is_ tested, which is what makes a byte-identical re-run an
-  empirical result rather than something the design guarantees.
+- **An identical re-run through a real agent.** That a re-run producing the same table marks nothing
+  is obsel's central rule, and it is covered deterministically in `tests/staleness.test.ts` and against
+  a live DataHub in `engine.live.test.ts`. Driving it through two real Codex sessions would test the
+  model's determinism rather than obsel's decision, so it is left to the demo's own `rerun-same` step,
+  which asserts it and exits non-zero when it fails.
+- **`run_task(report=False)`.** Nothing calls it, so no test spends a real agent session on it.
 - **The browser suite still uses canned bodies.** `e2e/` intercepts `/api/swarm` with invented JSON to
   drive the board through states a live run cannot easily produce, notably a failed read. Its fixtures
   say so in their own header. It is the one place left in the repository that tests against something

@@ -138,8 +138,8 @@ and type-checks, not a plan.
   only if its status is `stale`; and no measurement is ever displayed that the coordinator did not
   record. The geometry assertions were confirmed to fail by reintroducing the status-dependent
   sizing they exist to forbid.
-- **The coordinator, the MCP tag path, the worker's HTTP calls and the demo command line, against the
-  real thing**, by 40
+- **The coordinator, the MCP tag path, the worker's HTTP calls, the demo command line and a whole
+  agent run, against the real thing**, by 44
   integration tests in `tests/live/` — a live DataHub, the real `uvx mcp-server-datahub==0.6.0`
   subprocess, and a real obsel server. `pnpm test:live`. This closes what `hackathon.md` had called the
   repository's most honest weakness since the first commit, and the reason it stood so long is worth
@@ -288,16 +288,15 @@ and type-checks, not a plan.
   `canonicalise_numbers` in `agents/worker.py`, which fixes the serialised form per column before
   anything is hashed. Both were caught by the demo's own assertions rather than seen on camera,
   which is the property worth keeping. obsel itself called every one of those runs correctly.
-- **What `run_task` does between its two tested halves is still only covered by real demo runs.**
-  Two things that used to sit here are closed. `agents/run.py` has 33 self-checks over its guards and
-  8 integration tests for the two commands that reach obsel, and `agents/codex_runner.py` has 22
-  self-checks plus a live test that runs **a real Codex session** — the one automated model call in
-  the repository, which is what proves the two invocation flags still work. What remains untested is
-  `worker.py`'s `run_task` as a whole: the sequence from announcing a start, through the agent, to
-  reporting a completion. Its ends are tested against the real thing from both sides, and its output
-  is held to a contract that is tested, which is what makes a byte-identical re-run an empirical
-  result rather than a guarantee. The demo runner in `src/server/runner/` is tested on its pure half
-  only.
+- **An identical re-run is not driven through two real agents.** Everything that used to sit here is
+  closed: `agents/run.py`, `agents/codex_runner.py` and `worker.py`'s `run_task` are all now covered,
+  the last of them by a real agent run against a real obsel from announcement to confirmed completion.
+  What is deliberately not tested that way is obsel's central rule, that a re-run producing the same
+  table marks nothing. It is covered deterministically in `tests/staleness.test.ts` and against a live
+  DataHub in `engine.live.test.ts`; running it through two real Codex sessions would be testing the
+  model's determinism rather than obsel's decision. The demo's own `rerun-same` step asserts it on
+  real runs and exits non-zero when it fails, which is how both agent instabilities above were found.
+  The demo runner in `src/server/runner/` is still tested on its pure half only.
 - **The detection latency numbers are single observations, not a benchmark.** Each cascade run has
   produced one measured figure — 6867 ms on 2026-07-21; 2591 ms and 2310 ms on separate runs on
   2026-07-22; 3424 ms, 1611 ms, 745 ms and 3281 ms on 2026-07-23 — and the spread is dominated by how long the bounded
@@ -477,7 +476,7 @@ server that the suite starts itself, and a real `codex exec` session. It refuses
 them is missing, because a green run for a path nothing exercised is the same shape of failure obsel
 exists to catch. It writes into its own real DataFlow, so it cannot disturb the board you have open.
 It builds first, because it serves the app with `next start` and a suite testing a stale build would
-be worse than no suite. Budget about 150 s: the single real agent session is most of it.
+be worse than no suite. Budget about 155 s: the two real agent sessions are most of it.
 
 `pnpm e2e` is the one place left that tests against something invented: it intercepts
 `GET /api/swarm` with canned bodies to drive the board through states a live run cannot easily
