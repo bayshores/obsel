@@ -277,18 +277,18 @@ Those values were checked separately by walking the files and comparing against 
 
 ## The board these responses produced
 
-<!--
-  SCREENSHOTS: uncomment once docs/images/settled.png and docs/images/flagged.png exist.
+| Everything true                                                                                                             | Three flagged                                                                                                                                                                                                       |
+| --------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [![The cockpit with four agents finished and nothing out of date.](../docs/images/settled.png)](../docs/images/settled.png) | [![The cockpit with three agents flagged, the changed table naming the column that left and the one that arrived, and an amber path running out two hops.](../docs/images/flagged.png)](../docs/images/flagged.png) |
 
-  Commented rather than left dangling: a `![…]` at a missing path renders as a broken-image icon,
-  which reads worse than no image. See docs/images/README.md for the capture spec.
+Captured 2026-07-23 from commit `a485b95`, **both from the same run** against a live DataHub and a
+live Codex CLI: `run` took 2 m 30 s for four Codex sessions and left the board on the left, then one
+agent's instructions changed and obsel marked three tasks in a measured 3636 ms, which is the board on
+the right. Two shots from two different runs would be two different pipelines presented as one, which
+is the sort of quiet inconsistency obsel exists to catch.
 
-| Everything true                                    | Three flagged                                     |
-| -------------------------------------------------- | ------------------------------------------------- |
-| ![The cockpit with four agents finished and nothing out of date.](../docs/images/settled.png) | ![The cockpit with three agents flagged, the changed table naming the column that left and the one that arrived, and an amber path running out two hops.](../docs/images/flagged.png) |
-
-_Captured YYYY-MM-DD from commit `SHA`, both from the same run against a live DataHub._
--->
+They do not correspond to the JSON in this directory. Those captures are from 2026-07-22 and predate
+both the tag read-back and the column diff, so their numbers differ. Nothing here claims otherwise.
 
 Be clear about what a screenshot is worth here. It shows what obsel renders from the JSON in this
 directory, which is useful if you would rather not start Docker to see the board. It proves nothing

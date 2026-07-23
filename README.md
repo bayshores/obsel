@@ -12,20 +12,17 @@ work that never touched the change directly, only something built on it.
 Built for [Build with DataHub: The Agent Hackathon](https://datahub.devpost.com/), category _Agents
 That Do Real Work_. Apache-2.0.
 
-<!--
-  SCREENSHOTS: uncomment this block once docs/images/flagged.png exists.
+![The obsel cockpit with three agents flagged. The graph's heading asks "is this finished work still
+built on something that is still true?"; the changed table shows order_total leaving and
+order_total_usd arriving; an amber path runs outward from it through two hops to Revenue report and
+Table docs; and the ribbon reports a measured detection time of 3636 ms beside three of three marks
+tagged in DataHub.](docs/images/flagged.png)
 
-  Commented rather than left dangling on purpose. A `![…]` pointing at a missing file renders as a
-  broken-image icon on GitHub, which is worse for a submission than no image at all.
-  docs/images/README.md holds the capture spec: 1920 x 990, both shots from one real run.
-
-![The obsel cockpit with three agents flagged: the changed table shows order_total leaving and
-order_total_usd arriving, an amber path runs outward through two hops, and the ribbon reports the
-measured detection time and three of three marks tagged in DataHub.](docs/images/flagged.png)
-
-_The flagged board. Captured YYYY-MM-DD from commit `SHA` against a live DataHub and a live Codex
-CLI. Not a mockup: every number on it came from that run._
--->
+_The flagged board, captured 2026-07-23 from commit `a485b95` against a live DataHub and a live Codex
+CLI. Not a mockup, and not assembled: `run` took 2 m 30 s for four real Codex sessions, then one
+agent's instructions changed, and every number here came out of that run._
+[`docs/images/settled.png`](docs/images/settled.png) is the same board minutes earlier, from the same
+run, before anything changed.
 
 ---
 
@@ -141,6 +138,18 @@ and type-checks, not a plan.
   only if its status is `stale`; and no measurement is ever displayed that the coordinator did not
   record. The geometry assertions were confirmed to fail by reintroducing the status-dependent
   sizing they exist to forbid.
+- **The coordinator's orchestration**, by 26 tests in `tests/coordinator-engine.test.ts` against an
+  in-memory GMS. This closes what `hackathon.md` had called the repository's most honest weakness since
+  the first commit, and the reason it stood so long is worth naming: `engine.ts`, `client.ts` and
+  `mcp.ts` all import `server-only`, which throws unless the bundler resolves under React's
+  `react-server` condition, so **no test could load them at all**. One alias in `vitest.config.ts`
+  fixed it, with Next.js still enforcing the real guard at build time. `staleness.ts` had covered the
+  rules purely; these cover the code that calls them — reading the swarm, comparing, walking, writing
+  each mark back and confirming it landed. **Checked by mutation rather than assumed:** treating every
+  write as a change failed 3 tests, letting `startTask` clear `obsel.run.*` again failed the 1 written
+  for it, and making in-flight work markable failed 6. What the fake proves is bounded, and
+  `docs/architecture.md` says so: it encodes DataHub as measured, so a green run means obsel is correct
+  against that model, not that obsel works.
 - **The cascade, end to end against a live DataHub** on 2026-07-21. A schema-only change posted to
   `POST /api/tasks/complete` — content byte-identical, schema moved — marked exactly
   `build_revenue` (1 hop), `write_report` and `write_docs` (2 hops), each with its reason, in a

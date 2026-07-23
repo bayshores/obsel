@@ -32,12 +32,30 @@ Capturing them is the owner's action, like recording the video. Nothing here is 
 5. **Full frame, no crop.** The whole board including the header and the ribbon, so a reader can
    see that the numbers sit on the same screen as the graph.
 
-## After capturing
+## What is in here now
 
-Both files are referenced from `README.md` and `examples/README.md` by markdown that is currently
-inside an HTML comment. Uncomment those blocks once the files exist. They are commented rather than
-left dangling because a `![…]` pointing at a missing file renders as a broken-image icon on GitHub,
-which is worse for a submission than no image at all.
+Both files exist, captured 2026-07-23 from commit `a485b95` against a live DataHub and a live Codex
+CLI, and referenced from `README.md` and `examples/README.md`.
 
-Then update the caption in each place with the date and the commit the capture came from, so the
-image can be tied back to a specific state of the repository.
+They came from one run, in this order: reset, then `run` (2 m 30 s, four Codex sessions) which produced
+`settled.png`, then `change` (1 m 05 s) which marked three tasks in a measured 3636 ms and produced
+`flagged.png`. Nothing between the two shots but the change itself.
+
+`capture.mjs` at the repository root does it, and it refuses to mislabel a shot: it decides which board
+it is looking at from the ribbon's write-back cell, which is derived from the marks, rather than from
+the headline. The first version tested the headline for "out of date" and would have saved a settled
+board as flagged, because the settled headline reads "all 4 finished, nothing out of date".
+
+## Replacing them
+
+Take the new pair with the same two commands, then update the date and commit in the caption in
+`README.md` and in `examples/README.md`, so an image can always be tied back to a specific state of
+the repository.
+
+```bash
+node capture.mjs settled   # after run, before change
+```
+
+```bash
+node capture.mjs flagged   # after change
+```
