@@ -127,10 +127,13 @@ and type-checks, not a plan.
   exactly **6 of them animated** (the cascade path), stable across ten samples over four seconds,
   with the animation reporting an unbounded iteration count and a `stroke-dashoffset` still advancing
   between samples. **238 words** on the page, **zero em dashes**, no horizontal scroll, whole board
-  inside the frame. Two defects were caught by measuring rather than looking: React Flow drew **zero
-  edges** while the poll replaced its node array every second, and the log strip beside the graph
-  squeezed node labels to **8 px** on a 1280 laptop. Both are fixed and both are written up in the
-  code that fixes them.
+  inside the frame. Three defects were caught by measuring rather than looking, none of which was
+  visible in a screenshot of a freshly loaded page: React Flow drew **zero edges** while the poll
+  replaced its node array every second; the log strip beside the graph squeezed node labels to
+  **8 px** on a 1280 laptop; and `fitView`, which runs once on mount, left the graph framed against
+  a stale panel size, so after a resize all nine nodes sat outside a panel that clips its overflow.
+  All three are fixed, each is written up in the code that fixes it, and the last is now asserted in
+  `e2e/cockpit.spec.ts` across a resize.
 - **The whole demo, driven from the browser alone**, on 2026-07-22 against a live DataHub and a
   signed-in Codex CLI — five clicks in the guide, no terminal: reset, then re-declare (which
   wrote each task's job description onto its DataJob and read it back onto the board in a

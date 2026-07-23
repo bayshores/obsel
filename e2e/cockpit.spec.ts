@@ -121,6 +121,54 @@ test.describe("typography", () => {
 
     expect(overlaps).toEqual([]);
   });
+
+  test("the whole graph stays inside its panel after the panel resizes", async ({ page }) => {
+    /*
+     * The regression this exists for, which shipped twice.
+     *
+     * React Flow's `fitView` prop fires once, on mount. Every later change of
+     * size leaves the transform where it was: the panel has a 220px floor and
+     * shrinks on a short viewport, the guide panel above it changes height
+     * between demo stages, and the changed table's node grows from 56px to 84px
+     * when the column diff appears. Measured before the fix, the scale stayed
+     * pinned at 1.14 through a 266px to 238px shrink, and after a hot reload the
+     * graph sat 250px below a panel that clips its overflow.
+     *
+     * It fails silently and completely. Nine nodes and eight edges are present
+     * and correct in the DOM, and none of them is on screen, with no warning
+     * anywhere. Pan and zoom are off, so it cannot be dragged back either.
+     */
+    await openCockpit(page, cascaded());
+    await page.waitForSelector(".react-flow__node", { state: "attached" });
+    await page.waitForTimeout(400);
+
+    const framing = async () =>
+      page.evaluate(() => {
+        const canvas = document.querySelector(".react-flow")?.getBoundingClientRect();
+        if (canvas === undefined) return null;
+        const nodes = [...document.querySelectorAll(".react-flow__node")];
+        const outside = nodes.filter((node) => {
+          const r = node.getBoundingClientRect();
+          return r.top < canvas.top - 1 || r.bottom > canvas.bottom + 1;
+        });
+        return { total: nodes.length, outside: outside.length };
+      });
+
+    const before = await framing();
+    expect(before).not.toBeNull();
+    expect(before?.total).toBeGreaterThan(0);
+    expect(before?.outside).toBe(0);
+
+    // Shrink hard, which is what a short viewport and a tall guide panel each do.
+    const size = page.viewportSize();
+    await page.setViewportSize({ width: size?.width ?? 1280, height: 620 });
+    await page.waitForTimeout(500);
+    expect((await framing())?.outside).toBe(0);
+
+    await page.setViewportSize({ width: size?.width ?? 1280, height: size?.height ?? 800 });
+    await page.waitForTimeout(500);
+    expect((await framing())?.outside).toBe(0);
+  });
 });
 
 test.describe("fit", () => {

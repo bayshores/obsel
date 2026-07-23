@@ -33,8 +33,11 @@ import {
   BackgroundVariant,
   MarkerType,
   ReactFlow,
+  ReactFlowProvider,
   useEdgesState,
+  useNodesInitialized,
   useNodesState,
+  useReactFlow,
 } from "@xyflow/react";
 import type { Edge, Node } from "@xyflow/react";
 
@@ -71,6 +74,18 @@ const LOCKED = {
   zoomOnDoubleClick: false,
   preventScrolling: false,
 } as const;
+
+/**
+ * How the graph is framed, named once because it is applied in three places.
+ *
+ * `maxZoom` is a ceiling on scaling UP, so a two-task swarm on a large display
+ * cannot render as a pair of enormous boxes. 1.25 rather than 1: the demo's
+ * layout is wider than it is tall, so width pins the zoom before this ceiling is
+ * reached anyway, and on a 1920 frame the extra headroom is the difference
+ * between 13px and 15px node labels in a recording. Padding leaves room for the
+ * arrowheads and for the changed table's taller box.
+ */
+const FIT = { padding: 0.08, maxZoom: 1.25 } as const;
 
 /**
  * Everything the picture depends on, as one comparable string.
@@ -169,14 +184,28 @@ function buildGraph(
   return { nodes, edges };
 }
 
-export function Lineage({
-  tasks,
-  onSelect,
-}: {
+interface LineageProps {
   tasks: TaskRecord[];
   /** Opening a task's details. Datasets are not selectable; they carry no mark. */
   onSelect?: (urn: string) => void;
-}) {
+}
+
+/**
+ * The provider is what lets the canvas below call `fitView` for itself.
+ *
+ * `useReactFlow` reads a context that `<ReactFlow>` publishes, so a component
+ * cannot both render the flow and use the hook. Splitting the two is React
+ * Flow's own answer to that, and it is the whole reason this wrapper exists.
+ */
+export function Lineage(props: LineageProps) {
+  return (
+    <ReactFlowProvider>
+      <LineageCanvas {...props} />
+    </ReactFlowProvider>
+  );
+}
+
+function LineageCanvas({ tasks, onSelect }: LineageProps) {
   const origin = currentChange(tasks);
 
   /*
@@ -209,8 +238,52 @@ export function Lineage({
     setEdges(built.edges);
   }, [signature, tasks, origin, setNodes, setEdges]);
 
+  /*
+   * Re-frame the graph. The `fitView` prop below does this exactly once, on
+   * mount, and never again, which is the bug this exists to close.
+   *
+   * Three things move the picture out of its frame after that one fit:
+   *
+   * - **The panel resizes.** It is 320px tall with a 220px floor, so a short
+   *   viewport shrinks it, and the guide panel above changes height as the demo
+   *   moves between stages.
+   * - **The graph's own content grows.** The changed table's node goes from 56px
+   *   to 84px when the column diff appears, so dagre lays the whole thing out
+   *   taller and the bounds obsel fitted are no longer the bounds it is drawing.
+   * - **Hot reload**, which is how this was found: React Flow kept a transform
+   *   computed against a 648px panel while the panel became 266px.
+   *
+   * The failure is total rather than cosmetic. The panel clips its overflow and
+   * `LOCKED` turns off pan and zoom, so a stranded graph cannot be dragged back:
+   * it is nine boxes and eight edges present in the DOM, correct in every
+   * respect, and entirely below the visible area. A lineage graph showing
+   * nothing.
+   *
+   * `useNodesInitialized` is the wait that matters. Fitting before React Flow has
+   * measured the new node sizes frames the previous layout, which is the same
+   * class of mistake with a smaller error.
+   */
+  const { fitView } = useReactFlow();
+  const measured = useNodesInitialized();
+  const canvas = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!measured) return;
+    void fitView(FIT);
+  }, [measured, signature, fitView]);
+
+  useEffect(() => {
+    const element = canvas.current;
+    if (element === null) return;
+    const observer = new ResizeObserver(() => {
+      void fitView(FIT);
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [fitView]);
+
   return (
-    <div className={styles.canvas}>
+    <div className={styles.canvas} ref={canvas}>
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -218,16 +291,7 @@ export function Lineage({
         onEdgesChange={onEdgesChange}
         nodeTypes={NODE_TYPES}
         fitView
-        /*
-         * `maxZoom` is a ceiling on scaling UP, so a two-task swarm on a large
-         * display cannot render as a pair of enormous boxes. 1.25 rather than 1:
-         * the demo's layout is wider than it is tall, so width pins the zoom
-         * before this ceiling is reached anyway, and on a 1920 frame the extra
-         * headroom is the difference between 13px and 15px node labels in a
-         * recording. Padding leaves room for the arrowheads and for the changed
-         * table's taller box.
-         */
-        fitViewOptions={{ padding: 0.08, maxZoom: 1.25 }}
+        fitViewOptions={FIT}
         proOptions={{ hideAttribution: false }}
         onNodeClick={(_event, node) => {
           if (onSelect && node.type === "task") onSelect(node.id.slice(2));

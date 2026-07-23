@@ -37,7 +37,23 @@
   flex-direction: column;
   gap: var(--mm-space-sm);
   padding: var(--mm-space-md);
-  min-height: 100vh;
+  /*
+   * `height`, not `min-height`, and that one word is what makes the board fill
+   * the frame instead of ending in a black gap.
+   *
+   * With `min-height` the column had a floor and no ceiling, so it sized to its
+   * content: the log strip expanded to its full 436px of steps, the page grew to
+   * 1053px and scrolled. Capping the workbench at a fixed 560px stopped the
+   * overflow and produced the opposite fault, 154px of dead space below the
+   * ribbon at 1920 x 990.
+   *
+   * A definite height gives the flex algorithm something to distribute. The
+   * header, headline and ribbon take what they need, the graph takes its fixed
+   * 320, and the log strip gets exactly the remainder, whatever the frame is.
+   * On a viewport too short for the floors the content overflows and the page
+   * scrolls, which is the right failure: scrolling beats clipping.
+   */
+  height: 100vh;
   box-sizing: border-box;
   /*
    * 1800, up from 1280.
@@ -269,26 +285,25 @@
   gap: var(--mm-space-sm);
   flex: 1 1 auto;
   min-width: 0;
-  /* 260 graph floor + 8 gap + 240 log strip */
-  min-height: 508px;
+  /* 220 graph floor + 8 gap + 172 log strip floor */
+  min-height: 400px;
   /*
-   * Capped, because the graph is wide and short and the frame is not.
+   * Uncapped, and the slack goes to the log strip rather than to the graph.
    *
-   * dagre lays the demo out at roughly 1500 x 180: seven ranks across, two rows
-   * deep. Given the whole 990px frame this row grew to 649px, and `fitView`
-   * cannot use the extra height without also scaling past the width it has, so
-   * the panel sat about two thirds empty with the graph in a band across the
-   * middle. Width is the binding constraint on a left-to-right layout, so the
-   * honest response is to stop claiming the height.
+   * This carried `max-height: 560px` for one commit, which was the wrong fix for
+   * a real problem. The problem: dagre lays the demo out about 1500 x 180, seven
+   * ranks across and two rows deep, so `fitView` is pinned by WIDTH and giving the
+   * graph more height just adds empty panel around a band of boxes. Capping the
+   * row did stop that, and left 154px of dead black at the bottom of a 990px
+   * frame, which reads as a layout that failed rather than as a decision.
    *
-   * A max rather than a fixed height: on a 1280 x 800 laptop the row is still
-   * allowed to shrink to its floor instead of forcing the page to scroll.
-   *
-   * 560 covers the graph at its zoom ceiling plus the 240px log strip beneath it.
-   * Below that the graph had spare height it could not use, because `fitView` was
-   * already pinned by width.
+   * The height is not wasted, it was being offered to the wrong region. The log
+   * strip is a scroller that wanted 370px and had 173px, clipping its top row
+   * mid-sentence and showing four steps out of twenty-nine. So the graph panel is
+   * now the fixed one (see `cockpit.tsx`, which sets its height) and `.gutter`
+   * takes whatever is left. The page fills the frame at 1920 x 990, and the strip
+   * grows on a taller display instead of black space growing.
    */
-  max-height: 560px;
 }
 
 /*
@@ -300,17 +315,30 @@
   flex-direction: row;
   gap: var(--mm-space-sm);
   /*
-   * 240, up from 172, now that this is a full-width strip rather than a narrow
-   * column beside the graph.
+   * The region that absorbs the column's slack, which used to be the graph.
    *
-   * At 172 the panel header and the disclosure took 66px of it and the rows had
-   * about 106px between them, which is three at 34px each. Scrolled to the newest
-   * step, the top row was always cut through the middle of its text. The graph
-   * gave this height up for nothing: `fitView` is pinned by width, so the pixels
-   * were not being used to make the picture any larger.
+   * The graph cannot use vertical space: `fitView` is pinned by width on a
+   * left-to-right layout, so every pixel of height beyond the boxes is empty
+   * panel. This strip can use all of it. It holds a scrolling step list that
+   * wanted 370px, and at the 172px it started with, the panel header and the
+   * disclosure took 66px and the rows were left about 106px, which is three at
+   * 34px each with the top one always cut through the middle of its text.
+   *
+   * The floor is what a laptop gets after the graph takes its share; anything
+   * above that is a taller list rather than a taller graph or a black gap.
    */
-  flex: 0 0 240px;
-  min-height: 0;
+  /*
+   * `1 1 0`, not `1 1 auto`. The basis is zero on purpose.
+   *
+   * With an `auto` basis the strip starts from its own content height, which is
+   * the full step list, so the graph and the strip were over-subscribed and BOTH
+   * shrank proportionally: the graph came out at 240px on a frame where its fixed
+   * 320 fitted comfortably. From a zero basis the graph takes its 320 first and
+   * the strip takes exactly what is left, which is what "absorbs the slack" is
+   * supposed to mean.
+   */
+  flex: 1 1 0;
+  min-height: 172px;
 }
 
 /*

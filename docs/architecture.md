@@ -156,6 +156,20 @@ Two invariants there are worth naming because breaking either produces a specifi
   "out of date · 2 hops" is wider than "done", so the graph would rescale on exactly the frame that
   matters most.
 
+React Flow's `fitView` prop frames the graph once, on mount, and never again, which is a trap here
+rather than a detail. Three things change the framing afterwards: the panel has a 220px floor and
+shrinks on a short viewport, the guide panel above it changes height as the demo moves between
+stages, and the changed table's node grows from 56px to 84px when the column diff appears, so dagre
+lays the whole graph out taller than the bounds that were fitted. `lineage.tsx` therefore refits on
+two signals of its own — a `ResizeObserver` on the panel, and `useNodesInitialized` after the
+picture's content changes.
+
+The failure it prevents is silent and total. The panel clips its overflow and pan and zoom are
+turned off, so a graph fitted against a stale size sits entirely outside the visible area with no
+way to drag it back: nine nodes and eight edges present and correct in the DOM, none of them on
+screen, and no warning anywhere. `e2e/cockpit.spec.ts` asserts every node stays inside the panel
+across a resize.
+
 ## 4. Traversal reads the graph store, never the search index
 
 This decision is load-bearing enough to have its own section, and it was a correction to an earlier

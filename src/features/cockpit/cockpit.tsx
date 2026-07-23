@@ -118,10 +118,28 @@ export function Cockpit() {
           // way the data moves, so the picture no longer needs a caption
           // explaining how to read it.
           padded={false}
-          // The region that takes all the leftover height, which is the whole
-          // point of this pass: the graph was 16.8% of the frame and 166px tall,
-          // making the board's one explanatory picture its smallest region.
-          style={{ flex: "1 1 auto", minHeight: 260, display: "flex", flexDirection: "column" }}
+          /*
+           * A fixed height, and NOT the region that absorbs the column's slack.
+           *
+           * That reads backwards for the board's most important panel, so it is
+           * worth stating why. `fitView` scales the graph to fit, and this layout
+           * is about 1500 x 180, so the scale is decided entirely by the width
+           * available. Extra height cannot make the picture any bigger; it only
+           * adds empty panel above and below a band of boxes. Handing this row the
+           * slack produced exactly that, and then a 154px black gap at the bottom
+           * of the frame once the row was capped to stop it.
+           *
+           * 320 fits the graph at its zoom ceiling with breathing room, and the
+           * log strip beneath takes everything else. Shrinkable to 220 so a short
+           * viewport gives up graph before it gives up the strip or scrolls.
+           */
+          style={{
+            flex: "0 1 auto",
+            height: 320,
+            minHeight: 220,
+            display: "flex",
+            flexDirection: "column",
+          }}
           bodyStyle={{ flex: 1, minHeight: 0, position: "relative", overflow: "hidden" }}
         >
           <Backdrop alert={t.stale > 0} />
