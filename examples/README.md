@@ -287,8 +287,11 @@ agent's instructions changed and obsel marked three tasks in a measured 3636 ms,
 the right. Two shots from two different runs would be two different pipelines presented as one, which
 is the sort of quiet inconsistency obsel exists to catch.
 
-They do not correspond to the JSON in this directory. Those captures are from 2026-07-22 and predate
-both the tag read-back and the column diff, so their numbers differ. Nothing here claims otherwise.
+They do not correspond to the JSON in this directory. **The JSON** is the older artifact: it was
+captured before the tag read-back and the column diff existed, which is why `swarm-after.json`
+carries no `staleTagged` field and no `added`/`removed` column lists, while the images show both.
+The images are from 2026-07-23 UTC, the date `README.md` and `docs/images/README.md` also give.
+Different runs, so the numbers differ. Nothing here claims otherwise.
 
 Be clear about what a screenshot is worth here. It shows what obsel renders from the JSON in this
 directory, which is useful if you would rather not start Docker to see the board. It proves nothing

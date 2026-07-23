@@ -266,9 +266,12 @@ hashes, so the same inputs always give the same answer, and the answer can be ch
 used inside the demo agent workers to do those workers' actual jobs — cleaning a table, writing a
 report — and nowhere else. The model in use is named in the workers' own output.
 
-## 6. Where MCP is used
+## 6. Where MCP is used, in both directions
 
-The DataHub MCP Server is used for one thing: applying and clearing the `obsel-stale` tag.
+obsel is on both ends of the protocol, and the two ends have nothing to do with each other beyond
+sharing a transport.
+
+**As a client**, of DataHub's MCP server, for one thing: applying and clearing the `obsel-stale` tag.
 [`src/server/datahub/mcp.ts`](../src/server/datahub/mcp.ts).
 
 It is not used for reads. Traversal goes over GMS HTTP for the latency and freshness reasons in
@@ -287,6 +290,25 @@ Three constraints in that module are non-negotiable, each because the alternativ
   the first mark silently drops.
 - **One connection per process.** Spawning a Python process per mark would add seconds to the
   latency obsel reports, and would make the measurement a claim about `uvx` startup.
+
+**As a server**, so an agent that is not in this repository can join a swarm.
+[`agents/mcp_server.py`](../agents/mcp_server.py) serves six tools over stdio: `check_freshness`,
+`register_task`, `announce_start`, `report_complete`, `abandon_task`, `read_board`. Three properties
+of it are deliberate:
+
+- **Every mutation goes through obsel's HTTP API** (section 11). The module imports no DataHub SDK
+  and holds no credentials, so `staleness.ts` remains the only way anything is ever marked. There is
+  no second path onto the graph for an agent to talk its way through.
+- **There is no tool that marks or clears staleness.** A tool to declare something fresh would be a
+  tool to silence obsel. A mark is cleared by redoing the work and reporting it.
+- **Agents never compute a fingerprint.** `report_complete` takes rows and columns and hashes them
+  on obsel's side, through the same `canonicalise_numbers` → `fingerprint` path `worker.run_task`
+  uses. An agent that could hand obsel a hash could hand it the previous hash and be believed.
+
+The decisions live in [`agents/mcp_core.py`](../agents/mcp_core.py), which imports nothing outside
+the standard library so `pnpm verify` can check them without the virtual environment. The wiring is
+covered by [`tests/live/obsel-mcp.live.test.ts`](../tests/live/obsel-mcp.live.test.ts): a real MCP
+client, over real stdio, into the real Python server, against a real obsel and a real DataHub.
 
 ## 7. The pieces, and the direction things move
 
@@ -372,6 +394,8 @@ readable", not as "covered by end-to-end evidence" — see [Evidence](#9-evidenc
 | Demo reset                                | `app/api/demo/reset/route.ts`, `engine.resetSwarm`                                                                          | shipped, 2 integration tests vs a live DataHub      |
 | Agent output contract                     | `agents/worker.py` — `canonicalise_numbers`                                                                                 | shipped, 7 self-check properties                    |
 | Sample outputs                            | `examples/`                                                                                                                 | shipped, captured from a real run                   |
+| obsel's own MCP server                    | `agents/mcp_server.py` over `agents/mcp_core.py`                                                                            | shipped, 31 self-checks + 14 integration            |
+| The agent skill                           | `skills/obsel-collaboration/SKILL.md`                                                                                       | shipped, instructions rather than code              |
 
 ## 9. Evidence
 

@@ -63,6 +63,33 @@ were found.
 | `codex_runner.py` | Runs one agent as a real `codex exec` session, and refuses anything unusable it writes back. 22 self-checks.                                                                                                      |
 | `setup.py`        | One-time DataHub setup: creates obsel's tag and the demo DataFlow.                                                                                                                                                |
 | `run.py`          | The command line that drives the demo. 33 self-checks over the guards behind what it prints.                                                                                                                      |
+| `mcp_core.py`     | Everything obsel's MCP server decides before it speaks: reply guards, output resolution, freshness verdicts, the completion body. Standard library only, so `pnpm verify` can check it. 31 self-checks.           |
+| `mcp_server.py`   | obsel's own MCP server: the six tools any MCP-capable agent joins a swarm through. Wiring only; covered by `tests/live/obsel-mcp.live.test.ts`.                                                                   |
+
+## Joining from your own agent
+
+The demo workers above talk to obsel over HTTP. Anything else talks to it over MCP.
+
+```bash
+claude mcp add obsel -- "$PWD/agents/.venv/bin/python" -m agents.mcp_server
+```
+
+Codex, without writing to `~/.codex/config.toml`:
+
+```bash
+codex exec -c 'mcp_servers.obsel.command="'"$PWD"'/agents/.venv/bin/python"' -c 'mcp_servers.obsel.args=["-m","agents.mcp_server"]' "<your prompt>"
+```
+
+Install the skill by copying `skills/obsel-collaboration/` into `.claude/skills/`. It teaches the
+order the tools have to be called in for their answers to mean anything.
+
+**Verifying it end to end with a real agent is an owner action, not an automated test.** Driving a
+live model through the skill would be testing the model's tool-calling rather than obsel's decision,
+which is the same reason the identical-re-run rule is proven deterministically rather than through
+two Codex sessions. The deterministic path — a real MCP client, the real server, a real obsel, a real
+DataHub — is `pnpm test:live`. The manual run, when someone wants it: configure the server as above,
+ask the agent to register a task and report a small table, then confirm on the board at
+`http://localhost:3000` and on the DataJob in DataHub that the task and its lineage are really there.
 
 ## Before you start
 

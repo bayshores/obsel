@@ -46,6 +46,12 @@ the honest position for a public hackathon entry. It is toned down in
 `src/features/cockpit/lineage.module.css` so it does not compete with the data, and it is not
 hidden.
 
+**The Model Context Protocol SDKs, both ends, MIT.** `@modelcontextprotocol/sdk` (TypeScript) is how
+obsel talks to DataHub's MCP server to write the stale tag, and how the live suite drives obsel's own
+server as a real client. `mcp` (Python, pinned `==1.28.1` in `agents/requirements.txt`) is what
+`agents/mcp_server.py` serves obsel's six tools over. Both are Anthropic's official SDKs for the
+protocol, used through their documented interfaces.
+
 Node and Python dependency licences are recorded in `pnpm-lock.yaml` and
 `agents/requirements.txt`.
 

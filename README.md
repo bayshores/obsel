@@ -21,8 +21,50 @@ tagged in DataHub.](docs/images/flagged.png)
 _The flagged board, captured 2026-07-23 from commit `a485b95` against a live DataHub and a live Codex
 CLI. Not a mockup, and not assembled: `run` took 2 m 30 s for four real Codex sessions, then one
 agent's instructions changed, and every number here came out of that run._
-[`docs/images/settled.png`](docs/images/settled.png) is the same board minutes earlier, from the same
-run, before anything changed.
+
+![The same cockpit minutes earlier: four agent boxes all showing done, the heading reporting that all
+four finished and nothing is out of date, and the write-back cell reading "nothing
+marked".](docs/images/settled.png)
+
+_The same board minutes earlier in the same run, before anything changed. The contrast is the whole
+product: obsel is quiet until something is genuinely wrong, and an identical re-run keeps it quiet._
+
+---
+
+## Any agent can join, not just the four in this repo
+
+obsel speaks MCP in both directions. It is a **client** of DataHub's MCP server, which is how the
+`obsel-stale` tag gets written. It also **serves** its own, so any MCP-capable agent (Claude Code,
+Cursor, Codex) can join a swarm:
+
+| Tool                                              | What an agent uses it for                               |
+| ------------------------------------------------- | ------------------------------------------------------- |
+| `check_freshness(reads)`                          | before working: are my inputs still trustworthy?        |
+| `register_task(name, reads, writes, title?, ...)` | declare what I read and write, once                     |
+| `announce_start(taskUrn)`                         | before writing, so in-flight work is never marked       |
+| `report_complete(taskUrn, outputs, runner?, ms?)` | what I produced; obsel answers with what it invalidated |
+| `abandon_task(taskUrn)`                           | hand the announcement back after a failure              |
+| `read_board()`                                    | who else is in the swarm and what state they are in     |
+
+**Agents never compute a fingerprint.** `report_complete` takes the real rows and columns and hashes
+them on obsel's side, through the same path its own workers use. There is no tool that accepts a
+hash, because an agent that could hand obsel a hash could hand it the _previous_ hash and be
+believed. There is also no tool that marks or clears staleness: the way to clear a mark is to redo
+the work and report it.
+
+Point an agent at it (from the repository root, with obsel running):
+
+```bash
+claude mcp add obsel -- "$PWD/agents/.venv/bin/python" -m agents.mcp_server
+```
+
+`skills/obsel-collaboration/SKILL.md` teaches an agent the order that makes obsel's answers mean
+something: check freshness first, register once, announce before writing, report even when nothing
+changed. Copy it into `.claude/skills/` to install it.
+
+The whole path is covered by [`tests/live/obsel-mcp.live.test.ts`](tests/live/obsel-mcp.live.test.ts)
+— a real MCP client, over real stdio, into the real Python server, against a real obsel and a real
+DataHub.
 
 ---
 
@@ -125,21 +167,40 @@ and type-checks, not a plan.
 | A link from any task to its real page in DataHub's UI                           | `src/features/cockpit/datahub-link.ts`, `inspector.tsx`                    |
 | HTTP API, eight routes including launch and activity                            | `app/api/` — see [`docs/architecture.md`](docs/architecture.md) section 11 |
 
+### Verify these claims yourself
+
+Every claim below is one command away. Nothing here is a summary of a summary — each row names the
+file that would fail if the claim were false.
+
+| Claim                                                                                  | Run this                           | Where it lives                                                      |
+| -------------------------------------------------------------------------------------- | ---------------------------------- | ------------------------------------------------------------------- |
+| An identical re-run marks nothing. False alarms are the failure mode designed against. | `pnpm test`                        | `tests/staleness.test.ts` (about half its tests assert no action)   |
+| ...and it still marks nothing through a real DataHub, and through the MCP path         | `pnpm test:live`                   | `engine.live.test.ts`, `obsel-mcp.live.test.ts`                     |
+| A change reaches work that never read the table that changed                           | `pnpm test:live`                   | `obsel-mcp.live.test.ts` asserts hops 1 and 2, each with its reason |
+| Work in flight is never marked                                                         | `pnpm test`                        | `tests/staleness.test.ts`                                           |
+| The `obsel-stale` tag really lands in DataHub, confirmed by reading it back            | `pnpm test:live`                   | `mcp.live.test.ts`, `obsel-mcp.live.test.ts`                        |
+| The same number written `217` and `217.0` is not treated as a change                   | `python3 -m agents.worker`         | and again through the MCP path in `agents/mcp_core.py`              |
+| A reply obsel never sent is refused, not read as "nothing was affected"                | `python3 -m agents.run self-check` | mutating the guard fails six checks; five more in `mcp_core.py`     |
+| Any MCP agent can join and drive a real cascade, and an unreachable obsel is named     | `pnpm test:live`                   | `obsel-mcp.live.test.ts` (a real client, a dead port, and the GMS)  |
+| TypeScript and Python build byte-identical URNs                                        | `pnpm test`                        | `tests/urns.test.ts` runs the Python module for real                |
+
+`pnpm verify` needs no Docker. `pnpm test:live` needs DataHub up, plus `uvx` and `codex` on PATH.
+
 ### Verified directly
 
 - **The staleness rules**, by 24 deterministic tests in `tests/staleness.test.ts`. About half assert
   that nothing happens, which is deliberate — the failure that kills this kind of tool is a false
   alarm, not a miss. An identical re-run marks nothing, an unrelated branch is untouched, a running
   task is neither marked nor walked through, a cycle terminates.
-- **The cockpit's own logic**, by 133 further tests across `tests/cockpit-*.test.ts`. The load-bearing
+- **The cockpit's own logic**, by 157 further tests across `tests/cockpit-*.test.ts`. The load-bearing
   ones: graph geometry is byte-identical across every task status, so nothing moves on the frame
   three tasks flip amber; no label can overflow its box, checked against measured per-character
   advances; a six-task pipeline the layout has never seen draws correctly; amber fills a node if and
   only if its status is `stale`; and no measurement is ever displayed that the coordinator did not
   record. The geometry assertions were confirmed to fail by reintroducing the status-dependent
   sizing they exist to forbid.
-- **The coordinator, the MCP tag path, the worker's HTTP calls, the demo command line and a whole
-  agent run, against the real thing**, by 44
+- **The coordinator, both MCP surfaces, the worker's HTTP calls, the demo command line and a whole
+  agent run, against the real thing**, by 58
   integration tests in `tests/live/` — a live DataHub, the real `uvx mcp-server-datahub==0.6.0`
   subprocess, and a real obsel server. `pnpm test:live`. This closes what `hackathon.md` had called the
   repository's most honest weakness since the first commit, and the reason it stood so long is worth
@@ -161,7 +222,7 @@ and type-checks, not a plan.
   silently. Registration now confirms the edge too. A stand-in derives its edges from its own entity
   map, so they are never late and this could not exist in one.
 
-- **The Python agents, by 78 self-checks** in `pnpm test:python`, now wired into `pnpm verify` so they
+- **The Python agents, by 109 self-checks** in `pnpm test:python`, now wired into `pnpm verify` so they
   actually run rather than sitting unrun. All over real files in real temporary directories. `worker.py`
   contributes 16, including the instruction remembered together with the columns it produced, the pair
   whose separation reverted a rename live. `codex_runner.py` contributes 22 over `_validate`, the only
@@ -170,7 +231,11 @@ and type-checks, not a plan.
   order are each refused, because a plausible-looking bad table hashes cleanly and would mark the whole
   chain stale for nothing. `run.py` contributes 33 over the guards behind its printed claims, the
   sharpest being that `_required_list` refuses a missing key rather than reading it as an empty list:
-  mutating it to `reply.get(key) or []` fails six of them.
+  mutating it to `reply.get(key) or []` fails six of them. `mcp_core.py` contributes 31 over what
+  obsel's own MCP server decides before it speaks: the same refusal of a missing key (the same
+  mutation fails five of these), an output the task never declared it writes, a table with no
+  registered producer reported as exactly that rather than as fresh, and `217` and `217.0` reaching
+  one fingerprint while `218` still moves it.
 
 - **One real Codex session**, in `tests/live/codex.live.test.ts` — the only automated model call in the
   repository. The subject is the invocation, not the reasoning: `--sandbox workspace-write` and
@@ -443,7 +508,9 @@ src/server/coordinator/  types.ts, staleness.ts (pure rules), engine.ts (the IO 
 src/server/datahub/      client.ts (GMS HTTP), mcp.ts (tag writes), urns.ts (URN shapes)
 src/server/runner/       the demo runner: steps.ts (pure), launcher.ts (spawn), preflight.ts
 src/server/domain/       reserved for deterministic logic; currently empty
-agents/                  the four demo agent workers, fingerprinting, and the demo runner
+agents/                  the four demo agent workers, fingerprinting, the demo runner, and
+                         obsel's own MCP server (mcp_server.py over pure mcp_core.py)
+skills/                  the agent skill: how to work in a swarm obsel is watching
 docs/                    concept, architecture, environment findings, demo script
 examples/                sample outputs for judges
 tests/                   deterministic tests, no browser and no DataHub
@@ -485,9 +552,9 @@ produces the right snapshot — the live suite covers that half. Its fixtures sa
 header.
 
 Checked 2026-07-23: `pnpm verify` succeeds end to end — `pnpm format:check`, `pnpm lint`,
-`pnpm typecheck`, `pnpm test` (232 passed), `pnpm test:python` (78 properties across four modules),
-and `pnpm build`. `pnpm test:live` passes 40 integration tests in about 150 s, of which one is a real
-Codex session. `pnpm e2e` passes 71
+`pnpm typecheck`, `pnpm test` (232 passed), `pnpm test:python` (109 properties across five modules),
+and `pnpm build`. `pnpm test:live` passes 58 integration tests across seven files in about 120 s, of
+which one is a real Codex session. `pnpm e2e` passes 71
 browser checks across both viewports, with one skipped by design — a recording-frame assertion that
 does not apply at laptop height.
 

@@ -72,6 +72,37 @@ export function requireUvx(): void {
 }
 
 /**
+ * The virtual environment that can run obsel's own MCP server, by absolute path.
+ *
+ * Returned as a path rather than a name because the suite spawns it directly: two tests
+ * in this directory empty PATH to remove a CLI, and `python3` spawned by name under that
+ * PATH fails to start at all, proving only that the test could not run.
+ *
+ * `import mcp` is the real check. The venv can exist and predate the dependency, and the
+ * failure then arrives as an unreadable import error inside a subprocess an MCP client
+ * launched, which is the hardest place in this repository to read an error from.
+ */
+export function requireObselMcpEnv(): string {
+  const repo = new URL("../../", import.meta.url).pathname;
+  const python = `${repo}agents/.venv/bin/python`;
+  const fix =
+    `  Fix: python3 -m venv agents/.venv && ` +
+    `agents/.venv/bin/python -m pip install -r agents/requirements.txt`;
+  try {
+    execFileSync(python, ["-c", "import mcp"], { stdio: "pipe", cwd: repo });
+  } catch (cause) {
+    throw new Error(
+      `obsel's MCP server needs the \`mcp\` SDK in agents/.venv, and ${python} could not ` +
+        `import it (${cause instanceof Error ? cause.message : String(cause)}).\n` +
+        `${fix}\n` +
+        `  Not skipped: the server is what an outside agent joins through, so a green run ` +
+        `without it would report on a path nothing exercised.`,
+    );
+  }
+  return python;
+}
+
+/**
  * The `codex` CLI installed and signed in, without which no agent can do its job.
  *
  * Checked through `codex_runner.codex_version` rather than a bare `which`, because that
