@@ -12,8 +12,8 @@ Every claim here was measured on this machine against GMS `v1.5.0.6` (`serverEnv
 `serverType: quickstart`) with `showcase-ecommerce` loaded. Commands are given so each is
 reproducible rather than asserted.
 
-Sections 1 to 9 were measured on 2026-07-21. Section 10 was measured on 2026-07-23 and says so, so a
-reader can tell how old any given claim is rather than trusting one date for all of them.
+Sections 1 to 9 were measured on 2026-07-21. Sections 10 and 11 were measured on 2026-07-23 and say
+so, so a reader can tell how old any given claim is rather than trusting one date for all of them.
 
 ---
 
@@ -491,3 +491,48 @@ obsel reproduces the rule in `src/features/cockpit/datahub-link.ts` so the href 
 the one DataHub's own UI would generate. An obsel task URN happens to contain none of the six, so the
 raw URN would have worked by luck; the encoder makes it correct by construction instead, and
 `tests/datahub-link.test.ts` pins each case.
+
+## 11. The graph store lags the aspect store on a new entity
+
+**Measured 2026-07-23**, and found by an integration test rather than by inspection.
+
+A DataJob is readable as an entity well before its `IsPartOf` edge into its DataFlow is
+queryable. Against a brand-new flow, one `POST` and then two polls every 25 ms:
+
+| Moment                                                                             | Elapsed     |
+| ---------------------------------------------------------------------------------- | ----------- |
+| `POST /openapi/v3/entity/datajob?async=false` returned                             | 201 ms      |
+| `GET /openapi/v3/entity/datajob/<urn>` answered 200                                | 218 ms      |
+| `GET /relationships?urn=<flow>&direction=INCOMING&types=IsPartOf` returned the job | **1302 ms** |
+
+So the edge trailed the aspect by about 1.1 seconds. This is a different lag from §7:
+that one is the **search index** behind the graph store, minutes wide. This one is the
+**graph store** behind the aspect store, roughly a second wide, and §7's advice to prefer
+`GET /relationships` does not avoid it.
+
+Note also that the DataFlow entity itself does not have to exist for the edge to appear.
+Checked directly: the flow URN answered 404 while `/relationships` already listed five
+members of it. Membership is derived from the DataJob's own key, so a missing DataFlow
+entity is not what makes enumeration come back empty.
+
+### Consequence for obsel, and the bug it had
+
+`readSnapshot` enumerates the swarm from exactly this edge, so for about a second after a
+task is registered, **obsel could not see it while reporting it registered**. That is the
+worst shape of failure available here: a change upstream of a task missing from the
+snapshot traverses straight past it, the task is not marked, and nothing reports a
+problem. An incomplete swarm is not a smaller answer, it is a wrong one.
+
+`registerTask` in `src/server/datahub/client.ts` confirmed the entity and stopped there.
+It now also polls `/relationships` until the flow lists the task, with a bounded timeout
+and a named failure. `agents/graph.py`'s `register_task` has the same gap — its comment
+already names the exact risk, "so it is not in the lineage graph and a change upstream of
+it would traverse straight past it", while `confirm_exists` only checks entity existence.
+That path is the Python reference implementation and not what the demo runs, which posts
+to obsel's own `/api/tasks/register`; it is recorded here as a known difference rather
+than quietly matched.
+
+**This could not have been found against a stand-in.** obsel had an in-memory GMS for one
+commit, and it derived relationship answers from its own entity map, so its edges were
+never late and this behaviour did not exist in it. The fake was deleted and the suite runs
+against a real DataHub, which is what surfaced this within one run.

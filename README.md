@@ -138,18 +138,33 @@ and type-checks, not a plan.
   only if its status is `stale`; and no measurement is ever displayed that the coordinator did not
   record. The geometry assertions were confirmed to fail by reintroducing the status-dependent
   sizing they exist to forbid.
-- **The coordinator's orchestration**, by 26 tests in `tests/coordinator-engine.test.ts` against an
-  in-memory GMS. This closes what `hackathon.md` had called the repository's most honest weakness since
-  the first commit, and the reason it stood so long is worth naming: `engine.ts`, `client.ts` and
-  `mcp.ts` all import `server-only`, which throws unless the bundler resolves under React's
-  `react-server` condition, so **no test could load them at all**. One alias in `vitest.config.ts`
-  fixed it, with Next.js still enforcing the real guard at build time. `staleness.ts` had covered the
-  rules purely; these cover the code that calls them — reading the swarm, comparing, walking, writing
-  each mark back and confirming it landed. **Checked by mutation rather than assumed:** treating every
-  write as a change failed 3 tests, letting `startTask` clear `obsel.run.*` again failed the 1 written
-  for it, and making in-flight work markable failed 6. What the fake proves is bounded, and
-  `docs/architecture.md` says so: it encodes DataHub as measured, so a green run means obsel is correct
-  against that model, not that obsel works.
+- **The coordinator, the MCP tag path and the worker's HTTP calls, against the real thing**, by 28
+  integration tests in `tests/live/` — a live DataHub, the real `uvx mcp-server-datahub==0.6.0`
+  subprocess, and a real obsel server. `pnpm test:live`. This closes what `hackathon.md` had called the
+  repository's most honest weakness since the first commit, and the reason it stood so long is worth
+  naming: `engine.ts`, `client.ts` and `mcp.ts` all import `server-only`, which throws unless the
+  bundler resolves under React's `react-server` condition, so **no test could load them at all**.
+
+  **Nothing is stood in for.** There was an in-memory DataHub for exactly one commit, and it was
+  deleted rather than kept: it encoded a propagation delay attributed to a finding that says something
+  else, and its tests agreed with the mistake, because a stand-in can only assert what its author
+  already believed. The suite runs against its own real DataFlow via `OBSEL_FLOW_ID`, so it cannot
+  reset the board you have open, and `tests/urns.test.ts` runs the Python module for real to check both
+  languages still build identical URNs.
+
+  **It found a real bug on its first run** — one the stand-in had made structurally invisible.
+  `registerTask` confirmed the task's entity and stopped there, but swarm membership is an `IsPartOf`
+  edge in DataHub's graph store, and that lags the aspect store: measured at 218 ms for the entity and
+  **1302 ms** for the edge. So obsel reported a task registered while its own snapshot could not yet
+  see it, and a change upstream of a task missing from the snapshot traverses straight past it,
+  silently. Registration now confirms the edge too. A stand-in derives its edges from its own entity
+  map, so they are never late and this could not exist in one.
+
+- **`agents/worker.py`'s contract and the state it leaves on disk**, by 17 self-checks in
+  `pnpm test:python`, now wired into `pnpm verify` so they actually run rather than sitting unrun. Real
+  files in real temporary directories, including the instruction remembered together with the columns
+  it produced — the pair whose separation reverted a rename live.
+
 - **The cascade, end to end against a live DataHub** on 2026-07-21. A schema-only change posted to
   `POST /api/tasks/complete` — content byte-identical, schema moved — marked exactly
   `build_revenue` (1 hop), `write_report` and `write_docs` (2 hops), each with its reason, in a
@@ -260,11 +275,13 @@ and type-checks, not a plan.
   `canonicalise_numbers` in `agents/worker.py`, which fixes the serialised form per column before
   anything is hashed. Both were caught by the demo's own assertions rather than seen on camera,
   which is the property worth keeping. obsel itself called every one of those runs correctly.
-- **There is no _automated_ test of the TypeScript path against a live DataHub.** `engine.ts`,
-  `client.ts`, `mcp.ts` and the demo runner in `src/server/runner/` have been exercised by hand
-  against a running instance, but nothing in `pnpm test` stands DataHub up — those 188 tests cover
-  pure decision logic only, by design, so that `pnpm verify` needs no Docker. `pnpm e2e` runs a
-  real browser but stubs the endpoints, so it does not close this gap either.
+- **`agents/run.py` and the Codex call itself are still untested.** `run.py` sequences the demo steps
+  and has no automated test. Nothing invokes Codex from a test either, so `worker.py`'s `run_task` and
+  `_run_codex` are covered only by real demo runs — their output is held to a contract that _is_
+  tested, which is what makes a byte-identical re-run an empirical result rather than a guarantee.
+  What used to sit here — no automated test of the TypeScript path against a live DataHub — is closed:
+  `pnpm test:live` covers `engine.ts`, `client.ts` and `mcp.ts` against a running instance. The demo
+  runner in `src/server/runner/` is tested on its pure half only.
 - **The detection latency numbers are single observations, not a benchmark.** Each cascade run has
   produced one measured figure — 6867 ms on 2026-07-21; 2591 ms and 2310 ms on separate runs on
   2026-07-22; 3424 ms, 1611 ms, 745 ms and 3281 ms on 2026-07-23 — and the spread is dominated by how long the bounded
@@ -425,21 +442,38 @@ triggers the check — see [`docs/architecture.md`](docs/architecture.md) sectio
 
 ```bash
 pnpm dev         # cockpit at http://localhost:3000
-pnpm verify      # format, lint, typecheck, test, build
-pnpm test        # deterministic tests only
+pnpm verify      # format, lint, typecheck, test, test:python, build
+pnpm test        # pure logic only, no Docker
+pnpm test:live   # integration; NEEDS DataHub up and uvx on PATH
 pnpm e2e         # browser checks; builds and serves the app itself
 ```
 
-`pnpm e2e` is separate from `pnpm verify` on purpose. Verify is what this README asks a judge to
-run, and it must stay free of Docker, DataHub and a browser download. The browser suite stubs
-`GET /api/swarm` at the network layer, so it needs no DataHub either — which also means it verifies
-the cockpit's rendering of a snapshot, not that obsel produces the right snapshot. The pure rules
-cover that half.
+**What each one needs, and what it is worth.**
+
+`pnpm verify` is the one this README asks a judge to run, so it must stay free of Docker, DataHub and
+a browser download. Everything in it is pure: functions taking data and returning data, with nothing
+stood in for because nothing needs to be. It also runs the Python self-checks, which use real files
+in real temporary directories.
+
+`pnpm test:live` is where anything crossing a process boundary is covered, and it is covered against
+the real thing — a live DataHub, the real `uvx mcp-server-datahub==0.6.0` subprocess, and a real obsel
+server that the suite starts itself on port 3099. It refuses to skip when DataHub or `uvx` is missing,
+because a green run for a path nothing exercised is the same shape of failure obsel exists to catch.
+It writes into its own real DataFlow, so it cannot disturb the board you have open. It builds first,
+because it serves the app with `next start` and a suite testing a stale build would be worse than no
+suite.
+
+`pnpm e2e` is the one place left that tests against something invented: it intercepts
+`GET /api/swarm` with canned bodies to drive the board through states a live run cannot easily
+produce, notably a failed read. So it verifies the cockpit's rendering of a snapshot, not that obsel
+produces the right snapshot — the live suite covers that half. Its fixtures say so in their own
+header.
 
 Checked 2026-07-23: `pnpm verify` succeeds end to end — `pnpm format:check`, `pnpm lint`,
-`pnpm typecheck`, `pnpm test` (188 passed), and `pnpm build`. `pnpm e2e` passes 51 browser checks
-across both viewports, with one skipped by design — a recording-frame assertion that does not apply
-at laptop height.
+`pnpm typecheck`, `pnpm test` (232 passed), `pnpm test:python` (21 properties across two modules),
+and `pnpm build`. `pnpm test:live` passes 28 integration tests in about 100 s. `pnpm e2e` passes 71
+browser checks across both viewports, with one skipped by design — a recording-frame assertion that
+does not apply at laptop height.
 
 ## Documentation
 

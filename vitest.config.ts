@@ -6,6 +6,18 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["tests/**/*.test.{ts,tsx}"],
+    /*
+     * `tests/live/` is excluded, and the exclusion is not cosmetic.
+     *
+     * The glob above is recursive, so the integration suite matched it and `pnpm verify`
+     * started standing up DataHub, `uvx` and a second obsel server — turning the one
+     * command this README asks a judge to run into one that needs Docker. It failed
+     * loudly rather than passing, because `tests/live/reachable.ts` refuses to skip, which
+     * is the only reason this was noticed immediately.
+     *
+     * Those tests run under `pnpm test:live` with `vitest.live.config.ts`.
+     */
+    exclude: ["node_modules/**", "tests/live/**"],
     coverage: {
       reporter: ["text", "json-summary"],
     },

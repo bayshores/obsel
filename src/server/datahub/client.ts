@@ -612,6 +612,38 @@ export async function registerTask(
         `${written.writes.length} outputs instead of ${reads.length} and ${writes.length}`,
     );
   }
+
+  /*
+   * The entity being readable is not the same as the task being IN the swarm.
+   *
+   * Membership is an `IsPartOf` edge in the graph store, and the graph store lags the
+   * aspect store. Measured on this instance on 2026-07-23 against a brand-new flow:
+   * `POST …?async=false` returned at 201 ms, the DataJob was readable at 218 ms, and
+   * its `IsPartOf` edge only became queryable at **1302 ms**
+   * (`docs/environment-findings.md` §11).
+   *
+   * Confirming only the entity therefore reported a task as registered while
+   * `readSnapshot` — which enumerates the swarm from exactly this edge — still could
+   * not see it. The consequence is the worst shape obsel has: a change upstream of a
+   * task missing from the snapshot traverses straight past it, so the task is not
+   * marked, and nothing anywhere reports a problem. An incomplete swarm is not a
+   * smaller answer, it is a wrong one.
+   *
+   * Found by an integration test against a real DataHub. It could not have been found
+   * against a stand-in, because a stand-in derives its edges from its own entity map
+   * and they are therefore never late.
+   */
+  await confirmWrite(async () => {
+    const members = await relationships(FLOW_URN, "INCOMING", MEMBERSHIP_EDGE);
+    return members.includes(urn) ? true : null;
+  }, 15_000).catch(() => {
+    throw new DataHubError(
+      `task ${name} is readable in DataHub but is still not a member of ${FLOW_URN} in the ` +
+        `graph store, so obsel's own snapshot cannot see it and a change upstream of it ` +
+        `would traverse straight past it`,
+    );
+  });
+
   return written;
 }
 

@@ -37,6 +37,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import tempfile
 import time
 import urllib.error
 import urllib.request
@@ -818,6 +819,98 @@ def _self_check() -> int:
         == canonicalise_numbers(table(217)),
         "idempotent, so a re-saved table cannot drift",
     )
+
+    # ----------------------------------------------------------------------
+    # What a run leaves on disk for the next one to read.
+    #
+    # Real files in a real temporary directory. Every function below already
+    # takes `root`, so nothing has to be stood in for: these are the actual
+    # writes and the actual reads the demo performs, pointed somewhere harmless.
+    # ----------------------------------------------------------------------
+    print()
+    print("what a run leaves on disk")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+
+        written = {"columns": ["order_id", "order_total"], "rows": [{"order_id": 1, "order_total": 217.0}]}
+        save_table("probe", written, root)
+        check(
+            "a table survives a save and load unchanged",
+            load_table("probe", root) == written,
+            "a round trip that altered the table would move the fingerprint for no reason",
+        )
+        check(
+            "the file is byte-stable across identical saves",
+            (
+                save_table("probe", written, root).read_bytes()
+                == save_table("probe", written, root).read_bytes()
+            ),
+            "sort_keys and a trailing newline, so a re-save is a no-op in git",
+        )
+
+        missing_named_the_path = False
+        try:
+            load_table("never_written", root)
+        except FileNotFoundError as error:
+            missing_named_the_path = "never_written.json" in str(error)
+        check(
+            "a missing table names the file and the fix",
+            missing_named_the_path,
+            "an agent reading upstream data that is not there needs the path, not a stack trace",
+        )
+
+        not_a_table = False
+        try:
+            path = table_path("bad", root)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text('{"nope": true}\n', encoding="utf-8")
+            load_table("bad", root)
+        except ValueError:
+            not_a_table = True
+        check(
+            "a file that is not a table is rejected rather than half-read",
+            not_a_table,
+            "fingerprinting a shape obsel did not write would produce a confident wrong digest",
+        )
+
+        # The pair whose separation reverted a rename live on 2026-07-22.
+        check(
+            "nothing is remembered before a run",
+            last_run("clean_orders", root) is None,
+            "a first run has no previous instruction to replay",
+        )
+        _remember_run("clean_orders", "rename order_total to order_total_usd", ["order_id", "order_total_usd"], root)
+        remembered = last_run("clean_orders", root)
+        check(
+            "an instruction and the columns it produced are remembered together",
+            remembered is not None
+            and remembered["instruction"] == "rename order_total to order_total_usd"
+            and remembered["columns"] == ["order_id", "order_total_usd"],
+            "replaying the instruction without its contract reverted the rename and failed a take",
+        )
+        _remember_run("clean_orders", "second instruction", ["order_id"], root)
+        second = last_run("clean_orders", root)
+        check(
+            "a later run replaces the pair rather than merging it",
+            second is not None and second["instruction"] == "second instruction" and second["columns"] == ["order_id"],
+            "half of one run's pair and half of another's is the contradiction this file exists to stop",
+        )
+        check(
+            "one task's memory does not answer for another's",
+            last_run("build_revenue", root) is None,
+            "each agent replays what IT last ran",
+        )
+
+        # The pre-2026-07-22 format, which stored the instruction as a bare string.
+        legacy = root / ".obsel" / "state" / "instructions.json"
+        legacy.write_text('{"write_docs": "an old instruction"}\n', encoding="utf-8")
+        old = last_run("write_docs", root)
+        check(
+            "an entry written before columns were recorded still reads",
+            old is not None and old["instruction"] == "an old instruction" and old["columns"] is None,
+            "columns None makes the caller fall back to the standing contract, which is the old behaviour",
+        )
 
     print()
     if failures:

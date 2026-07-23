@@ -13,8 +13,21 @@ export const PLATFORM = "obsel";
 /** Namespace prefix on every demo dataset, e.g. `obsel_demo.clean_orders`. */
 export const DATASET_NAMESPACE = "obsel_demo";
 
-/** The single DataFlow the demo swarm's tasks belong to. */
-export const FLOW_ID = "orders_pipeline";
+/**
+ * The DataFlow the swarm's tasks belong to.
+ *
+ * `OBSEL_FLOW_ID` overrides it, and the override exists for one reason: obsel's
+ * integration tests write into a **real** DataHub, so without it they would register
+ * into the demo's own flow and `resetSwarm` would wipe whatever board the operator had
+ * on screen. Pointing them at their own flow keeps every entity, edge, property and
+ * tag genuine while leaving the demo alone.
+ *
+ * `agents/pipeline.py` reads the same variable with the same default, because the two
+ * implementations write and read the same entities and a URN differing by one
+ * character is a different entity rather than an error. `tests/urns.test.ts` asserts
+ * they still agree.
+ */
+export const FLOW_ID = process.env.OBSEL_FLOW_ID ?? "orders_pipeline";
 
 /** DataHub's own edge names on the `dataJobInputOutput` aspect. */
 export const READS_EDGE = "Consumes";

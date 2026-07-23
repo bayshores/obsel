@@ -17,9 +17,11 @@
     "format:check": "prettier --check .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "verify": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build",
+    "verify": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm test:python && pnpm build",
     "e2e": "playwright test",
-    "e2e:ui": "playwright test --ui"
+    "e2e:ui": "playwright test --ui",
+    "test:live": "pnpm build && vitest run --config vitest.live.config.ts",
+    "test:python": "python3 -m agents.fingerprint && python3 -m agents.worker"
   },
   "dependencies": {
     "@dagrejs/dagre": "3.0.0",

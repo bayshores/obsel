@@ -19,12 +19,22 @@ are two, and neither of them ever read clean_orders. That cascade is the demo.
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 
 from agents import graph
 
 # The DataFlow all four tasks hang off. Matches graph.task_urn's expectations.
-FLOW = "orders_pipeline"
+#
+# OBSEL_FLOW_ID overrides it, and must stay character-for-character identical to
+# src/server/datahub/urns.ts's FLOW_ID, which reads the same variable with the same
+# default. The two write and read the same entities, so a URN differing by one
+# character is a different entity in DataHub rather than an error.
+#
+# The override exists so obsel's integration tests can register into a real but
+# separate DataFlow instead of the demo's, where resetSwarm would clear whatever the
+# operator had on screen.
+FLOW = os.environ.get("OBSEL_FLOW_ID") or "orders_pipeline"
 
 # Dataset names are namespaced so the demo's tables are obviously the demo's,
 # and not mistaken for anything else in a shared DataHub instance.
