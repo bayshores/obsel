@@ -21,7 +21,7 @@
     "e2e": "playwright test",
     "e2e:ui": "playwright test --ui",
     "test:live": "pnpm build && vitest run --config vitest.live.config.ts",
-    "test:python": "python3 -m agents.fingerprint && python3 -m agents.worker"
+    "test:python": "python3 -m agents.fingerprint && python3 -m agents.worker && python3 -m agents.codex_runner && python3 -m agents.run self-check"
   },
   "dependencies": {
     "@dagrejs/dagre": "3.0.0",

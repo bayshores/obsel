@@ -53,15 +53,16 @@ were found.
 
 ## What is in here
 
-| File             | What it is                                                                                                                                                                                                        |
-| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `graph.py`       | Walks the lineage graph to find what a change breaks. Also holds the Python reference implementation of task registration, which the demo does not use — `run.py register` goes through obsel's HTTP API instead. |
-| `fingerprint.py` | Reduces a produced table to a schema hash and a content hash. Has a self-check.                                                                                                                                   |
-| `seed_data.py`   | The synthetic `raw_orders` table the swarm starts from, from a fixed seed.                                                                                                                                        |
-| `pipeline.py`    | The four agents, their instructions, and the shape they form. Data only.                                                                                                                                          |
-| `worker.py`      | One agent: load inputs, announce the start, let Codex do the work, hold the output to its contract, fingerprint, report to obsel. Has a self-check.                                                               |
-| `setup.py`       | One-time DataHub setup: creates obsel's tag and the demo DataFlow.                                                                                                                                                |
-| `run.py`         | The command line that drives the demo.                                                                                                                                                                            |
+| File              | What it is                                                                                                                                                                                                        |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `graph.py`        | Walks the lineage graph to find what a change breaks. Also holds the Python reference implementation of task registration, which the demo does not use — `run.py register` goes through obsel's HTTP API instead. |
+| `fingerprint.py`  | Reduces a produced table to a schema hash and a content hash. 7 self-checks.                                                                                                                                      |
+| `seed_data.py`    | The synthetic `raw_orders` table the swarm starts from, from a fixed seed.                                                                                                                                        |
+| `pipeline.py`     | The four agents, their instructions, and the shape they form. Data only.                                                                                                                                          |
+| `worker.py`       | One agent: load inputs, announce the start, let Codex do the work, hold the output to its contract, fingerprint, report to obsel. 16 self-checks.                                                                 |
+| `codex_runner.py` | Runs one agent as a real `codex exec` session, and refuses anything unusable it writes back. 22 self-checks.                                                                                                      |
+| `setup.py`        | One-time DataHub setup: creates obsel's tag and the demo DataFlow.                                                                                                                                                |
+| `run.py`          | The command line that drives the demo. 33 self-checks over the guards behind what it prints.                                                                                                                      |
 
 ## Before you start
 
@@ -323,9 +324,23 @@ python3 agents/fingerprint.py
 # column keeps its integers, and a value that really moved still moves the hash.
 agents/.venv/bin/python -m agents.worker
 
+# Prove nothing a live agent writes is taken on trust: every way a Codex run can
+# produce an unusable table is refused, and by a message that names it.
+agents/.venv/bin/python -m agents.codex_runner
+
+# Prove the guards behind what the demo prints, including that a reply obsel
+# never sent is never read as "nothing was affected".
+agents/.venv/bin/python -m agents.run self-check
+
 # The four agents and the order they may run in.
 agents/.venv/bin/python -m agents.pipeline
 
 # The seed table.
 agents/.venv/bin/python -m agents.seed_data
+```
+
+All five run together, and are part of `pnpm verify`:
+
+```bash
+pnpm test:python
 ```

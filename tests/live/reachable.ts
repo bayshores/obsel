@@ -70,3 +70,30 @@ export function requireUvx(): void {
     );
   }
 }
+
+/**
+ * The `codex` CLI installed and signed in, without which no agent can do its job.
+ *
+ * Checked through `codex_runner.codex_version` rather than a bare `which`, because that
+ * function is itself the preflight the demo runs and its failure message is the one an
+ * operator is meant to see. Signed-out is not detected here: `codex --version` answers
+ * without an account, and the only thing that proves a session works is starting one,
+ * which the suite then does.
+ */
+export function requireCodex(): string {
+  try {
+    return execFileSync(
+      "python3",
+      ["-c", "from agents import codex_runner; print(codex_runner.codex_version())"],
+      { stdio: "pipe", encoding: "utf8", cwd: new URL("../../", import.meta.url).pathname },
+    ).trim();
+  } catch (cause) {
+    throw new Error(
+      `the \`codex\` CLI is not usable, so the agent path cannot be exercised ` +
+        `(${cause instanceof Error ? cause.message : String(cause)}).\n` +
+        `  Fix: install the Codex CLI and sign in, then re-run.\n` +
+        `  This is not skipped when Codex is absent. The demo's agents ARE Codex sessions, ` +
+        `so a green run without one would report on a path nothing exercised.`,
+    );
+  }
+}

@@ -138,7 +138,8 @@ and type-checks, not a plan.
   only if its status is `stale`; and no measurement is ever displayed that the coordinator did not
   record. The geometry assertions were confirmed to fail by reintroducing the status-dependent
   sizing they exist to forbid.
-- **The coordinator, the MCP tag path and the worker's HTTP calls, against the real thing**, by 28
+- **The coordinator, the MCP tag path, the worker's HTTP calls and the demo command line, against the
+  real thing**, by 40
   integration tests in `tests/live/` — a live DataHub, the real `uvx mcp-server-datahub==0.6.0`
   subprocess, and a real obsel server. `pnpm test:live`. This closes what `hackathon.md` had called the
   repository's most honest weakness since the first commit, and the reason it stood so long is worth
@@ -160,10 +161,22 @@ and type-checks, not a plan.
   silently. Registration now confirms the edge too. A stand-in derives its edges from its own entity
   map, so they are never late and this could not exist in one.
 
-- **`agents/worker.py`'s contract and the state it leaves on disk**, by 17 self-checks in
-  `pnpm test:python`, now wired into `pnpm verify` so they actually run rather than sitting unrun. Real
-  files in real temporary directories, including the instruction remembered together with the columns
-  it produced — the pair whose separation reverted a rename live.
+- **The Python agents, by 78 self-checks** in `pnpm test:python`, now wired into `pnpm verify` so they
+  actually run rather than sitting unrun. All over real files in real temporary directories. `worker.py`
+  contributes 16, including the instruction remembered together with the columns it produced, the pair
+  whose separation reverted a rename live. `codex_runner.py` contributes 22 over `_validate`, the only
+  thing between a live model's output and obsel's fingerprint: a table the agent never wrote, one that
+  is not JSON, one with no rows, a row missing a declared column, and the right columns in the wrong
+  order are each refused, because a plausible-looking bad table hashes cleanly and would mark the whole
+  chain stale for nothing. `run.py` contributes 33 over the guards behind its printed claims, the
+  sharpest being that `_required_list` refuses a missing key rather than reading it as an empty list:
+  mutating it to `reply.get(key) or []` fails six of them.
+
+- **One real Codex session**, in `tests/live/codex.live.test.ts` — the only automated model call in the
+  repository. The subject is the invocation, not the reasoning: `--sandbox workspace-write` and
+  `--skip-git-repo-check` were learned by running the CLI, both fail silently in the way that matters,
+  and no stand-in can say whether today's Codex still accepts them. The agent reads a real file, writes
+  a real table, and meets an exact column contract.
 
 - **The cascade, end to end against a live DataHub** on 2026-07-21. A schema-only change posted to
   `POST /api/tasks/complete` — content byte-identical, schema moved — marked exactly
@@ -275,13 +288,16 @@ and type-checks, not a plan.
   `canonicalise_numbers` in `agents/worker.py`, which fixes the serialised form per column before
   anything is hashed. Both were caught by the demo's own assertions rather than seen on camera,
   which is the property worth keeping. obsel itself called every one of those runs correctly.
-- **`agents/run.py` and the Codex call itself are still untested.** `run.py` sequences the demo steps
-  and has no automated test. Nothing invokes Codex from a test either, so `worker.py`'s `run_task` and
-  `_run_codex` are covered only by real demo runs — their output is held to a contract that _is_
-  tested, which is what makes a byte-identical re-run an empirical result rather than a guarantee.
-  What used to sit here — no automated test of the TypeScript path against a live DataHub — is closed:
-  `pnpm test:live` covers `engine.ts`, `client.ts` and `mcp.ts` against a running instance. The demo
-  runner in `src/server/runner/` is tested on its pure half only.
+- **What `run_task` does between its two tested halves is still only covered by real demo runs.**
+  Two things that used to sit here are closed. `agents/run.py` has 33 self-checks over its guards and
+  8 integration tests for the two commands that reach obsel, and `agents/codex_runner.py` has 22
+  self-checks plus a live test that runs **a real Codex session** — the one automated model call in
+  the repository, which is what proves the two invocation flags still work. What remains untested is
+  `worker.py`'s `run_task` as a whole: the sequence from announcing a start, through the agent, to
+  reporting a completion. Its ends are tested against the real thing from both sides, and its output
+  is held to a contract that is tested, which is what makes a byte-identical re-run an empirical
+  result rather than a guarantee. The demo runner in `src/server/runner/` is tested on its pure half
+  only.
 - **The detection latency numbers are single observations, not a benchmark.** Each cascade run has
   produced one measured figure — 6867 ms on 2026-07-21; 2591 ms and 2310 ms on separate runs on
   2026-07-22; 3424 ms, 1611 ms, 745 ms and 3281 ms on 2026-07-23 — and the spread is dominated by how long the bounded
@@ -444,7 +460,7 @@ triggers the check — see [`docs/architecture.md`](docs/architecture.md) sectio
 pnpm dev         # cockpit at http://localhost:3000
 pnpm verify      # format, lint, typecheck, test, test:python, build
 pnpm test        # pure logic only, no Docker
-pnpm test:live   # integration; NEEDS DataHub up and uvx on PATH
+pnpm test:live   # integration; NEEDS DataHub up, and uvx and codex on PATH
 pnpm e2e         # browser checks; builds and serves the app itself
 ```
 
@@ -456,12 +472,12 @@ stood in for because nothing needs to be. It also runs the Python self-checks, w
 in real temporary directories.
 
 `pnpm test:live` is where anything crossing a process boundary is covered, and it is covered against
-the real thing — a live DataHub, the real `uvx mcp-server-datahub==0.6.0` subprocess, and a real obsel
-server that the suite starts itself on port 3099. It refuses to skip when DataHub or `uvx` is missing,
-because a green run for a path nothing exercised is the same shape of failure obsel exists to catch.
-It writes into its own real DataFlow, so it cannot disturb the board you have open. It builds first,
-because it serves the app with `next start` and a suite testing a stale build would be worse than no
-suite.
+the real thing — a live DataHub, the real `uvx mcp-server-datahub==0.6.0` subprocess, a real obsel
+server that the suite starts itself, and a real `codex exec` session. It refuses to skip when any of
+them is missing, because a green run for a path nothing exercised is the same shape of failure obsel
+exists to catch. It writes into its own real DataFlow, so it cannot disturb the board you have open.
+It builds first, because it serves the app with `next start` and a suite testing a stale build would
+be worse than no suite. Budget about 150 s: the single real agent session is most of it.
 
 `pnpm e2e` is the one place left that tests against something invented: it intercepts
 `GET /api/swarm` with canned bodies to drive the board through states a live run cannot easily
@@ -470,8 +486,9 @@ produces the right snapshot — the live suite covers that half. Its fixtures sa
 header.
 
 Checked 2026-07-23: `pnpm verify` succeeds end to end — `pnpm format:check`, `pnpm lint`,
-`pnpm typecheck`, `pnpm test` (232 passed), `pnpm test:python` (21 properties across two modules),
-and `pnpm build`. `pnpm test:live` passes 28 integration tests in about 100 s. `pnpm e2e` passes 71
+`pnpm typecheck`, `pnpm test` (232 passed), `pnpm test:python` (78 properties across four modules),
+and `pnpm build`. `pnpm test:live` passes 40 integration tests in about 150 s, of which one is a real
+Codex session. `pnpm e2e` passes 71
 browser checks across both viewports, with one skipped by design — a recording-frame assertion that
 does not apply at laptop height.
 
