@@ -357,4 +357,16 @@ display-only `path` on the run detail; nothing decides on it.
   unit suite exercises a six-task fan-out and a cycle, but every visual check has been of the same
   four-task demo. A swarm with many more parallel branches would be taller than the strip reserved
   for it, and nothing yet says what should give.
+- **`readSnapshot` costs one request per task, and the board asks for it every second.** Measured
+  2026-07-23 against a live DataHub: one `/relationships` call plus one entity read per member,
+  issued in parallel, giving 30 ms for the demo's 4 tasks and 40 ms for the test flow's 12. That is
+  sub-linear and comfortably inside the 1 s poll, so it is not a bottleneck at any size obsel has
+  been run at. It is recorded because the request _count_ is linear even though the latency is not:
+  a 50-task swarm would put 51 requests per second on DataHub to render a screen. DataHub does offer
+  `POST /openapi/v3/entity/datajob/batchGet`, which was checked the same day and confirmed both to
+  carry every aspect obsel reads and, unlike `/entities/`, to omit an invented URN rather than
+  fabricate one. It was measured at roughly 10 ms faster than the 12 parallel reads it would
+  replace, which does not justify rewriting the most load-bearing read in the system before a
+  submission. The finding is written down so the next person does not have to rediscover either the
+  cost or the safe endpoint.
 - The demo video is not recorded.
