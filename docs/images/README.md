@@ -34,17 +34,23 @@ Capturing them is the owner's action, like recording the video. Nothing here is 
 
 ## What is in here now
 
-Both files exist, captured 2026-07-23 from commit `a485b95` against a live DataHub and a live Codex
+Both files exist, captured 2026-07-23 from commit `9bd695e` against a live DataHub and a live Codex
 CLI, and referenced from `README.md` and `examples/README.md`.
 
-They came from one run, in this order: reset, then `run` (2 m 30 s, four Codex sessions) which produced
-`settled.png`, then `change` (1 m 05 s) which marked three tasks in a measured 3636 ms and produced
-`flagged.png`. Nothing between the two shots but the change itself.
+They came from one run, in this order: `run` (206.0 s, four Codex sessions) which produced
+`settled.png`, then `change` which renamed a column and flagged three tasks in a measured 5399 ms,
+which produced `flagged.png`. Nothing between the two shots but the change itself. obsel called the
+change `schema` rather than `both`, and the content hash `539b509722e8` was identical before and
+after, which is the evidence that only the column name moved.
 
-`capture.mjs` at the repository root does it, and it refuses to mislabel a shot: it decides which board
-it is looking at from the ribbon's write-back cell, which is derived from the marks, rather than from
-the headline. The first version tested the headline for "out of date" and would have saved a settled
-board as flagged, because the settled headline reads "all 4 finished, nothing out of date".
+`capture.mjs` at the repository root does it, and it refuses to mislabel a shot: it decides which
+board it is looking at from the ribbon's write-back cell, which is derived from the marks, rather
+than from the headline. The first version tested the headline for "out of date" and would have saved
+a settled board as flagged, because the settled headline reads "all 4 finished, nothing out of date".
+
+The test is on the word "tagged" and not on the calm wording, which is what keeps it working across a
+copy change. The calm cell has been reworded twice; both times the flagged cell still counted tags,
+because that half is a count rather than a sentence.
 
 ## Replacing them
 

@@ -239,10 +239,10 @@ and type-checks, not a plan.
   Clicking a flagged node showed the tag and a link resolving to
   `http://localhost:9002/tasks/urn:li:dataJob:(...,build_revenue)`. `POST /api/demo/reset` then
   reported clearing properties on all four and the tag from all three, after which every task read
-  `tags: []` and the cell read **`nothing marked`** with nothing left over. The board measured
+  `tags: []` and the cell reported **nothing to write** with nothing left over. The board measured
   **251 words**, 96 of them prose, **zero em dashes**, whole board inside 990 px with no scroll.
   **Not observed live:** the moment between the mark landing and the tag landing. Polling every two
-  seconds, the board went straight from nothing marked to `3 of 3`, so the asynchronous window is
+  seconds, the board went straight from having nothing to write to `3 of 3`, so the asynchronous window is
   shorter than that in practice. The partial count is covered by a unit test and a browser test
   against a fixture, not by a live sighting, and the ribbon is worded as a count for exactly that
   reason.

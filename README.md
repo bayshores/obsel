@@ -39,18 +39,21 @@ whole reason anybody would trust it the day it does speak up.
 
 |                                                                                                        Everything is fine                                                                                                        |                                                                                                                                                  Something changed upstream                                                                                                                                                  |
 | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: |
-| [![Four agent boxes all showing done, the headline reporting that all four finished and nothing is out of date, and the write-back cell reporting there is nothing to write.](docs/images/settled.png)](docs/images/settled.png) | [![Three agents flagged amber. The changed table shows order_total leaving and order_total_usd arriving, an amber path runs outward from it through two hops, and the ribbon reports a measured detection time of 3636 ms beside three of three marks tagged in DataHub.](docs/images/flagged.png)](docs/images/flagged.png) |
+| [![Four agent boxes all showing done, the headline reporting that all four finished and nothing is out of date, and the write-back cell reporting there is nothing to write.](docs/images/settled.png)](docs/images/settled.png) | [![Three agents flagged amber. The changed table shows order_total leaving and order_total_usd arriving, an amber path runs outward from it through two hops, and the ribbon reports a measured detection time of 5399 ms beside three of three marks tagged in DataHub.](docs/images/flagged.png)](docs/images/flagged.png) |
 |                                                                        Four agents finished. Nothing they read has changed since, so obsel says nothing.                                                                         |                                                                                                        One column was renamed. Three finished agents are now out of date, and **two of them never read that table**.                                                                                                         |
 
 <div align="center"><em>Click either image for full size.</em></div>
 
-Both were captured on 2026-07-23 from commit `a485b95`, from one real run against a live DataHub and
-a live Codex CLI. Not mockups. `run` took 2 m 30 s for four real agent sessions, then one agent's
-instructions changed, and every number you can read came out of that run.
+Both came out of one run on 2026-07-23, from commit `9bd695e`, against a live DataHub and a live
+Codex CLI. Not mockups, and not assembled from separate sessions.
 
-> **Note**
-> The wording on screen is slightly older than the app. Both images predate a plain-language pass
-> over the board. They get retaken before the demo video.
+| What happened                                       | Measured                                             |
+| --------------------------------------------------- | ---------------------------------------------------- |
+| Four agents did the work                            | 206.0 s of real Codex sessions                       |
+| One agent's instructions changed                    | `order_total` became `order_total_usd`               |
+| obsel called it a column change, not a value change | the content hash was `539b509722e8` before and after |
+| Three finished agents flagged                       | 5399 ms, one at one hop and two at two               |
+| Written back into DataHub                           | 3 of 3 tagged                                        |
 
 ---
 

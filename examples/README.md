@@ -281,9 +281,9 @@ Those values were checked separately by walking the files and comparing against 
 | --------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [![The cockpit with four agents finished and nothing out of date.](../docs/images/settled.png)](../docs/images/settled.png) | [![The cockpit with three agents flagged, the changed table naming the column that left and the one that arrived, and an amber path running out two hops.](../docs/images/flagged.png)](../docs/images/flagged.png) |
 
-Captured 2026-07-23 from commit `a485b95`, **both from the same run** against a live DataHub and a
-live Codex CLI: `run` took 2 m 30 s for four Codex sessions and left the board on the left, then one
-agent's instructions changed and obsel marked three tasks in a measured 3636 ms, which is the board on
+Captured 2026-07-23 from commit `9bd695e`, **both from the same run** against a live DataHub and a
+live Codex CLI: `run` took 206.0 s for four Codex sessions and left the board on the left, then one
+agent's instructions changed and obsel flagged three tasks in a measured 5399 ms, which is the board on
 the right. Two shots from two different runs would be two different pipelines presented as one, which
 is the sort of quiet inconsistency obsel exists to catch.
 
