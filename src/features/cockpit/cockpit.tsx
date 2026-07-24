@@ -91,7 +91,11 @@ export function Cockpit() {
         <span className={styles.light}>
           <PulseDot color={trusted ? "var(--mm-green)" : "var(--mm-red)"} />
           <span style={{ color: trusted ? "var(--mm-green)" : "var(--mm-red)" }}>
-            {trusted ? "connected" : everRead ? "showing the last good read" : "connecting"}
+            {trusted
+              ? "connected"
+              : everRead
+                ? "not connected, showing the last read"
+                : "connecting"}
           </span>
         </span>
       </header>
@@ -103,8 +107,8 @@ export function Cockpit() {
           <p className={styles.alertHead}>{error}</p>
           <p className={styles.alertBody}>
             {data === null
-              ? "Nothing is shown below because obsel has not read the swarm yet. This is a connection problem, not an empty swarm."
-              : `The graph and ledger below are the last successful read${lastReadAt === null ? "" : ` from ${clockTime(lastReadAt)}`} and may already be wrong. Every measured number is withheld until a read succeeds.`}
+              ? "Nothing is shown below because obsel has not managed to read DataHub yet. This is a connection problem, not an empty board."
+              : `Everything below is from the last read that worked${lastReadAt === null ? "" : `, at ${clockTime(lastReadAt)}`}, and may already be wrong. The measured numbers stay blank until obsel can read again.`}
           </p>
         </div>
       )}
@@ -112,27 +116,25 @@ export function Cockpit() {
       <div className={styles.workbench}>
         <Panel
           /*
-           * The question obsel exists to answer, standing where a caption used to.
+           * What obsel is for, in the slot that used to hold a caption.
            *
-           * The board never said what obsel is for. That was the complaint behind
-           * ten rounds of feedback, and every previous attempt answered it with a
-           * tagline in the header or a paragraph above the graph, which is how the
-           * screen reached 604 words. This is the version that costs almost nothing:
-           * the slot was already spent on "how the work connects", a caption telling
-           * a reader how to read a picture they can already read, since the boxes
-           * carry legible names and the arrows say which way the data moves.
+           * The board never said what obsel is for, which was the complaint behind
+           * ten rounds of feedback. The first two attempts were prose, a tagline in
+           * the header and then paragraphs above the graph, and both were deleted
+           * for being how the screen reached 604 words. The third was a question,
+           * "is this finished work still built on something that is still true?",
+           * and it failed for a reason a word count cannot see: it names nothing.
+           * Not an agent, not a table, not a change. It reads well to somebody who
+           * already knows what obsel does, which is the one reader who does not
+           * need it.
            *
-           * Deliberately obsel's whole scope, and its limits. It does not ask whether
-           * the work is good, whether the pipeline is healthy, or whether anything
-           * should be re-run. One question, and the two "still"s are both load
-           * bearing: the work is finished, and the thing it was built on may have
-           * moved since.
-           *
-           * A question rather than a statement, because the amber on the graph below
-           * is the answer to it. A statement would need the reader to connect two
-           * facts; a question makes the picture the second half of the sentence.
+           * This says the same thing with the nouns put back in, and it is a plain
+           * statement rather than a question because a reader arriving cold should
+           * not have to work out that the picture below is the answer to a riddle
+           * above it. Two clauses: what the picture shows, and why that arrangement
+           * is a problem worth a tool.
            */
-          title="is this finished work still built on something that is still true?"
+          title="Each agent reads a table another agent wrote, so a change in one can make another's finished work wrong"
           label="How the work connects"
           padded={false}
           /*
@@ -172,32 +174,50 @@ export function Cockpit() {
               // connected while the header light beside it read "no read".
               <p className={styles.empty}>
                 {trusted
-                  ? "No agents registered yet. obsel is connected and the board is empty."
+                  ? "No agents yet. obsel is connected, and DataHub holds nothing to draw."
                   : everRead
-                    ? "Not reading obsel. Nothing below is current."
+                    ? "obsel cannot be reached, so nothing here is up to date."
                     : "Reading from DataHub."}
               </p>
             )}
           </div>
 
           {/*
-            The key. Amber is the entire message of this board and nothing on
-            screen said what it meant — you had to already know. It sits over the
-            graph rather than in its own row because the vertical budget is
-            spent, and it is `pointer-events: none` so it cannot eat a click
-            meant for a node.
+            The key, and it changed what it explains.
+
+            It used to gloss the three colours: "still true", "out of date",
+            "working now". Two problems with that. Every node already prints its
+            own state as a word next to the colour ("done", "out of date",
+            "running"), so two of the three rows restated something six inches
+            away; and green was called "still true" here and "done" there, which
+            is two vocabularies for one colour on one screen.
+
+            What nothing said was which box is which. The graph's entire premise
+            is that agents read tables other agents write, and a reader who cannot
+            tell an agent from a table cannot see the premise at all. The colours
+            are now explained by the nodes, and the shapes by the key.
+
+            Still over the graph rather than in its own row, because the vertical
+            budget is spent, and still `pointer-events: none` so it cannot eat a
+            click meant for a node.
           */}
           {tasks.length > 0 && (
-            <ul className={styles.legend} aria-label="What the colours mean">
+            <ul className={styles.legend} aria-label="What the boxes mean">
               <li>
-                <PulseDot color="var(--mm-green)" size={7} glow={false} /> still true
+                <span className={styles.keyAgent} aria-hidden="true" /> an agent
               </li>
               <li>
-                <PulseDot color="var(--obsel-stale)" size={7} glow={false} /> out of date
+                <span className={styles.keyTable} aria-hidden="true" /> a table
               </li>
-              <li>
-                <PulseDot color="var(--mm-rose)" size={7} glow={false} pulse /> working now
-              </li>
+              {/*
+                "an agent", not "either one". `lineage.tsx` opens the details
+                panel for `node.type === "task"` and for nothing else, so a table
+                is not clickable, and this line said it was until it was checked in
+                a browser. A key that promises an interaction the board does not
+                have is worse than no key: it teaches a reader that clicking does
+                nothing.
+              */}
+              <li className={styles.keyHint}>click an agent for details</li>
             </ul>
           )}
         </Panel>
@@ -269,7 +289,19 @@ export function Cockpit() {
             key="detection"
             label="detection time"
             value={trusted && t.timing !== null ? String(t.timing.ms) : BLANK}
-            unit={trusted ? (t.timing !== null ? "ms" : "not measured") : undefined}
+            /*
+             * "nothing detected yet" rather than "not measured".
+             *
+             * Both are true and only one of them says which. A settled board is
+             * obsel's good outcome, and it was reporting that outcome in the
+             * vocabulary of a broken instrument: two cells reading "not measured"
+             * and "nothing marked" side by side look like a failed read, which is
+             * the one thing they are not.
+             *
+             * Not "nothing out of date", which is what it says and also word for
+             * word what the headline above already says on this board.
+             */
+            unit={trusted ? (t.timing !== null ? "ms" : "nothing detected yet") : undefined}
             accent={trusted && t.timing !== null}
             glow={trusted && t.timing !== null}
           />,
@@ -352,13 +384,15 @@ function writeBack(trusted: boolean, t: SwarmTotals): React.ReactElement {
   );
 
   if (!trusted) return cell(BLANK);
-  if (t.tagged === null || t.leftOver === null) return cell(BLANK, "not recorded");
+  if (t.tagged === null || t.leftOver === null) return cell(BLANK, "obsel did not check");
   if (t.marked === 0) {
-    return t.leftOver > 0 ? cell(String(t.leftOver), "left over") : cell(BLANK, "nothing marked");
+    return t.leftOver > 0
+      ? cell(String(t.leftOver), "tags left over from before")
+      : cell(BLANK, "nothing to write yet");
   }
   return cell(
     `${t.tagged} of ${t.marked}`,
-    t.leftOver > 0 ? `tagged, ${t.leftOver} left over` : "tagged",
+    t.leftOver > 0 ? `tagged, ${t.leftOver} left over from before` : "tagged",
     t.tagged === t.marked,
   );
 }

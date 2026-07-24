@@ -207,11 +207,18 @@ export function TracePanel({
       </ol>
 
       {/*
-        One fact, and the one that matters: the marks are not private to this
-        screen. Whittled from three sentences, then from two, because in a 220px
-        gutter this footnote cost more height than the steps it described.
+        One fact, and the one that matters: what obsel decides is not private to
+        this screen. Whittled from three sentences, then from two, because in a
+        220px gutter this footnote cost more height than the steps it described.
+
+        Said "marks are written into DataHub itself". A mark is obsel's own word
+        for the thing it attaches to out-of-date work, defined nowhere a reader of
+        this line can see, and the sentence is worth nothing to anyone who does not
+        already have it.
       */}
-      <p className={styles.disclosure}>marks are written into DataHub itself</p>
+      <p className={styles.disclosure}>
+        obsel writes all of this into DataHub, not just onto this screen
+      </p>
     </Panel>
   );
 }

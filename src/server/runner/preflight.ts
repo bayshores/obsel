@@ -62,7 +62,7 @@ async function checkDataHub(): Promise<PreflightCheck> {
     if (!response.ok) {
       return {
         ok: false,
-        detail: `DataHub answered ${response.status} at ${url}`,
+        detail: `DataHub answered ${response.status} at ${url}, which is not a working reply`,
         fix: "datahub docker quickstart",
       };
     }
@@ -70,7 +70,7 @@ async function checkDataHub(): Promise<PreflightCheck> {
   } catch {
     return {
       ok: false,
-      detail: `nothing answered at ${url}, so DataHub is not running, or Docker is not`,
+      detail: `Nothing answered at ${url}. DataHub is not running, or Docker is not.`,
       fix: "datahub docker quickstart",
     };
   }
@@ -80,21 +80,22 @@ async function checkVocabulary(datahubOk: boolean): Promise<PreflightCheck> {
   if (!datahubOk) {
     // No fix command of its own: DataHub has to answer before this can even
     // be asked, and a second command here would send people in two directions.
-    return { ok: false, detail: "cannot be checked until DataHub answers", fix: null };
+    return { ok: false, detail: "Cannot be checked until DataHub answers.", fix: null };
   }
   try {
     const present = await tagExists(STALE_TAG_URN);
     return present
-      ? { ok: true, detail: `${STALE_TAG_URN} is registered`, fix: null }
+      ? { ok: true, detail: "The obsel-stale tag is in DataHub.", fix: null }
       : {
           ok: false,
-          detail: `${STALE_TAG_URN} does not exist yet. obsel cannot create it at runtime, so staleness would be detected and silently not recorded`,
+          detail:
+            "The obsel-stale tag is not in DataHub yet. obsel cannot create it while running, so it would find out-of-date work and have nowhere to record it.",
           fix: "agents/.venv/bin/python -m agents.run setup",
         };
   } catch (cause) {
     return {
       ok: false,
-      detail: `asking DataHub for the tag failed: ${cause instanceof Error ? cause.message : String(cause)}`,
+      detail: `Asking DataHub for the tag failed: ${cause instanceof Error ? cause.message : String(cause)}`,
       fix: null,
     };
   }
@@ -103,10 +104,11 @@ async function checkVocabulary(datahubOk: boolean): Promise<PreflightCheck> {
 function checkVenv(): PreflightCheck {
   const python = venvPython(process.cwd());
   return existsSync(python)
-    ? { ok: true, detail: "agents/.venv exists", fix: null }
+    ? { ok: true, detail: "The demo agents have their Python packages.", fix: null }
     : {
         ok: false,
-        detail: "the agents' Python environment (agents/.venv) does not exist yet",
+        detail:
+          "They are separate from the Node packages, and `pnpm install` does not create them.",
         fix: "python3 -m venv agents/.venv && agents/.venv/bin/python -m pip install -r agents/requirements.txt",
       };
 }
@@ -115,7 +117,7 @@ function checkCodex(): Promise<PreflightCheck> {
   return new Promise((resolve) => {
     execFile("codex", ["login", "status"], { timeout: CODEX_TIMEOUT_MS }, (error) => {
       if (error === null) {
-        resolve({ ok: true, detail: "the Codex CLI is signed in", fix: null });
+        resolve({ ok: true, detail: "The Codex CLI is signed in.", fix: null });
         return;
       }
       // ENOENT is "not installed", any exit code is "not signed in" — two
@@ -126,10 +128,14 @@ function checkCodex(): Promise<PreflightCheck> {
           ? {
               ok: false,
               detail:
-                "the Codex CLI is not installed. Each demo agent is a real Codex session, there is no API-key path",
+                "The Codex CLI is not installed. Each demo agent is a real Codex session, and there is no way to run them with an API key instead.",
               fix: null,
             }
-          : { ok: false, detail: "the Codex CLI is not signed in", fix: "codex login" },
+          : {
+              ok: false,
+              detail: "Each demo agent is a real Codex session, so no agent can run until it is.",
+              fix: "codex login",
+            },
       );
     });
   });

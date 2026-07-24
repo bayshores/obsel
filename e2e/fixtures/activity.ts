@@ -73,6 +73,44 @@ export function runningStep(step: DemoStep): DemoActivity {
   };
 }
 
+/**
+ * A machine with nothing set up yet, which is what a stranger's first load looks like.
+ *
+ * `codexSignedOut()` fails exactly one check, so the setup screen it produces is a
+ * single line and cannot show whether that line is the first of one problem or the
+ * last of four. Three failures is the state worth rendering well: it is the one where
+ * a reader needs to know what order to do things in and how much is left.
+ */
+export function nothingInstalled(): DemoActivity {
+  const base = idle();
+  return {
+    ...base,
+    preflight: {
+      ...base.preflight,
+      // Verbatim from `src/server/runner/preflight.ts`. If these drift, the
+      // identifier guard in `cockpit.spec.ts` is checking sentences the server
+      // never sends, which is a guard that passes about nothing.
+      vocabulary: {
+        ok: false,
+        detail:
+          "The obsel-stale tag is not in DataHub yet. obsel cannot create it while running, so it would find out-of-date work and have nowhere to record it.",
+        fix: "agents/.venv/bin/python -m agents.run setup",
+      },
+      venv: {
+        ok: false,
+        detail:
+          "They are separate from the Node packages, and `pnpm install` does not create them.",
+        fix: "python3 -m venv agents/.venv && agents/.venv/bin/python -m pip install -r agents/requirements.txt",
+      },
+      codex: {
+        ok: false,
+        detail: "Each demo agent is a real Codex session, so no agent can run until it is.",
+        fix: "codex login",
+      },
+    },
+  };
+}
+
 /** The machine not ready: Codex signed out. */
 export function codexSignedOut(): DemoActivity {
   const base = idle();
@@ -80,7 +118,11 @@ export function codexSignedOut(): DemoActivity {
     ...base,
     preflight: {
       ...base.preflight,
-      codex: { ok: false, detail: "the Codex CLI is not signed in", fix: "codex login" },
+      codex: {
+        ok: false,
+        detail: "Each demo agent is a real Codex session, so no agent can run until it is.",
+        fix: "codex login",
+      },
     },
   };
 }

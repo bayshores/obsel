@@ -233,12 +233,12 @@ export function inDependencyOrder(tasks: TaskRecord[]): TaskRecord[] {
  * stale because everything checks out.
  */
 export function summaryLine(total: number, finished: number, stale: number): string {
-  if (total === 0) return "No tasks registered yet.";
+  if (total === 0) return "No agents set up yet.";
   if (finished === 0) {
-    return `No task has finished yet, so there is nothing that could be out of date. ${total} registered.`;
+    return `${total} ${total === 1 ? "agent is" : "agents are"} set up. None has finished, so nothing can be out of date yet.`;
   }
   if (stale === 0) {
-    return `${finished} of ${total} ${total === 1 ? "task has" : "tasks have"} finished, and everything they were built on is still true.`;
+    return `${finished} of ${total} ${total === 1 ? "agent has" : "agents have"} finished, and none of the tables they read has changed since.`;
   }
-  return `${stale} of ${finished} finished ${finished === 1 ? "task is" : "tasks are"} built on something that has since changed.`;
+  return `${stale} of ${finished} finished ${stale === 1 ? "agent is" : "agents are"} out of date, because a table ${stale === 1 ? "it" : "they"} read changed afterwards.`;
 }

@@ -12,6 +12,26 @@
  * fact the inputs do not carry. Counts are counted, marks quote their own
  * recorded reason, and a number that was not measured is omitted rather than
  * approximated.
+ *
+ * **The second house rule, and the one this file kept breaking: a sentence on
+ * screen has to be readable by someone who has never opened the README.**
+ *
+ * That forbids four things, and every one of them was here:
+ *
+ * - **Metaphor.** "if obsel flags anything, it cried wolf" is a good line and it
+ *   assumes the reader already knows what a false alarm would cost.
+ * - **Aphorism.** "now try to break it" is an instruction only to a reader who
+ *   already knows what "it" does and what breaking it would show.
+ * - **Epistemology.** "every number is withheld until a read succeeds" and "work
+ *   in flight is never judged" answer questions a newcomer has not asked. They are
+ *   obsel explaining its principles to somebody still working out what it is.
+ * - **Internal names.** The `DemoStep` ids the launcher takes, and the keys of the
+ *   preflight record, are strings this repository chose. A reader has nowhere to
+ *   look them up. `e2e/cockpit.spec.ts` fails the build if one reaches the page.
+ *
+ * Two hand-edited plain-language passes came and went before this rule was
+ * written down, and both times the clever voice grew straight back, because the
+ * only guard on the copy was a word count and an identifier is short.
  */
 
 import { datasetTitle, taskTitle } from "./naming";
@@ -44,6 +64,52 @@ export interface GuideAction {
   detail: string;
 }
 
+/**
+ * What each demo step is called in a sentence.
+ *
+ * The board used to print the `DemoStep` id itself: "`rerun-same` is running now",
+ * "The last step, `change`, exited 3". Those are strings this repository picked for
+ * its own launcher, and a reader has nowhere to look them up.
+ *
+ * Deliberately NOT the button labels. Those are imperative and long by design
+ * ("Run the orders cleaner again, no changes"), which is right on a button and
+ * unreadable in the middle of a sentence about what is happening.
+ *
+ * Capitalised, because every place one of these is used it opens a sentence: the
+ * running line, the failure line, and the finished-step summary in
+ * `guide-panel.tsx`.
+ */
+export const STEP_NAME: Record<DemoStep, string> = {
+  setup: "The DataHub setup",
+  register: "Setting up the agents",
+  run: "The agent run",
+  "rerun-same": "The unchanged re-run",
+  change: "The instruction change",
+  reset: "The reset",
+};
+
+/**
+ * One prerequisite, as the setup screen shows it.
+ *
+ * This replaced `notes: string[]`, which rendered only the FAILING checks, each
+ * prefixed with its own key in the preflight record: `venv:`, `codex:`,
+ * `vocabulary:`. Three opaque labels, no ordering, and no way to tell whether that
+ * was the first problem of one or the last of four.
+ *
+ * The data is identical -- `DemoActivity.preflight` always carried all four. Only
+ * the passing ones were being thrown away, and they are the half that tells a
+ * reader how far along they are.
+ */
+export interface GuideCheck {
+  /** What is being checked, in words the reader can act on. */
+  name: string;
+  done: boolean;
+  /** What obsel observed. Null when it passed and there is nothing to add. */
+  detail: string | null;
+  /** The command that fixes it, verbatim and copyable. */
+  fix: string | null;
+}
+
 export interface GuideView {
   stage: GuideStage;
   /**
@@ -59,14 +125,14 @@ export interface GuideView {
   /** One short line under the headline. Null when the headline says it all. */
   subline: string | null;
   /**
-   * Extra lines, for setup and failure stages only.
+   * The prerequisites, for the setup and connection stages only.
    *
    * Empty on every stage a judge watching the demo will see. It exists because
    * `connect` and `prepare` have to hand over a shell command that fixes a broken
    * machine, and compressing that into one line would trade a usable instruction
    * for a word count nobody is counting on those stages.
    */
-  notes: string[];
+  checks: GuideCheck[];
   actions: GuideAction[];
   /**
    * One line that must not be missed, independent of stage. Currently the last
@@ -112,7 +178,7 @@ export function guide(input: GuideInput): GuideView {
       : {
           ...view,
           actions: [],
-          subline: `\`${running.step}\` is running now, and the board follows it live`,
+          subline: `${STEP_NAME[running.step]} is running now, and the board updates as it goes`,
         };
 
   if (!input.trusted) return connect(input, attention);
@@ -135,43 +201,86 @@ export function guide(input: GuideInput): GuideView {
 // ---------------------------------------------------------------------------
 
 function connect(input: GuideInput, attention: string | null): GuideView {
-  const fix = input.activity?.preflight.datahub;
+  const datahub = input.activity?.preflight.datahub;
   return {
     stage: "connect",
-    headline: input.everRead ? "can't reach obsel" : "connecting",
-    subline: "every number is withheld until a read succeeds",
-    notes: [
-      ...(fix && !fix.ok ? [`Observed: ${fix.detail}.`] : []),
-      ...(fix && !fix.ok && fix.fix ? [`Fix it in a terminal: \`${fix.fix}\``] : []),
-    ],
+    headline: input.everRead ? "The board lost its connection" : "Starting up",
+    // Says what obsel is doing about it, not why obsel believes it is the right
+    // thing to do. The reasoning is real and it belongs in the code comment on
+    // BLANK in cockpit.tsx, where the people it is meant for will find it.
+    subline: "obsel hides its numbers rather than show old ones",
+    checks:
+      datahub && !datahub.ok
+        ? [{ name: "DataHub", done: false, detail: datahub.detail, fix: datahub.fix }]
+        : [],
     actions: [],
     attention,
   };
 }
 
+/**
+ * The checklist, in the order the things have to be done.
+ *
+ * Not the order of the `preflight` record, which is alphabetical by accident of
+ * how it is built. DataHub has to answer before its tag can be looked for, and
+ * the tag is created by a script that needs the Python packages, so this order is
+ * a real dependency chain and following it top to bottom always works.
+ *
+ * Codex is last because it is the only one nothing else depends on: it is needed
+ * to run the agents, not to set anything up.
+ */
+const CHECK_ORDER: readonly { key: Blocker["name"] | "datahub"; name: string }[] = [
+  { key: "datahub", name: "DataHub" },
+  { key: "venv", name: "Python packages for the demo agents" },
+  { key: "vocabulary", name: "obsel's tag in DataHub" },
+  { key: "codex", name: "The Codex CLI, signed in" },
+];
+
 function prepare(input: GuideInput, blockers: Blocker[]): GuideView {
-  const notes: string[] = [];
+  const preflight = input.activity?.preflight;
   const actions: GuideAction[] = [];
 
-  for (const blocker of blockers) {
-    notes.push(`${blocker.name}: ${blocker.check.detail}.`);
-    if (blocker.name === "vocabulary" && venvOk(input)) {
-      // The one prerequisite that is itself a demo step, so it can be a button.
-      actions.push({
-        step: "setup",
-        label: "Set up DataHub for obsel",
-        detail: "registers obsel's tag and pipeline, once",
-      });
-    } else if (blocker.check.fix !== null) {
-      notes.push(`Fix it in a terminal: \`${blocker.check.fix}\``);
-    }
+  const checks: GuideCheck[] = CHECK_ORDER.map(({ key, name }) => {
+    const check = preflight?.[key];
+    const done = check?.ok === true;
+    return {
+      name,
+      done,
+      /*
+       * A passing check says only its name, and the names above are short noun
+       * phrases so that a failing one's detail adds something.
+       *
+       * Both halves were learned by looking at the rendered screen. The first
+       * version showed the detail on every row, so a done check read "The Codex
+       * CLI is signed in" and then "The Codex CLI is signed in." The second kept
+       * full-sentence names, so a failing check read "The demo agents have their
+       * Python packages" above "The demo agents do not have their Python packages
+       * installed yet" -- the same fact, negated, in a list whose tick already
+       * said which way round it was. Every detail in `preflight.ts` now carries a
+       * fact the name does not: a URL, a consequence, or what else to try.
+       */
+      detail: done ? null : (check?.detail ?? null),
+      fix: done ? null : (check?.fix ?? null),
+    };
+  });
+
+  // The one prerequisite that is itself a demo step, so it can be a button rather
+  // than a command to copy. Offered only once the Python packages are in place,
+  // because that is what runs it.
+  if (blockers.some((blocker) => blocker.name === "vocabulary") && venvOk(input)) {
+    actions.push({
+      step: "setup",
+      label: "Add obsel's tag to DataHub",
+      detail: "Runs once. obsel cannot create the tag later.",
+    });
   }
 
+  const left = checks.filter((check) => !check.done).length;
   return {
     stage: "prepare",
-    headline: "one-time setup",
-    subline: "each item below was checked a moment ago, not assumed",
-    notes,
+    headline: left === 1 ? "One more thing to set up" : `${left} things to set up`,
+    subline: "obsel checked each of these on this computer a moment ago",
+    checks,
     actions,
     attention: lastStepProblem(input.activity),
   };
@@ -180,16 +289,16 @@ function prepare(input: GuideInput, blockers: Blocker[]): GuideView {
 function empty(attention: string | null): GuideView {
   return {
     stage: "empty",
-    headline: "nothing registered yet",
+    headline: "No agents yet",
     // The only stage that states what obsel is for, because it is the only one
     // with no graph on screen to show it.
-    subline: "four agents, each one reading a table another one writes",
-    notes: [],
+    subline: "The demo has four agents. Each one reads a table that another one writes.",
+    checks: [],
     actions: [
       {
         step: "register",
         label: "Set up the four agents",
-        detail: "declares them in DataHub, nothing runs yet",
+        detail: "Adds them to DataHub. Nothing runs yet.",
       },
     ],
     attention,
@@ -209,7 +318,7 @@ function registered(tasks: TaskRecord[], finished: number, attention: string | n
     {
       step: "run",
       label: "Start the four agents",
-      detail: "real Codex sessions, a few minutes",
+      detail: "Four real Codex sessions. Takes a few minutes.",
     },
   ];
   if (finished === 0) {
@@ -219,7 +328,7 @@ function registered(tasks: TaskRecord[], finished: number, attention: string | n
     actions.push({
       step: "register",
       label: "Set up the four agents again",
-      detail: "safe to repeat before anything runs",
+      detail: "Safe to repeat while nothing has run yet.",
     });
   }
   return {
@@ -228,8 +337,8 @@ function registered(tasks: TaskRecord[], finished: number, attention: string | n
       finished === 0
         ? `${tasks.length} agents ready to run`
         : `${finished} of ${tasks.length} finished`,
-    subline: "when one finishes, obsel records a fingerprint of what it produced",
-    notes: [],
+    subline: "When an agent finishes, obsel records what its table looked like",
+    checks: [],
     actions,
     attention,
   };
@@ -246,8 +355,8 @@ function working(input: GuideInput, attention: string | null): GuideView {
       live.length === 1
         ? `${taskTitle(live[0])} is working${since}`
         : `${live.length} agents are working`,
-    subline: "work in flight is never judged, only finished work can go stale",
-    notes: [],
+    subline: "obsel waits until an agent finishes before it checks anything",
+    checks: [],
     actions: [],
     attention,
   };
@@ -257,18 +366,18 @@ function settled(tasks: TaskRecord[], attention: string | null): GuideView {
   return {
     stage: "settled",
     headline: `all ${tasks.length} finished, nothing out of date`,
-    subline: "now try to break it",
-    notes: [],
+    subline: "Try one of these and watch what obsel does",
+    checks: [],
     actions: [
       {
         step: "rerun-same",
         label: "Run the orders cleaner again, no changes",
-        detail: "if obsel flags anything, it cried wolf",
+        detail: "It writes the same table, so nothing should go out of date.",
       },
       {
         step: "change",
         label: "Change one agent's instructions",
-        detail: "renames a column, tells nothing downstream",
+        detail: "It renames a column. Nobody downstream is told.",
       },
     ],
     attention,
@@ -292,8 +401,13 @@ function changeLine(mark: NonNullable<TaskRecord["stale"]>): string {
   const columns = mark.columns;
 
   if (columns) {
-    const lost = columns.removed.length > 0 ? `lost ${columns.removed.join(", ")}` : null;
-    const gained = columns.added.length > 0 ? `gained ${columns.added.join(", ")}` : null;
+    // "the column order_total" rather than "order_total". A bare identifier in the
+    // middle of a sentence reads as a word the reader is expected to recognise,
+    // and this one is invented by the demo two minutes before it appears here.
+    const noun = (names: readonly string[]): string =>
+      `${names.length === 1 ? "the column" : "the columns"} ${names.join(", ")}`;
+    const lost = columns.removed.length > 0 ? `lost ${noun(columns.removed)}` : null;
+    const gained = columns.added.length > 0 ? `gained ${noun(columns.added)}` : null;
     const both = [lost, gained].filter((part): part is string => part !== null).join(" and ");
     return `${table} ${both} after they finished`;
   }
@@ -343,12 +457,14 @@ function flaggedSubline(
   const indirect = neverReadIt(marked, mark.causedBy);
   const change = changeLine(mark);
   if (indirect === 0) return change;
+  // A full stop rather than a comma. These are two separate facts, and the
+  // comma spliced them into one 20-word sentence a reader had to hold whole.
   if (indirect < marked.length) {
-    return `${change}, and ${indirect} of the ${marked.length} never read it`;
+    return `${change}. ${indirect} of the ${marked.length} never read that table.`;
   }
   return marked.length === 1
-    ? `${change}, and the one flagged agent never read it`
-    : `${change}, and none of the ${marked.length} ever read it`;
+    ? `${change}. The one agent that went out of date never read that table.`
+    : `${change}. None of the ${marked.length} ever read that table.`;
 }
 
 function flagged(tasks: TaskRecord[], attention: string | null): GuideView {
@@ -374,7 +490,7 @@ function flagged(tasks: TaskRecord[], attention: string | null): GuideView {
     stage: "flagged",
     headline: `${marked.length} of ${finished} finished agents are out of date`,
     subline: newest === null ? null : flaggedSubline(newest, marked),
-    notes: [],
+    checks: [],
     actions: [
       {
         // The re-run stays offered here on purpose. It replays whatever the
@@ -383,12 +499,12 @@ function flagged(tasks: TaskRecord[], attention: string | null): GuideView {
         // avoids false alarms on a calm board has not proved much.
         step: "rerun-same",
         label: "Run the orders cleaner again, no changes",
-        detail: "no new marks, and these three must stay",
+        detail: `Nothing new should go out of date, and these ${marked.length} should stay.`,
       },
       {
         step: "reset",
         label: "Reset and start over",
-        detail: "clears the marks, keeps the lineage",
+        detail: "Puts every agent back to up to date. They stay set up.",
       },
     ],
     attention,
@@ -431,9 +547,10 @@ function lastStepProblem(activity: DemoActivity | null): string | null {
   if (activity === null || activity.running !== null) return null;
   const last = activity.lastResult;
   if (last === null || last.exitCode === 0) return null;
-  const how =
-    last.exitCode === null
-      ? `was stopped${last.signal ? ` by ${last.signal}` : ""} before it finished`
-      : `exited ${last.exitCode}`;
-  return `The last step, \`${last.step}\`, ${how}. Its own output below says why. The board still shows exactly what DataHub holds.`;
+  // Neither the exit code nor the signal name reaches the reader. Both are in the
+  // step's own output, one click away, which is where somebody who wants them will
+  // already be looking; on the headline they are two numbers to be alarmed by and
+  // nothing to do about.
+  const how = last.exitCode === null ? "was stopped before it finished" : "did not finish";
+  return `${STEP_NAME[last.step]} ${how}. Its output below says why. The board still shows what DataHub holds.`;
 }

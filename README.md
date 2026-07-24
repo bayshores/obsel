@@ -12,19 +12,22 @@ work that never touched the change directly, only something built on it.
 Built for [Build with DataHub: The Agent Hackathon](https://datahub.devpost.com/), category _Agents
 That Do Real Work_. Apache-2.0.
 
-![The obsel cockpit with three agents flagged. The graph's heading asks "is this finished work still
-built on something that is still true?"; the changed table shows order_total leaving and
+![The obsel cockpit with three agents flagged. The changed table shows order_total leaving and
 order_total_usd arriving; an amber path runs outward from it through two hops to Revenue report and
 Table docs; and the ribbon reports a measured detection time of 3636 ms beside three of three marks
 tagged in DataHub.](docs/images/flagged.png)
 
 _The flagged board, captured 2026-07-23 from commit `a485b95` against a live DataHub and a live Codex
 CLI. Not a mockup, and not assembled: `run` took 2 m 30 s for four real Codex sessions, then one
-agent's instructions changed, and every number here came out of that run._
+agent's instructions changed, and every number here came out of that run. **The wording on screen is
+older than the app.** Both images predate the plain-English pass described under Status, so the
+headline, the key and the button lines below the graph read differently now. Everything the images
+are evidence of, the cascade, the column diff, the measured time and the confirmed tags, is
+unchanged; they are recaptured before the video._
 
 ![The same cockpit minutes earlier: four agent boxes all showing done, the heading reporting that all
-four finished and nothing is out of date, and the write-back cell reading "nothing
-marked".](docs/images/settled.png)
+four finished and nothing is out of date, and the write-back cell reporting that there is nothing to
+write.](docs/images/settled.png)
 
 _The same board minutes earlier in the same run, before anything changed. The contrast is the whole
 product: obsel is quiet until something is genuinely wrong, and an identical re-run keeps it quiet._
@@ -81,6 +84,32 @@ live DataHub with a live Codex CLI, every step exiting 0.
 Several things were rebuilt on 2026-07-23, all for the same reason: a stranger looking at the board
 could not tell what it was.
 
+- **Every sentence on screen is written for someone who has not read this file.** Two earlier passes
+  had the same goal and did not hold, because the only guard on the copy was a word count and an
+  identifier is short: `venv: the agents' Python environment (agents/.venv) does not exist yet` scores
+  better on a word count than a sentence that explains itself. So the rule is written into
+  `guide.ts`'s header and a check enforces the half a machine can see. **No internal name reaches the
+  board**: not the `DemoStep` ids the launcher takes, not the keys of the preflight record, not an
+  exit code, not a URN outside the details panel and the step log. It was run against the previous
+  copy first and failed on six leaks across four states, which is how it is known to work. What went
+  with them: "if obsel flags anything, it cried wolf", "now try to break it", "work in flight is never
+  judged, only finished work can go stale", "every number is withheld until a read succeeds". Each
+  reads well to somebody who already knows what obsel does.
+- **The setup screen is a checklist, not a list of complaints.** It showed only the checks that were
+  failing, each prefixed with its key in the preflight record: `venv:`, `codex:`, `vocabulary:`. Three
+  opaque labels, no ordering, no way to tell whether that was the first problem of one or the last of
+  four. All four are listed now, in the order they have to be done, with the passing ones ticked, and
+  the fix command still verbatim and copyable. The data is unchanged: `preflight` always carried all
+  four, and only the passing half was being thrown away.
+- **The key says which box is which.** It glossed three colours whose words are already printed on
+  every node ("done", "out of date", "running"), and called green "still true" while the node beside
+  it said "done": two vocabularies for one colour, on one screen. Nothing anywhere said which box was
+  an agent and which was a table, so the graph's whole premise rested on a distinction the reader had
+  to already know. The key names the two shapes now, and the shapes are genuinely different: an agent
+  is a bordered box with a status bar, a table is an unbordered lighter chip. They used to differ by
+  `--mm-ink-2` against `--mm-surface`, which is 2.5% cream over a near-black background, a difference
+  the CSS asserted was enough "without needing a label to say so" and which nobody can see.
+
 - **Agents and tables are named in words.** Every agent registers a human name and a one-sentence
   job as real DataHub metadata, `obsel.title` and the DataJob's description, and the board reads them
   back, so `clean_orders` appears as "Orders cleaner" everywhere, including in the reason written
@@ -111,18 +140,19 @@ could not tell what it was.
 - **The board says what obsel is for.** It never did, which was the complaint underneath ten rounds
   of feedback. Both previous attempts were prose, a tagline in the header and then paragraphs above
   the graph, and both got deleted for the reason they should have been: they are how the screen reached
-  604 words. The graph's heading is the question obsel answers instead, in the slot that used to hold
-  "how the work connects", a caption explaining how to read a picture whose boxes are already named
-  and whose arrows already show direction. It is a question rather than a claim because the graph
-  underneath is the answer, and it states obsel's limits as much as its scope: not whether the work is
-  good, not whether the pipeline is healthy, just whether it is still built on something still true.
+  604 words. The graph's heading carries it instead, in the slot that used to hold "how the work
+  connects", a caption explaining how to read a picture whose boxes are already named and whose arrows
+  already show direction. It reads "Each agent reads a table another agent wrote, so a change in one
+  can make another's finished work wrong", and it states obsel's limits as much as its scope: not
+  whether the work is good, not whether the pipeline is healthy, just whether it is still built on
+  something still true.
 - **The board says far less.** The flagged screen was 604 words in two stacked panels of prose, with
   nothing on it set larger than 13 px, so there was no entry point and the only way in was to read
-  all of it. It is 238 words now, one headline leads, and the graph carries the mechanism. Nothing
+  all of it. It is 267 words now, one headline leads, and the graph carries the mechanism. Nothing
   was deleted from the system: every reason, fingerprint, timing and code identifier is one click
-  away on a node. Two checks in the suite hold the line, because ten rounds of hand-edited copy is
-  what produced the 604 in the first place: a word ceiling on the flagged board, and an assertion
-  that no em dash reaches the screen in any state.
+  away on a node. Three checks in the suite hold the line, because ten rounds of hand-edited copy is
+  what produced the 604 in the first place: a word ceiling on the flagged board, an assertion that no
+  em dash reaches the screen in any state, and the identifier guard described next.
 - **What obsel wrote into DataHub is on the board, and counted.** obsel tags each marked job
   `urn:li:tag:obsel-stale` through the MCP server, which is the thing a person browsing DataHub sees
   without knowing obsel exists, and the board used to mention it in five grey words at the bottom of a
@@ -403,16 +433,19 @@ cp .env.example .env.local
 pnpm install && pnpm dev
 ```
 
-Then open `http://localhost:3000` and follow the guide at the top of the board. It genuinely
-checks this machine — DataHub answering, the agents' Python environment, the Codex sign-in,
-obsel's vocabulary — and for anything missing it shows the exact command to run. Once the checks
-pass, the whole demo is buttons: register the pipeline, put the agents to work, re-run one
+Then open `http://localhost:3000`. **The board opens on a checklist**, because the three commands
+above are not the whole of it: the demo agents need their own Python environment and a signed-in
+Codex CLI, and obsel needs its tag registered in DataHub. Each item is genuinely checked on your
+machine every couple of seconds, the ones already done are ticked, and anything missing shows the
+exact command to run. Work down the list and it empties.
+
+Once it does, the whole demo is buttons: set up the four agents, put them to work, re-run one
 identically, change a requirement upstream, reset. Each button runs the same `agents.run` command
-listed in step 7 below, verbatim, and streams that step's own output onto the board.
+listed in step 8 below, verbatim, and streams that step's own output onto the board.
 
 ### Every step, spelled out
 
-The same setup as seven explicit steps, for when something fails or you prefer the terminal. Each
+The same setup as eight explicit steps, for when something fails or you prefer the terminal. Each
 one has a way to tell whether it worked, because several of them fail quietly. The demo agents in
 `agents/` need their own Python environment — they are not installed by `pnpm install`.
 
@@ -451,13 +484,22 @@ python3 -m venv agents/.venv
 agents/.venv/bin/python -m pip install -r agents/requirements.txt
 ```
 
-**5. Start obsel.**
+**5. Install `uv`.** obsel writes its `obsel-stale` tag through DataHub's own MCP server, which is
+run with `uvx`. Without this the staleness engine still decides correctly and the tag write is the
+step that fails, so it is worth having before the first run rather than after it.
+
+```bash
+brew install uv                  # or: curl -LsSf https://astral.sh/uv/install.sh | sh
+uvx --version                    # should print a version
+```
+
+**6. Start obsel.**
 
 ```bash
 pnpm dev        # http://localhost:3000 should show the cockpit, not an error
 ```
 
-**6. Register obsel's vocabulary in DataHub.** Run every agent command from the repository root, so
+**7. Register obsel's vocabulary in DataHub.** Run every agent command from the repository root, so
 `agents` imports as a package.
 
 ```bash
@@ -468,7 +510,7 @@ This creates `urn:li:tag:obsel-stale` and the demo DataFlow. It is not optional:
 a tag at run time, so without this step staleness is detected and silently not recorded. The command
 fails loudly if either did not land.
 
-**7. Run the demo** — from the guide's buttons, or as the same commands:
+**8. Run the demo** — from the guide's buttons, or as the same commands:
 
 ```bash
 agents/.venv/bin/python -m agents.run register      # four tasks into DataHub, each with its job

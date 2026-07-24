@@ -240,19 +240,19 @@ describe("totals — what obsel wrote back into DataHub", () => {
 
 describe("summaryLine — says what was observed, never 'all clear'", () => {
   it("distinguishes nothing-has-run from everything-checks-out", () => {
-    expect(summaryLine(4, 0, 0)).toContain("nothing that could be out of date");
-    expect(summaryLine(4, 4, 0)).toContain("everything they were built on is still true");
+    expect(summaryLine(4, 0, 0)).toContain("nothing can be out of date yet");
+    expect(summaryLine(4, 4, 0)).toContain("none of the tables they read has changed since");
   });
 
   it("states the ratio against finished work, not against every task", () => {
     expect(summaryLine(4, 4, 3)).toBe(
-      "3 of 4 finished tasks are built on something that has since changed.",
+      "3 of 4 finished agents are out of date, because a table they read changed afterwards.",
     );
   });
 
   it("handles an empty swarm and the singular", () => {
-    expect(summaryLine(0, 0, 0)).toBe("No tasks registered yet.");
-    expect(summaryLine(1, 1, 1)).toContain("1 of 1 finished task is");
+    expect(summaryLine(0, 0, 0)).toBe("No agents set up yet.");
+    expect(summaryLine(1, 1, 1)).toContain("1 of 1 finished agent is");
   });
 });
 

@@ -23,9 +23,34 @@
   background: var(--mm-surface);
   border: 1px solid var(--mm-rose-line);
   font-family: var(--mm-font-mono);
-  /* Not a control. React Flow makes nodes draggable by default; a demo board
-     whose boxes can be dragged out of place on camera is a liability. */
-  cursor: default;
+  /*
+   * Clickable, and it has to look it.
+   *
+   * `cursor: default` was here, and the comment beside it explained that a demo
+   * board whose boxes can be dragged out of place on camera is a liability. That
+   * is still true and is not what this property was doing: dragging is switched
+   * off by `nodesDraggable={false}` on the React Flow canvas. What this actually
+   * did was hide the only affordance for the details panel, where every
+   * fingerprint, reason, tag and DataHub link on the board lives. The entire
+   * evidence layer sat behind an interaction with nothing on screen to suggest it.
+   */
+  transition:
+    background-color 120ms ease,
+    box-shadow 120ms ease;
+}
+
+/*
+ * Only the agent boxes. `lineage.tsx` calls `onSelect` for `node.type === "task"`
+ * and for nothing else, so a pointer over a table would advertise an interaction
+ * that does not exist.
+ */
+.task {
+  cursor: pointer;
+}
+
+.task:hover {
+  background: var(--mm-surface-2);
+  box-shadow: 0 0 0 1px var(--mm-border-strong);
 }
 
 /* 168 x 56, matching TASK_SIZE. */
@@ -53,19 +78,41 @@
   letter-spacing: var(--mm-track);
 }
 
-/* 152 x 56, matching DATA_SIZE. Ink rather than surface, so a table reads as a
-   different kind of thing from an agent without needing a label to say so. */
+/*
+ * 152 x 56, matching DATA_SIZE.
+ *
+ * This said "Ink rather than surface, so a table reads as a different kind of
+ * thing from an agent without needing a label to say so" -- an assumption about a
+ * stranger's eye, written as settled fact and never checked against one. The two
+ * fills were `--mm-ink-2` (#131118) and `--mm-surface` (2.5% cream), and against
+ * the #0b0a0e background that is a difference nobody can see. On the board both
+ * were the same dark rectangle, which left the graph's whole vocabulary, agents
+ * read tables that other agents write, resting on a distinction that did not
+ * visually exist.
+ *
+ * The difference is structural now instead of a shade: an agent is a bordered box
+ * with a coloured status bar, a table is an unbordered filled chip. Sizes are
+ * untouched, because `box-sizing: border-box` puts the border inside the
+ * footprint dagre reserved and `tests/cockpit-layout.test.ts` checks the two agree.
+ */
 .data {
   width: 152px;
   min-height: 56px;
-  background: var(--mm-ink-2);
+  background: var(--mm-surface-2);
+  border: none;
 }
 
-/* 176 x 84, matching DATA_SIZE_WITH_DIFF: two more lines for the column diff. */
+/*
+ * 176 x 84, matching DATA_SIZE_WITH_DIFF: two more lines for the column diff.
+ *
+ * `border: 2px solid`, not just a width and a colour. The base rule sets
+ * `border: none`, so a width with no style paints nothing, and this is the one
+ * box on the board that must never fail to stand out: it is the table that changed.
+ */
 .data[data-origin="true"] {
   width: 176px;
   min-height: 84px;
-  border-width: 2px;
+  border: 2px solid;
 }
 
 .dataName {

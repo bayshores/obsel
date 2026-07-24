@@ -1,7 +1,13 @@
 import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
 
-import { codexSignedOut, finishedStep, idle, runningStep } from "./fixtures/activity";
+import {
+  codexSignedOut,
+  finishedStep,
+  idle,
+  nothingInstalled,
+  runningStep,
+} from "./fixtures/activity";
 import { calm, cascaded, empty, leftOverTag, midWrite, withoutTagInfo } from "./fixtures/swarm";
 import { openCockpit } from "./fixtures/mount";
 import { cascadeSteps, manyDecisions } from "./fixtures/trace";
@@ -343,13 +349,15 @@ test.describe("the write-back is reported, not asserted", () => {
     // A reset done by hand clears the properties and leaves the tag. Unlike a write
     // in flight this never resolves itself, so it gets its own words.
     await openCockpit(page, leftOverTag());
-    await expect.poll(() => cell(page, "written into DataHub")).toMatch(/1left over/);
+    await expect
+      .poll(() => cell(page, "written into DataHub"))
+      .toMatch(/1tags left over from before/);
   });
 
   test("says nothing was marked rather than counting zero of zero", async ({ page }) => {
     await openCockpit(page, calm());
     const text = await cell(page, "written into DataHub");
-    expect(text).toContain("nothing marked");
+    expect(text).toContain("nothing to write yet");
     expect(text).not.toContain("0 of 0");
   });
 
@@ -358,7 +366,7 @@ test.describe("the write-back is reported, not asserted", () => {
     // never looked for, which understates obsel's own contribution and is still false.
     await openCockpit(page, withoutTagInfo());
     const text = await cell(page, "written into DataHub");
-    expect(text).toContain("not recorded");
+    expect(text).toContain("obsel did not check");
     expect(text).not.toContain("0 of 3");
   });
 
@@ -480,7 +488,7 @@ test.describe("honesty", () => {
      * reads panel the live trace replaced; the calm statement now comes from the
      * guide's own headline, derived from the same snapshot.
      */
-    await expect(page.getByText("nothing out of date")).toBeVisible();
+    await expect(page.getByRole("heading", { name: /nothing out of date/ })).toBeVisible();
   });
 });
 
@@ -662,8 +670,10 @@ test.describe("guide", () => {
     // The headline now leads the board, and the subline names what moved. The
     // sentence about the transitively reached tasks is gone: the graph draws that
     // reach as an amber path travelling outward, continuously.
-    await expect(page.getByText("3 of 4 finished agents are out of date")).toBeVisible();
-    await expect(page.getByText(/clean orders lost order_total/)).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "3 of 4 finished agents are out of date" }),
+    ).toBeVisible();
+    await expect(page.getByText(/clean orders lost the column order_total/)).toBeVisible();
     await expect(page.getByRole("button", { name: /Run the orders cleaner again/ })).toBeVisible();
     await expect(page.getByRole("button", { name: /Reset and start over/ })).toBeVisible();
     await expect(page.getByRole("button", { name: /Change one agent's instructions/ })).toHaveCount(
@@ -676,7 +686,7 @@ test.describe("guide", () => {
   }) => {
     await openCockpit(page, calm(), codexSignedOut());
 
-    await expect(page.getByText("one-time setup")).toBeVisible();
+    await expect(page.getByRole("heading", { name: /thing.? to set up/ })).toBeVisible();
     await expect(page.getByText("codex login", { exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: /Run the orders cleaner again/ })).toHaveCount(0);
   });
@@ -684,7 +694,10 @@ test.describe("guide", () => {
   test("while a step runs the buttons go away and its own output streams", async ({ page }) => {
     await openCockpit(page, calm(), runningStep("rerun-same"));
 
-    await expect(page.getByText("rerun-same is live")).toBeVisible();
+    // The subline names the step; the log block is labelled for what it is. Both
+    // are asserted, because the previous version said the step name twice.
+    await expect(page.getByText("The unchanged re-run is running now")).toBeVisible();
+    await expect(page.getByText("live output")).toBeVisible();
     await expect(page.getByText("rerun-same: started")).toBeVisible();
     await expect(page.getByRole("button", { name: /Run the orders cleaner again/ })).toHaveCount(0);
   });
@@ -831,7 +844,9 @@ test.describe("what obsel is doing", () => {
     // The swarm read is a different endpoint and is still healthy, so the board
     // and every measured number stay exactly where they were.
     await expect(page.getByText("connected")).toBeVisible();
-    await expect(page.getByText("3 of 4 finished agents are out of date")).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "3 of 4 finished agents are out of date" }),
+    ).toBeVisible();
   });
 });
 
@@ -875,6 +890,13 @@ test.describe("how much the board says", () => {
      * It is the graph's heading now, so it costs one already-spent slot and is present
      * whatever the swarm is doing. Asserted across every state, because a purpose that
      * only appears once something has gone wrong is not a statement of purpose.
+     *
+     * The third attempt was a question, "is this finished work still built on something
+     * that is still true?", and it passed this test while failing the complaint. Nothing
+     * a word count or a visibility check can see was wrong with it: it names nothing.
+     * Not an agent, not a table, not a change. So the assertion is on the nouns now, not
+     * on the sentence, because those are the part a stranger needs and the part a
+     * rewrite is tempted to compress away.
      */
     for (const [name, swarm] of [
       ["flagged", cascaded()],
@@ -882,11 +904,89 @@ test.describe("how much the board says", () => {
       ["empty", empty()],
     ] as const) {
       await openCockpit(page, swarm, idle(), cascadeSteps());
-      await expect(
-        page.getByRole("heading", { name: /is this finished work still built on/ }),
-        `${name} should still say what obsel is for`,
-      ).toBeVisible();
+      const heading = page.getByRole("heading", { name: /Each agent reads a table/ });
+      await expect(heading, `${name} should still say what obsel is for`).toBeVisible();
+      const said = (await heading.textContent()) ?? "";
+      for (const noun of ["agent", "table", "change", "finished work"]) {
+        expect(said, `${name} should name ${noun}`).toContain(noun);
+      }
     }
+  });
+
+  /**
+   * No internal name reaches the board.
+   *
+   * The word ceiling below cannot catch this and never could. `venv: the agents'
+   * Python environment (agents/.venv) does not exist yet` is nine words and
+   * completely opaque, so a board full of identifiers scores BETTER on a word
+   * count than a longer one a stranger can actually read. Two rounds of
+   * hand-edited plain-language passes came and went with only that ceiling behind
+   * them, and the identifiers grew straight back.
+   *
+   * This is the objective half of "written for someone who already knows": the
+   * half a machine can check. Internal names are the ones the reader has no way to
+   * look up — the `DemoStep` ids the launcher takes, the keys of the preflight
+   * record, and process exit vocabulary.
+   *
+   * Three exclusions, all places a raw value BELONGS:
+   *
+   * - the details panel, which exists to show uncompressed values including the URN;
+   * - `<pre>`, which is the launched command's own stdout, verbatim, and is
+   *   evidence rather than copy;
+   * - `<code>`, which carries the fix commands. Those are meant to be read as
+   *   commands and copied, and `agents/.venv/bin/python` cannot be said any other
+   *   way. They get the separate, stricter assertion below instead.
+   */
+  test("no internal identifier reaches the board, in any state", async ({ page }) => {
+    // Every state is walked before anything is asserted. Failing on the first one
+    // would report a single leak and hide the rest, and the fix for this is a copy
+    // pass over the whole board: the useful failure is the full inventory.
+    const leaks: string[] = [];
+    const bareCode: string[] = [];
+
+    for (const [name, swarm, activity] of [
+      ["a finished step", cascaded(), finishedStep()],
+      ["a running step", calm(), runningStep("rerun-same")],
+      ["an unprepared machine", calm(), nothingInstalled()],
+      ["one broken prerequisite", calm(), codexSignedOut()],
+      ["settled", calm(), finishedStep("run")],
+    ] as const) {
+      await openCockpit(page, swarm, activity, cascadeSteps());
+
+      const found = await page.evaluate(() => {
+        const KEPT_OUT = ["venv", "vocabulary", "rerun-same", "exit 0", "exited", "urn:li:"];
+        const RAW = '[aria-label="What obsel is doing"], [aria-label="Details"], pre, code';
+        const main = document.querySelector("main");
+        if (main === null) return { seen: ["there is no <main>"], bare: [] as string[] };
+
+        const seen: string[] = [];
+        const walker = document.createTreeWalker(main, NodeFilter.SHOW_TEXT);
+        for (let node = walker.nextNode(); node !== null; node = walker.nextNode()) {
+          const parent = node.parentElement;
+          if (parent === null || parent.closest(RAW) !== null) continue;
+          const text = node.textContent ?? "";
+          for (const word of KEPT_OUT) {
+            if (text.toLowerCase().includes(word)) seen.push(`"${word}" in "${text.trim()}"`);
+          }
+        }
+
+        // A fix command is a command: it has a verb and an argument. A lone
+        // identifier in a code span is the launcher's internal name leaking into a
+        // sentence, which is the exact shape of "`change` finished clean".
+        const bare = [...main.querySelectorAll("code")]
+          .filter((el) => el.closest('[aria-label="Details"]') === null)
+          .map((el) => (el.textContent ?? "").trim())
+          .filter((text) => !text.includes(" "));
+
+        return { seen, bare };
+      });
+
+      leaks.push(...found.seen.map((leak) => `${name}: ${leak}`));
+      bareCode.push(...found.bare.map((code) => `${name}: ${code}`));
+    }
+
+    expect(leaks, "an internal name reached the board").toEqual([]);
+    expect(bareCode, "a bare identifier was rendered as code").toEqual([]);
   });
 
   test("the flagged board stays under its word ceiling", async ({ page }) => {
@@ -954,30 +1054,45 @@ test.describe("how much the board says", () => {
     });
 
     /*
-     * Measured on this commit at the recording viewport: 245 words on screen, of which
+     * Measured on this commit at the recording viewport: 267 words on screen, of which
      * 105 is the step log (176 held, so 71 are scrolled out), 36 is graph labels and
-     * 13 is the live region, leaving **104 words of prose**. The laptop comes out at
-     * 224, showing 21 fewer words of log in a shorter panel. The live board at the
-     * recording size measures 258 with prose of 104, so the fixture now tracks it
-     * rather than flattering it.
+     * 16 is the live region, leaving **126 words of prose**. The laptop comes out at
+     * 246, showing 21 fewer words of log in a shorter panel, and the same 126 of prose,
+     * which is the point of splitting the two: prose does not depend on panel height.
      *
-     * Prose is up from 86, and the additions each replaced something already on
-     * screen: how many flagged agents never read the changed table (the argument for
-     * walking a lineage graph at all), how many marks DataHub confirms it tagged, and
-     * the graph's heading becoming the question obsel answers instead of a caption
-     * telling a reader how to read a picture.
+     * **Prose is up from 104, and the rise was bought deliberately.** The ceiling was
+     * 110 with six words of slack, and it had stopped protecting the thing it was
+     * written for. It was introduced when the board was 604 words in two stacked
+     * panels of paragraphs, and by this commit it was the reason the board could not
+     * say anything a stranger could read: a word count scores `venv: the agents'
+     * Python environment does not exist yet` better than a sentence that explains
+     * itself, because an identifier is short. The complaint the owner kept raising was
+     * never that the board said too much. It was that what it said was written for
+     * somebody who already knew.
      *
-     * **The headroom is deliberately thin now.** It used to look generous because the
-     * fixture was lighter than any board a judge sees: `idle()` reports nothing having
-     * ever run, so the guide's result line was missing, and a five-step trace is a
-     * fifth of a real session. A guard with 6 words of slack that measures the real
-     * screen beats a roomy one measuring a thinner screen. Before all this the same
-     * board was 604 words with 498 of them prose, in two stacked panels of paragraphs;
-     * putting the ledger back would add 205 on its own. A failure here is not proof of
-     * a bug, but it is always a decision worth a second look.
+     * Where the 22 went, each of them replacing something that was already there:
+     *
+     * - **+7** the graph's heading. A question naming nothing ("is this finished work
+     *   still built on something that is still true?") became a sentence naming an
+     *   agent, a table and a change.
+     * - **+6** the reset button's line, and **+4** the re-run's. "clears the marks,
+     *   keeps the lineage" assumes the reader knows what a mark and a lineage are.
+     * - **+4** the flagged subline, which now calls a column a column and splits one
+     *   20-word sentence into two.
+     * - **+3** the key, which stopped glossing three colours the nodes already print
+     *   and started naming the two shapes, which nothing on the board ever did.
+     *
+     * The ceiling stays, six words above the measurement, exactly as before. What it
+     * guards against is unchanged: two stacked panels of prose, which is what putting
+     * the ledger back would cost (205 words on its own). What it is no longer allowed
+     * to do is push the board back toward saying things in code. `no internal
+     * identifier reaches the board` above is the guard for that half, and the two have
+     * to be read together: one caps how much is said, the other requires it be
+     * readable. A failure here is not proof of a bug, but it is always a decision
+     * worth a second look.
      */
     const where = `on screen ${counts.all}: prose ${counts.prose}, graph ${counts.graph}, log ${counts.log} of ${counts.logAll} held, announced ${counts.announced}`;
-    expect(counts.prose, where).toBeLessThan(110);
-    expect(counts.all, where).toBeLessThan(260);
+    expect(counts.prose, where).toBeLessThan(132);
+    expect(counts.all, where).toBeLessThan(274);
   });
 });

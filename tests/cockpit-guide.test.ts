@@ -87,15 +87,15 @@ const FOUR_COMPLETE = [
  *
  * The view used to expose `narration: string[]`, and most assertions here read
  * `narration.join("\n")`. That field is gone: a stage now yields a headline, one
- * optional subline, and notes only on the setup and failure stages. These tests
- * are about which facts a stage states, not about which field carries them, so
- * they assert against the whole rendered text.
+ * optional subline, and a prerequisite checklist on the setup and connection
+ * stages. These tests are about which facts a stage states, not about which field
+ * carries them, so they assert against the whole rendered text.
  */
 function allText(view: ReturnType<typeof guide>): string {
   return [
     view.headline,
     view.subline ?? "",
-    ...view.notes,
+    ...view.checks.flatMap((check) => [check.name, check.detail ?? "", check.fix ?? ""]),
     view.attention ?? "",
     ...view.actions.flatMap((a) => [a.label, a.detail]),
   ].join("\n");
@@ -270,7 +270,7 @@ describe("the change line names the columns that moved", () => {
       }),
     );
     expect(view.subline).toBe(
-      "clean orders lost order_total and gained order_total_usd after they finished",
+      "clean orders lost the column order_total and gained the column order_total_usd after they finished",
     );
     expect(view.subline).not.toContain("renamed");
   });
@@ -291,12 +291,12 @@ describe("the change line names the columns that moved", () => {
     const added = guide(
       input({ tasks: [directlyFlagged({ columns: { added: ["refund_total"], removed: [] } })] }),
     );
-    expect(added.subline).toBe("clean orders gained refund_total after they finished");
+    expect(added.subline).toBe("clean orders gained the column refund_total after they finished");
 
     const removed = guide(
       input({ tasks: [directlyFlagged({ columns: { added: [], removed: ["order_total"] } })] }),
     );
-    expect(removed.subline).toBe("clean orders lost order_total after they finished");
+    expect(removed.subline).toBe("clean orders lost the column order_total after they finished");
   });
 });
 
@@ -334,7 +334,7 @@ describe("the subline names work flagged without touching the change", () => {
         ],
       }),
     );
-    expect(view.subline).toContain("2 of the 3 never read it");
+    expect(view.subline).toContain("2 of the 3 never read that table");
   });
 
   it("says nothing extra when every flagged task read the changed table", () => {
@@ -376,7 +376,7 @@ describe("the subline names work flagged without touching the change", () => {
         ],
       }),
     );
-    expect(alone.subline).toContain("the one flagged agent never read it");
+    expect(alone.subline).toContain("The one agent that went out of date never read that table");
     expect(alone.subline).not.toContain("1 of the 1");
 
     const several = guide(
@@ -387,7 +387,7 @@ describe("the subline names work flagged without touching the change", () => {
         ],
       }),
     );
-    expect(several.subline).toContain("none of the 2 ever read it");
+    expect(several.subline).toContain("None of the 2 ever read that table");
   });
 });
 
@@ -482,8 +482,8 @@ describe("stage derivation", () => {
     const view = guide(input({ tasks: [] }));
     expect(view.stage).toBe("empty");
     expect(view.actions.map((action) => action.step)).toEqual(["register"]);
-    expect(allText(view)).toContain("nothing registered yet");
-    expect(allText(view)).toContain("reading a table another one writes");
+    expect(allText(view)).toContain("No agents yet");
+    expect(allText(view)).toContain("Each one reads a table that another one writes");
   });
 
   it("registered counts the agents and points at the list rather than repeating it", () => {
@@ -519,7 +519,7 @@ describe("stage derivation", () => {
     expect(prose).not.toContain("cleans the raw orders export");
     expect(prose).not.toContain("reads clean orders");
     // What it does carry is the one fact the graph cannot draw.
-    expect(prose).toContain("obsel records a fingerprint");
+    expect(prose).toContain("obsel records what its table looked like");
 
     // Run leads; re-declare is reachable here because the empty stage never
     // recurs on a DataHub that has seen the pipeline before.
@@ -595,7 +595,7 @@ describe("stage derivation", () => {
     );
     expect(view.stage).toBe("working");
     expect(view.actions).toEqual([]);
-    expect(allText(view)).toContain("only finished work can go stale");
+    expect(allText(view)).toContain("obsel waits until an agent finishes");
   });
 
   it("settled offers the two experiments once everything finished clean", () => {
@@ -666,7 +666,7 @@ describe("the running step and the failed step", () => {
   it("actions disappear while a launched step is live, and the narration says which", () => {
     const view = guide(input({ tasks: [], activity: activity({ running }) }));
     expect(view.actions).toEqual([]);
-    expect(allText(view)).toContain("`run` is running now");
+    expect(allText(view)).toContain("The agent run is running now");
   });
 
   it("a failed last step is flagged on whatever stage the board is in", () => {
@@ -680,8 +680,9 @@ describe("the running step and the failed step", () => {
     };
     const view = guide(input({ tasks: FOUR_COMPLETE, activity: activity({ lastResult }) }));
     expect(view.stage).toBe("settled");
-    expect(view.attention).toContain("`rerun-same`");
-    expect(view.attention).toContain("exited 1");
+    expect(view.attention).toContain("The unchanged re-run");
+    // Not "exited 1". The exit code is in the step's own output, one click away.
+    expect(view.attention).toContain("did not finish");
   });
 
   it("a clean last step raises no attention", () => {
@@ -697,6 +698,12 @@ describe("the running step and the failed step", () => {
     expect(view.attention).toBeNull();
   });
 
+  /*
+   * The signal name used to be quoted here, and is not any more. A step killed by
+   * SIGTERM and one that exited 3 are two different things to a maintainer and the
+   * same thing to somebody watching a demo: it stopped early. Both names are in
+   * the step's own output, which this line points at.
+   */
   it("a step killed by a signal is reported as stopped, not as an exit code", () => {
     const lastResult: StepResult = {
       step: "run",
@@ -707,7 +714,7 @@ describe("the running step and the failed step", () => {
       durationMs: 10_000,
     };
     const view = guide(input({ tasks: [], activity: activity({ lastResult }) }));
-    expect(view.attention).toContain("stopped by SIGTERM");
+    expect(view.attention).toContain("was stopped before it finished");
   });
 
   it("while a step runs, an old failure is not still waved around", () => {

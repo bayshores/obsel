@@ -948,14 +948,23 @@ callers can read; what is bounded is how much of the board a 21-step run is allo
 
 Both sit in the strip under the lineage graph, and neither carries a demo beat.
 
-Before them, one thing about the graph panel itself. Its heading is **the question obsel answers**,
-"is this finished work still built on something that is still true?", and that is the only place on the
-board that states obsel's purpose. It reached that slot by replacing "how the work connects", a caption
-explaining how to read a picture whose boxes carry names and whose arrows show direction, so the
-statement cost an already-spent line rather than new prose. Two earlier attempts at the same job were
-prose, a header tagline and then paragraphs above the graph, and both were removed as part of cutting
-the board from 604 words; `guide.ts` was left holding a `WHAT_OBSEL_IS` constant that nothing read,
-which is now deleted.
+Before them, one thing about the graph panel itself. Its heading is **what obsel is for**, "Each agent
+reads a table another agent wrote, so a change in one can make another's finished work wrong", and
+that is the only place on the board that states obsel's purpose. It reached that slot by replacing
+"how the work connects", a caption explaining how to read a picture whose boxes carry names and whose
+arrows show direction, so the statement cost an already-spent line rather than new prose. Two earlier
+attempts at the same job were prose, a header tagline and then paragraphs above the graph, and both
+were removed as part of cutting the board from 604 words; `guide.ts` was left holding a
+`WHAT_OBSEL_IS` constant that nothing read, which is now deleted.
+
+A third attempt sat here until 2026-07-23, and it is worth recording why it was replaced, because it
+passed every check the repository had. It was a question, "is this finished work still built on
+something that is still true?". Nothing measurable was wrong with it: it was short, it was in the
+right slot, it was present in every state, and an e2e test asserted all three. It names nothing. Not
+an agent, not a table, not a change. It reads well to a reader who already knows what obsel does,
+which is the one reader who does not need a statement of purpose. The heading now names the actors,
+and the e2e assertion is on those nouns rather than on the sentence, so the next rewrite cannot
+compress them back out.
 
 A question rather than a claim, because the graph beneath it is the answer: the amber path is what
 "no longer true" looks like. It also fixes obsel's scope by what it does not ask. Not whether the work

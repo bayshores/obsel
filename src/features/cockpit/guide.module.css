@@ -53,10 +53,20 @@
 }
 
 /* Setup and failure stages only. Never on a stage the demo passes through. */
+/*
+ * The setup checklist.
+ *
+ * A <ul> now rather than a stack of <p>. It was a list before in everything but
+ * markup, and it listed only what was broken: a reader fixing the third of four
+ * problems saw a single line, with nothing to say three were already behind them.
+ */
 .notes {
   display: grid;
   gap: var(--mm-space-xs);
   min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
 .note {
@@ -66,6 +76,40 @@
   font-size: var(--mm-text-md);
   line-height: var(--mm-leading-body);
   max-width: 82ch;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--mm-space-sm);
+  align-items: baseline;
+}
+
+/* Done recedes; outstanding does not. The eye should land on what is left. */
+.note[data-done="true"] {
+  color: var(--obsel-text-quiet);
+}
+
+.tick {
+  font-family: var(--mm-font-mono);
+  color: var(--obsel-text-quiet);
+}
+
+.note[data-done="true"] .tick {
+  color: var(--mm-green);
+}
+
+.checkName {
+  display: block;
+  color: inherit;
+}
+
+.note[data-done="false"] .checkName {
+  color: var(--mm-cream);
+}
+
+/* The observation and the command, under the name they belong to. */
+.checkDetail {
+  display: block;
+  color: var(--obsel-text-quiet);
+  margin-top: 2px;
 }
 
 .side {
@@ -75,7 +119,7 @@
 }
 
 .subline code,
-.note code,
+.checkDetail code,
 .attention code,
 .result code {
   font-family: var(--mm-font-mono);

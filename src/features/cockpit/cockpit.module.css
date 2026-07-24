@@ -230,6 +230,40 @@
 }
 
 /*
+ * Two swatches, each a miniature of the box it names.
+ *
+ * They copy the real node styles rather than describing them in words, so the
+ * key is checkable against the graph by looking rather than by reading. Kept in
+ * step with `nodes.module.css` by hand: they are 14px chips and cannot import,
+ * but if either drifts the key stops matching the picture and the whole point of
+ * having one is gone.
+ */
+.keyAgent,
+.keyTable {
+  width: 16px;
+  height: 10px;
+  flex: none;
+}
+
+/* An agent: bordered box, with the status bar down its left edge. Grey here,
+   because the key names the shape and the graph colours it. */
+.keyAgent {
+  background: var(--mm-surface);
+  border: 1px solid var(--mm-rose-line);
+  border-left: 3px solid var(--obsel-text-quiet);
+}
+
+/* A table: no border, lighter fill. */
+.keyTable {
+  background: var(--mm-surface-2);
+}
+
+/* The one instruction on the graph, set apart from the two definitions. */
+.keyHint {
+  color: var(--mm-cream-mute);
+}
+
+/*
  * The live region. Available to a screen reader, absent from the picture.
  *
  * `display: none` and `visibility: hidden` both remove it from the
