@@ -75,7 +75,7 @@ DataHub.
 
 **The whole loop is built, and the whole demo now runs from the browser.** The cockpit carries a
 guide that reads the live state once a second and offers the next real action as a button — set up
-the four agents, start them, run one again unchanged, change one agent's instructions. Each button
+the demo agents, start them, run one again unchanged, change one agent's instructions. Each button
 launches the same `agents.run` step the terminal path runs, verbatim, and the step's own printed
 output streams onto the board. On 2026-07-22 the full journey — reset → re-declare → run →
 identical re-run → change — was driven end to end **with five clicks and no terminal**, against a
@@ -439,7 +439,7 @@ Codex CLI, and obsel needs its tag registered in DataHub. Each item is genuinely
 machine every couple of seconds, the ones already done are ticked, and anything missing shows the
 exact command to run. Work down the list and it empties.
 
-Once it does, the whole demo is buttons: set up the four agents, put them to work, re-run one
+Once it does, the whole demo is buttons: set up the demo agents, put them to work, re-run one
 identically, change a requirement upstream, reset. Each button runs the same `agents.run` command
 listed in step 8 below, verbatim, and streams that step's own output onto the board.
 

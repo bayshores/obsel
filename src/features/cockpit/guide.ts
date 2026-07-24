@@ -294,10 +294,23 @@ function empty(attention: string | null): GuideView {
     // with no graph on screen to show it.
     subline: "The demo has four agents. Each one reads a table that another one writes.",
     checks: [],
+    /*
+     * "the demo agents", never "the four agents".
+     *
+     * These three labels said four, and the headline above them counts whatever
+     * DataHub actually holds. On a board with seven jobs on it that reads as a
+     * contradiction, and neither half is wrong: the count is what is registered,
+     * and the button really does drive only the demo's own pipeline.
+     *
+     * A number here is a promise this file cannot keep. obsel's whole point is
+     * that any MCP-capable agent can join a swarm, so a board carrying more than
+     * the demo's own agents is the expected case rather than a fault, and a label
+     * that names a count goes stale the first time somebody joins one.
+     */
     actions: [
       {
         step: "register",
-        label: "Set up the four agents",
+        label: "Set up the demo agents",
         detail: "Adds them to DataHub. Nothing runs yet.",
       },
     ],
@@ -317,7 +330,7 @@ function registered(tasks: TaskRecord[], finished: number, attention: string | n
   const actions: GuideAction[] = [
     {
       step: "run",
-      label: "Start the four agents",
+      label: "Start the demo agents",
       detail: "Four real Codex sessions. Takes a few minutes.",
     },
   ];
@@ -327,7 +340,7 @@ function registered(tasks: TaskRecord[], finished: number, attention: string | n
     // could not be re-declared from the board at all.
     actions.push({
       step: "register",
-      label: "Set up the four agents again",
+      label: "Set up the demo agents again",
       detail: "Safe to repeat while nothing has run yet.",
     });
   }

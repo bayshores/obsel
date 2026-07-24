@@ -646,7 +646,7 @@ test.describe("guide", () => {
   test("an empty swarm offers register, and the click launches the real step", async ({ page }) => {
     const { launches } = await openCockpit(page, empty());
 
-    const button = page.getByRole("button", { name: /Set up the four agents/ });
+    const button = page.getByRole("button", { name: /Set up the demo agents/ });
     await expect(button).toBeVisible();
     await button.click();
 
