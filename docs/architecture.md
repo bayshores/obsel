@@ -301,9 +301,18 @@ of it are deliberate:
   no second path onto the graph for an agent to talk its way through.
 - **There is no tool that marks or clears staleness.** A tool to declare something fresh would be a
   tool to silence obsel. A mark is cleared by redoing the work and reporting it.
-- **Agents never compute a fingerprint.** `report_complete` takes rows and columns and hashes them
-  on obsel's side, through the same `canonicalise_numbers` → `fingerprint` path `worker.run_task`
-  uses. An agent that could hand obsel a hash could hand it the previous hash and be believed.
+- **Agents never compute a fingerprint.** `report_complete` takes a `{"path": ...}` to the real
+  file (preferred, because a model pasting rows inline can drift them and a drifted row is a change
+  nobody made) or the rows themselves, and hashes them on obsel's side, through the same
+  `canonicalise_numbers` → `fingerprint` path `worker.run_task` uses. An agent that could hand
+  obsel a hash could hand it the previous hash and be believed.
+- **A completion can also carry what the task read**, in the same forms, as `inputs`. The engine
+  compares each observation against what that dataset's producer recorded writing; a mismatch means
+  the table was changed by something that never reported, and every finished task built on the old
+  version is marked, with `causedByTask` left null because the author is unknown. This is the
+  writer-independent half of detection: one silent writer cannot hide from the next honest reader.
+  The first observation triggers the cascade and is written onto the producer's record
+  (`obsel.observed`), so a second identical read compares clean instead of re-flagging.
 
 The decisions live in [`agents/mcp_core.py`](../agents/mcp_core.py), which imports nothing outside
 the standard library so `pnpm verify` can check them without the virtual environment. The wiring is

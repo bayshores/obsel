@@ -23,7 +23,7 @@
 
 import { datahubTaskUrl } from "./datahub-link";
 import { Panel } from "./mmux";
-import { taskTitle } from "./naming";
+import { datasetTitle, taskTitle } from "./naming";
 import { activityNote } from "./progress";
 import { clockTime } from "./timing";
 import { STATUS_WORD } from "./tone";
@@ -257,6 +257,115 @@ export function Inspector({
           {readAt === null ? "" : ` at ${readAt}`}
           {roundTripMs === null ? "" : `, round trip ${roundTripMs} ms`}. These are the values
           DataHub returned when the cockpit last polled, not a live read of the entity.
+        </p>
+      </div>
+    </Panel>
+  );
+}
+
+/**
+ * The same panel for a table, which is where a table stops being a box.
+ *
+ * A table has no record of its own to show: obsel deliberately stores nothing
+ * on datasets, so everything here is derived from the tasks around it — who
+ * writes it, who reads it, and what the writer's last run said came out. That
+ * derivation is stated in the copy rather than hidden, because "as its writer
+ * last reported it" is a genuinely different claim from "as it is on disk",
+ * and this panel exists for the reader who cares about the difference.
+ */
+export function DataInspector({
+  dataset,
+  tasks,
+  readAt = null,
+  roundTripMs = null,
+  onClose,
+  style,
+}: {
+  /** Dataset URN. Never null: mounted only once a table is selected. */
+  dataset: string;
+  /** The whole snapshot, to derive the table's neighbourhood from. */
+  tasks: TaskRecord[];
+  readAt?: string | null;
+  roundTripMs?: number | null;
+  onClose: () => void;
+  style?: React.CSSProperties;
+}) {
+  const producer = tasks.find((task) => task.writes.includes(dataset)) ?? null;
+  const readers = tasks.filter((task) => task.reads.includes(dataset));
+  const shape = producer?.run?.outputs[dataset] ?? null;
+  const fingerprint = producer?.fingerprints[dataset] ?? null;
+
+  return (
+    <Panel
+      title={`details · ${datasetTitle(dataset)}`}
+      meta="a table, as last reported"
+      padded={false}
+      style={style}
+      bodyStyle={{ flex: 1, minHeight: 0, overflowY: "auto" }}
+    >
+      <div className={styles.body}>
+        <div className={styles.head}>
+          <span className={styles.name}>{datasetTitle(dataset)}</span>
+          <button type="button" className={styles.close} onClick={onClose}>
+            close
+          </button>
+        </div>
+
+        <dl className={styles.fields}>
+          <Field label="table urn">
+            <code className={styles.urn}>{dataset}</code>
+          </Field>
+
+          <Field label="written by">
+            {/* A table nothing here writes is the swarm's starting point, and
+                saying so matters: it is the one table whose changes no
+                completion report will ever announce. */}
+            {producer === null
+              ? "no agent here writes it; it comes from outside the swarm"
+              : taskTitle(producer)}
+          </Field>
+
+          <Field label="read by">
+            {readers.length === 0 ? "no agent here reads it" : readers.map(taskTitle).join(", ")}
+          </Field>
+
+          {/* From the writer's last completion report, so absence is honest:
+              a table whose writer has not finished has no reported shape. */}
+          {shape !== null && (
+            <>
+              <Field label="columns">{shape.columns.join(", ")}</Field>
+              <Field label="rows">{shape.rows}</Field>
+              {shape.path !== undefined && (
+                <Field label="file, as the writer reported it">
+                  <code className={styles.urn}>{shape.path}</code>
+                </Field>
+              )}
+            </>
+          )}
+
+          {fingerprint !== null && (
+            <Field label="fingerprint">
+              <div className={styles.print}>
+                <span className={styles.printLabel}>schema</span>
+                <code className={styles.hash}>{fingerprint.schema}</code>
+                <span className={styles.printLabel}>content</span>
+                <code className={styles.hash}>{fingerprint.content}</code>
+              </div>
+            </Field>
+          )}
+
+          {shape === null && fingerprint === null && (
+            <Field label="contents">
+              nothing reported yet; its writer has not finished, or nothing here writes it
+            </Field>
+          )}
+        </dl>
+
+        <p className={styles.note}>
+          Derived from the agents around this table
+          {readAt === null ? "" : `, read at ${readAt}`}
+          {roundTripMs === null ? "" : `, round trip ${roundTripMs} ms`}. obsel stores nothing on
+          the table itself, so everything above is what its writer last reported.
         </p>
       </div>
     </Panel>

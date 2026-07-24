@@ -35,6 +35,7 @@ import type {
   ChangeKind,
   CompletionReport,
   CoordinationResult,
+  OutputFingerprint,
   SwarmSnapshot,
   TaskRecord,
 } from "./types";
@@ -284,19 +285,90 @@ export async function coordinateCompletion(report: CompletionReport): Promise<Co
     );
   }
 
+  /*
+   * The reader-side check: what this task read, against what each producer
+   * recorded writing. This is the only way obsel can notice a change made by
+   * something that never reports — the producer's own fingerprints cannot catch
+   * it, because the producer never sent any for the new bytes. An honest
+   * reader's completion carries the evidence instead.
+   *
+   * The comparison baseline is the producer's `observed` entry when one exists,
+   * falling back to its recorded output fingerprint. That ordering is what
+   * stops the same silent change being flagged once per reader: the first
+   * reader to see it triggers the cascade and the observation is written down,
+   * so the second reader's identical observation compares clean. A dataset with
+   * no producer in the swarm, or whose producer has not finished, has no
+   * recorded claim to contradict, and is skipped with the reason narrated.
+   */
+  const observedChanges: DatasetChange[] = [];
+  const observationsFor = new Map<TaskRecord, Record<string, OutputFingerprint>>();
+  for (const dataset of Object.keys(report.inputs ?? {}).sort()) {
+    const observation = (report.inputs ?? {})[dataset];
+    // A dataset this task also reported writing was already compared above.
+    if (report.fingerprints[dataset]) continue;
+
+    const producer = snapshot.tasks.find((task) => task.writes.includes(dataset));
+    const recorded = producer
+      ? (producer.observed?.[dataset] ?? producer.fingerprints[dataset])
+      : undefined;
+    if (!producer || !recorded) {
+      emit(
+        "compare",
+        `checked ${tableLabel(dataset)}, which this task read`,
+        producer ? "its writer has not finished, nothing to compare" : "nothing here writes it",
+      );
+      continue;
+    }
+
+    const kind = compareFingerprints(recorded, observation);
+    emit(
+      "compare",
+      `checked ${tableLabel(dataset)}, which this task read`,
+      kind === null
+        ? "matches what was recorded"
+        : "does not match what was recorded, and nothing reported a change",
+    );
+    if (kind) {
+      observedChanges.push({
+        dataset,
+        kind,
+        columns: columnChange(producer.run?.outputs[dataset]?.columns, observation.columns),
+        noticedBy: finishing,
+      });
+      const patch = observationsFor.get(producer) ?? {};
+      patch[dataset] = { schema: observation.schema, content: observation.content };
+      observationsFor.set(producer, patch);
+    }
+  }
+
   await recordCompletion(finishing, report);
 
+  // Remember what was observed, on the producer whose record it contradicts.
+  // One write per producer, not per dataset, so two observations cannot race
+  // each other's merge of the same property.
+  await Promise.all(
+    [...observationsFor.entries()].map(([producer, patch]) =>
+      updateTaskProperties(producer.urn, {
+        [PROP.observed]: JSON.stringify({ ...producer.observed, ...patch }),
+      }),
+    ),
+  );
+
+  const changes: DatasetChange[] = [...changedOutputs, ...observedChanges];
   const affected =
-    changedOutputs.length === 0
+    changes.length === 0
       ? []
-      : affectedBy(snapshot, changedOutputs, new Date().toISOString(), {
+      : affectedBy(snapshot, changes, new Date().toISOString(), {
+          // The reporter is excluded from both cascades for two different
+          // reasons: its own outputs were just compared, and an input it
+          // observed is the version its work was built on — the current one.
           excludeTasks: [report.taskUrn],
         });
 
-  if (changedOutputs.length > 0) {
+  if (changes.length > 0) {
     emit(
       "walk",
-      `walked lineage from ${changedOutputs.map((c) => tableLabel(c.dataset)).join(", ")}`,
+      `walked lineage from ${changes.map((c) => tableLabel(c.dataset)).join(", ")}`,
       affected.length === 0
         ? "nothing finished downstream"
         : affected
@@ -334,7 +406,13 @@ export async function coordinateCompletion(report: CompletionReport): Promise<Co
     );
   }
 
-  return { taskUrn: report.taskUrn, changedOutputs, affected, elapsedMs };
+  return {
+    taskUrn: report.taskUrn,
+    changedOutputs,
+    observedChanges: observedChanges.map(({ dataset, kind }) => ({ dataset, kind })),
+    affected,
+    elapsedMs,
+  };
 }
 
 /**
@@ -351,6 +429,12 @@ export async function coordinateCompletion(report: CompletionReport): Promise<Co
 async function recordCompletion(finishing: TaskRecord, report: CompletionReport): Promise<void> {
   const fingerprints = { ...finishing.fingerprints, ...report.fingerprints };
 
+  // A fresh completion supersedes any reader observation of the datasets it
+  // reports: the producer has now said what its output is, so the noticed
+  // version is no longer the latest word. Entries for unreported datasets stay.
+  const observed = { ...finishing.observed };
+  for (const dataset of Object.keys(report.fingerprints)) delete observed[dataset];
+
   // Replaced wholesale, never merged, and cleared when a run reports nothing.
   // Merging would let an old runner name or row count survive beside a new one
   // and describe a run that never happened. Absent reads as "not reported" in
@@ -361,6 +445,7 @@ async function recordCompletion(finishing: TaskRecord, report: CompletionReport)
     [PROP.status]: "complete",
     [PROP.finishedAt]: report.finishedAt,
     [PROP.fingerprints]: JSON.stringify(fingerprints),
+    [PROP.observed]: Object.keys(observed).length > 0 ? JSON.stringify(observed) : null,
     [PROP.runRunner]: run ? run.runner : null,
     [PROP.runMs]: run ? String(Math.round(run.ms)) : null,
     [PROP.runOutputs]: run ? JSON.stringify(run.outputs) : null,
@@ -470,6 +555,7 @@ export async function resetSwarm(): Promise<{ reset: string[]; tagsCleared: stri
         [PROP.finishedAt]: null,
         [PROP.startedAt]: null,
         [PROP.fingerprints]: null,
+        [PROP.observed]: null,
         [PROP.runRunner]: null,
         [PROP.runMs]: null,
         [PROP.runOutputs]: null,

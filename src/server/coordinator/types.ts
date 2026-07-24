@@ -25,6 +25,27 @@ export interface OutputFingerprint {
 export type ChangeKind = "schema" | "content" | "both";
 
 /**
+ * What one input table looked like when the reporting task read it.
+ *
+ * The same two hashes as an `OutputFingerprint`, computed by the reader over
+ * the bytes it actually consumed. This is the writer-independent half of
+ * detection: a process that rewrites a table and never tells obsel cannot be
+ * caught through its own fingerprints, because it never sent any — but the next
+ * honest reader of that table carries evidence of what the table holds now, and
+ * comparing that against what the producer recorded exposes the unreported
+ * change. `columns` rides along when the reader knew them, so a mismatch can
+ * name what moved instead of showing two hashes.
+ */
+export interface InputObservation {
+  /** sha256 over the sorted column names, as read. */
+  schema: string;
+  /** sha256 over the rows, as read. */
+  content: string;
+  /** Column names as read, when the observer knew them. Display only. */
+  columns?: string[];
+}
+
+/**
  * Which columns left and which arrived, when a schema moved.
  *
  * This is a *description* of a change, never the detection of one. Staleness is
@@ -52,6 +73,14 @@ export interface OutputShape {
   rows: number;
   /** Column names in the order the agent wrote them. */
   columns: string[];
+  /**
+   * Where the file lives, as the writing agent reported it. Display only, and
+   * machine-specific by nature — a path from one machine means nothing on
+   * another, which is why it is optional and never part of any decision. It
+   * exists so the board can point at the actual file instead of asking a
+   * viewer to take "table" on faith.
+   */
+  path?: string;
 }
 
 /**
@@ -210,6 +239,22 @@ export interface TaskRecord {
    */
   tags?: string[];
   /**
+   * The latest reader-observed fingerprint of a dataset this task writes, kept
+   * only while it disagrees with `fingerprints`.
+   *
+   * Written by the engine when a completing task reports having read a version
+   * of this task's output that was never recorded — the unreported change. It
+   * exists so the SECOND reader of the same changed bytes compares against what
+   * has already been noticed and marks nothing again; without it, every later
+   * reader would re-flag the same cascade with a fresh timestamp. Cleared for a
+   * dataset the moment this task completes and reports it, because a fresh
+   * completion is a fresh record of what the output really is.
+   *
+   * Optional as well as omitted-when-empty, like `tags`: records captured
+   * before this existed lack the key and stay valid.
+   */
+  observed?: Record<string, OutputFingerprint>;
+  /**
    * Whether `urn:li:tag:obsel-stale` is among `tags`.
    *
    * Derived here rather than in the browser on purpose. Browser code must never
@@ -298,6 +343,16 @@ export interface CompletionReport {
    * on: an agent that omits it still gets a correct staleness answer.
    */
   run?: RunDetail;
+  /**
+   * Fingerprint per input dataset URN, as the reporting task read it.
+   *
+   * Optional and purely additive: an agent that omits it gets exactly the old
+   * behaviour. When present, each observation is compared against what that
+   * dataset's producer recorded writing. A mismatch means the table changed and
+   * nothing reported the change — the case an honest report from the writer
+   * would have caught, caught instead by the next honest read.
+   */
+  inputs?: Record<string, InputObservation>;
 }
 
 /** The outcome of one completion, for the dashboard and for `examples/`. */
@@ -306,6 +361,12 @@ export interface CoordinationResult {
   taskUrn: string;
   /** Outputs whose fingerprint differs from the previous run, with what moved. */
   changedOutputs: { dataset: string; kind: ChangeKind }[];
+  /**
+   * Inputs whose observed fingerprint contradicted the recorded one — tables
+   * changed by something that never reported. Empty when every read matched,
+   * and for reports that carried no input observations at all.
+   */
+  observedChanges: { dataset: string; kind: ChangeKind }[];
   /** Finished work invalidated by those changes. Empty when nothing moved. */
   affected: AffectedTask[];
   /** Wall-clock milliseconds from receiving the report to having the answer. */

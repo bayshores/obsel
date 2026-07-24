@@ -135,13 +135,42 @@ and type-checks, not a plan.
 | A link from any task to its real page in DataHub's UI                           | `src/features/cockpit/datahub-link.ts`, `inspector.tsx`               |
 | HTTP API, eight routes including launch and activity                            | `app/api/` — see [`docs/architecture.md`](architecture.md) section 11 |
 
+**Added 2026-07-23, the reader-side cross-check.** obsel's trigger is an agent reporting, so a
+process that rewrites a shared table and never reports was invisible, and the silence read as "all
+clear". Three things shipped against that, together:
+
+- **A completion may carry what the task read**, hashed the same way as what it wrote. The demo
+  worker sends these automatically (the tables were already in memory); an outside agent passes
+  `inputs` to `report_complete`. The engine compares each observation against what that dataset's
+  producer recorded writing; a mismatch marks every finished task built on the old version, with
+  `causedByTask` null because the author is unknown and a reason that says the change was never
+  reported. The first observation is recorded on the producer so a second identical read compares
+  clean instead of re-flagging. Proven against the real DataHub in `tests/live/engine.live.test.ts`
+  ("a change nothing reported is caught by the next honest read", three tests), and over the real
+  MCP wire in `tests/live/obsel-mcp.live.test.ts`.
+- **A table can be reported as a path to its real file**, `{"path": "data/clean_orders.json"}`, and
+  the MCP server reads and hashes the file itself. This exists because a model pasting hundreds of
+  rows into a tool call will eventually truncate or paraphrase one, the content hash moves, and
+  obsel reports a change nobody made. A missing file, non-JSON bytes, a non-table shape and an
+  ambiguous path-plus-rows value are each refused with the path in the message — every one exercised
+  against a real file or a real absence in `agents/mcp_core.py`'s self-checks and live over stdio.
+- **The quiet claim is bounded.** The board says "none of the tables they read has changed since,
+  as of the last report at 17:42:07" — because that timestamp is the edge of obsel's knowledge, and
+  an unbounded all-clear claims more than it can know.
+
+Also that day: **table boxes on the graph open a details view** (who writes it, who reads it,
+columns, row count, the file's location as the writer reported it, both hashes), which is the
+answer to a reader who cannot tell what "table" refers to. The writer's file location travels as a
+display-only `path` on the run detail; nothing decides on it.
+
 ## Verified directly
 
-- **The staleness rules**, by 24 deterministic tests in `tests/staleness.test.ts`. About half assert
+- **The staleness rules**, by 38 deterministic tests in `tests/staleness.test.ts`. About half assert
   that nothing happens, which is deliberate — the failure that kills this kind of tool is a false
   alarm, not a miss. An identical re-run marks nothing, an unrelated branch is untouched, a running
-  task is neither marked nor walked through, a cycle terminates.
-- **The cockpit's own logic**, by 157 further tests across `tests/cockpit-*.test.ts`. The load-bearing
+  task is neither marked nor walked through, a cycle terminates. The reader-observed change carries
+  no author at any hop, and a reported change still names its producer.
+- **The cockpit's own logic**, by 161 further tests across `tests/cockpit-*.test.ts`. The load-bearing
   ones: graph geometry is byte-identical across every task status, so nothing moves on the frame
   three tasks flip amber; no label can overflow its box, checked against measured per-character
   advances; a six-task pipeline the layout has never seen draws correctly; amber fills a node if and
@@ -171,7 +200,7 @@ and type-checks, not a plan.
   silently. Registration now confirms the edge too. A stand-in derives its edges from its own entity
   map, so they are never late and this could not exist in one.
 
-- **The Python agents, by 109 self-checks** in `pnpm test:python`, now wired into `pnpm verify` so they
+- **The Python agents, by 118 self-checks** in `pnpm test:python`, now wired into `pnpm verify` so they
   actually run rather than sitting unrun. All over real files in real temporary directories. `worker.py`
   contributes 16, including the instruction remembered together with the columns it produced, the pair
   whose separation reverted a rename live. `codex_runner.py` contributes 22 over `_validate`, the only

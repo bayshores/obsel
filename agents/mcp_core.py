@@ -22,10 +22,17 @@ The rules it enforces, and why each one exists:
   the change could never cascade.
 - A dataset with no registered producer is reported as exactly that, never as
   fresh. "I could not find out" and "it is fine" are different answers.
+- A table may be reported as a `{"path": ...}` to the real file instead of
+  inline rows, and the file form is the better one. A model pasting five
+  hundred rows into a tool call will eventually truncate or paraphrase one,
+  the hash moves, and obsel reports a change nobody made. Hashing the file the
+  next agent will actually read cannot drift that way.
 """
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence
 
 from agents.fingerprint import fingerprint
@@ -252,27 +259,73 @@ def freshness_verdicts(tasks: Sequence[Any], reads: Sequence[str]) -> dict[str, 
 def _validate_table(table_name: str, table: Any) -> Table:
     if not isinstance(table, dict):
         raise ToolInputError(
-            f"output {table_name!r} must be an object with 'columns' and 'rows', "
+            f"table {table_name!r} must be an object with 'columns' and 'rows', "
             f"got {type(table).__name__}"
         )
     columns = table.get("columns")
     rows = table.get("rows")
     if not isinstance(columns, list) or not columns:
         raise ToolInputError(
-            f"output {table_name!r} needs a non-empty 'columns' list naming the "
-            "columns you actually wrote; obsel hashes rows by declared column, so "
+            f"table {table_name!r} needs a non-empty 'columns' list naming the "
+            "columns actually written; obsel hashes rows by declared column, so "
             "an empty contract hashes nothing."
         )
     if not all(isinstance(column, str) and column for column in columns):
-        raise ToolInputError(f"output {table_name!r} has a column name that is not a string")
+        raise ToolInputError(f"table {table_name!r} has a column name that is not a string")
     if not isinstance(rows, list):
         raise ToolInputError(
-            f"output {table_name!r} needs a 'rows' list (an empty list is a real "
+            f"table {table_name!r} needs a 'rows' list (an empty list is a real "
             f"answer and is accepted), got {type(rows).__name__}"
         )
     if not all(isinstance(row, dict) for row in rows):
-        raise ToolInputError(f"output {table_name!r} has a row that is not an object")
+        raise ToolInputError(f"table {table_name!r} has a row that is not an object")
     return {"columns": list(columns), "rows": [dict(row) for row in rows]}
+
+
+def _load_table_file(table_name: str, path_value: Any) -> Table:
+    """The file form: read and validate the table the next agent will actually read.
+
+    Every error names the path and the working directory, because the calling
+    agent chose the path and the fix is a better one — this is a `ToolInputError`
+    story from start to finish, never a stack trace.
+    """
+    if not isinstance(path_value, str) or not path_value:
+        raise ToolInputError(f"table {table_name!r} has a 'path' that is not a non-empty string")
+    path = Path(path_value)
+    if not path.is_file():
+        raise ToolInputError(
+            f"table {table_name!r} points at {path}, and there is no file there. "
+            f"A relative path resolves from the MCP server's working directory, "
+            f"which is {Path.cwd()}."
+        )
+    try:
+        loaded = json.loads(path.read_text(encoding="utf-8"))
+    except UnicodeDecodeError as error:
+        raise ToolInputError(f"table {table_name!r} at {path} is not UTF-8 text: {error}") from None
+    except json.JSONDecodeError as error:
+        raise ToolInputError(f"table {table_name!r} at {path} is not valid JSON: {error}") from None
+    except OSError as error:
+        raise ToolInputError(f"table {table_name!r} at {path} could not be read: {error}") from None
+    return _validate_table(table_name, loaded)
+
+
+def _resolve_table_value(table_name: str, value: Any) -> Table:
+    """A table given inline, or as `{"path": ...}` to the real file.
+
+    The file form is the safer of the two and the reason it exists: a model
+    pasting hundreds of rows into a tool call will sooner or later truncate or
+    paraphrase one, which moves the content hash, and obsel then reports a
+    change nobody made — the exact false alarm it is built to never raise.
+    The file is what the next agent will read, so its bytes are the truth.
+    """
+    if isinstance(value, dict) and "path" in value:
+        if "columns" in value or "rows" in value:
+            raise ToolInputError(
+                f"table {table_name!r} has both 'path' and inline table keys; "
+                "pass the path alone, or the columns and rows alone"
+            )
+        return _load_table_file(table_name, value["path"])
+    return _validate_table(table_name, value)
 
 
 def resolve_outputs(record: Mapping[str, Any], outputs: Mapping[str, Any]) -> dict[str, Table]:
@@ -300,7 +353,30 @@ def resolve_outputs(record: Mapping[str, Any], outputs: Mapping[str, Any]) -> di
                 f"It declared: {', '.join(sorted(declared)) or 'nothing'}. "
                 "Register the task with the tables it really writes, or fix the name."
             )
-        resolved[urn] = _validate_table(table_name, table)
+        resolved[urn] = _resolve_table_value(table_name, table)
+    return resolved
+
+
+def resolve_inputs(record: Mapping[str, Any], inputs: Mapping[str, Any]) -> dict[str, Table]:
+    """Map the short table names of what an agent read to the URNs it declared.
+
+    The same refusal as `resolve_outputs`, for the same silent failure: an
+    observation recorded against a table this task has no `Consumes` edge to
+    would be evidence obsel files where no comparison will ever find it. Unlike
+    outputs, an empty mapping is fine — observations are optional, and a task
+    that did not hash what it read should send nothing rather than invent it.
+    """
+    declared = {dataset_short_name(urn): urn for urn in record.get("reads") or []}
+    resolved: dict[str, Table] = {}
+    for table_name, table in inputs.items():
+        urn = declared.get(table_name)
+        if urn is None:
+            raise ToolInputError(
+                f"{record.get('name')} did not declare that it reads {table_name!r}. "
+                f"It declared: {', '.join(sorted(declared)) or 'nothing'}. "
+                "Register the task with the tables it really reads, or fix the name."
+            )
+        resolved[urn] = _resolve_table_value(table_name, table)
     return resolved
 
 
@@ -310,6 +386,7 @@ def completion_body(
     finished_at: str,
     runner: str | None = None,
     ms: float | None = None,
+    inputs: Mapping[str, Any] | None = None,
 ) -> tuple[dict[str, Any], dict[str, dict[str, str]]]:
     """The body for `POST /api/tasks/complete`, and the fingerprints it carries.
 
@@ -327,8 +404,24 @@ def completion_body(
     `run` is sent only when both `runner` and `ms` are present, because obsel's
     schema requires the whole object or none of it. It is display material: obsel
     decides nothing on it and a completion without it gets an identical answer.
+
+    `inputs` is what the task READ, hashed here exactly as the outputs are. It is
+    the only evidence that can expose a table rewritten by something that never
+    reports: the writer sent no fingerprint, so this reader's is the one record
+    of what the table holds now. Optional, and worth sending as paths — the files
+    are already on disk, so observing them costs one key per table.
     """
     tables = resolve_outputs(record, outputs)
+
+    # Which outputs arrived as paths, so the shape sent for the board can say
+    # where the file lives. Reconstructed from the raw mapping because
+    # `resolve_outputs` returns bare tables; display material only.
+    declared_writes = {dataset_short_name(urn): urn for urn in record.get("writes") or []}
+    paths = {
+        declared_writes[name]: value["path"]
+        for name, value in outputs.items()
+        if isinstance(value, dict) and "path" in value and name in declared_writes
+    }
 
     fingerprints: dict[str, dict[str, str]] = {}
     shapes: dict[str, dict[str, Any]] = {}
@@ -336,6 +429,8 @@ def completion_body(
         canonical = canonicalise_numbers(table)
         fingerprints[urn] = fingerprint(canonical["rows"], canonical["columns"])
         shapes[urn] = {"rows": len(canonical["rows"]), "columns": list(canonical["columns"])}
+        if urn in paths:
+            shapes[urn]["path"] = str(paths[urn])
 
     body: dict[str, Any] = {
         "taskUrn": record.get("urn"),
@@ -344,6 +439,16 @@ def completion_body(
     }
     if runner and ms is not None:
         body["run"] = {"runner": runner, "ms": round(float(ms)), "outputs": shapes}
+
+    if inputs:
+        observations: dict[str, dict[str, Any]] = {}
+        for urn, table in resolve_inputs(record, inputs).items():
+            canonical = canonicalise_numbers(table)
+            observations[urn] = {
+                **fingerprint(canonical["rows"], canonical["columns"]),
+                "columns": list(canonical["columns"]),
+            }
+        body["inputs"] = observations
     return body, fingerprints
 
 
@@ -664,6 +769,113 @@ def _self_check() -> int:
         dataset in empty_rows["fingerprints"],
         "an empty result is a real result, and a filter that removed everything is real work",
     )
+
+    print()
+    print("tables reported as paths to real files")
+
+    # Real files in a real temporary directory, per the repo's rule: the missing
+    # file is a path nothing wrote, the bad JSON is real bad JSON on disk.
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_dir = Path(tmp)
+        table_file = tmp_dir / "clean_orders.json"
+        table_file.write_text(json.dumps(good["clean_orders"]), encoding="utf-8")
+
+        _, path_prints = completion_body(
+            clean_task, {"clean_orders": {"path": str(table_file)}}, "2026-07-23T00:00:00Z"
+        )
+        check(
+            "a path and the same table inline reach one fingerprint",
+            path_prints[dataset] == prints[dataset],
+            "the file form must not be a second definition of what was produced",
+        )
+
+        missing = raises(
+            ToolInputError,
+            lambda: completion_body(
+                clean_task, {"clean_orders": {"path": str(tmp_dir / "never_written.json")}}, "t"
+            ),
+        )
+        check(
+            "a path with no file behind it is refused, naming path and working directory",
+            "never_written.json" in missing and "working directory" in missing,
+            "the agent chose the path, so the error must hand it what to fix",
+        )
+
+        bad_json = tmp_dir / "broken.json"
+        bad_json.write_text("{not json", encoding="utf-8")
+        check(
+            "a file that is not JSON is refused as the agent's problem, not a crash",
+            "not valid JSON"
+            in raises(
+                ToolInputError,
+                lambda: completion_body(clean_task, {"clean_orders": {"path": str(bad_json)}}, "t"),
+            ),
+            "json.JSONDecodeError becomes a ToolInputError that names the file",
+        )
+
+        not_a_table = tmp_dir / "shape.json"
+        not_a_table.write_text('{"nope": true}', encoding="utf-8")
+        check(
+            "a JSON file that is not a table is refused by shape",
+            "columns"
+            in raises(
+                ToolInputError,
+                lambda: completion_body(clean_task, {"clean_orders": {"path": str(not_a_table)}}, "t"),
+            ),
+            "the same shape rule as an inline table, so the two forms cannot drift",
+        )
+
+        check(
+            "a value with both a path and inline keys is refused as ambiguous",
+            "both"
+            in raises(
+                ToolInputError,
+                lambda: completion_body(
+                    clean_task,
+                    {"clean_orders": {"path": str(table_file), "rows": []}},
+                    "t",
+                ),
+            ),
+            "hashing one and silently ignoring the other would hide a disagreement",
+        )
+
+        print()
+        print("what the task read, alongside what it wrote")
+
+        raw_file = tmp_dir / "raw_orders.json"
+        raw_file.write_text(
+            json.dumps({"columns": ["order_id"], "rows": [{"order_id": 1}]}), encoding="utf-8"
+        )
+        raw_urn = "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_demo.raw_orders,PROD)"
+
+        with_inputs, _ = completion_body(
+            clean_task, good, "2026-07-23T00:00:00Z", inputs={"raw_orders": {"path": str(raw_file)}}
+        )
+        observation = with_inputs["inputs"][raw_urn]
+        check(
+            "an observation carries both hashes and the columns, keyed by urn",
+            set(observation) == {"schema", "content", "columns"}
+            and observation["columns"] == ["order_id"],
+            "the engine compares the hashes and the columns let a mismatch name what moved",
+        )
+        check(
+            "a table this task never declared it reads is refused",
+            "did not declare that it reads"
+            in raises(
+                ToolInputError,
+                lambda: completion_body(
+                    clean_task, good, "t", inputs={"clean_orders": good["clean_orders"]}
+                ),
+            ),
+            "an observation filed against absent lineage is evidence nothing will ever find",
+        )
+        check(
+            "a report without inputs sends none",
+            "inputs" not in body,
+            "optional means absent, not an empty object that implies an empty read",
+        )
 
     print()
     print("reading the answer back")

@@ -205,15 +205,25 @@ def build_server(obsel_url: str = OBSEL_URL) -> Any:
         outputs: dict[str, Any],
         runner: str | None = None,
         ms: float | None = None,
+        inputs: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Report what you produced. This is what triggers everything obsel does.
 
-        Pass the real rows and columns you wrote. obsel hashes them here, on the
-        same path its own workers use -- do not hash anything yourself.
+        Prefer reporting each table as a path to its real file:
+        {"clean_orders": {"path": "data/clean_orders.json"}}. obsel hashes the
+        file here, on the same path its own workers use --
+        do not hash anything yourself, and do not paste rows you could point at
+        instead, because a pasted row that drifts becomes a change nobody made.
+        Inline {"columns": [...], "rows": [...]} is accepted when there is no file.
 
         Report even when you believe nothing changed. An identical result returns
         an empty `changedOutputs` and marks nothing, and that quiet answer is what
         makes the loud ones trustworthy.
+
+        Also pass `inputs`: the tables you read, in the same form. obsel compares
+        what you read against what their writers recorded. If they disagree, a
+        table was changed by something that never reported, and your report is
+        the only evidence of that anywhere.
 
         The reply's `affected` lists finished work your completion just
         invalidated, each with the reason and how many hops away it was. Tell
@@ -221,15 +231,18 @@ def build_server(obsel_url: str = OBSEL_URL) -> Any:
 
         Args:
             taskUrn: the `urn` from `register_task`.
-            outputs: one entry per table you wrote, keyed by SHORT table name:
-                {"clean_orders": {"columns": ["id", "total"], "rows": [{"id": 1, "total": 10}]}}
-                Every table must be one this task declared it writes.
+            outputs: one entry per table you wrote, keyed by SHORT table name,
+                each a {"path": ...} to the real file (preferred) or an inline
+                {"columns": [...], "rows": [...]}. Every table must be one this
+                task declared it writes.
             runner: optionally, what did the work, e.g. "claude-code 2.1".
             ms: optionally, how long your run took in milliseconds, measured by you.
+            inputs: optionally, one entry per table you read, same forms as
+                `outputs`. Every table must be one this task declared it reads.
         """
         record = worker.obsel_task(taskUrn, obsel_url)
         body, fingerprints = mcp_core.completion_body(
-            record, outputs, _now(), runner=runner, ms=ms
+            record, outputs, _now(), runner=runner, ms=ms, inputs=inputs
         )
         coordination = worker.post_json(f"{obsel_url}/api/tasks/complete", body)
         # Read the lists before returning: a reply that lost `affected` must not

@@ -277,6 +277,26 @@ test.describe("fit", () => {
     expect(reason?.ellipsis).toBe(false);
   });
 
+  /*
+   * The answer to "what tables?". A table box used to be inert, which left the
+   * board's central noun as an abstraction a viewer had to take on faith. A
+   * click now opens a derived view: who writes it, who reads it, and what the
+   * writer's last completion said came out.
+   */
+  test("clicking a table opens its details: writer, readers, columns", async ({ page }) => {
+    await openCockpit(page, cascaded());
+    await page.waitForSelector(".react-flow__node-data", { state: "attached" });
+
+    await page.locator(".react-flow__node-data").nth(1).click();
+    await expect(page.getByText("table urn")).toBeVisible();
+    await expect(page.getByText("written by")).toBeVisible();
+    await expect(page.getByText("read by")).toBeVisible();
+    // The panel says these are reported values, not a live read of the file.
+    await expect(
+      page.getByText("obsel stores nothing on the table itself", { exact: false }),
+    ).toBeVisible();
+  });
+
   test("opening the details panel moves nothing in the graph", async ({ page }) => {
     await openCockpit(page, cascaded());
     await page.waitForSelector(".react-flow__node", { state: "attached" });

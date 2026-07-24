@@ -20,14 +20,14 @@ import { useState } from "react";
 import { Backdrop } from "./backdrop";
 import { guide } from "./guide";
 import { GuidePanel } from "./guide-panel";
-import { Inspector } from "./inspector";
+import { DataInspector, Inspector } from "./inspector";
 import { Lineage } from "./lineage";
 import { Panel, PulseDot, StatCell, StatRibbon, Wordmark } from "./mmux";
 import { TracePanel } from "./trace-panel";
 import { useActivity } from "./use-activity";
 import { useTrace } from "./use-trace";
 import { useSwarm } from "./use-swarm";
-import { clockTime, inDependencyOrder, summaryLine, totals } from "./timing";
+import { clockTime, inDependencyOrder, lastReportAt, summaryLine, totals } from "./timing";
 import type { SwarmTotals } from "./timing";
 
 import styles from "./cockpit.module.css";
@@ -57,6 +57,12 @@ export function Cockpit() {
   // A failed read invalidates every derived number, not just the connection.
   const trusted = data !== null && error === null;
   const selected = tasks.find((task) => task.urn === selectedUrn) ?? null;
+  // The graph hands over one URN either way; the entity type inside it says
+  // whether the click chose an agent or a table.
+  const selectedDataset =
+    selected === null && selectedUrn !== null && selectedUrn.startsWith("urn:li:dataset:")
+      ? selectedUrn
+      : null;
 
   const guideView = guide({
     trusted,
@@ -210,14 +216,14 @@ export function Cockpit() {
                 <span className={styles.keyTable} aria-hidden="true" /> a table
               </li>
               {/*
-                "an agent", not "either one". `lineage.tsx` opens the details
-                panel for `node.type === "task"` and for nothing else, so a table
-                is not clickable, and this line said it was until it was checked in
-                a browser. A key that promises an interaction the board does not
-                have is worse than no key: it teaches a reader that clicking does
-                nothing.
+                "any box", and this line has now flipped twice, each time to
+                match what the click actually does. It said "either one" when
+                tables were not clickable and was corrected in a browser; tables
+                open a details view of their own now, so the wider promise is
+                true again. The key must never promise an interaction the board
+                does not have.
               */}
-              <li className={styles.keyHint}>click an agent for details</li>
+              <li className={styles.keyHint}>click any box for details</li>
             </ul>
           )}
         </Panel>
@@ -241,6 +247,22 @@ export function Cockpit() {
             when this appears — only the trace beside it gives up room, and only
             while someone is deliberately reading raw values.
           */}
+          {selectedDataset !== null && (
+            <DataInspector
+              dataset={selectedDataset}
+              tasks={tasks}
+              readAt={trusted && lastReadAt !== null ? clockTime(lastReadAt) : null}
+              roundTripMs={trusted ? roundTripMs : null}
+              onClose={() => setSelectedUrn(null)}
+              style={{
+                flex: "1 1 0",
+                minWidth: 0,
+                minHeight: 0,
+                display: "flex",
+                flexDirection: "column",
+              }}
+            />
+          )}
           {selected !== null && (
             <Inspector
               task={selected}
@@ -346,7 +368,9 @@ export function Cockpit() {
         screen reader, and it costs no pixels.
       */}
       <p className={styles.announce} role="status" aria-live="polite">
-        {trusted ? summaryLine(t.tasks, t.finished, t.stale) : "Not reading the swarm."}
+        {trusted
+          ? summaryLine(t.tasks, t.finished, t.stale, lastReportAt(tasks))
+          : "Not reading the swarm."}
       </p>
     </main>
   );

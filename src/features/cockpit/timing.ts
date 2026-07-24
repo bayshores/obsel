@@ -225,20 +225,53 @@ export function inDependencyOrder(tasks: TaskRecord[]): TaskRecord[] {
 }
 
 /**
+ * The newest moment any agent told obsel anything: a start or a completion.
+ *
+ * This exists to bound the quiet claim below. obsel has no watcher and no
+ * scheduler — an agent reporting is the only way it learns anything — so
+ * "nothing has changed" is really "nothing has changed that anyone reported,
+ * as of the last report". Without the timestamp those two read identically,
+ * and the second is the honest one.
+ */
+export function lastReportAt(tasks: TaskRecord[]): string | null {
+  let newest: string | null = null;
+  for (const task of tasks) {
+    for (const stamp of [task.finishedAt, task.startedAt]) {
+      if (stamp === null) continue;
+      const at = Date.parse(stamp);
+      if (Number.isNaN(at)) continue;
+      if (newest === null || at > Date.parse(newest)) newest = stamp;
+    }
+  }
+  return newest;
+}
+
+/**
  * The sentence under the stale count.
  *
  * Every branch states what was actually observed. There is deliberately no
  * "all clear" phrasing for the case where nothing has finished yet — nothing
  * being stale because nothing has run is not the same claim as nothing being
  * stale because everything checks out.
+ *
+ * The quiet branch carries the time of the last report, because that is the
+ * edge of obsel's knowledge: a table rewritten by something that never reports
+ * is invisible until the next honest read. An unbounded "nothing is out of
+ * date" claims more than obsel can know.
  */
-export function summaryLine(total: number, finished: number, stale: number): string {
+export function summaryLine(
+  total: number,
+  finished: number,
+  stale: number,
+  asOf: string | null = null,
+): string {
   if (total === 0) return "No agents set up yet.";
   if (finished === 0) {
     return `${total} ${total === 1 ? "agent is" : "agents are"} set up. None has finished, so nothing can be out of date yet.`;
   }
   if (stale === 0) {
-    return `${finished} of ${total} ${total === 1 ? "agent has" : "agents have"} finished, and none of the tables they read has changed since.`;
+    const bound = asOf === null ? "" : `, as of the last report at ${clockTime(asOf)}`;
+    return `${finished} of ${total} ${total === 1 ? "agent has" : "agents have"} finished, and none of the tables they read has changed since${bound}.`;
   }
   return `${stale} of ${finished} finished ${stale === 1 ? "agent is" : "agents are"} out of date, because a table ${stale === 1 ? "it" : "they"} read changed afterwards.`;
 }

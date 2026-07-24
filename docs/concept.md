@@ -43,6 +43,11 @@ work from the preceding 30 days. It is not solved: the June 22 paper still state
 Every shipped multi-agent coordination tool surveyed prevents collisions _before_ they happen. None
 detects invalidation _after_ work is finished.
 
+**Read that sentence narrowly.** It is a claim about agent-coordination tooling, and it was written
+before orchestrators were checked. They were checked on 2026-07-23 and Dagster does detect
+invalidation after the fact, cascading downstream, for assets declared in its own graph. Section 3a
+records that in full. Nothing below should be read as claiming the idea is unprecedented.
+
 - **Prevention is the whole state of the art.** A representative April 2026 survey of the field
   ([source](https://getautonoma.com/blog/parallel-ai-agent-prs)) lists five strategies: scope agents
   to non-overlapping work, branch isolation with frozen bases, serialized merge queues, explicit
@@ -56,9 +61,58 @@ detects invalidation _after_ work is finished.
   public writing about AI agents is backward-looking (audit, governance, trustworthy answers) or
   read-direction (giving agents context before they act). None coordinates in-flight agent work.
 
+### 3a. Orchestrators, checked properly on 2026-07-23
+
+The survey above covered multi-agent coordination tools and catalog vendors. It did not cover data
+orchestrators, which is where the strongest substitute actually lives, and skipping them was the
+biggest hole in this document. Checked against primary documentation, not summaries. The result
+narrows obsel's claim, and the narrowed claim is the one to make.
+
+**Dagster is a genuine substitute, and does most of this already.** An asset is stale when its code
+version or its upstream data has changed and it has not been re-materialized since, and any asset
+downstream of a stale asset is stale too
+([docs](https://docs.dagster.io/guides/build/assets/asset-versioning-and-caching)). That is the same
+cascade obsel performs. **obsel is not novel here and the README must not imply it is.** Two real
+differences survive:
+
+- **Dagster's default data version is derived, not measured.** It is computed "by hashing a code
+  version together with the data versions of any input assets" — so bumping a code version marks
+  everything downstream stale even when the output is byte-identical. That is exactly the false
+  alarm obsel's first correctness rule exists to prevent. Dagster can be made content-addressed:
+  user code may supply its own data version, and an observable source asset computes one from real
+  contents. So this is a difference in default, not in capability, and should be described that way.
+- **The asset must be declared in Dagster code first.** External assets are declared with
+  `AssetSpec` before an outside process may report a materialization against them
+  ([docs](https://docs.dagster.io/guides/build/assets/external-assets)); nothing found indicates an
+  external process can create a new node at runtime. This is the difference that holds.
+
+**dbt state-aware orchestration is closer than expected, and is a build optimiser rather than an
+alarm.** It rebuilds a model when code changed, when a source has new data, when upstream models are
+fresher than the prior run, and even when a table was deleted from the warehouse
+([docs](https://docs.getdbt.com/docs/deploy/state-aware-about)). But it decides what to rebuild _on
+the next run_. It does not leave already-finished work standing and flagged, which is obsel's entire
+output. Separately, plain `state:modified` compares code and configuration, not data
+([docs](https://docs.getdbt.com/faqs/State/state-modified-difference)).
+
+**Airflow 3 assets schedule, they do not invalidate.** An asset update triggers the consuming DAG
+([docs](https://airflow.apache.org/docs/apache-airflow/stable/authoring-and-scheduling/assets.html)).
+Nothing found marks a completed task instance stale; the response to a change is a fresh run.
+
+**DataHub's own observability answers the opposite question.** A Freshness Assertion detects a table
+that has _not_ been updated inside a window, does not compare contents between runs, and is
+["available as part of the DataHub Cloud Observe module"](https://docs.datahub.com/docs/managed-datahub/observe/freshness-assertions),
+not the open-source stack obsel runs on. Impact analysis shows a human the blast radius before they
+make a change. Both are useful and neither watches finished work after the fact.
+
+**What honestly remains.** Every tool above requires one system to own the graph, with each node
+declared in its project before it can participate. obsel's case is the one where no such owner
+exists: agents from different frameworks and machines joining at runtime over MCP, each creating its
+own node. Plus content-addressing by default, so an unchanged re-run is silent without anyone
+wiring that up. **If the agents in question are Dagster assets, use Dagster.**
+
 **The gap obsel fills:** live, retroactive invalidation of already-completed agent work, built on an
-existing open metadata platform with a real UI. The "what can start next" half is table stakes and
-is not the pitch.
+existing open metadata platform with a real UI, in the case where no single orchestrator owns the
+graph. The "what can start next" half is table stakes and is not the pitch.
 
 ## 4. Why DataHub, and not a task queue
 
@@ -157,3 +211,31 @@ already is. obsel is forward-looking — it uses the graph while the work is hap
   another entrant could land nearby. The defense is depth and a demo that does not flinch.
 - The operator mostly watches. This is infrastructure; the experience is thin by nature, which puts
   the entire weight of the demo on the invalidation moment being genuinely surprising.
+
+### 9a. The silent participant, and what was done about it (2026-07-23)
+
+The sharpest version of the weakness: obsel only learns anything when an agent reports, so an agent
+that writes a shared table and never reports is invisible — and the resulting silence reads as "all
+clear", which is worse than no tool.
+
+Shipped mitigation, the reader-side cross-check. Every completion may carry fingerprints of what
+the task **read** as well as what it wrote (`worker.py` sends them automatically; the MCP
+`report_complete` takes them as `inputs`). The engine compares each observation against what that
+dataset's producer recorded writing. A mismatch is a change nothing reported: every finished task
+built on the old version is marked, `causedByTask` is null because the author is unknown, and the
+reason says obsel noticed it through a read. The first observation is recorded on the producer
+(`obsel.observed`) so later identical reads do not re-flag. Proven live in
+`tests/live/engine.live.test.ts` ("a change nothing reported is caught by the next honest read").
+
+The board's quiet claim is bounded to match: "none of the tables they read has changed since, as of
+the last report at 17:42:07" rather than an unbounded all-clear.
+
+What this deliberately does not fix, in honesty order:
+
+- **Coverage grows with reads, not with time.** Between the silent write and the next honest read
+  of that table, obsel is still blind. A user who wants the gap closed can run any agent that
+  re-reads the tables and reports — the mechanism is already the ordinary completion report — or,
+  in a real warehouse, feed change-data-capture into the same API. Neither is built here.
+- **A table obsel has never been told about stays invisible.** No tool can walk downstream of a
+  node it does not know exists; the orchestrators in 3a answer this with up-front declaration,
+  obsel answers it by making joining cost one call. The gap between those two is fundamental.

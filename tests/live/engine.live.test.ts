@@ -71,6 +71,10 @@ async function registerPipeline(): Promise<void> {
   // The unrelated branch: reads the same seed table, writes something of its own, and
   // must never be reached by a change to `clean_orders`.
   await registerTask("side_job", ["raw_orders"], ["side_table"], undefined, "Side job");
+  // A second reader of clean_orders, for the unreported-change tests. The cascade from
+  // an observed change stops at the reporter — its own outputs are judged by the normal
+  // output comparison — so proving anything gets marked needs another finished reader.
+  await registerTask("audit_orders", ["clean_orders"], ["audit_report"], undefined, "Order audit");
 }
 
 /**
@@ -165,6 +169,7 @@ describe("registration puts real entities and real edges into DataHub", () => {
       "write_report",
       "write_docs",
       "side_job",
+      "audit_orders",
     ]) {
       expect(names, expected).toContain(expected);
     }
@@ -305,6 +310,116 @@ describe("a real change cascades through DataHub's own lineage", () => {
     expect(result.affected.map((a) => a.task.name)).not.toContain("side_job");
     expect((await readTask(taskUrn("side_job")))?.stale).toBeNull();
     expect(await tagsOn("side_job")).toEqual([]);
+  });
+});
+
+describe("a change nothing reported is caught by the next honest read", () => {
+  /*
+   * The writer-independent half of detection. Something rewrites clean_orders and
+   * never tells obsel — no completion, no fingerprint, nothing. The producer's own
+   * record cannot catch that, because the producer never sent one for the new bytes.
+   * What catches it is the next honest reader: its completion report carries what it
+   * actually read, and that contradicts what the producer recorded writing.
+   *
+   * The "hostile input" here is real in the only sense that matters: obsel receives
+   * a genuine completion whose input fingerprint genuinely disagrees with a genuine
+   * recorded one. There is no file to tamper with because obsel never reads files —
+   * the disagreement between two reports IS the entire observable event.
+   */
+
+  /** Everyone finishes, including both readers of clean_orders. */
+  async function runAllWithAudit(): Promise<void> {
+    await runAll(["order_id", "order_total"]);
+    await coordinateCompletion(finished("audit_orders", "audit_report", "sA", "cA"));
+  }
+
+  /** build_revenue re-runs and reports what it read alongside what it wrote. */
+  function rereadReport(observedSchema: string): CompletionReport {
+    return {
+      ...finished("build_revenue", "daily_revenue", "s2", "c2"),
+      inputs: {
+        [datasetUrn("clean_orders")]: {
+          schema: observedSchema,
+          content: "c1",
+          columns: ["order_id", "order_total_usd"],
+        },
+      },
+    };
+  }
+
+  it("marks the other finished reader, with no author and a reason that says so", async () => {
+    await runAllWithAudit();
+
+    // build_revenue re-runs. Its output is byte-identical (s2/c2), so the output
+    // comparison stays quiet — everything below comes from the input observation.
+    await startTask(taskUrn("build_revenue"));
+    const result = await coordinateCompletion(rereadReport("s1-silent"));
+
+    expect(result.changedOutputs).toEqual([]);
+    expect(result.observedChanges).toEqual([
+      { dataset: datasetUrn("clean_orders"), kind: "schema" },
+    ]);
+
+    // audit_orders is the other finished reader of the changed table. write_report
+    // and write_docs are reachable only through the reporter, whose own outputs
+    // just compared identical, so they are correctly untouched.
+    expect(result.affected.map((entry) => entry.task.name)).toEqual(["audit_orders"]);
+
+    const audit = await readTask(taskUrn("audit_orders"));
+    expect(audit?.status).toBe("stale");
+    expect(audit?.stale?.causedBy).toBe(datasetUrn("clean_orders"));
+    // No author: blaming clean_orders' producer would name a task that never wrote
+    // these bytes.
+    expect(audit?.stale?.causedByTask).toBeNull();
+    expect(audit?.stale?.reason).toContain("Nothing reported that change");
+    expect(audit?.stale?.reason).toContain("Daily revenue");
+    // The diff still names columns, from the producer's recorded shape against the
+    // reader's observed one.
+    expect(audit?.stale?.columns).toEqual({
+      added: ["order_total_usd"],
+      removed: ["order_total"],
+    });
+    // And the half a person sees in DataHub's own UI landed too.
+    expect(await tagsOn("audit_orders")).toContain(STALE_TAG_URN);
+
+    for (const untouched of ["write_report", "write_docs", "side_job"]) {
+      expect((await readTask(taskUrn(untouched)))?.stale, untouched).toBeNull();
+    }
+  });
+
+  it("does not re-flag when a second read observes the same bytes", async () => {
+    await runAllWithAudit();
+    await startTask(taskUrn("build_revenue"));
+    await coordinateCompletion(rereadReport("s1-silent"));
+
+    // The observation was written onto the producer, which is what makes the second
+    // identical read compare clean instead of re-running the cascade.
+    const producer = await readTask(taskUrn("clean_orders"));
+    expect(producer?.observed?.[datasetUrn("clean_orders")]).toEqual({
+      schema: "s1-silent",
+      content: "c1",
+    });
+
+    const before = (await readTask(taskUrn("audit_orders")))?.stale?.since;
+    await startTask(taskUrn("build_revenue"));
+    const again = await coordinateCompletion(rereadReport("s1-silent"));
+
+    expect(again.observedChanges).toEqual([]);
+    expect(again.affected).toEqual([]);
+    expect((await readTask(taskUrn("audit_orders")))?.stale?.since).toBe(before);
+  });
+
+  it("marks nothing when the read matches what was recorded", async () => {
+    await runAllWithAudit();
+    await startTask(taskUrn("build_revenue"));
+    const result = await coordinateCompletion({
+      ...finished("build_revenue", "daily_revenue", "s2", "c2"),
+      inputs: { [datasetUrn("clean_orders")]: { schema: "s1", content: "c1" } },
+    });
+
+    expect(result.observedChanges).toEqual([]);
+    expect(result.affected).toEqual([]);
+    expect((await readTask(taskUrn("audit_orders")))?.stale).toBeNull();
   });
 });
 

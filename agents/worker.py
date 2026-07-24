@@ -424,6 +424,7 @@ def report_completion(
     finished_at: str,
     obsel_url: str = OBSEL_URL,
     run: dict[str, Any] | None = None,
+    inputs: dict[str, dict[str, Any]] | None = None,
 ) -> Any:
     """The CompletionReport. obsel answers with what this completion invalidated.
 
@@ -435,6 +436,13 @@ def report_completion(
     The duration is this process's own measurement of its own run. It is sent
     rather than left for obsel to derive from `finishedAt`, because obsel would
     have to subtract its own clock from this machine's to get it.
+
+    `inputs` is what this task READ, hashed the same way as what it wrote. It is
+    the one piece of evidence that can expose a table rewritten by something
+    that never reports: the writer sent no fingerprint, so the reader's is the
+    only record of what the table holds now. Optional, because the tables were
+    already in memory when this is cheap and an agent without them should not
+    fake it.
     """
     body: dict[str, Any] = {
         "taskUrn": task_urn,
@@ -443,6 +451,8 @@ def report_completion(
     }
     if run is not None:
         body["run"] = run
+    if inputs is not None:
+        body["inputs"] = inputs
     return post_json(f"{obsel_url}/api/tasks/complete", body)
 
 
@@ -643,6 +653,20 @@ def run_task(
     # failing here should leave the task exactly as it was.
     inputs = {name: load_table(name, root) for name in task.reads}
 
+    # Hashed now, before the agent touches anything, because this is the exact
+    # version the work is about to be built on. Reported alongside the output at
+    # completion: if what was read here disagrees with what its producer recorded
+    # writing, the table was changed by something that never told obsel, and this
+    # report is the only evidence of that anywhere. Canonicalised first, so the
+    # observation uses the same definition of "changed" as every fingerprint.
+    observed_inputs = {
+        pipeline.dataset_urn(name): {
+            **fingerprint(canonical["rows"], canonical["columns"]),
+            "columns": list(canonical["columns"]),
+        }
+        for name, canonical in ((name, canonicalise_numbers(table)) for name, table in inputs.items())
+    }
+
     # ORDER MATTERS, and it is the reverse of what it once was.
     #
     # The announcement used to come *after* Codex, so that a failed run could not
@@ -706,6 +730,10 @@ def run_task(
                 pipeline.dataset_urn(task.writes): {
                     "rows": len(output["rows"]),
                     "columns": list(output["columns"]),
+                    # Where the table actually lives, so the board can point at
+                    # the file instead of asking a viewer to take it on faith.
+                    # Display only: a path from this machine decides nothing.
+                    "path": str(output_path),
                 }
             },
         }
@@ -713,7 +741,7 @@ def run_task(
         coordination: dict[str, Any] = {}
         if report:
             coordination = report_completion(
-                task_urn, fingerprints, finished_at, obsel_url, run=run_detail
+                task_urn, fingerprints, finished_at, obsel_url, run=run_detail, inputs=observed_inputs
             )
             _leave_running(task.name, root)
     except Exception as error:
@@ -872,6 +900,24 @@ def _self_check() -> int:
             "a file that is not a table is rejected rather than half-read",
             not_a_table,
             "fingerprinting a shape obsel did not write would produce a confident wrong digest",
+        )
+
+        # The property the reader-side check stands on. A writer hashes its
+        # canonicalised table and saves it; the next reader loads that file,
+        # canonicalises, and hashes what it read. If those two fingerprints could
+        # differ for the same file, every honest read would look like a table
+        # changed behind obsel's back, and the unreported-change alarm would fire
+        # on nothing at all.
+        producer_view = canonicalise_numbers(
+            {"columns": ["order_id", "order_total"], "rows": [{"order_id": 2, "order_total": 217}]}
+        )
+        save_table("handoff", producer_view, root)
+        reader_view = canonicalise_numbers(load_table("handoff", root))
+        check(
+            "the reader's hash of a saved table equals the writer's",
+            fingerprint(producer_view["rows"], producer_view["columns"])
+            == fingerprint(reader_view["rows"], reader_view["columns"]),
+            "write, save, load, read must reach one fingerprint or input observations lie",
         )
 
         # The pair whose separation reverted a rename live on 2026-07-22.

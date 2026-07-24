@@ -22,6 +22,14 @@ export interface DatasetChange {
   kind: ChangeKind;
   /** Which columns moved, when known. Described, never used to decide. */
   columns?: ColumnChange | null;
+  /**
+   * Set when this change was noticed by a reader rather than reported by the
+   * task that wrote the dataset — the unreported change. The author is unknown,
+   * so marks descending from it carry `causedByTask: null` instead of blaming
+   * the producer for bytes it never wrote, and the hop-1 reason says the change
+   * was never reported, naming the task whose read exposed it.
+   */
+  noticedBy?: TaskRecord | null;
 }
 
 /**
@@ -98,10 +106,17 @@ function reasonFor(
   changedDataset: string,
   viaTask: TaskRecord | null,
   kind: ChangeKind,
+  noticedBy: TaskRecord | null,
 ): string {
   const table = tableLabel(changedDataset);
   if (hops === 1) {
-    return `read ${table}, and ${describe(kind)} after this finished`;
+    const base = `read ${table}, and ${describe(kind)} after this finished`;
+    // The unreported case earns a longer sentence, because the usual mental
+    // model — the producer re-ran — is exactly wrong here, and a reader acting
+    // on that model would go ask the wrong agent what it did.
+    return noticedBy
+      ? `${base}. Nothing reported that change; obsel noticed it when ${taskLabel(noticedBy)} read the table`
+      : base;
   }
   const via = viaTask ? taskLabel(viaTask) : "an upstream task";
   return `built on work from ${via}, which is itself out of date because ${table} changed`;
@@ -201,6 +216,8 @@ export function affectedBy(
      * table.
      */
     columns: ColumnChange | null;
+    /** Carried like `columns`: whether the ORIGIN's change was unreported. */
+    noticedBy: TaskRecord | null;
   }
 
   const seenDatasets = new Set<string>(changes.map((c) => c.dataset));
@@ -212,6 +229,7 @@ export function affectedBy(
     origin: c.dataset,
     kind: c.kind,
     columns: c.columns ?? null,
+    noticedBy: c.noticedBy ?? null,
   }));
   let hops = 0;
 
@@ -236,7 +254,10 @@ export function affectedBy(
 
         const mark: StaleMark = {
           causedBy: pending.origin,
-          causedByTask: producerOf.get(pending.origin)?.urn ?? null,
+          // An unreported change has no known author. Naming the producer here
+          // would blame it for bytes it never wrote, and someone acting on the
+          // mark would go interrogate the wrong agent.
+          causedByTask: pending.noticedBy ? null : (producerOf.get(pending.origin)?.urn ?? null),
           hops,
           changeKind: pending.kind,
           columns: pending.columns,
@@ -245,6 +266,7 @@ export function affectedBy(
             pending.origin,
             hops > 1 ? (producerOf.get(pending.dataset) ?? null) : null,
             pending.kind,
+            pending.noticedBy,
           ),
           since: now,
           // Filled in by the engine once every mark from this change has been
@@ -263,6 +285,7 @@ export function affectedBy(
             origin: pending.origin,
             kind: pending.kind,
             columns: pending.columns,
+            noticedBy: pending.noticedBy,
           });
         }
       }

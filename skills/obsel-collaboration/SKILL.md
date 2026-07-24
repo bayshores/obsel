@@ -101,17 +101,26 @@ Your own tools, your own way. obsel is not involved and does not care how you do
 report_complete(
   taskUrn: "<the urn>",
   outputs: {
-    "daily_revenue": {
-      "columns": ["day", "revenue"],
-      "rows": [{"day": "2026-07-23", "revenue": 4820.5}]
-    }
+    "daily_revenue": {"path": "data/daily_revenue.json"}
+  },
+  inputs: {
+    "clean_orders": {"path": "data/clean_orders.json"}
   },
   runner: "claude-code 2.1",
   ms: 4120
 )
 ```
 
-Pass the **real rows and columns you wrote**. obsel hashes them itself.
+Report each table as a **path to the real file you wrote**. obsel reads and hashes the
+file itself. Inline `{"columns": [...], "rows": [...]}` is accepted when there is no
+file, but do not paste rows you could point at instead: a pasted row that drifts in
+transcription becomes a change nobody made.
+
+Pass `inputs` too: the tables you read, in the same form. obsel compares what you read
+against what their writers recorded. If they disagree, someone changed a table without
+reporting it, and your report is the only evidence of that anywhere. This costs you one
+line per table and it is what protects your own finished work from the next silent
+writer.
 
 **Never hash anything yourself.** There is no tool that takes a fingerprint, and that
 is on purpose: an agent that hands obsel a hash is an agent that could hand it the
@@ -198,7 +207,7 @@ that somebody finds out when it goes wrong.
 | `check_freshness(reads)`                                   | before any work, on every table you will read              |
 | `register_task(name, reads, writes, title?, description?)` | once, to declare your lineage                              |
 | `announce_start(taskUrn)`                                  | before you write anything                                  |
-| `report_complete(taskUrn, outputs, runner?, ms?)`          | when you are done, whether or not anything changed         |
+| `report_complete(taskUrn, outputs, inputs?, runner?, ms?)` | when you are done, whether or not anything changed         |
 | `abandon_task(taskUrn)`                                    | if you announced and then failed                           |
 | `read_board()`                                             | to see who else is in the swarm and what state they are in |
 

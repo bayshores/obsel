@@ -25,6 +25,10 @@
  * cause, and a stand-in would only be asserting the message this file also wrote.
  */
 
+import { promises as fs } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import {
   StdioClientTransport,
@@ -431,5 +435,88 @@ describe("what an agent is refused", () => {
     expect(message.length).toBeGreaterThan(0);
     // Whatever GMS answered, the failure must not read as an empty board.
     expect(message).not.toContain("counts");
+  }, 120_000);
+});
+
+describe("tables reported as files, and reads reported alongside writes", () => {
+  /*
+   * The file form exists because a model pasting rows into a tool call can drift
+   * them, and a drifted row is a change nobody made. What is under test here is
+   * the whole wire: a real file on disk, the real MCP server hashing it, the real
+   * obsel comparing it.
+   */
+  it("a table reported as a path is the same table reported inline", async () => {
+    const client = await connect(obselServer.url);
+
+    // Inline first, so the recorded baseline is known regardless of what the
+    // cascade tests above left behind.
+    await call(client, "report_complete", {
+      taskUrn: taskUrn(CLEAN),
+      outputs: { [CLEAN_OUT]: CLEAN_TABLE },
+    });
+
+    const dir = await fs.mkdtemp(join(tmpdir(), "obsel-mcp-live-"));
+    const file = join(dir, `${CLEAN_OUT}.json`);
+    await fs.writeFile(file, JSON.stringify(CLEAN_TABLE), "utf-8");
+
+    const answer = await call(client, "report_complete", {
+      taskUrn: taskUrn(CLEAN),
+      outputs: { [CLEAN_OUT]: { path: file } },
+    });
+    // Identical: the file form must not be a second definition of what was produced.
+    expect(answer.coordination.changedOutputs).toEqual([]);
+    expect(answer.coordination.affected).toEqual([]);
+  }, 120_000);
+
+  it("a read that disagrees with the record comes back as an observed change", async () => {
+    const client = await connect(obselServer.url);
+
+    // What mcpjoin_agg "read": a version of clean_t with a renamed column that
+    // no completion ever reported. The file is real; the disagreement between
+    // this file and the recorded fingerprint is the entire observable event.
+    const dir = await fs.mkdtemp(join(tmpdir(), "obsel-mcp-live-"));
+    const file = join(dir, `${CLEAN_OUT}.json`);
+    await fs.writeFile(
+      file,
+      JSON.stringify({
+        columns: ["order_id", "order_total_eur"],
+        rows: [
+          { order_id: 1, order_total_eur: 217 },
+          { order_id: 2, order_total_eur: 233.08 },
+        ],
+      }),
+      "utf-8",
+    );
+
+    const answer = await call(client, "report_complete", {
+      taskUrn: taskUrn(AGG),
+      outputs: { [AGG_OUT]: AGG_TABLE },
+      inputs: { [CLEAN_OUT]: { path: file } },
+    });
+
+    expect(answer.coordination.observedChanges).toEqual([
+      { dataset: datasetUrn(CLEAN_OUT), kind: "schema" },
+    ]);
+    // Nothing is marked, and that is correct rather than a shrug: the only reader
+    // of clean_t is the reporter itself, whose own fresh output was just compared.
+    // Marking with a second reader present is proven in engine.live.test.ts.
+    expect(answer.coordination.affected).toEqual([]);
+
+    // Leave the record the way the other tests expect it: the producer completing
+    // again supersedes the observation.
+    await call(client, "report_complete", {
+      taskUrn: taskUrn(CLEAN),
+      outputs: { [CLEAN_OUT]: CLEAN_TABLE },
+    });
+  }, 120_000);
+
+  it("refuses a path with no file behind it, naming the path", async () => {
+    const client = await connect(obselServer.url);
+    const message = await callError(client, "report_complete", {
+      taskUrn: taskUrn(CLEAN),
+      outputs: { [CLEAN_OUT]: { path: "/nowhere/never_written.json" } },
+    });
+    expect(message).toContain("never_written.json");
+    expect(message).toContain("no file there");
   }, 120_000);
 });

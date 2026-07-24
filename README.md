@@ -33,6 +33,22 @@ something that moved. Nothing tells them. Their work sits there saying **complet
 It stays quiet otherwise. A re-run that produces the same table flags nothing at all, which is the
 whole reason anybody would trust it the day it does speak up.
 
+## When you should not use this
+
+If one orchestrator owns your pipeline, it can already do this and you should use it instead.
+[Dagster](https://docs.dagster.io/guides/build/assets/asset-versioning-and-caching) marks an asset
+stale when its upstream data changed and it has not re-run since, and cascades that downstream.
+[dbt](https://docs.getdbt.com/docs/deploy/state-aware-about) rebuilds a model when a source has new
+data. Neither of them needed obsel to exist.
+
+obsel is for the case those tools do not cover: **nobody owns the graph.** Agents from different
+frameworks, on different machines, joining and leaving, with no shared scheduler to ask. Both tools
+above need every node declared in a project before it can take part. An agent joins obsel at runtime
+by announcing itself, and creates its own node when it does.
+
+The full comparison, including where obsel is genuinely not novel, is in
+[docs/concept.md](docs/concept.md#3a-orchestrators-checked-properly-on-2026-07-23).
+
 ---
 
 ## See it
@@ -106,20 +122,28 @@ of its own, so any MCP-capable agent can join a swarm.
 claude mcp add obsel -- "$PWD/agents/.venv/bin/python" -m agents.mcp_server
 ```
 
-| Tool                                              | What your agent uses it for                           |
-| ------------------------------------------------- | ----------------------------------------------------- |
-| `check_freshness(reads)`                          | before working: are my inputs still trustworthy?      |
-| `register_task(name, reads, writes, title?, ...)` | say what I read and what I write, once                |
-| `announce_start(taskUrn)`                         | before writing, so work in flight is never flagged    |
-| `report_complete(taskUrn, outputs, runner?, ms?)` | what I produced, and obsel replies with what it broke |
-| `abandon_task(taskUrn)`                           | hand the announcement back if I failed                |
-| `read_board()`                                    | who else is in the swarm, and how they are doing      |
+| Tool                                                       | What your agent uses it for                           |
+| ---------------------------------------------------------- | ----------------------------------------------------- |
+| `check_freshness(reads)`                                   | before working: are my inputs still trustworthy?      |
+| `register_task(name, reads, writes, title?, ...)`          | say what I read and what I write, once                |
+| `announce_start(taskUrn)`                                  | before writing, so work in flight is never flagged    |
+| `report_complete(taskUrn, outputs, inputs?, runner?, ms?)` | what I produced, and obsel replies with what it broke |
+| `abandon_task(taskUrn)`                                    | hand the announcement back if I failed                |
+| `read_board()`                                             | who else is in the swarm, and how they are doing      |
+
+Reporting a table is one line: `{"clean_orders": {"path": "data/clean_orders.json"}}`. obsel reads
+and hashes the file itself, so no rows travel through the tool call.
+
+Passing `inputs` the same way is how the swarm polices itself. obsel compares what your agent read
+against what the writer recorded. If they disagree, that table was changed by something that never
+reported, and every finished task built on the old version gets flagged, with the reason saying the
+change was never reported. One silent writer cannot hide from the next honest reader.
 
 Two things your agent deliberately cannot do:
 
-- **It never hashes its own output.** `report_complete` takes the real rows and columns, and obsel
-  hashes them itself. An agent that could hand obsel a hash could hand it the _previous_ hash and be
-  believed.
+- **It never hashes its own output.** `report_complete` takes a file path or the real rows, and
+  obsel hashes them itself. An agent that could hand obsel a hash could hand it the _previous_ hash
+  and be believed.
 - **It cannot flag or unflag anything.** The only way to clear a flag is to redo the work and report
   it.
 

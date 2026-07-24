@@ -61,6 +61,14 @@ export const PROP = {
   finishedAt: "obsel.finishedAt",
   startedAt: "obsel.startedAt",
   fingerprints: "obsel.fingerprints",
+  /**
+   * Reader-observed fingerprints of this task's outputs, kept only while they
+   * disagree with `fingerprints`. Written when a completing task reports having
+   * read a version of this output that was never recorded — the unreported
+   * change — so the next reader of the same bytes compares clean instead of
+   * re-flagging the cascade. Cleared when this task completes, and by reset.
+   */
+  observed: "obsel.observed",
   runRunner: "obsel.run.runner",
   runMs: "obsel.run.ms",
   runOutputs: "obsel.run.outputs",
@@ -305,6 +313,7 @@ function parseStatus(raw: string | undefined, urn: string): TaskStatus {
 function parseFingerprints(
   raw: string | undefined,
   urn: string,
+  property: string = PROP.fingerprints,
 ): Record<string, OutputFingerprint> {
   if (!raw) return {};
   let parsed: unknown;
@@ -312,11 +321,11 @@ function parseFingerprints(
     parsed = JSON.parse(raw);
   } catch (cause) {
     throw new DataHubError(
-      `task ${urn} has unreadable ${PROP.fingerprints}: ${cause instanceof Error ? cause.message : String(cause)}`,
+      `task ${urn} has unreadable ${property}: ${cause instanceof Error ? cause.message : String(cause)}`,
     );
   }
   if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
-    throw new DataHubError(`task ${urn} has a non-object ${PROP.fingerprints}`);
+    throw new DataHubError(`task ${urn} has a non-object ${property}`);
   }
 
   const fingerprints: Record<string, OutputFingerprint> = {};
@@ -369,6 +378,10 @@ function parseRun(props: Record<string, string>): RunDetail | null {
         outputs[dataset] = {
           rows: shape.rows,
           columns: shape.columns.filter((name): name is string => typeof name === "string"),
+          // The file's location per the writing agent, display only. Carried
+          // when present and a string; anything else is dropped, not raised,
+          // per this function's rule for cosmetic material.
+          ...(typeof shape.path === "string" && shape.path !== "" ? { path: shape.path } : {}),
         };
       }
     }
@@ -493,6 +506,11 @@ function toTaskRecord(entity: DataJobEntity): TaskRecord {
     writes: [...(io?.outputDatasets ?? [])],
     status,
     fingerprints: parseFingerprints(props[PROP.fingerprints], entity.urn),
+    // Omitted, not `{}`, when the property is absent — the same rule as `tags`:
+    // a key that was never written is not an empty record of observations.
+    ...(props[PROP.observed]
+      ? { observed: parseFingerprints(props[PROP.observed], entity.urn, PROP.observed) }
+      : {}),
     finishedAt: finishedAt ? finishedAt : null,
     startedAt: startedAt ? startedAt : null,
     run: parseRun(props),

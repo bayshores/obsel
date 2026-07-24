@@ -257,6 +257,59 @@ describe("affectedBy — following the chain", () => {
   });
 });
 
+describe("affectedBy — a change noticed by a reader, not reported by a writer", () => {
+  /*
+   * The unreported-change case: something rewrote clean_orders without telling
+   * obsel, and the task that noticed was a reader whose completion report
+   * carried an input fingerprint that contradicted the record. The walk is the
+   * same walk; what changes is attribution, because the change's author is
+   * unknown and the producer must not be blamed for bytes it never wrote.
+   */
+  const noticer = task("build_revenue", ["clean_orders"], ["daily_revenue"]);
+
+  function noticedChange() {
+    return [{ dataset: ds("clean_orders"), kind: "schema" as const, noticedBy: noticer }];
+  }
+
+  it("carries no author: causedByTask is null even though a producer exists", () => {
+    const swarm = snapshot([
+      task("clean_orders_task", ["raw_orders"], ["clean_orders"]),
+      task("write_report", ["clean_orders"], ["revenue_report"]),
+    ]);
+    const found = affectedBy(swarm, noticedChange(), NOW);
+    expect(names(found)).toEqual(["write_report"]);
+    expect(found[0].mark.causedByTask).toBeNull();
+  });
+
+  it("says the change was never reported, and names the task that exposed it", () => {
+    const swarm = snapshot([task("write_report", ["clean_orders"], ["revenue_report"])]);
+    const found = affectedBy(swarm, noticedChange(), NOW);
+    expect(found[0].mark.reason).toContain("Nothing reported that change");
+    expect(found[0].mark.reason).toContain("build revenue");
+  });
+
+  it("keeps the attribution through every hop, not just the first", () => {
+    const swarm = snapshot([
+      task("write_report", ["clean_orders"], ["revenue_report"]),
+      task("write_docs", ["revenue_report"], ["pipeline_docs"]),
+    ]);
+    const found = affectedBy(swarm, noticedChange(), NOW);
+    const far = found.find((a) => a.task.name === "write_docs");
+    expect(far?.mark.hops).toBe(2);
+    expect(far?.mark.causedByTask).toBeNull();
+  });
+
+  it("a reported change still names its producer, exactly as before", () => {
+    const swarm = snapshot([
+      task("clean_orders_task", ["raw_orders"], ["clean_orders"]),
+      task("write_report", ["clean_orders"], ["revenue_report"]),
+    ]);
+    const found = affectedBy(swarm, [{ dataset: ds("clean_orders"), kind: "schema" }], NOW);
+    expect(found[0].mark.causedByTask).toContain("clean_orders_task");
+    expect(found[0].mark.reason).not.toContain("Nothing reported");
+  });
+});
+
 describe("affectedBy — work that has not finished", () => {
   it("does not mark a task that is still running", () => {
     // It will read the new data itself, so it is not out of date.

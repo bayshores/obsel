@@ -13,6 +13,8 @@ const Fingerprint = z.object({
 const OutputShape = z.object({
   rows: z.number().int().nonnegative(),
   columns: z.array(z.string()),
+  // Where the file lives, per the writing agent. Display only.
+  path: z.string().optional(),
 });
 
 /**
@@ -30,11 +32,23 @@ const Run = z.object({
   outputs: z.record(z.string(), OutputShape),
 });
 
+/**
+ * What one input table looked like when this task read it. Optional and
+ * additive: a report without it gets exactly the old behaviour. Each one is
+ * compared against what the dataset's producer recorded writing — a mismatch
+ * means the table changed and nothing reported the change, which no producer
+ * fingerprint can ever catch, because the producer never sent one.
+ */
+const Observation = Fingerprint.extend({
+  columns: z.array(z.string()).optional(),
+});
+
 const Body = z.object({
   taskUrn: z.string().min(1),
   fingerprints: z.record(z.string(), Fingerprint),
   finishedAt: z.string().min(1),
   run: Run.optional(),
+  inputs: z.record(z.string(), Observation).optional(),
 });
 
 /**

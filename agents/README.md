@@ -53,18 +53,18 @@ were found.
 
 ## What is in here
 
-| File              | What it is                                                                                                                                                                                                        |
-| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `graph.py`        | Walks the lineage graph to find what a change breaks. Also holds the Python reference implementation of task registration, which the demo does not use — `run.py register` goes through obsel's HTTP API instead. |
-| `fingerprint.py`  | Reduces a produced table to a schema hash and a content hash. 7 self-checks.                                                                                                                                      |
-| `seed_data.py`    | The synthetic `raw_orders` table the swarm starts from, from a fixed seed.                                                                                                                                        |
-| `pipeline.py`     | The four agents, their instructions, and the shape they form. Data only.                                                                                                                                          |
-| `worker.py`       | One agent: load inputs, announce the start, let Codex do the work, hold the output to its contract, fingerprint, report to obsel. 16 self-checks.                                                                 |
-| `codex_runner.py` | Runs one agent as a real `codex exec` session, and refuses anything unusable it writes back. 22 self-checks.                                                                                                      |
-| `setup.py`        | One-time DataHub setup: creates obsel's tag and the demo DataFlow.                                                                                                                                                |
-| `run.py`          | The command line that drives the demo. 33 self-checks over the guards behind what it prints.                                                                                                                      |
-| `mcp_core.py`     | Everything obsel's MCP server decides before it speaks: reply guards, output resolution, freshness verdicts, the completion body. Standard library only, so `pnpm verify` can check it. 31 self-checks.           |
-| `mcp_server.py`   | obsel's own MCP server: the six tools any MCP-capable agent joins a swarm through. Wiring only; covered by `tests/live/obsel-mcp.live.test.ts`.                                                                   |
+| File              | What it is                                                                                                                                                                                                                                |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `graph.py`        | Walks the lineage graph to find what a change breaks. Also holds the Python reference implementation of task registration, which the demo does not use — `run.py register` goes through obsel's HTTP API instead.                         |
+| `fingerprint.py`  | Reduces a produced table to a schema hash and a content hash. 7 self-checks.                                                                                                                                                              |
+| `seed_data.py`    | The synthetic `raw_orders` table the swarm starts from, from a fixed seed.                                                                                                                                                                |
+| `pipeline.py`     | The four agents, their instructions, and the shape they form. Data only.                                                                                                                                                                  |
+| `worker.py`       | One agent: load inputs, announce the start, let Codex do the work, hold the output to its contract, fingerprint the output and the inputs as read, report both to obsel. 17 self-checks.                                                  |
+| `codex_runner.py` | Runs one agent as a real `codex exec` session, and refuses anything unusable it writes back. 22 self-checks.                                                                                                                              |
+| `setup.py`        | One-time DataHub setup: creates obsel's tag and the demo DataFlow.                                                                                                                                                                        |
+| `run.py`          | The command line that drives the demo. 33 self-checks over the guards behind what it prints.                                                                                                                                              |
+| `mcp_core.py`     | Everything obsel's MCP server decides before it speaks: reply guards, output resolution, freshness verdicts, the completion body, tables handed over as file paths. Standard library only, so `pnpm verify` can check it. 39 self-checks. |
+| `mcp_server.py`   | obsel's own MCP server: the six tools any MCP-capable agent joins a swarm through. Wiring only; covered by `tests/live/obsel-mcp.live.test.ts`.                                                                                           |
 
 ## Joining from your own agent
 

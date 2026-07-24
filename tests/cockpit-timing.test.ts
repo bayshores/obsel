@@ -5,6 +5,7 @@ import {
   currentChange,
   detectionTiming,
   inDependencyOrder,
+  lastReportAt,
   summaryLine,
   totals,
 } from "@/src/features/cockpit/timing";
@@ -253,6 +254,48 @@ describe("summaryLine — says what was observed, never 'all clear'", () => {
   it("handles an empty swarm and the singular", () => {
     expect(summaryLine(0, 0, 0)).toBe("No agents set up yet.");
     expect(summaryLine(1, 1, 1)).toContain("1 of 1 finished agent is");
+  });
+
+  it("bounds the quiet claim with the last report, and only the quiet claim", () => {
+    // "Nothing has changed" is really "nothing has changed that anyone
+    // reported": a table rewritten by something that never reports is invisible
+    // until the next honest read, so an unbounded all-clear claims more than
+    // obsel can know. The loud branch needs no bound; a mark carries its own
+    // timestamp.
+    expect(summaryLine(4, 4, 0, "2026-07-23T17:42:07.000Z")).toContain("as of the last report at");
+    expect(summaryLine(4, 4, 3, "2026-07-23T17:42:07.000Z")).not.toContain("as of");
+    // No timestamp available is stated as nothing rather than as a guess.
+    expect(summaryLine(4, 4, 0)).not.toContain("as of");
+  });
+});
+
+describe("lastReportAt — the edge of what obsel has been told", () => {
+  /** A record with only its report stamps mattering. */
+  function stamped(name: string, finishedAt: string | null, startedAt: string | null): TaskRecord {
+    return { ...task(name, [], []), finishedAt, startedAt };
+  }
+
+  it("returns the newest start or finish across every task", () => {
+    // A start counts as a report: obsel heard from an agent, even though no
+    // completion has landed yet.
+    const tasks = [
+      stamped("a", "2026-07-23T10:00:00.000Z", "2026-07-23T09:00:00.000Z"),
+      stamped("b", null, "2026-07-23T11:30:00.000Z"),
+    ];
+    expect(lastReportAt(tasks)).toBe("2026-07-23T11:30:00.000Z");
+  });
+
+  it("returns null when nothing has ever reported, never a guess", () => {
+    expect(lastReportAt([stamped("a", null, null)])).toBeNull();
+    expect(lastReportAt([])).toBeNull();
+  });
+
+  it("skips an unparseable stamp rather than electing it", () => {
+    const tasks = [
+      stamped("a", "not a date", null),
+      stamped("b", "2026-07-23T10:00:00.000Z", null),
+    ];
+    expect(lastReportAt(tasks)).toBe("2026-07-23T10:00:00.000Z");
   });
 });
 

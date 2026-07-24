@@ -186,7 +186,10 @@ function buildGraph(
 
 interface LineageProps {
   tasks: TaskRecord[];
-  /** Opening a task's details. Datasets are not selectable; they carry no mark. */
+  /**
+   * Opening a node's details: a task's own record, or a table's derived view.
+   * The cockpit tells the two apart by the URN's entity type.
+   */
   onSelect?: (urn: string) => void;
 }
 
@@ -294,7 +297,12 @@ function LineageCanvas({ tasks, onSelect }: LineageProps) {
         fitViewOptions={FIT}
         proOptions={{ hideAttribution: false }}
         onNodeClick={(_event, node) => {
-          if (onSelect && node.type === "task") onSelect(node.id.slice(2));
+          // Both kinds. Tables were unclickable until the board's "what tables?"
+          // complaint made clear the abstraction needed somewhere to point: the
+          // details panel is where a table stops being a box and becomes a file
+          // with columns and a row count. The "t:"/"d:" prefix is stripped; the
+          // URN itself says which kind of entity was chosen.
+          if (onSelect) onSelect(node.id.slice(2));
         }}
         {...LOCKED}
       >

@@ -40,9 +40,14 @@
 }
 
 /*
- * Only the agent boxes. `lineage.tsx` calls `onSelect` for `node.type === "task"`
- * and for nothing else, so a pointer over a table would advertise an interaction
- * that does not exist.
+ * Both kinds now. `lineage.tsx` opens the details panel for every node: a task
+ * shows its own record, a table shows who writes it, who reads it, its columns
+ * and its row count. This rule was scoped to `.task` alone while tables were
+ * not clickable, and the key said so; both changed together.
+ *
+ * The table hover brightens from its own resting fill (`--mm-surface-2`) so the
+ * state change is visible on a chip that already sits at the agents' hover
+ * colour.
  */
 .task {
   cursor: pointer;
@@ -50,6 +55,14 @@
 
 .task:hover {
   background: var(--mm-surface-2);
+  box-shadow: 0 0 0 1px var(--mm-border-strong);
+}
+
+.data {
+  cursor: pointer;
+}
+
+.data:hover {
   box-shadow: 0 0 0 1px var(--mm-border-strong);
 }
 
