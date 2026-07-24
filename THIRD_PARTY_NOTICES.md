@@ -16,7 +16,7 @@ the one judgement call is written out in full rather than summarised.
 | `@xyflow/react` 12.11.2      | MIT               | The lineage graph on the board                     |
 | `@dagrejs/dagre` 3.0.0       | MIT               | Laying that graph out left to right                |
 | `geist` (Vercel)             | SIL OFL-1.1 / MIT | Geist and Geist Mono, self-hosted                  |
-| Codex CLI (`openai/codex`)   | Apache-2.0        | Running each demo agent — see the note below       |
+| Codex CLI (`openai/codex`)   | Apache-2.0        | Running each demo agent, see the note below        |
 
 The fonts are installed from npm and served by obsel itself, never fetched from
 `fonts.googleapis.com`. That is not a preference: obsel's Content Security Policy sets

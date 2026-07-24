@@ -34,12 +34,12 @@ DataHub and a signed-in Codex CLI, with every step's own assertions passing:
 | `rerun-same` | byte-identical output, 0 changed outputs, 0 marks, confirmed in 60 ms           |
 | `change`     | called `schema`; marked exactly 3 tasks at 1, 2 and 2 hops, in 2591 ms          |
 
-Later the same day the sequence was driven again — this time entirely from the
-cockpit's guide buttons, which spawn these same commands — including the reverse
+Later the same day the sequence was driven again, this time entirely from the
+cockpit's guide buttons, which spawn these same commands, including the reverse
 experiment order, `change` first and then `rerun-same` on the already-flagged
 board: byte-identical output, 0 changed outputs, 0 new marks confirmed in 89 ms,
 and the three existing marks untouched. (That order failed on its first live
-attempt and exposed a real bug — see the `rerun-same` section below.)
+attempt and exposed a real bug. See the `rerun-same` section below.)
 
 Six full runs of `run` on the same machine measured 135.9 s, 119.4 s, 152.0 s,
 134.0 s, 134.0 s and 112.2 s. `clean_orders` wrote 39 rows from the 50-row seed
@@ -47,7 +47,7 @@ every time.
 
 That is one clean pass of each step, not a pass rate. Each command states its
 expectation, compares it against what obsel returned, and prints `UNEXPECTED:` and
-exits non-zero if the two differ — so a bad run says so rather than printing the
+exits non-zero if the two differ, so a bad run says so rather than printing the
 story anyway. That is exactly how both of the agent instabilities described below
 were found.
 
@@ -55,7 +55,7 @@ were found.
 
 | File              | What it is                                                                                                                                                                                                                                |
 | ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `graph.py`        | Walks the lineage graph to find what a change breaks. Also holds the Python reference implementation of task registration, which the demo does not use — `run.py register` goes through obsel's HTTP API instead.                         |
+| `graph.py`        | Walks the lineage graph to find what a change breaks. Also holds the Python reference implementation of task registration, which the demo does not use, because `run.py register` goes through obsel's HTTP API instead.                  |
 | `fingerprint.py`  | Reduces a produced table to a schema hash and a content hash. 7 self-checks.                                                                                                                                                              |
 | `seed_data.py`    | The synthetic `raw_orders` table the swarm starts from, from a fixed seed.                                                                                                                                                                |
 | `pipeline.py`     | The four agents, their instructions, and the shape they form. Data only.                                                                                                                                                                  |
@@ -86,8 +86,9 @@ order the tools have to be called in for their answers to mean anything.
 **Verifying it end to end with a real agent is an owner action, not an automated test.** Driving a
 live model through the skill would be testing the model's tool-calling rather than obsel's decision,
 which is the same reason the identical-re-run rule is proven deterministically rather than through
-two Codex sessions. The deterministic path — a real MCP client, the real server, a real obsel, a real
-DataHub — is `pnpm test:live`. The manual run, when someone wants it: configure the server as above,
+two Codex sessions. The deterministic path, using a real MCP client with the real server, a real obsel
+and a real DataHub, is `pnpm test:live`. The manual run, when someone wants it: configure the
+server as above,
 ask the agent to register a task and report a small table, then confirm on the board at
 `http://localhost:3000` and on the DataJob in DataHub that the task and its lineage are really there.
 
@@ -96,7 +97,7 @@ ask the agent to register a task and report a small table, then confirm on the b
 You need four things running or set:
 
 1. **DataHub.** `datahub docker quickstart`. Its API (GMS) must answer on
-   `http://localhost:8080` — port 9002 is the frontend, not the API.
+   `http://localhost:8080`, because port 9002 is the frontend rather than the API.
 2. **obsel.** `pnpm dev` in the repository root, serving `http://localhost:3000`.
 3. **A Python environment** with the pinned dependencies:
 
@@ -127,8 +128,8 @@ agents/.venv/bin/python -m agents.run setup
 Creates `urn:li:tag:obsel-stale` and the `orders_pipeline` DataFlow in DataHub,
 confirms each one is readable, and writes the seed table.
 
-This step is not optional and not cosmetic. obsel cannot create a tag at run time
-— open-source DataHub has `add_tags` but no `create_tag`, and applying a tag URN
+This step is not optional and not cosmetic. obsel cannot create a tag at run time,
+because open-source DataHub has `add_tags` but no `create_tag`, and applying a tag URN
 that is not already an entity is rejected. Without this step obsel would detect
 staleness correctly and then silently fail to record any of it. That is why setup
 fails loudly rather than warning.
@@ -145,9 +146,9 @@ Tells obsel about the four tasks. obsel writes each one into DataHub as a
 `DataJob` with `Consumes` and `Produces` edges to the tables it reads and writes,
 so the swarm's structure is visible in DataHub's own lineage view before any work
 happens. Each task's one-sentence job (`summary` in `pipeline.py`) goes along and
-is stored as the DataJob's own description — DataHub's UI, obsel's ledger, and
+is stored as the DataJob's own description, so DataHub's UI, obsel's ledger and
 the guide all show the same words. The command checks that the URN obsel returns
-matches the one the agents expect, and stops if they disagree — a URN mismatch
+matches the one the agents expect, and stops if they disagree, because a URN mismatch
 would make the traversal miss the task without any error.
 
 ### 3. `run`
@@ -167,25 +168,25 @@ and it will not be silent: `build_revenue` produces a different table, which
 invalidates the two tasks below it before they re-run themselves. The command
 prints whatever obsel marked along the way.
 
-The closing line — "every task is complete and every task is built on something
-still true" — is a claim about the swarm, so it is read back from `GET /api/swarm`
+The closing line, "every task is complete and every task is built on something
+still true", is a claim about the swarm, so it is read back from `GET /api/swarm`
 after the four agents finish rather than assumed from the fact that they returned.
 If any task is not `complete`, or any task still carries a stale mark, the command
 prints `UNEXPECTED:` with the names and exits 1.
 
-### 4. `rerun-same` — the part that proves there are no false alarms
+### 4. `rerun-same`, the part that proves there are no false alarms
 
 ```bash
 agents/.venv/bin/python -m agents.run rerun-same
 ```
 
 `clean_orders` runs again with the same job and the same input. The same rows
-should come out, and obsel should mark nothing — because it compares the
-fingerprint of the output, not the fact that a write happened.
+should come out, and obsel should mark nothing, because it compares the
+fingerprint of the output rather than the fact that a write happened.
 
 The command checks all of that instead of asserting it. It fails with
 `UNEXPECTED:` and exits 1 if the table is not byte-identical to the previous one,
-if obsel reports any changed output, if obsel marks anything — or if obsel held no
+if obsel reports any changed output, if obsel marks anything, or if obsel held no
 previous fingerprint for the table in the first place, because "nothing was marked"
 proves nothing when there was nothing to compare against.
 
@@ -198,7 +199,7 @@ means something once you have seen this one stay quiet.
 two runs was a single value: `order_id` 1012's `order_total`, written `217` by one
 run and `217.0` by the run before. Everything else in all 39 rows was identical.
 
-obsel was right to flag it — `217` and `217.0` are different bytes and it hashes
+obsel was right to flag it, because `217` and `217.0` are different bytes and it hashes
 the serialised value. Two things were wrong, and both are now fixed:
 
 1. **This command's own check was weaker than the evidence it was checking.** It
@@ -217,11 +218,11 @@ With both in place the step passes: byte-identical output, nothing marked,
 confirmed by obsel in 60 ms.
 
 **And the step that failed second, later the same day.** Run for the first time
-_after_ `change` — from the cockpit's guide, on the flagged board — it reverted
+_after_ `change`, from the cockpit's guide on the flagged board, it reverted
 the rename and failed its own assertion. The re-run replayed the changed
 instruction ("name the column order_total_usd") but passed no column contract, so
-the worker fell back to the task's standing `output_columns` — the original
-names — and the contract won over the instruction. An instruction from one run
+the worker fell back to the task's standing `output_columns`, meaning the original
+names, and the contract won over the instruction. An instruction from one run
 paired with a contract from another can contradict each other, so a successful
 run now remembers **both together** (`_remember_run` in `worker.py`), and
 `rerun-same` replays the pair. obsel called every run in that incident correctly,
@@ -229,7 +230,7 @@ including flagging the accidental revert as the genuine schema change it was.
 With the pair replayed the order passes: byte-identical output, 0 new marks in
 89 ms, and the three existing marks untouched.
 
-### 5. `change` — the money moment
+### 5. `change`, the money moment
 
 ```bash
 agents/.venv/bin/python -m agents.run change
@@ -239,8 +240,8 @@ agents/.venv/bin/python -m agents.run change
 `order_total_usd`. That is an ordinary upstream decision and nobody downstream is
 told about it.
 
-A rename moves the schema fingerprint and leaves the content fingerprint alone —
-the values did not change, only the name — so obsel should report `schema` rather
+A rename moves the schema fingerprint and leaves the content fingerprint alone,
+since the values did not change and only the name did, so obsel reports `schema` rather
 than `both`, which is what turns the message into "its columns changed" instead of
 the useless "something changed". `fingerprint.py`'s self-check proves that property
 of the hashes on its own; `change` checks that obsel actually said it.
@@ -248,13 +249,13 @@ of the hashes on its own; `change` checks that obsel actually said it.
 Then obsel walks DataHub's lineage graph. `change` requires exactly this set, and
 nothing else:
 
-- `build_revenue` at 1 hop — it read `clean_orders` directly
-- `write_report` at 2 hops — through `daily_revenue`
-- `write_docs` at 2 hops — through `daily_revenue`
+- `build_revenue` at 1 hop, because it read `clean_orders` directly
+- `write_report` at 2 hops, through `daily_revenue`
+- `write_docs` at 2 hops, through `daily_revenue`
 
 The last two never read `clean_orders`. They are reached transitively, which is the
 thing that is hard to do without a lineage graph and the reason obsel is built on
-one — so the command compares the whole map rather than checking that something was
+one, so the command compares the whole map rather than checking that something was
 marked. If only `build_revenue` came back, the transitive half would be broken and
 "one task was marked" would still look like a pass; here it exits 1.
 
@@ -303,7 +304,7 @@ Across four live runs of `clean_orders` over the identical 50-row seed on
 2026-07-21 and 2026-07-22, three produced content hash `a650c0c2…` and one
 produced `539b5097…`. The entire difference was `order_id` 1012's `order_total`:
 `217` in three runs, `217.0` in the fourth. Same number, different bytes, and the
-fingerprint hashes bytes. It broke two steps at once — `rerun-same` saw a re-run
+fingerprint hashes bytes. It broke two steps at once: `rerun-same` saw a re-run
 that was not identical, and `change`'s pure column rename reported `both` instead
 of `schema`, because the values appeared to have moved as well as the name.
 
@@ -313,7 +314,7 @@ per numeric column, which is `canonicalise_numbers`. The agent still decides wha
 the numbers are; the worker decides how they are written down.
 
 That is deliberately placed in the worker rather than in the fingerprint. obsel
-still hashes bytes and still calls two different byte sequences different — what
+still hashes bytes and still calls two different byte sequences different, so what
 counts as evidence has not been loosened. What changed is upstream of obsel: the
 agent's output is written one way, so a genuine change to the data is the only
 thing left that can move the hash. A column that really does gain a fractional
@@ -327,14 +328,14 @@ unchanged number, and that is what got fixed.
 
 **obsel is told before the work, not after.** The agent announces its start,
 then runs Codex. That is what lets the cockpit show an agent working while it is
-working, rather than showing "waiting" for the 20–50 seconds a Codex session
+working, rather than showing "waiting" for the 20 to 50 seconds a Codex session
 takes. Because obsel excludes `running` work from the cascade, a run that dies
 hands the announcement back via `POST /api/tasks/abandon` and the task returns to
-`registered` — without that, a crashed agent would leave a task invisible to every
+`registered`. Without that, a crashed agent would leave a task invisible to every
 later traversal while the board still showed a healthy swarm.
 
-Every completion also reports what the run was like — which runner, how long, how
-many rows, which columns — and the cockpit shows it. obsel decides nothing on any
+Every completion also reports what the run was like, meaning which runner, how long,
+how many rows and which columns, and the cockpit shows it. obsel decides nothing on any
 of it; it exists so a person watching the board sees what the terminal sees.
 
 Table contents go to the model as data, never as instruction. The system prompt

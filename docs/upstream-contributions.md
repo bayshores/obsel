@@ -1,6 +1,6 @@
 # Upstream contributions to DataHub
 
-The hackathon judging criteria reward meaningful open-source contributions to DataHub — connectors,
+The hackathon judging criteria reward meaningful open-source contributions to DataHub: connectors,
 skills, fixes, RFCs, or documentation improvements. This file tracks what was found and
 contributed, with enough detail to reproduce each finding.
 
@@ -8,12 +8,12 @@ Nothing in this file is filed upstream without explicit owner approval.
 
 ---
 
-## 1. `datahub datapack` CLI crashes in non-TTY contexts — root cause identified
+## 1. `datahub datapack` CLI crashes in non-TTY contexts, root cause identified
 
 **Status:** root cause identified locally. Upstream issue already exists; no fix proposed there yet.
 
-**Upstream issue:** [datahub-project/datahub#18497](https://github.com/datahub-project/datahub/issues/18497)
-— "`datahub datapack` fails: missing packaged resource `DATAPACK_AGENT_CONTEXT.md`
+**Upstream issue:** [datahub-project/datahub#18497](https://github.com/datahub-project/datahub/issues/18497),
+titled "`datahub datapack` fails: missing packaged resource `DATAPACK_AGENT_CONTEXT.md`
 (acryl-datahub 1.6.0.15)", opened 2026-07-20, state OPEN. Its only comment is an automated Linear
 backlink (ING-3066). The issue documents the symptom; it does not identify the cause or propose a
 fix.
@@ -23,8 +23,8 @@ via `uv tool install acryl-datahub` on macOS (Darwin 25.5.0), Python 3.10 tool e
 
 ### Symptom
 
-`datahub datapack --help` exits non-zero with `FileNotFoundError` whenever stdout is not a TTY —
-which is precisely the case for CI, shell pipelines, and AI agents.
+`datahub datapack --help` exits non-zero with `FileNotFoundError` whenever stdout is not a TTY,
+which is precisely the case for CI, for shell pipelines, and for AI agents.
 
 ```
 [Errno 2] No such file or directory:
@@ -55,8 +55,8 @@ if not sys.stdout.isatty():
 
 ### Root cause
 
-The file exists in the source tree — `metadata-ingestion/src/datahub/cli/datapack/resources/DATAPACK_AGENT_CONTEXT.md`
-returns HTTP 200 on `master` — but it is **never included in the built distribution**, because
+The file exists in the source tree, and `metadata-ingestion/src/datahub/cli/datapack/resources/DATAPACK_AGENT_CONTEXT.md`
+returns HTTP 200 on `master`, but it is **never included in the built distribution**, because
 `metadata-ingestion/setup.py` declares `package_data` for a _different_ package:
 
 ```python
@@ -94,7 +94,7 @@ assert "DATAPACK_AGENT_CONTEXT.md" in names
 
 ### Why it is worth fixing
 
-The missing file is `DATAPACK_AGENT_CONTEXT.md` — context written specifically _for AI agents_ — and
+The missing file is `DATAPACK_AGENT_CONTEXT.md`, context written specifically _for AI agents_, and
 the code path that reads it fires only when stdout is not a TTY, which is exactly how an agent
 invokes the CLI. The failure is therefore invisible to a human at a terminal and guaranteed for the
 audience the file was written for.
@@ -105,11 +105,11 @@ Filing a PR against `datahub-project/datahub` is an outward-facing action and ha
 
 ---
 
-## 2. Candidate: synthetic ML datapack — WITHDRAWN
+## 2. Candidate: synthetic ML datapack, withdrawn
 
 **Status:** withdrawn 2026-07-21. Not pursued.
 
-This was proposed under an earlier design for this project (an ML lineage auditor, since abandoned —
+This was proposed under an earlier design for this project (an ML lineage auditor, since abandoned,
 see `docs/concept.md` §8), which needed synthetic ML entities for its own demo and could have
 donated them upstream. obsel does not use the ML metamodel, so there is no by-product to contribute.
 
@@ -122,14 +122,14 @@ people building against it.
 ## 3. Finding: ML sample data in the shipped datapacks is nearly absent
 
 **Relevance to obsel:** the census below is retained because it is a real, reproducible measurement,
-and because of one line in it that now matters directly — `showcase-ecommerce` contains **23
+and because of one line in it that now matters directly: `showcase-ecommerce` contains **23
 `DATA_JOB` and 23 `DATA_FLOW` entities**. Those are the entity types obsel registers agent tasks as,
 which means the sample graph already contains realistic examples to develop and test against.
 
 **Status:** measured and confirmed on a live instance, 2026-07-21.
 
-**Environment:** fresh `datahub docker quickstart` — GMS `v1.5.0.6`, `serverEnv: core`,
-`serverType: quickstart` — followed by `datahub datapack load showcase-ecommerce`, allowed to settle
+**Environment:** fresh `datahub docker quickstart` with GMS `v1.5.0.6`, `serverEnv: core`,
+`serverType: quickstart`, followed by `datahub datapack load showcase-ecommerce`, allowed to settle
 until asynchronous ingestion stopped changing the counts.
 
 **Method.** The GMS OpenAPI entity endpoint (`/openapi/v3/entity/{type}`) paginates via `scrollId`,
@@ -145,7 +145,7 @@ curl -s -X POST "http://localhost:8080/api/graphql" \
 
 Note that `AggregateResults` has no `total` field on this version; request only `facets`.
 
-**Result — 1084 entities across 15 types:**
+**Result, 1084 entities across 15 types:**
 
 | Entity type     | Count |
 | --------------- | ----- |
@@ -166,7 +166,7 @@ Note that `AggregateResults` has no `total` field on this version; request only 
 | `DASHBOARD`     | 3     |
 
 `MLMODEL`, `MLMODEL_GROUP`, `MLFEATURE`, `MLFEATURE_TABLE`, `MLPRIMARY_KEY`, and
-`DATA_PROCESS_INSTANCE` do not appear in the aggregation at all — their count is zero.
+`DATA_PROCESS_INSTANCE` do not appear in the aggregation at all, so their count is zero.
 
 ### Correction: `bootstrap` is not empty of ML entities
 
@@ -176,7 +176,7 @@ and so was never measured by the census above.
 
 Counted directly from the pack's source
 ([`bootstrap_mce.json`](https://raw.githubusercontent.com/datahub-project/datahub/master/metadata-ingestion/examples/mce_files/bootstrap_mce.json),
-156 KB), `bootstrap` does contain ML entities — as legacy `proposedSnapshot` MCEs:
+156 KB), `bootstrap` does contain ML entities, as legacy `proposedSnapshot` MCEs:
 
 | Entity type               | Present in `bootstrap`        |
 | ------------------------- | ----------------------------- |
@@ -190,7 +190,7 @@ Counted directly from the pack's source
 
 The accurate claim is therefore narrower and stronger:
 
-- `showcase-ecommerce` contains **zero** ML entities — verified live.
+- `showcase-ecommerce` contains **zero** ML entities, verified live.
 - `bootstrap` contains a small ML sample, but **no `mlModelGroup` and no `dataProcessInstance`**.
 - The single `bootstrap` `mlModel`'s only lineage is `TrainingData`/`EvaluationData` to one Hive
   dataset.
@@ -207,7 +207,7 @@ made the synthetic-overlay contribution look worthwhile. It no longer applies to
 - **23 `DATA_JOB` and 23 `DATA_FLOW` entities**, with real `Consumes`/`Produces` lineage to the 67
   datasets. This is exactly the shape obsel registers agent tasks in, so the traversal and cascade
   logic can be developed against realistic pre-existing structure before any agent runs.
-- **A real governance vocabulary** — tag `PII_Data`, and glossary terms `PII`, `GDPR`,
+- **A real governance vocabulary**: tag `PII_Data`, and glossary terms `PII`, `GDPR`,
   `SOC2 Auditable`, `Email Address`, `Phone Number`, `First Name`, `Last Name`. obsel cannot mint
   tags at runtime (see `environment-findings.md` §6.2), so knowing which vocabulary already exists
   matters; the write round-trip was performed against one of these real tags.

@@ -13,7 +13,7 @@ assertions passing.
 Re-captured that day because the wording of `reason` changed at the source: it now names tables and
 tasks in words (`clean orders`, `Daily revenue`) rather than in warehouse identifiers. The previous
 capture was a faithful record of a sentence the code no longer produces, and keeping it would have
-made the claim below — that these sentences are exactly what `staleness.ts` builds — quietly false.
+made the claim below, that these sentences are exactly what `staleness.ts` builds, quietly false.
 These files also carry the `title` and `description` each agent registers, which the earlier capture
 predated.
 
@@ -21,7 +21,7 @@ A browser-driven `change` the same day marked the same three tasks in 3424 ms, b
 separate run and no number from it is quoted here as though it belonged to this one.
 
 **All five files come from that one `change`.** They are written together or not at all, because a
-set assembled from separate runs would look coherent and not be — the fingerprints in
+set assembled from separate runs would look coherent without being coherent: the fingerprints in
 `swarm-before.json` would belong to a table other than the one `coordination-result.json` reports
 on, which is the exact kind of quiet disagreement obsel exists to catch.
 
@@ -29,12 +29,12 @@ Claim by claim, so you can check rather than trust:
 
 | Claim                                                                                              | Status                                                                                              |
 | -------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| Every file conforms to the current TypeScript contracts, field by field                            | Verified — see [Checking the shapes](#checking-the-shapes-against-the-types)                        |
-| Every digest is genuine sha256 output of `agents/fingerprint.py` **over the rows it was taken on** | Verified — one command, see [Reproducing the fingerprints](#reproducing-the-fingerprints)           |
-| The tables those digests were taken over are what four live Codex agents wrote                     | Captured, in `tables/` — not hand-written                                                           |
+| Every file conforms to the current TypeScript contracts, field by field                            | Verified, see [Checking the shapes](#checking-the-shapes-against-the-types)                         |
+| Every digest is genuine sha256 output of `agents/fingerprint.py` **over the rows it was taken on** | Verified by one command, see [Reproducing the fingerprints](#reproducing-the-fingerprints)          |
+| The tables those digests were taken over are what four live Codex agents wrote                     | Captured, in `tables/`, not hand-written                                                            |
 | The `reason` sentences are exactly what `staleness.ts` builds for these hops and this change kind  | Verified against `reasonFor()` as it stands in this commit                                          |
-| The `title` and `description` on each task are what the agent registered, read back out of DataHub | Verified — they round-trip through `obsel.title` and the DataJob description                        |
-| The order of `affected` is the traversal's own order                                               | Verified against `affectedBy()` — hop 1 first, then hop 2 sorted by URN                             |
+| The `title` and `description` on each task are what the agent registered, read back out of DataHub | Verified, they round-trip through `obsel.title` and the DataJob description                         |
+| The order of `affected` is the traversal's own order                                               | Verified against `affectedBy()`, hop 1 first and then hop 2 sorted by URN                           |
 | The timestamps                                                                                     | Real, from the run                                                                                  |
 | `elapsedMs` and `detectedMs`                                                                       | **Measured.** 745 ms, the coordinator's own figure for this completion.                             |
 | That another run would produce these same tables                                                   | **No.** Column names and number formats are held to a contract; rows and prose are the agents' own. |
@@ -66,12 +66,12 @@ What the agents actually produced, from `tables/before.json`:
 | `revenue_report` | 4    | `section, heading, text`                                      |
 | `pipeline_docs`  | 5    | `section, heading, text`                                      |
 
-`clean_orders` dropped 11 of the 50 seed rows — cancellations and refunds — which is the agent's
-own judgement, not a rule in the code.
+`clean_orders` dropped 11 of the 50 seed rows, the cancellations and refunds, which is the agent's
+own judgement rather than a rule in the code.
 
 ## The files
 
-### `swarm-before.json` — everything finished, everything true
+### `swarm-before.json`, everything finished and everything true
 
 The response shape of `GET /api/swarm`: a `SwarmSnapshot` plus the two derived lists the dashboard
 needs (`ready`, `blocked`). Both are empty here because no task is waiting to start.
@@ -84,20 +84,22 @@ Look for:
   built from (`clean_orders`); `title` is the human name the agent registered as the `obsel.title`
   custom property (`Orders cleaner`); `description` is its one-sentence job, stored as the DataJob's
   own description (`cleans the raw orders export into a tidy four-column table`). A task registered
-  without a title still reads as words — the fallback de-underscores `name` — so an unknown pipeline
+  without a title still reads as words, because the fallback de-underscores `name`, so an unknown
+  pipeline
   is legible without anything being hard-coded for this one.
-- `reads` and `writes` hold dataset URNs. These are not a description of the dependency — they are
-  the actual `Consumes` and `Produces` lineage edges in DataHub. The graph is the coordination.
+- `reads` and `writes` hold dataset URNs. They are the actual `Consumes` and `Produces` lineage
+  edges in DataHub rather than a description of the dependency. The graph is the coordination.
 - Each task carries a `fingerprints` entry per dataset it wrote, recorded at the moment it
   finished. That record is what everything later gets judged against.
-- `startedAt` and `run` on each task. `run` is what the agent reported about itself — which runner,
-  how long, how many rows, which columns — and it is display material only. obsel decides nothing
+- `startedAt` and `run` on each task. `run` is what the agent reported about itself, meaning which
+  runner,
+  how long, how many rows and which columns, and it is display material only. obsel decides nothing
   on it, and a completion that omits it gets an identical staleness answer.
 - `revenue_report` and `pipeline_docs` carry the **same `schema` digest** and different `content`
   digests. Both write tasks are held to the columns `["section", "heading", "text"]`, so any run at
   all must produce two tables of identical shape holding different documents.
 
-### `swarm-after.json` — the same swarm, 129 seconds later
+### `swarm-after.json`, the same swarm 129 seconds later
 
 Look for:
 
@@ -109,12 +111,13 @@ Look for:
 - `build_revenue` is at `"hops": 1`. It read the renamed table itself.
 - **`write_report` and `write_docs` are at `"hops": 2`.** Neither has `clean_orders` anywhere in
   its `reads`. They read `daily_revenue`. They are flagged because the thing they were built on is
-  itself now built on something that moved. This is the part worth checking carefully — a tool that
+  itself now built on something that moved. This is the part worth checking carefully, because a
+  tool that
   only flagged direct dependents would leave these two sitting there looking finished.
 - All three marks name the same `causedBy`: the `clean_orders` dataset, the table that actually
   moved, not the intermediate one the leaves happen to touch. `causedByTask` names the task that
   wrote it, so the trail leads back to a responsible actor rather than to a table.
-- The two-hop `reason` names `Daily revenue` — the task in between, by the human name it registered
+- The two-hop `reason` names `Daily revenue`, the task in between, by the human name it registered
   as `obsel.title`. The one-hop `reason` names the table. They are deliberately different sentences,
   because the useful explanation is different. Both spell their subject in words rather than in
   warehouse identifiers, which is decided in `reasonFor()` rather than at render time, so the
@@ -122,11 +125,11 @@ Look for:
   identifiers are on `causedBy` and `causedByTask` beside them.
 - `finishedAt` on the stale tasks is unchanged, and so are their fingerprints. They have not re-run.
   Only the verdict changed.
-- Each mark carries `detectedMs: 745` — the coordinator's own measurement of how long the whole
+- Each mark carries `detectedMs: 745`, the coordinator's own measurement of how long the whole
   job took, from the completion report arriving to every mark being written and confirmed in
   DataHub.
 
-### `coordination-result.json` — the answer to one completion report
+### `coordination-result.json`, the answer to one completion report
 
 What `POST /api/tasks/complete` returned when `clean_orders` reported the re-run. This is the whole
 loop in one object.
@@ -136,7 +139,7 @@ Look for:
 - `changedOutputs` has exactly one entry. obsel compares fingerprints; it never treats "a write
   happened" as "something changed". An identical re-run produces an empty `changedOutputs` and an
   empty `affected`, which is what the `rerun-same` step demonstrates.
-- `affected` is in traversal order: hop 1 first, then hop 2 sorted by URN. It is deterministic —
+- `affected` is in traversal order: hop 1 first, then hop 2 sorted by URN. It is deterministic, so
   the same graph gives the same order no matter what order the tasks were registered in. Here that
   puts `write_docs` before `write_report`, which is URN order, not importance.
 - Each `affected[].task` still says `"status": "complete"` with `"stale": null`. That is not a
@@ -149,7 +152,7 @@ Look for:
 **`elapsedMs: 745` is a measurement, not a placeholder.** It covers the whole call: reading the
 graph, comparing fingerprints, deciding, and writing every mark back including the DataHub tag,
 each confirmed by bounded polling. It is one observation on one machine against the quickstart
-stack, not a benchmark — the same step measured 3424 ms when driven from the browser earlier the
+stack, not a benchmark. The same step measured 3424 ms when driven from the browser earlier the
 same day, and 2591 ms and 3796 ms on runs the day before. The spread is dominated by how long
 DataHub takes to confirm the writes, not by the deciding.
 
@@ -166,7 +169,7 @@ that ran again.
 
 `OutputFingerprint` splits a fingerprint in two so a rename can be told apart from a refresh:
 `schema` moves when the columns move, `content` moves when the values move. The rule lives in
-[`agents/fingerprint.py`](../agents/fingerprint.py) — it is the demo workers' code, not the
+[`agents/fingerprint.py`](../agents/fingerprint.py), which is the demo workers' code and not the
 coordinator's. obsel's engine never looks at data; it compares two strings an agent handed it.
 
 One command recomputes **every** digest in these three files, from the captured rows, and checks
@@ -184,7 +187,7 @@ asserts five properties that must hold for any run at all:
 - the renamed column is the only column that differs
 - both write tasks share a `schema` digest
 - the two write tasks differ in `content`
-- the three tables that did not re-run have identical digests on both sides — they were stale
+- the three tables that did not re-run have identical digests on both sides, so they were stale
   because of what they were built on, not because they changed
 
 ### What another run would and would not reproduce
@@ -195,7 +198,7 @@ Codex is a live agent, so this capture is one run rather than the run.
 [`agents/pipeline.py`](../agents/pipeline.py) names explicitly and the worker enforces; the three
 `["section", "heading", "text"]` columns on both write tasks; and the serialised form of every
 number, which `worker.canonicalise_numbers` fixes per column. That last one exists because it went
-wrong — one run wrote a money value `217` where another wrote `217.0`, which is the same number,
+wrong: one run wrote a money value `217` where another wrote `217.0`, which is the same number,
 different bytes, and a moved content digest for a table nobody changed.
 
 **The agents' own work, so another run may differ:** which rows `clean_orders` judges to be
@@ -269,7 +272,7 @@ const c: JsonShape<CoordinationResult> = coordination;
 
 Be aware of what that does and does not prove. It proves every required field is present, correctly
 nested, and of the right kind, including the nullability of `stale`, `finishedAt`, `startedAt`,
-`run`, `causedByTask` and `detectedMs` — delete any one of those fields and it stops compiling. It
+`run`, `causedByTask` and `detectedMs`. Delete any one of those fields and it stops compiling. It
 does **not** prove the literal strings are members of their unions (`"status": "complet"` would
 still type-check), because TypeScript cannot see JSON string literals through `resolveJsonModule`.
 Those values were checked separately by walking the files and comparing against the unions in
@@ -311,9 +314,9 @@ JSON as the record.
 - **Failure shapes.** The API's error responses are not sampled here.
 - **The quiet case.** An identical re-run returns a `CoordinationResult` with empty `changedOutputs`
   and empty `affected`, which is the behaviour the whole design rests on. It has been observed
-  live — `rerun-same` reported 0 changed outputs and 0 marks on a separate run the same day — but
+  live, since `rerun-same` reported 0 changed outputs and 0 marks on a separate run the same day, but
   this capture did not include that step, so there is no sample of it here.
-- **The coordinator's trace.** `GET /api/trace` narrates the steps obsel took to reach this answer
-  — the read, each fingerprint comparison, the lineage walk, each mark. It is deliberately not
+- **The coordinator's trace.** `GET /api/trace` narrates the steps obsel took to reach this
+  answer: the read, each fingerprint comparison, the lineage walk, each mark. It is deliberately not
   captured here: it is in-memory narration of one process, not a record, and the record is these
   files and the marks in DataHub.

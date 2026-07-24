@@ -4,7 +4,7 @@ Findings measured directly against a real local DataHub, recorded because severa
 the documentation and would make obsel report confident wrong answers.
 
 These were gathered on 2026-07-21 during an earlier design for this project (an ML lineage auditor,
-since abandoned — see `docs/concept.md` §8). The DataHub behavior is independent of that design and
+since abandoned, see `docs/concept.md` §8). The DataHub behavior is independent of that design and
 carries over unchanged; where the original rationale was specific to the old concept, it has been
 rewritten for obsel.
 
@@ -54,7 +54,7 @@ The key aspect is derived from parsing the URN string, not from stored data.
 **Why this matters to obsel.** obsel decides what is stale by walking from a changed output to the
 tasks that consumed it. An existence check built on `/entities/` would confirm every phantom URN as
 a real entity, so a typo or a stale reference in a task's declared inputs would produce a confident
-staleness verdict about a task that does not exist — or, worse, silently mask one that does.
+staleness verdict about a task that does not exist, or worse, silently mask one that does.
 
 **Two correct predicates, one per language.**
 
@@ -91,7 +91,7 @@ curl -s "http://localhost:8080/entities/$U"
 Two endpoints on the same server, the same invented URN, opposite answers. The positive case works
 too: a DataJob that really was registered returns 200 from the same `openapi/v3` path.
 
-`src/server/datahub/client.ts` uses this — `readTaskEntity` treats a 404 as "no such task" and
+`src/server/datahub/client.ts` uses this. `readTaskEntity` treats a 404 as "no such task" and
 anything else non-2xx as an error, so `taskExists` is a predicate that can genuinely return false
 without a Python subprocess in the request path.
 
@@ -119,7 +119,7 @@ uvx mcp-server-datahub==0.6.0  --version   # => mcp-server-datahub, version 0.6.
 | `@latest` (resolved 0.4.0) | 6                | 0              |
 | `==0.6.0`                  | 21               | 11             |
 
-**Rule for this repository:** the MCP server version is pinned everywhere — scripts, docs, README,
+**Rule for this repository:** the MCP server version is pinned everywhere, in scripts, docs, README
 and CI. `@latest` is forbidden. An agent that reports success while writing nothing is the worst
 available failure mode for a tool whose entire job is marking things.
 
@@ -146,7 +146,7 @@ metadata mutation.
 `docs.datahub.com` documents a larger surface than open-source Core registers. These were confirmed
 absent from the live listing and must not appear in obsel's design:
 
-- **The entire proposals workflow** — `propose_create_glossary_term`, `propose_lifecycle_stage`,
+- **The entire proposals workflow**: `propose_create_glossary_term`, `propose_lifecycle_stage`,
   `list_pending_proposals`, `accept_or_reject_proposals`
 - `find_sql_context`, `draft_sql_for_tables`
 - `get_dataset_assertions`
@@ -166,7 +166,7 @@ Tool listings are also environment-dependent: `search_documents` and `grep_docum
 because showcase-ecommerce loaded 18 documents. Never hardcode an expected tool set; query
 `tools/list` and fail loudly if a required tool is absent.
 
-### Confirmed present — and which of them obsel actually uses
+### Confirmed present, and which of them obsel actually uses
 
 Availability and usefulness are different questions, and the first draft of this document conflated
 them. What obsel calls over MCP is `add_tags` and `remove_tags`, and nothing else.
@@ -182,7 +182,7 @@ them. What obsel calls over MCP is `add_tags` and `remove_tags`, and nothing els
   task is stale is produced by `reasonFor()` in `src/server/coordinator/staleness.ts`, from the hop
   count and the task in between, both of which the hand-rolled walk already knows. That keeps the
   reason deterministic, testable without a network, and computed from the same graph read the
-  verdict came from — a second query could disagree with the first.
+  verdict came from, because a second query could disagree with the first.
 - **`update_description`** is available on Core despite a changelog note suggesting otherwise. Not
   used: obsel's marks are additive and reversible, and rewriting a human's description is neither.
 - **`get_dataset_queries`** is available. Not on obsel's path, but it returns the real SQL
@@ -201,7 +201,7 @@ docker inspect datahub-datahub-gms-quickstart-1 | grep METADATA_SERVICE_AUTH_ENA
 ```
 
 This is harmless in practice because GMS then accepts unauthenticated requests and the MCP server's
-token is optional — both the GraphQL endpoint (`:8080/api/graphql`) and the OpenAPI entity endpoints
+token is optional. Both the GraphQL endpoint (`:8080/api/graphql`) and the OpenAPI entity endpoints
 answered without any credential during this work.
 
 It is only a problem for a design that assumes bearer auth. To obtain a real PAT the stack must be
@@ -215,7 +215,7 @@ tokens survive restarts.
 
 `GET /openapi/v3/entity/{type}` paginates via `scrollId` and caps returned rows, so counting the
 `entities` array understates totals and cannot support a claim of zero. Use the GraphQL aggregation
-endpoint instead — see `docs/upstream-contributions.md` §3 for the exact query and the full census.
+endpoint instead, and see `docs/upstream-contributions.md` §3 for the exact query and the full census.
 
 Ingestion is also asynchronous (`ASYNC_BATCH` over Kafka): counts continue rising for minutes after
 `datahub datapack load` exits successfully. Always wait for counts to stabilise before asserting
@@ -226,8 +226,8 @@ anything about graph contents.
 ## 6. Write semantics, verified by round-trip
 
 A full round-trip was run over MCP against a real dataset: apply a tag, confirm via GraphQL, remove
-it, confirm removal. **obsel has a verified write path** — marking a task stale, and clearing that
-mark, both work. Three constraints came out of it.
+it, confirm removal. **obsel has a verified write path**, since marking a task stale and clearing
+that mark both work. Three constraints came out of it.
 
 ### 6.1 Writes are asynchronous; immediate read-back is unreliable
 
@@ -241,13 +241,13 @@ remove_tags  -> isError=True          (immediately after the add)
 remove_tags  -> {"success":true,...}  (moments later, same arguments)
 ```
 
-**Consequence for obsel.** Confirming a stale mark landed must tolerate propagation delay — poll
+**Consequence for obsel.** Confirming a stale mark landed must tolerate propagation delay, so poll
 with a bounded timeout rather than reading once. A single immediate read-back produces false "write
 failed" verdicts, and a naive retry on that false verdict double-writes.
 
 This also sets the honest floor on obsel's headline number. Detection is fast; the mark becoming
 visible is bounded by this propagation delay. Demo and README timing claims must be measured
-end-to-end, including it, and stated as a real number — never "instant".
+end-to-end, including it, and stated as a real number, never "instant".
 
 ### 6.2 obsel cannot mint new labels; it can only apply existing vocabulary
 
@@ -261,7 +261,7 @@ There is no `create_tag` or `create_glossary_term` in the open-source tool surfa
 cannot invent a classification at runtime.** Any tag obsel applies must already exist, registered out
 of band.
 
-Practical consequence: obsel's own vocabulary — the stale marker and anything alongside it — is
+Practical consequence: obsel's own vocabulary, the stale marker and anything alongside it, is
 registered once during setup, and setup must fail loudly if registration did not land. A missing tag
 at runtime means staleness is detected and silently not recorded, which is the failure mode this
 whole document exists to prevent.
@@ -280,7 +280,7 @@ The tools take plural arrays, not a single `urn`, and the schema is strict
 }
 ```
 
-`column_paths` gives **column-level tagging** — obsel can point at the specific field that changed
+`column_paths` gives **column-level tagging**, so obsel can point at the specific field that changed
 rather than the whole dataset, which makes a stale mark far more useful to read. Pass `null` or an
 empty string for entity-level application.
 
@@ -295,8 +295,8 @@ recently written data.
 
 | Surface                         | Backed by    | Sees data written seconds ago | Hops                        |
 | ------------------------------- | ------------ | ----------------------------- | --------------------------- |
-| `searchAcrossLineage` (GraphQL) | search index | **No** — lagged by minutes    | multi-hop, returns `degree` |
-| `GET /relationships` (REST)     | graph store  | **Yes** — immediate           | one hop per call            |
+| `searchAcrossLineage` (GraphQL) | search index | **No**, lagged by minutes     | multi-hop, returns `degree` |
+| `GET /relationships` (REST)     | graph store  | **Yes**, immediate            | one hop per call            |
 
 Three agent tasks were registered, then queried immediately. `searchAcrossLineage` returned **0
 results for over 90 seconds** while `/relationships` returned the edges correctly the whole time.
@@ -307,7 +307,7 @@ The data itself was never in doubt: `graph.exists()` was true for every entity, 
 `get_aspect(..., DataJobInputOutputClass)` returned the correct inputs and outputs throughout.
 
 **Why this decides the design.** obsel coordinates a swarm that is working _right now_, so the tasks
-it must reason about are always the most recently registered ones — precisely the ones the search
+it must reason about are always the most recently registered ones, precisely the ones the search
 index cannot see. Building traversal on `searchAcrossLineage` would make obsel blind exactly when it
 matters, and the failure is silent: it returns an empty list, not an error, which reads identically
 to "nothing is affected."
@@ -321,7 +321,7 @@ task    --(OUTGOING "Produces")--> datasets it WROTE   ->  repeat
 ```
 
 Verified end to end on the four-table, three-task demo shape: a change to `clean_orders` returned
-`build_revenue` at hop 1, then `write_report` and `write_docs` at hop 2 — both reached transitively,
+`build_revenue` at hop 1, then `write_report` and `write_docs` at hop 2, both reached transitively,
 neither having ever read `clean_orders`. **Full cascade in 92 ms**, on data the index still could not
 see. A visited set is carried so a cyclic graph terminates.
 
@@ -329,7 +329,7 @@ see. A visited set is carried so a cyclic graph terminates.
 convenient cross-check once the index has settled.
 
 ```bash
-# one hop, immediate — the predicate obsel traverses on
+# one hop, immediate: the predicate obsel traverses on
 curl -s "http://localhost:8080/relationships?urn=<url-encoded-dataset-urn>&direction=INCOMING&types=Consumes"
 ```
 
@@ -342,26 +342,26 @@ on it is written.
 
 0. ~~**Does lineage traversal actually return agent tasks?**~~ **RESOLVED 2026-07-21: yes.** A
    `DataJob` registered with `Consumes`/`Produces` edges is returned when walking downstream from a
-   dataset it reads, and the cascade is transitive. See section 7 — with the important correction
+   dataset it reads, and the cascade is transitive. See section 7, with the important correction
    that this only holds immediately via the graph store, not the search index.
 1. **Structured-property definitions must exist before values can be written**, and there is no MCP
    tool that creates one. The instance currently has only 5 `showcase.*` properties, none scoped to
-   `dataJob`. The definition path — YAML plus `datahub properties upsert`, or the Python SDK — has
-   not yet been exercised here. **obsel routed around this rather than resolving it:** a mark's
+   `dataJob`. The definition path, meaning YAML plus `datahub properties upsert` or the Python SDK,
+   has not yet been exercised here. **obsel routed around this rather than resolving it:** a mark's
    reason is carried in `dataJobInfo.customProperties`, which need no definition. The question stays
    open because it is what a typed, attributable mark would need.
 2. **Attribution on structured properties.** `upsertStructuredProperties` reportedly calls
    `removeAttribution()`, so DataHub's native attribution metadata may not survive an MCP write.
    obsel's reason and source-change data live _inside_ the property values, so this is expected to
    be tolerable, but it has not been verified.
-3. **Durability across re-ingestion** — whether written values survive a later ingestion run — is
-   untested, and decides whether a mark from one run is still there for the next.
+3. **Durability across re-ingestion**, meaning whether written values survive a later ingestion run,
+   is untested, and decides whether a mark from one run is still there for the next.
 4. **Whether the MCP filter DSL accepts `entity_type = dataJob`.** Still unknown, and no longer on
    obsel's path: the swarm is enumerated from the flow's `IsPartOf` edges instead, which is
    immediate rather than index-backed. See section 9.
 5. **Client/server version skew.** CLI `1.6.0.15` against GMS `v1.5.0.6`. Aspect rejection
    (`422 ValidationException`) is the likely failure mode when emitting `dataJobInputOutput`, and a
-   rejected `(entityType, aspectName)` pair can be dropped silently — so registration must verify
+   rejected `(entityType, aspectName)` pair can be dropped silently, so registration must verify
    what actually landed rather than trusting a successful exit code.
 
 ---
@@ -420,7 +420,7 @@ Four requests against the same four-member flow:
 | `start=4&count=2`    | `start 4`, `count 0`, no entities, `total 4`                     |
 
 Note that the `count` field in the response is **the number of rows on this page**, not an echo of
-what was asked for — `start=4&count=2` answers `count: 0`. Reading it as the request echo would make
+what was asked for, and `start=4&count=2` answers `count: 0`. Reading it as the request echo would make
 a termination condition built on it never fire. Past the end is an empty list, not an error.
 
 **Consequence for obsel.** `readSnapshot` in `src/server/datahub/client.ts` follows the pages until
@@ -479,7 +479,8 @@ function vR(e) { return e && e
   .replace(/\[/g, "%5B").replace(/\]/g, "%5D") }
 ```
 
-So the path is `/tasks/<urn>`, not `/dataJob/<urn>` — `dataJob` is the graph name, not the route.
+So the path is `/tasks/<urn>`, not `/dataJob/<urn>`, because `dataJob` is the graph name rather than
+the route.
 
 And **`encodeURIComponent` is the wrong function here**, which is the trap. DataHub escapes exactly
 six characters and leaves `:` `(` `)` `,` raw, so a fully percent-encoded URN hands its matching
@@ -525,7 +526,7 @@ problem. An incomplete swarm is not a smaller answer, it is a wrong one.
 
 `registerTask` in `src/server/datahub/client.ts` confirmed the entity and stopped there.
 It now also polls `/relationships` until the flow lists the task, with a bounded timeout
-and a named failure. `agents/graph.py`'s `register_task` has the same gap — its comment
+and a named failure. `agents/graph.py`'s `register_task` has the same gap, and its comment
 already names the exact risk, "so it is not in the lineage graph and a change upstream of
 it would traverse straight past it", while `confirm_exists` only checks entity existence.
 That path is the Python reference implementation and not what the demo runs, which posts

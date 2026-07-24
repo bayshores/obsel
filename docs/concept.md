@@ -8,9 +8,9 @@ reasoning behind the design does not have to be rediscovered.
 ## 1. The problem, in plain terms
 
 Several AI agents work on the same data at the same time. Each builds on what an earlier one
-produced. Then something upstream changes — a table gets rebuilt, a column gets renamed — and every
-agent that already finished downstream is now holding work built on something that is no longer
-true.
+produced. Then something upstream changes, perhaps a table getting rebuilt or a column getting
+renamed, and every agent that already finished downstream is now holding work built on something
+that is no longer true.
 
 Nothing tells them. The work sits there marked complete. Someone finds out later, usually at the
 worst moment.
@@ -18,25 +18,25 @@ worst moment.
 ## 2. Evidence the problem is real and current
 
 **A dated first-person account.** Dave Paola, _"Stop parallelizing your AI agents"_, 2026-02-24
-([source](https://thedailydeveloper.substack.com/p/stop-parallelizing-your-ai-agents)) — a sprint
-with four agents on one database. In his words: agent 4 adds a `deactivated_at` column and a filter
-for active users, "which breaks agent 2's search query that didn't know about it." Agent 2 had
+([source](https://thedailydeveloper.substack.com/p/stop-parallelizing-your-ai-agents)), describing a
+sprint with four agents on one database. In his words: agent 4 adds a `deactivated_at` column and a
+filter for active users, "which breaks agent 2's search query that didn't know about it." Agent 2 had
 already finished. Verified by reading the article directly.
 
 **Independent academic recognition, three papers in two months:**
 
-| Paper                                                                                                 | Date       | What it does                                                                                    | Why it is not this                                                        |
-| ----------------------------------------------------------------------------------------------------- | ---------- | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| CoAgent: Concurrency Control for Multi-Agent Systems ([2606.15376](https://arxiv.org/abs/2606.15376)) | 2026-06-13 | Runtime that informs agents when a parallel write invalidates their plan, so they can repair it | A research protocol, not a shipped tool; built on nothing existing        |
-| GRADE ([2606.22741](https://arxiv.org/abs/2606.22741))                                                | 2026-06-22 | Two-layer graph of what each agent step relied on                                               | Recovered from traces **after the run**, for failure diagnosis — not live |
-| Execution lineage for AI-native work ([2605.06365](https://arxiv.org/pdf/2605.06365))                 | 2026-05    | Invalidates only the true descendants of a changed artifact                                     | A proposed runtime, not shipped                                           |
+| Paper                                                                                                 | Date       | What it does                                                                                    | Why it is not this                                                       |
+| ----------------------------------------------------------------------------------------------------- | ---------- | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| CoAgent: Concurrency Control for Multi-Agent Systems ([2606.15376](https://arxiv.org/abs/2606.15376)) | 2026-06-13 | Runtime that informs agents when a parallel write invalidates their plan, so they can repair it | A research protocol, not a shipped tool; built on nothing existing       |
+| GRADE ([2606.22741](https://arxiv.org/abs/2606.22741))                                                | 2026-06-22 | Two-layer graph of what each agent step relied on                                               | Recovered from traces **after the run**, for failure diagnosis, not live |
+| Execution lineage for AI-native work ([2605.06365](https://arxiv.org/pdf/2605.06365))                 | 2026-05    | Invalidates only the true descendants of a changed artifact                                     | A proposed runtime, not shipped                                          |
 
 The first two were verified by fetching their abstracts directly. The third comes from a search
 summary and has not been read in full.
 
 **Timeliness check.** The concern that this was already solved was tested on 2026-07-21 against
-work from the preceding 30 days. It is not solved: the June 22 paper still states the gap plainly —
-"a trace records what each step did, never what it relied on" — and fixes it only after the fact.
+work from the preceding 30 days. It is not solved. The June 22 paper still states the gap plainly,
+"a trace records what each step did, never what it relied on", and fixes it only after the fact.
 
 ## 3. What already exists, and the gap it leaves
 
@@ -76,7 +76,7 @@ cascade obsel performs. **obsel is not novel here and the README must not imply 
 differences survive:
 
 - **Dagster's default data version is derived, not measured.** It is computed "by hashing a code
-  version together with the data versions of any input assets" — so bumping a code version marks
+  version together with the data versions of any input assets", so bumping a code version marks
   everything downstream stale even when the output is byte-identical. That is exactly the false
   alarm obsel's first correctness rule exists to prevent. Dagster can be made content-addressed:
   user code may supply its own data version, and an observable source asset computes one from real
@@ -118,8 +118,8 @@ graph. The "what can start next" half is table stakes and is not the pitch.
 
 The strongest anticipated judge question. The answer is the demo scenario, not an argument.
 
-When the swarm's job is **building a data pipeline**, the things the agents produce are datasets —
-so the coordination graph and the data catalog are literally the same graph. Dependencies between
+When the swarm's job is **building a data pipeline**, the things the agents produce are datasets, so
+the coordination graph and the data catalog are literally the same graph. Dependencies between
 agent tasks are dependencies between tables, which is what DataHub already models natively. A
 side-channel task queue would have to reinvent lineage, and would know nothing about the data.
 
@@ -138,8 +138,8 @@ clean_orders  ->  daily_revenue  ->  revenue_report
 
 All four finish. Then `clean_orders` re-runs and renames a column. obsel detects the changed output,
 walks downstream, and marks `daily_revenue` stale (direct), then `revenue_report` and
-`pipeline_docs` stale (transitively, through `daily_revenue`) — visible in obsel's cockpit and in
-DataHub's own lineage view.
+`pipeline_docs` stale (transitively, through `daily_revenue`). All of it is visible in obsel's
+cockpit and in DataHub's own lineage view.
 
 The cascade is the demonstration. Flagging only the direct dependent is the trivial version and does
 not carry the demo.
@@ -153,15 +153,15 @@ none of them measures this specific problem, and the submission must not imply o
 - Counterweight: one survey put teams with agents in production serving real users at ~5%. Agentic
   data engineering adoption specifically is described as low.
 - Multi-agent systems consume roughly 15x the tokens of a single chat interaction; one cost analysis
-  attributed 10–20% of agent sessions to redoing work another agent had already done.
+  attributed 10 to 20% of agent sessions to redoing work another agent had already done.
 - Integration with existing systems is the most-cited scaling challenge (46%).
 
 **No published measurement exists of the cost of stale downstream agent work specifically.** The
 demo therefore measures its own scenario live rather than citing a statistic that does not exist.
 
-Two consequences for positioning. First, do not premise the pitch on large swarms being common —
-the problem appears the moment _two_ actors touch the same pipeline, including one agent and one
-human, which is a far larger audience. Second, joining should cost nothing: any agent that can emit
+Two consequences for positioning. First, do not premise the pitch on large swarms being common,
+because the problem appears the moment _two_ actors touch the same pipeline, including one agent and
+one human, which is a far larger audience. Second, joining should cost nothing: any agent that can emit
 an OpenLineage event (the neutral standard DataHub already ingests, which Airflow and dbt already
 speak) can participate, with no rewrite into a new framework.
 
@@ -176,16 +176,16 @@ minted at runtime.
 **The load-bearing assumption is now verified.** An agent task registered as a `DataJob` with
 `Consumes`/`Produces` edges _is_ returned when walking downstream from a dataset it reads, and the
 cascade is transitive: on the four-table demo shape, a change to `clean_orders` reached
-`build_revenue` at one hop and `write_report` and `write_docs` at two — neither of the latter having
+`build_revenue` at one hop and `write_report` and `write_docs` at two, and neither of the latter had
 ever read `clean_orders`. Measured at 92 ms for the full walk.
 
 That test also produced a design correction worth more than the confirmation itself. DataHub answers
 lineage from two places: GraphQL's `searchAcrossLineage`, served from a **search index that lags by
 minutes**, and the REST `/relationships` endpoint, served from the **graph store, immediately**. On
 freshly registered tasks the GraphQL surface returned nothing for over 90 seconds while the data was
-provably present. obsel reasons about work registered seconds ago, so it walks the graph store; the
-index would have made it blind exactly when it matters, and silently — an empty result reads
-identically to "nothing is affected". See `docs/environment-findings.md` §7.
+provably present. obsel reasons about work registered seconds ago, so it walks the graph store. The
+index would have made it blind exactly when it matters, and blind silently, because an empty result
+reads identically to "nothing is affected". See `docs/environment-findings.md` §7.
 
 Still unproven: whether obsel's marks survive re-ingestion, and whether structured-property
 definitions can be created without leaving the MCP surface.
@@ -200,7 +200,7 @@ lineage-based incident filer (Atlan, Databricks, and Alation all had near-identi
 
 The pattern behind all four: _point an agent at the catalog, have it check something, write a
 finding back._ That shape is inherently backward-looking and is exactly where every funded competitor
-already is. obsel is forward-looking — it uses the graph while the work is happening.
+already is. obsel uses the graph while the work is still happening instead.
 
 ## 9. Honest weaknesses
 
@@ -215,7 +215,7 @@ already is. obsel is forward-looking — it uses the graph while the work is hap
 ### 9a. The silent participant, and what was done about it (2026-07-23)
 
 The sharpest version of the weakness: obsel only learns anything when an agent reports, so an agent
-that writes a shared table and never reports is invisible — and the resulting silence reads as "all
+that writes a shared table and never reports is invisible, and the resulting silence reads as "all
 clear", which is worse than no tool.
 
 Shipped mitigation, the reader-side cross-check. Every completion may carry fingerprints of what
@@ -234,8 +234,8 @@ What this deliberately does not fix, in honesty order:
 
 - **Coverage grows with reads, not with time.** Between the silent write and the next honest read
   of that table, obsel is still blind. A user who wants the gap closed can run any agent that
-  re-reads the tables and reports — the mechanism is already the ordinary completion report — or,
-  in a real warehouse, feed change-data-capture into the same API. Neither is built here.
+  re-reads the tables and reports, since the mechanism is already the ordinary completion report, or
+  in a real warehouse feed change-data-capture into the same API. Neither is built here.
 - **A table obsel has never been told about stays invisible.** No tool can walk downstream of a
   node it does not know exists; the orchestrators in 3a answer this with up-front declaration,
   obsel answers it by making joining cost one call. The gap between those two is fundamental.

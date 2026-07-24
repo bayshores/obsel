@@ -12,11 +12,11 @@ been established is in [Not done](#not-done) rather than left out.
 ## What is built
 
 **The whole loop is built, and the whole demo now runs from the browser.** The cockpit carries a
-guide that reads the live state once a second and offers the next real action as a button — set up
-the demo agents, start them, run one again unchanged, change one agent's instructions. Each button
+guide that reads the live state once a second and offers the next real action as a button: set up
+the demo agents, start them, run one again unchanged, or change one agent's instructions. Each button
 launches the same `agents.run` step the terminal path runs, verbatim, and the step's own printed
-output streams onto the board. On 2026-07-22 the full journey — reset → re-declare → run →
-identical re-run → change — was driven end to end **with five clicks and no terminal**, against a
+output streams onto the board. On 2026-07-22 the full journey (reset → re-declare → run →
+identical re-run → change) was driven end to end **with five clicks and no terminal**, against a
 live DataHub with a live Codex CLI, every step exiting 0.
 
 Several things were rebuilt on 2026-07-23, all for the same reason: a stranger looking at the board
@@ -118,22 +118,22 @@ and type-checks, not a plan.
 
 ### Where each piece lives
 
-| Piece                                                                           | Where                                                                 |
-| ------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| A task is a `DataJob` with real lineage edges                                   | `agents/graph.py`, `src/server/datahub/urns.ts`                       |
-| Output fingerprinting, schema and content separately                            | `agents/fingerprint.py`                                               |
-| The staleness rules, pure and testable                                          | `src/server/coordinator/staleness.ts`                                 |
-| Marks written back into DataHub                                                 | `src/server/coordinator/engine.ts`, `src/server/datahub/mcp.ts`       |
-| Four demo agent workers, each a real Codex session                              | `agents/worker.py`, `agents/run.py`                                   |
-| The agent output contract, names and number form                                | `agents/worker.py` — `canonicalise_numbers`, with a self-check        |
-| The cockpit — graph, headline, stats, step log, details                         | `app/page.tsx`, `src/features/cockpit/`                               |
-| Live agent progress on the board                                                | `src/features/cockpit/progress.ts`                                    |
-| The guide — stage derived from live state, buttons that launch the real steps   | `src/features/cockpit/guide.ts`, `guide-panel.tsx`                    |
-| The demo runner — spawns `agents.run` steps, checks the machine's prerequisites | `src/server/runner/`                                                  |
-| Each task's job, stored on its DataJob in DataHub and read back onto the board  | `agents/pipeline.py`, `src/server/datahub/client.ts`                  |
-| The stale tag read back off the entity, and counted on the board                | `src/server/datahub/tags.ts`, `src/features/cockpit/timing.ts`        |
-| A link from any task to its real page in DataHub's UI                           | `src/features/cockpit/datahub-link.ts`, `inspector.tsx`               |
-| HTTP API, eight routes including launch and activity                            | `app/api/` — see [`docs/architecture.md`](architecture.md) section 11 |
+| Piece                                                                          | Where                                                                |
+| ------------------------------------------------------------------------------ | -------------------------------------------------------------------- |
+| A task is a `DataJob` with real lineage edges                                  | `agents/graph.py`, `src/server/datahub/urns.ts`                      |
+| Output fingerprinting, schema and content separately                           | `agents/fingerprint.py`                                              |
+| The staleness rules, pure and testable                                         | `src/server/coordinator/staleness.ts`                                |
+| Marks written back into DataHub                                                | `src/server/coordinator/engine.ts`, `src/server/datahub/mcp.ts`      |
+| Four demo agent workers, each a real Codex session                             | `agents/worker.py`, `agents/run.py`                                  |
+| The agent output contract, names and number form                               | `agents/worker.py` (`canonicalise_numbers`), with a self-check       |
+| The cockpit: graph, headline, stats, step log, details                         | `app/page.tsx`, `src/features/cockpit/`                              |
+| Live agent progress on the board                                               | `src/features/cockpit/progress.ts`                                   |
+| The guide: stage derived from live state, buttons that launch the real steps   | `src/features/cockpit/guide.ts`, `guide-panel.tsx`                   |
+| The demo runner: spawns `agents.run` steps, checks the machine's prerequisites | `src/server/runner/`                                                 |
+| Each task's job, stored on its DataJob in DataHub and read back onto the board | `agents/pipeline.py`, `src/server/datahub/client.ts`                 |
+| The stale tag read back off the entity, and counted on the board               | `src/server/datahub/tags.ts`, `src/features/cockpit/timing.ts`       |
+| A link from any task to its real page in DataHub's UI                          | `src/features/cockpit/datahub-link.ts`, `inspector.tsx`              |
+| HTTP API, eight routes including launch and activity                           | `app/api/`, see [`docs/architecture.md`](architecture.md) section 11 |
 
 **Added 2026-07-23, the reader-side cross-check.** obsel's trigger is an agent reporting, so a
 process that rewrites a shared table and never reports was invisible, and the silence read as "all
@@ -152,10 +152,10 @@ clear". Three things shipped against that, together:
   the MCP server reads and hashes the file itself. This exists because a model pasting hundreds of
   rows into a tool call will eventually truncate or paraphrase one, the content hash moves, and
   obsel reports a change nobody made. A missing file, non-JSON bytes, a non-table shape and an
-  ambiguous path-plus-rows value are each refused with the path in the message — every one exercised
-  against a real file or a real absence in `agents/mcp_core.py`'s self-checks and live over stdio.
+  ambiguous path-plus-rows value are each refused with the path in the message, and every one is
+  exercised against a real file or a real absence in `agents/mcp_core.py`'s self-checks and live over stdio.
 - **The quiet claim is bounded.** The board says "none of the tables they read has changed since,
-  as of the last report at 17:42:07" — because that timestamp is the edge of obsel's knowledge, and
+  as of the last report at 17:42:07", because that timestamp is the edge of obsel's knowledge, and
   an unbounded all-clear claims more than it can know.
 
 Also that day: **table boxes on the graph open a details view** (who writes it, who reads it,
@@ -166,8 +166,9 @@ display-only `path` on the run detail; nothing decides on it.
 ## Verified directly
 
 - **The staleness rules**, by 38 deterministic tests in `tests/staleness.test.ts`. About half assert
-  that nothing happens, which is deliberate — the failure that kills this kind of tool is a false
-  alarm, not a miss. An identical re-run marks nothing, an unrelated branch is untouched, a running
+  that nothing happens, which is deliberate, because the failure that kills this kind of tool is a
+  false alarm rather than a miss. An identical re-run marks nothing, an unrelated branch is untouched,
+  a running
   task is neither marked nor walked through, a cycle terminates. The reader-observed change carries
   no author at any hop, and a reported change still names its producer.
 - **The cockpit's own logic**, by 161 further tests across `tests/cockpit-*.test.ts`. The load-bearing
@@ -179,7 +180,7 @@ display-only `path` on the run detail; nothing decides on it.
   sizing they exist to forbid.
 - **The coordinator, both MCP surfaces, the worker's HTTP calls, the demo command line and a whole
   agent run, against the real thing**, by 58
-  integration tests in `tests/live/` — a live DataHub, the real `uvx mcp-server-datahub==0.6.0`
+  integration tests in `tests/live/` against a live DataHub, the real `uvx mcp-server-datahub==0.6.0`
   subprocess, and a real obsel server. `pnpm test:live`. This closes what was for a long time the
   repository's most honest weakness, and the reason it stood so long is worth naming: `engine.ts`,
   `client.ts` and `mcp.ts` all import `server-only`, which throws unless the
@@ -192,7 +193,7 @@ display-only `path` on the run detail; nothing decides on it.
   reset the board you have open, and `tests/urns.test.ts` runs the Python module for real to check both
   languages still build identical URNs.
 
-  **It found a real bug on its first run** — one the stand-in had made structurally invisible.
+  **It found a real bug on its first run**, one the stand-in had made structurally invisible.
   `registerTask` confirmed the task's entity and stopped there, but swarm membership is an `IsPartOf`
   edge in DataHub's graph store, and that lags the aspect store: measured at 218 ms for the entity and
   **1302 ms** for the edge. So obsel reported a task registered while its own snapshot could not yet
@@ -215,14 +216,14 @@ display-only `path` on the run detail; nothing decides on it.
   registered producer reported as exactly that rather than as fresh, and `217` and `217.0` reaching
   one fingerprint while `218` still moves it.
 
-- **One real Codex session**, in `tests/live/codex.live.test.ts` — the only automated model call in the
+- **One real Codex session**, in `tests/live/codex.live.test.ts`, the only automated model call in the
   repository. The subject is the invocation, not the reasoning: `--sandbox workspace-write` and
   `--skip-git-repo-check` were learned by running the CLI, both fail silently in the way that matters,
   and no stand-in can say whether today's Codex still accepts them. The agent reads a real file, writes
   a real table, and meets an exact column contract.
 
 - **The cascade, end to end against a live DataHub** on 2026-07-21. A schema-only change posted to
-  `POST /api/tasks/complete` — content byte-identical, schema moved — marked exactly
+  `POST /api/tasks/complete`, with content byte-identical and schema moved, marked exactly
   `build_revenue` (1 hop), `write_report` and `write_docs` (2 hops), each with its reason, in a
   measured **6867 ms** including the bounded-poll confirmation of every DataHub write. Re-posting
   the identical fingerprint returned `changedOutputs: []`, marked nothing new, and left all three
@@ -238,7 +239,7 @@ display-only `path` on the run detail; nothing decides on it.
   `clean_orders` as "Orders cleaner" from DataHub rather than from anything hard-coded. `run` took
   **142.6 s** for four Codex sessions. The upstream rename was called **`schema`** and marked the
   same three tasks, and `GET /api/trace` reported each step as it happened: the swarm read (4 tasks),
-  the comparison — _"its columns changed; the values did not"_ — the walk, _"Daily revenue (1 hop),
+  the comparison, _"its columns changed; the values did not"_, then the walk, _"Daily revenue (1 hop),
   Revenue report (2 hops), Table docs (2 hops)"_, one line per confirmed mark, and a close of
   **3424 ms** end to end. That figure matched what the stat ribbon showed at the same moment. A
   second sequence the same day, from the terminal with `--capture`, produced the current `examples/`
@@ -279,53 +280,53 @@ display-only `path` on the run detail; nothing decides on it.
   labels, which was fine until a label carried DataHub's name: the cell crediting DataHub rendered as
   "written into datahub". `StatCell` now takes `preserveCase`, used only there.
 - **The whole demo, driven from the browser alone**, on 2026-07-22 against a live DataHub and a
-  signed-in Codex CLI — five clicks in the guide, no terminal: reset, then re-declare (which
+  signed-in Codex CLI, in five clicks in the guide with no terminal: reset, then re-declare (which
   wrote each task's job description onto its DataJob and read it back onto the board in a
-  measured **506 ms**), then `run` — four Codex sessions in **112.2 s**, watched live as
-  "in flight for N s" — then the identical re-run, which obsel answered with **0 changed outputs
+  measured **506 ms**), then `run`, four Codex sessions in **112.2 s**, watched live as
+  "in flight for N s", then the identical re-run, which obsel answered with **0 changed outputs
   and 0 marks, confirmed in 106 ms**, then the upstream rename, which obsel called **`schema`**
   and answered by marking exactly `build_revenue` (1 hop), `write_docs` and `write_report`
   (2 hops each) in a measured **2310 ms**. Every step exited 0 with its own assertions passing,
   and the board followed each transition within a poll. As a cross-check that the guide derives
-  from state rather than following a script, the final `reset` was run from a terminal instead —
-  the board tracked it identically.
+  from state rather than following a script, the final `reset` was run from a terminal instead,
+  and the board tracked it identically.
 - **The whole demo, end to end, from the terminal**, earlier on 2026-07-22 against the same live
   DataHub and Codex CLI. `reset` → `run` → `rerun-same` → `change`, exit 0, every assertion
   passing:
 
-  - `run` — four Codex sessions in **134.0 s**, then `GET /api/swarm` read back to confirm 4 of 4
+  - `run`, four Codex sessions in **134.0 s**, then `GET /api/swarm` read back to confirm 4 of 4
     complete with no marks. obsel held no previous fingerprint for any output, so it correctly
     marked nothing.
-  - `rerun-same` — `clean_orders` re-ran, produced a byte-identical table, and obsel reported
+  - `rerun-same`, where `clean_orders` re-ran, produced a byte-identical table, and obsel reported
     **0 changed outputs and 0 marks**, confirmed in **60 ms**. This is the negative case the whole
     product rests on: a tool that flags the pipeline on every scheduled re-run is a tool people mute.
-  - `change` — one column renamed, `order_total` → `order_total_usd`. obsel called it **`schema`,
-    not `both`** — the values did not move, only the name — and marked exactly `build_revenue`
-    (1 hop), `write_docs` and `write_report` (2 hops each), in a measured **2591 ms**, each with its
+  - `change`, where one column was renamed, `order_total` → `order_total_usd`. obsel called it
+    **`schema`, not `both`**, because the values did not move and only the name did, and it marked
+    exactly `build_revenue` (1 hop), `write_docs` and `write_report` (2 hops each), in a measured **2591 ms**, each with its
     reason. The last two never read `clean_orders`; they were reached through `daily_revenue`.
 
   Four earlier runs of `run` measured 135.9 s, 119.4 s, 152.0 s and 134.0 s on the same machine.
 
 - **The board showing an agent while it works.** During the second run the cockpit reported
   `clean_orders` as `in flight for 12.7 s`, then 20.7 s on a later poll, and after it finished
-  `codex-cli 0.144.4 · 43.9 s · 39 rows · order_id, customer, order_total, order_date` — the same
-  figures the terminal printed. Before this, obsel was told an agent had started only after its work
-  was already over, so the board said "waiting" throughout.
+  `codex-cli 0.144.4 · 43.9 s · 39 rows · order_id, customer, order_total, order_date`, which were the
+  same figures the terminal printed. Before this, obsel was told an agent had started only after its
+  work was already over, so the board said "waiting" throughout.
 - **The MCP write path**, by round trip: apply the tag, confirm it through GraphQL, remove it,
   confirm removal.
-- **The existence predicate and swarm enumeration**, by curl against the live instance —
-  see [`docs/environment-findings.md`](environment-findings.md) sections 1 and 9.
+- **The existence predicate and swarm enumeration**, by curl against the live instance.
+  See [`docs/environment-findings.md`](environment-findings.md) sections 1 and 9.
 
 ## Not done
 
 - **The demo has passed a handful of times, not repeatedly.** Six full clean sequences across
-  2026-07-22 and 2026-07-23 — four from the terminal, two from the browser — on one machine. That is
-  not a pass rate. Codex is a live agent and its output is not guaranteed identical between runs — see the
-  next point for the one instance of that already found and fixed, and expect the possibility of
+  2026-07-22 and 2026-07-23, four from the terminal and two from the browser, on one machine. That is
+  not a pass rate. Codex is a live agent and its output is not guaranteed identical between runs. See
+  the next point for the one instance of that already found and fixed, and expect the possibility of
   others in categories nobody has hit yet.
 - **Codex's output needed pinning down twice, and may need it again.** Two separate instabilities
   have shown up in live runs, both of which made a re-run look like a real change: customer-name
-  casing (fixed by pinning the instruction, see `agents/pipeline.py`) and numeric serialisation —
+  casing (fixed by pinning the instruction, see `agents/pipeline.py`) and numeric serialisation, with
   `order_id` 1012's money value written `217` on three runs and `217.0` on a fourth, which broke
   `rerun-same` and made `change` report `both` instead of `schema`. The second is now handled by
   `canonicalise_numbers` in `agents/worker.py`, which fixes the serialised form per column before
@@ -341,9 +342,10 @@ display-only `path` on the run detail; nothing decides on it.
   real runs and exits non-zero when it fails, which is how both agent instabilities above were found.
   The demo runner in `src/server/runner/` is still tested on its pure half only.
 - **The detection latency numbers are single observations, not a benchmark.** Each cascade run has
-  produced one measured figure — 6867 ms on 2026-07-21; 2591 ms and 2310 ms on separate runs on
-  2026-07-22; 3424 ms, 1611 ms, 745 ms and 3281 ms on 2026-07-23 — and the spread is dominated by how long the bounded
-  polling waits for each DataHub write to be confirmed, not by the deciding. The separate 92 ms
+  produced one measured figure: 6867 ms on 2026-07-21; 2591 ms and 2310 ms on separate runs on
+  2026-07-22; 3424 ms, 1611 ms, 745 ms and 3281 ms on 2026-07-23. The spread is dominated by how long
+  the bounded polling waits for each DataHub write to be confirmed, not by the deciding. The separate
+  92 ms
   figure is the Python traversal alone.
 - **The live trace is narration, not evidence.** It is emitted by the coordinator as it works and has
   been watched during a real cascade, but nothing reads it back, it is bounded to the newest 200

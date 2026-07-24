@@ -17,14 +17,14 @@ and it is the step people skip.
 - Python 3, for the demo agents. They get their own virtual environment in step 4 below; the
   `datahub` CLI used to start the stack is a separate, global install of `acryl-datahub`
 - `uv`, for running the DataHub MCP server
-- **The Codex CLI, signed in.** `codex login status` should say so. Each demo agent is a real
-  Codex session that reads the data, decides, and writes its table with its own tools. There is no
-  API-key path and no offline mode — if Codex is missing or signed out, the run fails and says so.
+- **The Codex CLI, signed in.** `codex login status` should say so. Each demo agent is a real Codex
+  session that reads the data and decides for itself what its own table should contain. There is no
+  API-key path and no offline mode, so if Codex is missing or signed out the run fails and says so.
   See [`THIRD_PARTY_NOTICES.md`](../THIRD_PARTY_NOTICES.md) for the terms question this raises.
 
 ## The short version
 
-The short version — the app guides you through the rest:
+Three commands, and the app guides you through the rest:
 
 ```bash
 datahub docker quickstart        # first run pulls images, takes a few minutes
@@ -46,7 +46,7 @@ listed in step 8 below, verbatim, and streams that step's own output onto the bo
 
 The same setup as eight explicit steps, for when something fails or you prefer the terminal. Each
 one has a way to tell whether it worked, because several of them fail quietly. The demo agents in
-`agents/` need their own Python environment — they are not installed by `pnpm install`.
+`agents/` need their own Python environment, which `pnpm install` does not create.
 
 **1. Start DataHub.** The first run pulls several images and takes a few minutes.
 
@@ -55,8 +55,8 @@ datahub docker quickstart
 curl -s http://localhost:8080/config      # should print JSON with a version
 ```
 
-DataHub's UI is then at `http://localhost:9002`. Its API (GMS) is at `http://localhost:8080` —
-these are different ports and are not interchangeable; point clients at 8080.
+DataHub's UI is then at `http://localhost:9002`. Its API (GMS) is at `http://localhost:8080`. These
+are different ports and are not interchangeable, so point clients at 8080.
 
 **2. Configure the environment.**
 
@@ -64,10 +64,10 @@ these are different ports and are not interchangeable; point clients at 8080.
 cp .env.example .env.local
 ```
 
-`.env.example` documents every variable. The demo agents need no key here — they authenticate
-through the Codex CLI. One variable,
-`MCP_SERVER_DATAHUB_VERSION`, is pinned deliberately — read its comment before changing it, because
-resolving it to `@latest` silently disables every write while still reporting success.
+`.env.example` documents every variable. The demo agents need no key here, because they authenticate
+through the Codex CLI. One variable, `MCP_SERVER_DATAHUB_VERSION`, is pinned deliberately. Read its
+comment before changing it, because resolving it to `@latest` silently disables every write while
+still reporting success.
 
 **3. Install the Node dependencies.**
 
@@ -109,7 +109,7 @@ This creates `urn:li:tag:obsel-stale` and the demo DataFlow. It is not optional:
 a tag at run time, so without this step staleness is detected and silently not recorded. The command
 fails loudly if either did not land.
 
-**8. Run the demo** — from the guide's buttons, or as the same commands:
+**8. Run the demo**, either from the guide's buttons or as the same commands:
 
 ```bash
 agents/.venv/bin/python -m agents.run register      # four tasks into DataHub, each with its job
