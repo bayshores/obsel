@@ -180,9 +180,9 @@ display-only `path` on the run detail; nothing decides on it.
 - **The coordinator, both MCP surfaces, the worker's HTTP calls, the demo command line and a whole
   agent run, against the real thing**, by 58
   integration tests in `tests/live/` — a live DataHub, the real `uvx mcp-server-datahub==0.6.0`
-  subprocess, and a real obsel server. `pnpm test:live`. This closes what `hackathon.md` had called the
-  repository's most honest weakness since the first commit, and the reason it stood so long is worth
-  naming: `engine.ts`, `client.ts` and `mcp.ts` all import `server-only`, which throws unless the
+  subprocess, and a real obsel server. `pnpm test:live`. This closes what was for a long time the
+  repository's most honest weakness, and the reason it stood so long is worth naming: `engine.ts`,
+  `client.ts` and `mcp.ts` all import `server-only`, which throws unless the
   bundler resolves under React's `react-server` condition, so **no test could load them at all**.
 
   **Nothing is stood in for.** There was an in-memory DataHub for exactly one commit, and it was

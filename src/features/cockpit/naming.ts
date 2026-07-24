@@ -27,7 +27,7 @@ import type { TaskRecord } from "@/src/server/coordinator/types";
  * `urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_demo.clean_orders,PROD)`.
  *
  * Deliberately duplicated from `src/server/coordinator/staleness.ts` rather than
- * imported. This module is rendered in the browser, and CLAUDE.md forbids
+ * imported. This module is rendered in the browser, and obsel's architecture forbids
  * browser code importing server modules — a rule about the dependency direction,
  * not about how expensive the function is. The two must stay in step; a test
  * asserts they agree.

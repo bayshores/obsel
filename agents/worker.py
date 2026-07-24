@@ -534,7 +534,7 @@ def _enter_running(task_name: str, task_urn: str, obsel_url: str, root: Path) ->
     obsel refuses a second `start` for a task it already has at `running`, which is
     right -- two agents writing the same output at once is a real error. But it also
     means that if this worker announced a start and then died, a retry is refused and
-    the task sits at `running` forever, and CLAUDE.md's rule is that only *finished*
+    the task sits at `running` forever, and obsel's rule is that only *finished*
     work can go stale. A task wedged at `running` is invisible to obsel while the
     board still looks healthy, which is the exact silent blindness obsel exists to
     prevent.

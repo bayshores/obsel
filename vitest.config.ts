@@ -31,8 +31,8 @@ export default defineConfig({
        * It is a marker package that throws on import unless the bundler resolves under
        * React's `react-server` condition. `engine.ts`, `client.ts` and `mcp.ts` all
        * import it, so before this alias none of the three could be loaded by a test at
-       * all — which is the mechanical reason `hackathon.md` lists them as the
-       * repository's most honest weakness. The import threw before any test could run.
+       * all, which is why they went untested for so long. The import threw before any
+       * test could run.
        *
        * `resolve.conditions: ["react-server"]` would also work and is deliberately not
        * used: it would change resolution for every package in the graph, React

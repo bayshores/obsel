@@ -25,3 +25,7 @@ agents/.venv/
 
 # Tool-local launch config (created by the editor's browser preview)
 .claude/
+
+# Internal dev docs, kept local but out of the judge-facing repo
+CLAUDE.md
+hackathon.md

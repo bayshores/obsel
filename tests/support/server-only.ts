@@ -6,9 +6,8 @@
  * reaches the browser. `src/server/coordinator/engine.ts`,
  * `src/server/datahub/client.ts` and `mcp.ts` all import it, and vitest does not set
  * that condition, so **none of those three modules could be imported by a test at
- * all**. That is the mechanical reason `hackathon.md` has listed them as the
- * repository's most honest weakness since the first commit: not that testing them was
- * judged unimportant, but that the import threw before any test could run.
+ * all**. That is the mechanical reason they went untested for so long: not that testing
+ * them was judged unimportant, but that the import threw before any test could run.
  *
  * This is the same thing the real package resolves to under `react-server` — its own
  * `empty.js`. Aliasing directly to that file is not possible, because

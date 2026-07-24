@@ -362,7 +362,7 @@ client, over real stdio, into the real Python server, against a real obsel and a
 Port 8080 is GMS, the API. Port 9002 is the frontend proxy. They are not interchangeable; clients
 point at 8080.
 
-Directory rules, unchanged from [`CLAUDE.md`](../CLAUDE.md): `app/` routes and composes,
+Directory rules: `app/` routes and composes,
 `src/features/` is browser code and must never import a server-only module, `src/server/domain/`
 and `src/server/coordinator/` are deterministic and make no model calls, `src/server/datahub/` owns
 every DataHub call.

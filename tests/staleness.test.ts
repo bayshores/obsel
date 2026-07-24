@@ -212,7 +212,7 @@ describe("affectedBy — following the chain", () => {
 
   it("leaves detectedMs unset, because deciding cannot know how long writing takes", () => {
     // The engine fills this in once every mark has been written and confirmed.
-    // A guess here would be exactly the unmeasured timing claim CLAUDE.md forbids,
+    // A guess here would be exactly the unmeasured timing claim obsel's rules forbid,
     // and it is what the dashboard prints.
     const found = affectedBy(demoSwarm(), [{ dataset: ds("clean_orders"), kind: "schema" }], NOW);
     expect(found).not.toHaveLength(0);

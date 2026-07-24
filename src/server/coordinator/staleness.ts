@@ -272,7 +272,7 @@ export function affectedBy(
           // Filled in by the engine once every mark from this change has been
           // written and confirmed. Deciding is pure and does not know how long
           // the writes will take, and guessing a number here would be the
-          // unmeasured timing claim CLAUDE.md forbids.
+          // unmeasured timing claim obsel's rules forbid.
           detectedMs: null,
         };
         affected.push({ task, mark });
