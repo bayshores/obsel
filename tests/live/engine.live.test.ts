@@ -515,7 +515,7 @@ describe("reset clears both halves, because they live on different aspects", () 
   it("clears properties and the real tag, and keeps the lineage", async () => {
     /*
      * The properties are on `dataJobInfo` and the tag is on `globalTags`, so clearing
-     * one leaves the other. `docs/demo-script.md` calls the result the single most
+     * one leaves the other. The result is the single most
      * damaging frame the video could contain: DataHub showing a stale badge on a job
      * obsel calls registered.
      */

@@ -57,7 +57,7 @@ interface Ran {
 }
 
 /**
- * Run `agents.run` the way `docs/demo-script.md` tells an operator to.
+ * Run `agents.run` the way the demo tells an operator to.
  *
  * `spawnSync` rather than `execFileSync`, because a non-zero exit is the subject of two of
  * these tests rather than an error in them: `execFileSync` throws on it and the exit code

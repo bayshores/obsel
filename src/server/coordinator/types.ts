@@ -268,7 +268,7 @@ export interface TaskRecord {
    * Deliberately independent of `stale`. The two disagreeing is a real state worth
    * seeing, not an impossible one: obsel writes the mark before the tag, so during
    * the asynchronous write window a marked task legitimately has no tag yet, and a
-   * tag surviving with no mark is the reset-by-hand fault `docs/demo-script.md`
+   * tag surviving with no mark is the reset-by-hand fault the demo
    * warns about.
    */
   staleTagged?: boolean;

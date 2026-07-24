@@ -198,7 +198,7 @@ export function midWrite(): SwarmResponse {
  * What a reset done by hand leaves behind: the `obsel.*` properties are cleared and
  * the tag is not, because they live on different aspects of the same entity. DataHub
  * then shows a stale badge on work obsel says is fine, and unlike a write in flight
- * this never resolves itself. `docs/demo-script.md` calls it the most damaging frame
+ * this never resolves itself. It is the most damaging frame
  * the video could contain.
  */
 export function leftOverTag(): SwarmResponse {

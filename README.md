@@ -233,7 +233,6 @@ starts every check obsel does.
 | [`docs/architecture.md`](docs/architecture.md)                     | How the pieces fit, and why each decision was made             |
 | [`docs/verification.md`](docs/verification.md)                     | What is built, what is proven, and what is not                 |
 | [`docs/environment-findings.md`](docs/environment-findings.md)     | DataHub behaviour measured directly, including several traps   |
-| [`docs/demo-script.md`](docs/demo-script.md)                       | The shot list for the submission video                         |
 | [`docs/upstream-contributions.md`](docs/upstream-contributions.md) | A DataHub CLI bug found here, root caused, with a proposed fix |
 | [`agents/README.md`](agents/README.md)                             | The demo agents, and what each command prints                  |
 | [`examples/README.md`](examples/README.md)                         | Sample outputs, and exactly which parts of them are real       |

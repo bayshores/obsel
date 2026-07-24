@@ -459,7 +459,7 @@ is a separate hosted product obsel does not touch.
 The details panel's `open this job in DataHub` link works for anyone whose DataHub tab is already
 signed in, which is the demo's own setup, and strands a cold visitor on a login form. The panel says
 so in words next to the link rather than letting it be discovered by clicking, and
-`docs/demo-script.md` already has DataHub signed in and parked on the lineage view.
+the demo has DataHub signed in and parked on the lineage view already.
 
 ### The entity path, and the encoder that goes with it
 

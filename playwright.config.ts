@@ -46,7 +46,7 @@ export default defineConfig({
 
   projects: [
     // A full-frame browser on a 1080p display, which is what
-    // docs/demo-script.md specifies for the recording now that the demo is
+    // the recording needs now that the demo is
     // driven from the guide panel rather than a terminal beside the window.
     // 990 ≈ 1080 minus the browser chrome.
     { name: "recording-1920x990", use: { viewport: { width: 1920, height: 990 } } },

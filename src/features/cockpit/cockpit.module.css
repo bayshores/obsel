@@ -3,7 +3,7 @@
  *
  * Primary target is a full-frame browser on a 1080p display — 1920 × 990 CSS
  * px of viewport, content capped at 1280 and centred — which is what
- * docs/demo-script.md specifies for the recording now that the demo is driven
+ * the recording needs now that the demo is driven
  * from the guide panel rather than a terminal beside the window. (The old
  * target was 960 × 1000: half a frame, the other half being the terminal the
  * guide replaced.) 1280 × 800 is the laptop check: the page may scroll

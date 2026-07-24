@@ -39,7 +39,7 @@ export interface SwarmTotals {
    * not-recorded rule as `tagged`.
    *
    * Unlike a shortfall in `tagged`, this never resolves itself by waiting. It is
-   * the reset-by-hand fault `docs/demo-script.md` calls the most damaging frame the
+   * the reset-by-hand fault that is the most damaging frame the
    * video could contain: a tag from a previous take still on the entity while
    * obsel's own properties say the task is clean.
    */

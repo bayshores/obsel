@@ -16,7 +16,7 @@ being timed. Nothing in this file says "instant".
 Every outcome printed here is read back from obsel. `run`, `rerun-same` and
 `change` each state one specific claim, check it against what obsel actually
 returned, and print an `UNEXPECTED:` line and exit non-zero when the two differ.
-`docs/demo-script.md` tells the operator to rely on that guard, so a command that
+The demo relies on that guard, so a command that
 prints its claim without checking it would be worse than no guard at all: a
 missing key or an empty list would read as a pass.
 """
@@ -62,7 +62,7 @@ class Unexpected(RuntimeError):
 
     Separate from a plain RuntimeError so `main` can label it, because "the demo
     could not run" and "the demo ran and obsel is wrong" are different problems and
-    an operator following `docs/demo-script.md` has to tell them apart.
+    an operator running the demo has to tell them apart.
     """
 
 
@@ -640,7 +640,7 @@ def cmd_self_check(args: argparse.Namespace) -> int:
 
     Run directly: `python -m agents.run self-check`
 
-    Not a demo step. `docs/demo-script.md` tells an operator to trust the
+    Not a demo step. The demo tells an operator to trust the
     `UNEXPECTED:` lines the commands above print, which makes the machinery that
     produces them load-bearing: a guard that cannot fail is not a guard, and one
     that reads a broken reply as a pass is worse than none at all.
@@ -951,7 +951,7 @@ def cmd_self_check(args: argparse.Namespace) -> int:
     check(
         "the two labels are distinguishable",
         "UNEXPECTED:" not in runtime_text,
-        "docs/demo-script.md tells the operator to tell these apart, so they must differ",
+        "the demo tells the operator to tell these apart, so they must differ",
     )
 
     # argparse writes its usage to stderr and exits. Both are swallowed here, so

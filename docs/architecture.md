@@ -97,7 +97,7 @@ Three consequences worth stating, because each is a claim the board can now make
   cross would read as broken and be wrong.
 - **A tag with no mark never resolves itself**, and is counted separately as `left over`. It is what a
   reset done by hand leaves behind, since the properties and the tag live on different aspects of the
-  same entity. [`docs/demo-script.md`](demo-script.md) calls that the most damaging frame the video
+  same entity. That is the most damaging frame the demo video
   could contain, and the board can now say it out loud.
 - **Absent is not zero.** A snapshot captured before these fields existed carries no tag information,
   and the board reports `not recorded`. Rendering `0 of 3` would claim DataHub is missing three tags
