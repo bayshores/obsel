@@ -582,7 +582,7 @@ What has been verified directly, and what has not.
 - **The window between a mark landing and its tag landing.** `markStale` awaits the confirmed property
   write and then `applyStaleTag`, so a marked task genuinely has no tag for a moment, and the ribbon
   counts rather than ticks because of it. Polling the live board every two seconds on 2026-07-23, that
-  moment was never caught: the board went from nothing marked straight to `3 of 3`. So the partial
+  moment was never caught: the board went from having nothing to write straight to `3 of 3`. So the partial
   count is asserted by a unit test and a browser test against a fixture, and the live evidence says
   only that the window is shorter than two seconds on this machine.
 

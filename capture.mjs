@@ -56,7 +56,17 @@ console.log(which, JSON.stringify(state));
  * A first version tested the headline for "out of date", which matches BOTH states:
  * the settled headline is "all 4 finished, nothing out of date". The write-back cell
  * is derived from the marks instead of written as copy, so it cannot be ambiguous:
- * "nothing marked" when calm, "N of M tagged" when anything is flagged.
+ * a calm board has nothing to write, and a flagged one reports "N of M tagged".
+ *
+ * The test is on "tagged" and not on the calm wording, which is what keeps this
+ * working across a copy change. The calm cell has been reworded twice since this
+ * was written; both times the flagged cell still counted tags, because that half is
+ * a count rather than a sentence. Matching the calm string instead would have made
+ * every rewrite of it silently save a settled board as flagged.
+ *
+ * Watch the one collision this has: the leftover-tag wording is "N tags left over
+ * from before", which must NOT match, and does not, because it says "tags" and this
+ * asks for "tagged".
  */
 const flagged = /tagged/.test(state.written ?? "");
 if ((which === "flagged") !== flagged) {

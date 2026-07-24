@@ -31,7 +31,7 @@ export interface LaunchRefusal {
   fix: string | null;
 }
 
-/** The interpreter the README's setup step creates. Checked, never assumed. */
+/** The interpreter `docs/setup.md`'s step creates. Checked, never assumed. */
 export function venvPython(repoRoot: string): string {
   return path.join(repoRoot, "agents", ".venv", "bin", "python");
 }

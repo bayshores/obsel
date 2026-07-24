@@ -13,7 +13,7 @@ Capturing them is the owner's action, like recording the video. Nothing here is 
 
 | File          | Board state | What has to be legible in it                                                                                                                                                                            |
 | ------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `settled.png` | settled     | Four done boxes, the headline reading `all 4 finished, nothing out of date`, and the write-back cell reading `·· nothing marked`.                                                                       |
+| `settled.png` | settled     | Four done boxes, the headline reading `all 4 finished, nothing out of date`, and the write-back cell reading `·· nothing to write yet`.                                                                 |
 | `flagged.png` | flagged     | Three amber boxes, `- order_total` / `+ order_total_usd` on the changed table, the subline naming how many never read it, the measured detection time, and the write-back cell reading `3 of 3 tagged`. |
 
 ## Rules

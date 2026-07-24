@@ -13,7 +13,7 @@
  * `/relationships` paging loop and every DataHub write are not exercised here.
  * This suite verifies **the cockpit's rendering of a snapshot**, not that obsel
  * produces the right snapshot. The pure rules are covered by `tests/`, and the
- * live path has been driven by hand — see the README.
+ * live path has been driven by hand — see `docs/verification.md`.
  */
 
 import type { Page } from "@playwright/test";
@@ -85,7 +85,7 @@ export async function openCockpit(
   // genuinely probe this machine — spawn `codex login status`, stat the venv —
   // making every test a fact about the box it ran on; and the real launch
   // handler would spawn a real agent run. Both are exercised live instead
-  // (see the README's verified section), never from this suite.
+  // (see `docs/verification.md`), never from this suite.
   await page.route("**/api/demo/activity", async (route) => {
     await route.fulfill({
       status: 200,
