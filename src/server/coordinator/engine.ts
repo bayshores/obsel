@@ -22,9 +22,12 @@ import { taskUrn } from "@/src/server/datahub/urns";
 import {
   affectedBy,
   blocked,
+  classifyObservation,
   columnChange,
   compareFingerprints,
   readyToStart,
+  restoredBy,
+  supersededMark,
   tableLabel,
   taskLabel,
 } from "./staleness";
@@ -36,6 +39,7 @@ import type {
   CompletionReport,
   CoordinationResult,
   OutputFingerprint,
+  RestoredTask,
   SwarmSnapshot,
   TaskRecord,
 } from "./types";
@@ -250,9 +254,14 @@ export async function coordinateCompletion(report: CompletionReport): Promise<Co
   emit("read", `${label(finishing)} finished`, `read ${snapshot.tasks.length} tasks from DataHub`);
 
   const changedOutputs: DatasetChange[] = [];
+  // Outputs that came back byte-identical to the recorded baseline. Only these
+  // can restore anything: a first run has no baseline to have matched, so it
+  // proves nothing about work built on "the previous version".
+  const unchangedOutputs: string[] = [];
   for (const dataset of Object.keys(report.fingerprints).sort()) {
     const previous = finishing.fingerprints[dataset];
     const kind = compareFingerprints(previous, report.fingerprints[dataset]);
+    if (previous && kind === null) unchangedOutputs.push(dataset);
     if (kind) {
       /*
        * Named here because this is the only moment both column lists exist.
@@ -302,16 +311,18 @@ export async function coordinateCompletion(report: CompletionReport): Promise<Co
    */
   const observedChanges: DatasetChange[] = [];
   const observationsFor = new Map<TaskRecord, Record<string, OutputFingerprint>>();
+  // At most one: the finishing task's own mark, earned by finishing on an input
+  // that was replaced while it ran. The first superseded input (sorted order)
+  // carries the mark; the rest are narrated. Two marks on one task would just
+  // overwrite each other's properties.
+  let superseded: AffectedTask | null = null;
   for (const dataset of Object.keys(report.inputs ?? {}).sort()) {
     const observation = (report.inputs ?? {})[dataset];
     // A dataset this task also reported writing was already compared above.
     if (report.fingerprints[dataset]) continue;
 
     const producer = snapshot.tasks.find((task) => task.writes.includes(dataset));
-    const recorded = producer
-      ? (producer.observed?.[dataset] ?? producer.fingerprints[dataset])
-      : undefined;
-    if (!producer || !recorded) {
+    if (!producer || (!producer.observed?.[dataset] && !producer.fingerprints[dataset])) {
       emit(
         "compare",
         `checked ${tableLabel(dataset)}, which this task read`,
@@ -320,24 +331,52 @@ export async function coordinateCompletion(report: CompletionReport): Promise<Co
       continue;
     }
 
-    const kind = compareFingerprints(recorded, observation);
+    /*
+     * Four-way, not two-way, and the two middle verdicts exist for concurrent
+     * swarms: an observation can be stale without anything having gone
+     * unreported, when this task read its input before the producer's re-report
+     * (or before a noticed silent edit) and finished after. Calling that case
+     * "unreported" fired a false alarm with a wrong author AND left the one
+     * task that really is stale — this one — unflagged, because the cascade
+     * excludes the reporter. `classifyObservation` owns the distinction.
+     */
+    const verdict = classifyObservation(producer, dataset, observation);
     emit(
       "compare",
       `checked ${tableLabel(dataset)}, which this task read`,
-      kind === null
+      verdict.kind === "current"
         ? "matches what was recorded"
-        : "does not match what was recorded, and nothing reported a change",
+        : verdict.kind === "superseded"
+          ? verdict.by === "report"
+            ? `${label(producer)} replaced it while this task was still running`
+            : "an unreported change replaced it while this task was still running"
+          : "does not match what was recorded, and nothing reported a change",
     );
-    if (kind) {
-      observedChanges.push({
-        dataset,
-        kind,
-        columns: columnChange(producer.run?.outputs[dataset]?.columns, observation.columns),
-        noticedBy: finishing,
-      });
-      const patch = observationsFor.get(producer) ?? {};
-      patch[dataset] = { schema: observation.schema, content: observation.content };
-      observationsFor.set(producer, patch);
+
+    if (verdict.kind === "superseded") {
+      if (!superseded) {
+        superseded = {
+          task: finishing,
+          mark: supersededMark(dataset, producer, verdict, observation, new Date().toISOString()),
+        };
+      }
+      continue;
+    }
+
+    if (verdict.kind === "unknown") {
+      const recorded = producer.observed?.[dataset] ?? producer.fingerprints[dataset];
+      const kind = compareFingerprints(recorded, observation);
+      if (kind) {
+        observedChanges.push({
+          dataset,
+          kind,
+          columns: columnChange(producer.run?.outputs[dataset]?.columns, observation.columns),
+          noticedBy: finishing,
+        });
+        const patch = observationsFor.get(producer) ?? {};
+        patch[dataset] = { schema: observation.schema, content: observation.content };
+        observationsFor.set(producer, patch);
+      }
     }
   }
 
@@ -382,11 +421,34 @@ export async function coordinateCompletion(report: CompletionReport): Promise<Co
   // whose length would show up in the reported latency.
   await Promise.all(affected.map(markStale));
 
+  // After recordCompletion, deliberately: that call just recorded this task's
+  // outputs and cleared any old mark, and this one writes the new mark it
+  // earned by finishing on a replaced input. The other order would let the
+  // completion bookkeeping wipe the mark it is supposed to leave standing.
+  if (superseded) await markStale(superseded);
+  const marked = superseded ? [...affected, superseded] : affected;
+
+  /*
+   * The other direction: a redo that came out identical proves the flags
+   * downstream of that output were standing on ground that never moved.
+   * `restoredBy` owns every rule about which of them the records genuinely
+   * prove, including refusing the whole question unless the finishing task was
+   * itself flagged. This is the ONLY path that clears a flag on a task other
+   * than the one reporting, and it is derived, never requested: no HTTP route
+   * and no MCP tool can name a task to clear, because a tool to declare work
+   * fresh would be a tool for silencing the one thing obsel is for.
+   */
+  const restored = restoredBy(snapshot, finishing, unchangedOutputs);
+  await Promise.all(restored.map(clearRestored));
+
   const elapsedMs = Date.now() - startedAt;
 
+  const outcomes: string[] = [];
+  if (marked.length > 0) outcomes.push(`marked ${marked.length} out of date`);
+  if (restored.length > 0) outcomes.push(`cleared ${restored.length} the redo proved sound`);
   emit(
     "done",
-    affected.length === 0 ? "nothing marked" : `marked ${affected.length} out of date`,
+    outcomes.length === 0 ? "nothing marked" : outcomes.join(", "),
     `${elapsedMs} ms end to end`,
   );
 
@@ -395,9 +457,9 @@ export async function coordinateCompletion(report: CompletionReport): Promise<Co
   // that were stamped in different processes and bracket neither end of the work.
   // Deliberately after the marks are already visible: this is bookkeeping, and a
   // failure here must not stop the flags from having landed.
-  if (affected.length > 0) {
+  if (marked.length > 0) {
     await Promise.all(
-      affected.map((entry) => {
+      marked.map((entry) => {
         entry.mark.detectedMs = elapsedMs;
         return updateTaskProperties(entry.task.urn, {
           [PROP.staleDetectedMs]: String(elapsedMs),
@@ -410,9 +472,49 @@ export async function coordinateCompletion(report: CompletionReport): Promise<Co
     taskUrn: report.taskUrn,
     changedOutputs,
     observedChanges: observedChanges.map(({ dataset, kind }) => ({ dataset, kind })),
-    affected,
+    // Includes the finishing task's own superseded-input mark when it earned
+    // one: it is finished work invalidated by a change, the change just landed
+    // under it rather than upstream of somebody else.
+    affected: marked,
+    restored,
     elapsedMs,
   };
+}
+
+/**
+ * Take a mark off a task the redo proved sound, in both places it exists.
+ *
+ * The inverse of `markStale`, in the inverse order: the tag comes off first and
+ * the properties second, so at no moment does DataHub's UI show a task obsel's
+ * own record already calls sound — the exact disagreement `recordCompletion`
+ * documents refusing to leave behind. `finishedAt`, `fingerprints` and `run`
+ * are untouched on purpose: this task's work was never redone, and its record
+ * of that work is still true. Only the mark was wrong, in hindsight.
+ *
+ * Unlike a mark's reason, which lives on the task's properties and is shown
+ * when the task is opened, a clear leaves nothing behind to carry its reason —
+ * absence of a mark is the record, the same as after a task's own redo. So the
+ * traced step carries the full sentence: the trace and the completion reply
+ * are the only places this decision speaks.
+ */
+async function clearRestored(entry: RestoredTask): Promise<void> {
+  const { task, reason } = entry;
+
+  await removeStaleTag([task.urn]);
+
+  await updateTaskProperties(task.urn, {
+    [PROP.status]: "complete",
+    [PROP.staleCausedBy]: null,
+    [PROP.staleCausedByTask]: null,
+    [PROP.staleHops]: null,
+    [PROP.staleChangeKind]: null,
+    [PROP.staleColumns]: null,
+    [PROP.staleReason]: null,
+    [PROP.staleSince]: null,
+    [PROP.staleDetectedMs]: null,
+  });
+
+  emit("write", `cleared ${label(task)}`, reason);
 }
 
 /**
@@ -428,6 +530,22 @@ export async function coordinateCompletion(report: CompletionReport): Promise<Co
  */
 async function recordCompletion(finishing: TaskRecord, report: CompletionReport): Promise<void> {
   const fingerprints = { ...finishing.fingerprints, ...report.fingerprints };
+
+  /*
+   * Keep the version each changed output is replacing, one slot per dataset.
+   * This is what lets `classifyObservation` tell a reader that straddled this
+   * re-report apart from a silent edit: the straddling reader's observation
+   * matches exactly this superseded fingerprint. An identical re-report keeps
+   * the existing entry — replacing it would make "previous" equal "current"
+   * and the distinction meaningless.
+   */
+  const previous = { ...finishing.previousFingerprints };
+  for (const [dataset, next] of Object.entries(report.fingerprints)) {
+    const current = finishing.fingerprints[dataset];
+    if (current && compareFingerprints(current, next) !== null) {
+      previous[dataset] = current;
+    }
+  }
 
   // A fresh completion supersedes any reader observation of the datasets it
   // reports: the producer has now said what its output is, so the noticed
@@ -445,6 +563,7 @@ async function recordCompletion(finishing: TaskRecord, report: CompletionReport)
     [PROP.status]: "complete",
     [PROP.finishedAt]: report.finishedAt,
     [PROP.fingerprints]: JSON.stringify(fingerprints),
+    [PROP.previousFingerprints]: Object.keys(previous).length > 0 ? JSON.stringify(previous) : null,
     [PROP.observed]: Object.keys(observed).length > 0 ? JSON.stringify(observed) : null,
     [PROP.runRunner]: run ? run.runner : null,
     [PROP.runMs]: run ? String(Math.round(run.ms)) : null,
@@ -555,6 +674,7 @@ export async function resetSwarm(): Promise<{ reset: string[]; tagsCleared: stri
         [PROP.finishedAt]: null,
         [PROP.startedAt]: null,
         [PROP.fingerprints]: null,
+        [PROP.previousFingerprints]: null,
         [PROP.observed]: null,
         [PROP.runRunner]: null,
         [PROP.runMs]: null,

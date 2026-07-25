@@ -467,27 +467,39 @@ def summarise_coordination(coordination: Any) -> list[str]:
     where = "a completion report"
     changed = required_list(coordination, "changedOutputs", where)
     affected = required_list(coordination, "affected", where)
+    # Read as strictly as `affected`, and for the same reason pointed the other
+    # way: a lost key read as an empty list would summarise "nothing was
+    # cleared" over a reply that cleared two tasks, and the operator being told
+    # about work that silently flipped back to sound is the entire point of the
+    # field.
+    restored = required_list(coordination, "restored", where)
     elapsed = coordination.get("elapsedMs")
     elapsed_text = f"{elapsed} ms" if elapsed is not None else "unreported"
 
+    lines: list[str] = []
     if not changed:
-        return [f"no outputs changed; nothing was marked stale ({elapsed_text})"]
-
-    lines = [
-        "changed "
-        + ", ".join(
-            f"{dataset_short_name(item['dataset'])} ({item['kind']})" for item in changed
+        lines.append(f"no outputs changed; nothing was marked stale ({elapsed_text})")
+    else:
+        lines.append(
+            "changed "
+            + ", ".join(
+                f"{dataset_short_name(item['dataset'])} ({item['kind']})" for item in changed
+            )
         )
-    ]
-    if not affected:
-        lines.append(f"nothing downstream had finished, so nothing was marked ({elapsed_text})")
-        return lines
+        if not affected:
+            lines.append(f"nothing downstream had finished, so nothing was marked ({elapsed_text})")
+        else:
+            lines.append(f"marked {len(affected)} finished task(s) stale in {elapsed_text}")
+            for entry in affected:
+                mark = entry["mark"]
+                hops = mark["hops"]
+                lines.append(f"{entry['task']['name']} ({hops} {'hop' if hops == 1 else 'hops'}): {mark['reason']}")
 
-    lines.append(f"marked {len(affected)} finished task(s) stale in {elapsed_text}")
-    for entry in affected:
-        mark = entry["mark"]
-        hops = mark["hops"]
-        lines.append(f"{entry['task']['name']} ({hops} {'hop' if hops == 1 else 'hops'}): {mark['reason']}")
+    # An identical redo of flagged work arrives here with `changed` empty and
+    # `restored` full -- the one reply where the quiet half and the loud half
+    # are the same event, so this is appended to either branch above.
+    for entry in restored:
+        lines.append(f"cleared {entry['task']['name']} without a re-run: {entry['reason']}")
     return lines
 
 
@@ -880,7 +892,9 @@ def _self_check() -> int:
     print()
     print("reading the answer back")
 
-    quiet = summarise_coordination({"changedOutputs": [], "affected": [], "elapsedMs": 89})
+    quiet = summarise_coordination(
+        {"changedOutputs": [], "affected": [], "restored": [], "elapsedMs": 89}
+    )
     check(
         "an identical re-run summarises as nothing marked",
         quiet == ["no outputs changed; nothing was marked stale (89 ms)"],
@@ -893,6 +907,7 @@ def _self_check() -> int:
                 {"task": {"name": "revenue"}, "mark": {"hops": 1, "reason": "clean_orders changed its columns"}},
                 {"task": {"name": "docs"}, "mark": {"hops": 2, "reason": "daily_revenue changed"}},
             ],
+            "restored": [],
             "elapsedMs": 213,
         }
     )
@@ -908,6 +923,31 @@ def _self_check() -> int:
         "a reply missing affected is an error, not a quiet pass",
         raises(ObselReplyError, lambda: summarise_coordination({"changedOutputs": []})) != "",
         "this is the exact shape that would otherwise read as 'nothing was affected'",
+    )
+    redone = summarise_coordination(
+        {
+            "changedOutputs": [],
+            "affected": [],
+            "restored": [
+                {"task": {"name": "docs"}, "reason": "revenue redid daily revenue and it came out identical"}
+            ],
+            "elapsedMs": 60,
+        }
+    )
+    check(
+        "an identical redo of flagged work summarises the clears it earned",
+        redone[0] == "no outputs changed; nothing was marked stale (60 ms)"
+        and redone[1] == "cleared docs without a re-run: revenue redid daily revenue and it came out identical",
+        "the quiet half and the loud half of the same event, in that order",
+    )
+    check(
+        "a reply missing restored is an error, not a quiet pass",
+        raises(
+            ObselReplyError,
+            lambda: summarise_coordination({"changedOutputs": [], "affected": []}),
+        )
+        != "",
+        "reading a lost key as 'nothing was cleared' would hide work that flipped back to sound",
     )
 
     print()

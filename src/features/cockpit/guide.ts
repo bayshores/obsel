@@ -85,7 +85,13 @@ export const STEP_NAME: Record<DemoStep, string> = {
   run: "The agent run",
   "rerun-same": "The unchanged re-run",
   change: "The instruction change",
+  repair: "The repair",
   reset: "The reset",
+  "scale-register": "Setting up the taxi swarm",
+  "scale-run": "The taxi swarm run",
+  "scale-change": "The requirement change",
+  "scale-change-mid": "The taxi swarm run, with a change landing partway",
+  "scale-repair": "The parallel repair",
 };
 
 /**
@@ -164,6 +170,27 @@ export interface GuideInput {
  * question obsel answers, and the graph beneath it is the answer, which is a job 24
  * words of prose above a picture could never do as well as the picture.
  */
+
+/**
+ * Which pipeline's buttons this board should offer.
+ *
+ * The buttons launch specific pipelines — "run the orders cleaner again" drives
+ * the four-agent demo and nothing else — so offering them on a board holding a
+ * different swarm would be a button that acts on work that is not on screen.
+ * Recognition is by the pipelines' own task names, checked here and never
+ * rendered: a swarm containing neither (a judge's own agents, joined over MCP)
+ * gets the actions that are safe anywhere and no pipeline-specific ones.
+ *
+ * The taxi markers win when both pipelines are somehow registered together,
+ * because the forty-task journey is the one a mixed board most likely belongs
+ * to mid-switch, and its buttons never touch the demo's tables.
+ */
+function swarmKind(tasks: TaskRecord[]): "demo" | "taxi" | "other" {
+  const names = new Set(tasks.map((task) => task.name));
+  if (names.has("clean_trips") && names.has("daily_trips")) return "taxi";
+  if (names.has("clean_orders") && names.has("build_revenue")) return "demo";
+  return "other";
+}
 
 export function guide(input: GuideInput): GuideView {
   const attention = lastStepProblem(input.activity);
@@ -313,6 +340,11 @@ function empty(attention: string | null): GuideView {
         label: "Set up the demo agents",
         detail: "Adds them to DataHub. Nothing runs yet.",
       },
+      {
+        step: "scale-register",
+        label: "Set up the taxi swarm instead",
+        detail: "Forty agents over a week of real taxi trips. Nothing runs yet.",
+      },
     ],
     attention,
   };
@@ -327,22 +359,38 @@ function registered(tasks: TaskRecord[], finished: number, attention: string | n
    * the same four facts a second time, in the slower medium. This stage now
    * carries one fact the graph cannot show: what obsel does when a task finishes.
    */
+  const taxi = swarmKind(tasks) === "taxi";
   const actions: GuideAction[] = [
-    {
-      step: "run",
-      label: "Start the demo agents",
-      detail: "Four real Codex sessions. Takes a few minutes.",
-    },
+    taxi
+      ? {
+          step: "scale-change-mid",
+          label: "Start the taxi swarm",
+          detail:
+            "Forty real Codex sessions, running up to eight at once. Partway through, one requirement changes.",
+        }
+      : {
+          step: "run",
+          label: "Start the demo agents",
+          detail: "Four real Codex sessions. Takes a few minutes.",
+        },
   ];
   if (finished === 0) {
     // Without this, `register` is only reachable while the swarm is empty, which
     // on a returning DataHub it never is again, and a pipeline definition change
     // could not be re-declared from the board at all.
-    actions.push({
-      step: "register",
-      label: "Set up the demo agents again",
-      detail: "Safe to repeat while nothing has run yet.",
-    });
+    actions.push(
+      taxi
+        ? {
+            step: "scale-register",
+            label: "Set up the taxi swarm again",
+            detail: "Safe to repeat while nothing has run yet.",
+          }
+        : {
+            step: "register",
+            label: "Set up the demo agents again",
+            detail: "Safe to repeat while nothing has run yet.",
+          },
+    );
   }
   return {
     stage: "registered",
@@ -376,23 +424,37 @@ function working(input: GuideInput, attention: string | null): GuideView {
 }
 
 function settled(tasks: TaskRecord[], attention: string | null): GuideView {
+  const taxi = swarmKind(tasks) === "taxi";
   return {
     stage: "settled",
     headline: `all ${tasks.length} finished, nothing out of date`,
-    subline: "Try one of these and watch what obsel does",
+    subline: taxi
+      ? "Try changing one requirement and watch how far it reaches"
+      : "Try one of these and watch what obsel does",
     checks: [],
-    actions: [
-      {
-        step: "rerun-same",
-        label: "Run the orders cleaner again, no changes",
-        detail: "It writes the same table, so nothing should go out of date.",
-      },
-      {
-        step: "change",
-        label: "Change one agent's instructions",
-        detail: "It renames a column. Nobody downstream is told.",
-      },
-    ],
+    actions: taxi
+      ? [
+          {
+            // No counts in this sentence, same rule as the demo labels above:
+            // the flag set is whatever is genuinely downstream on the day, and
+            // an agent that joined the swarm would falsify any number here.
+            step: "scale-change",
+            label: "Change one requirement",
+            detail: "One agent renames a column. Only work built on that table should flag.",
+          },
+        ]
+      : [
+          {
+            step: "rerun-same",
+            label: "Run the orders cleaner again, no changes",
+            detail: "It writes the same table, so nothing should go out of date.",
+          },
+          {
+            step: "change",
+            label: "Change one agent's instructions",
+            detail: "It renames a column. Nobody downstream is told.",
+          },
+        ],
     attention,
   };
 }
@@ -504,22 +566,53 @@ function flagged(tasks: TaskRecord[], attention: string | null): GuideView {
     headline: `${marked.length} of ${finished} finished agents are out of date`,
     subline: newest === null ? null : flaggedSubline(newest, marked),
     checks: [],
-    actions: [
-      {
-        // The re-run stays offered here on purpose. It replays whatever the
-        // cleaner was last told to do, so even now it produces the same table and
-        // obsel must add nothing to what is already marked. A tool that only
-        // avoids false alarms on a calm board has not proved much.
-        step: "rerun-same",
-        label: "Run the orders cleaner again, no changes",
-        detail: `Nothing new should go out of date, and these ${marked.length} should stay.`,
-      },
-      {
-        step: "reset",
-        label: "Reset and start over",
-        detail: "Puts every agent back to up to date. They stay set up.",
-      },
-    ],
+    actions:
+      swarmKind(tasks) === "taxi"
+        ? [
+            {
+              // First for the same reason the demo's repair is first: it is
+              // the answer to the question a flagged board asks. The parallel
+              // form is the difference worth a word: independent redos run at
+              // the same time, and a redo that proves other work sound takes
+              // its re-runs off the plan entirely.
+              step: "scale-repair",
+              label: "Redo the work obsel flagged, in parallel",
+              detail:
+                "Independent redos run at once. A table that comes out identical clears the flags on work built on it, and those re-runs never happen.",
+            },
+            {
+              step: "reset",
+              label: "Reset and start over",
+              detail: "Puts every agent back to up to date. They stay set up.",
+            },
+          ]
+        : [
+            {
+              // First, because it is the answer to the question a flagged board asks.
+              // A flag with nothing to do about it is a dashboard; this is the doing.
+              // There is no button that clears a flag directly, on purpose: the only
+              // way a flag comes off is real redone work, this button's or obsel's
+              // own proof that an identical redo made a re-run unnecessary.
+              step: "repair",
+              label: "Redo the work obsel flagged",
+              detail:
+                "Agents redo it in order. A table that comes out identical clears the flags on work built on it.",
+            },
+            {
+              // The re-run stays offered here on purpose. It replays whatever the
+              // cleaner was last told to do, so even now it produces the same table and
+              // obsel must add nothing to what is already marked. A tool that only
+              // avoids false alarms on a calm board has not proved much.
+              step: "rerun-same",
+              label: "Run the orders cleaner again, no changes",
+              detail: `Nothing new should go out of date, and these ${marked.length} should stay.`,
+            },
+            {
+              step: "reset",
+              label: "Reset and start over",
+              detail: "Puts every agent back to up to date. They stay set up.",
+            },
+          ],
     attention,
   };
 }

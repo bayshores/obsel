@@ -42,16 +42,17 @@ export const STALE_TAG_URN = "urn:li:tag:obsel-stale";
 export const FLOW_URN = `urn:li:dataFlow:(${PLATFORM},${FLOW_ID},prod)`;
 
 /**
- * Dataset URN for a short name like `clean_orders`.
+ * Dataset URN for a short name like `clean_orders`, or a qualified one like
+ * `obsel_taxi.clean_trips`.
  *
- * The namespace is added here rather than by every caller, because the HTTP API
- * takes short names. An already-qualified name is passed through unchanged so a
- * URN built from a round-tripped name cannot end up double-prefixed.
+ * The demo namespace is added here rather than by every caller, because the
+ * HTTP API takes short names. Any name already carrying a namespace — a dot —
+ * is passed through unchanged: the scale swarm registers under its own
+ * namespace, and the earlier prefix-only check would have double-prefixed it
+ * into `obsel_demo.obsel_taxi.clean_trips`, a URN nothing else builds.
  */
 export function datasetUrn(name: string): string {
-  const qualified = name.startsWith(`${DATASET_NAMESPACE}.`)
-    ? name
-    : `${DATASET_NAMESPACE}.${name}`;
+  const qualified = name.includes(".") ? name : `${DATASET_NAMESPACE}.${name}`;
   return `urn:li:dataset:(urn:li:dataPlatform:${PLATFORM},${qualified},PROD)`;
 }
 

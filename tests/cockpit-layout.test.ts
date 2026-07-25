@@ -303,6 +303,40 @@ describe("layoutPositions — nothing is hardcoded", () => {
     }
   });
 
+  it("lays out an outside agent that joined the demo's swarm mid-flight", () => {
+    /*
+     * The shape the join panel invites: the four demo tasks plus a fifth
+     * registered over MCP by an agent this repository has never heard of,
+     * reading one of the demo's own outputs. The board derives everything from
+     * the swarm read, so a joiner must simply appear — placed after the task
+     * that feeds it, overlapping nothing, with both of its edges drawn.
+     */
+    const tasks = [...pipeline(), task("visitors_audit", ["daily_revenue"], ["visitor_notes"])];
+    const placed = layoutPositions(tasks);
+
+    // five tasks, five written datasets, one source
+    expect(placed.nodes).toHaveLength(11);
+    const revenue = nodeAt(tasks, taskNodeId(taskUrn("build_revenue")));
+    const joiner = nodeAt(tasks, taskNodeId(taskUrn("visitors_audit")));
+    expect(revenue.x).toBeLessThan(joiner.x);
+    expect(placed.edges.map((e) => e.id)).toContain(
+      `${ds("daily_revenue")}->${taskUrn("visitors_audit")}`,
+    );
+
+    for (let i = 0; i < placed.nodes.length; i += 1) {
+      for (let j = i + 1; j < placed.nodes.length; j += 1) {
+        const a = placed.nodes[i];
+        const b = placed.nodes[j];
+        const apart =
+          a.x + a.width <= b.x ||
+          b.x + b.width <= a.x ||
+          a.y + a.height <= b.y ||
+          b.y + b.height <= a.y;
+        expect(apart, `${a.id} overlaps ${b.id}`).toBe(true);
+      }
+    }
+  });
+
   it("draws a dataset two tasks both write exactly once", () => {
     const alpha = task("alpha_writer", ["raw"], ["shared"]);
     const zeta = task("zeta_writer", ["raw"], ["shared"]);

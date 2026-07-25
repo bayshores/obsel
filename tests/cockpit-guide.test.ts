@@ -60,6 +60,7 @@ function activity(overrides: Partial<DemoActivity> = {}): DemoActivity {
     lastResult: null,
     log: [],
     preflight: { datahub: ok(), vocabulary: ok(), venv: ok(), codex: ok() },
+    joinCommand: "claude mcp add obsel -- /tmp/x/agents/.venv/bin/python -m agents.mcp_server",
     ...overrides,
   };
 }
@@ -473,15 +474,16 @@ describe("stage derivation", () => {
   it("an unreadable activity feed never blocks the journey — unknown is not broken", () => {
     const view = guide(input({ activity: null, tasks: [] }));
     expect(view.stage).toBe("empty");
-    expect(view.actions.map((action) => action.step)).toEqual(["register"]);
+    expect(view.actions.map((action) => action.step)).toEqual(["register", "scale-register"]);
   });
 
-  it("empty offers register and says what is about to be set up", () => {
+  it("empty offers both pipelines and says what is about to be set up", () => {
     // The only stage with no graph on screen, so the only one that describes the
-    // pipeline in words instead of drawing it.
+    // pipeline in words instead of drawing it. Two setup buttons: the four-agent
+    // demo and the forty-task taxi swarm are both one press away from nothing.
     const view = guide(input({ tasks: [] }));
     expect(view.stage).toBe("empty");
-    expect(view.actions.map((action) => action.step)).toEqual(["register"]);
+    expect(view.actions.map((action) => action.step)).toEqual(["register", "scale-register"]);
     expect(allText(view)).toContain("No agents yet");
     expect(allText(view)).toContain("Each one reads a table that another one writes");
   });
@@ -641,10 +643,37 @@ describe("stage derivation", () => {
     expect(text).not.toContain("clean_orders");
     // The subline names the changed table, in words.
     expect(text).toContain("clean orders");
-    // The identical re-run stays available on a flagged board — proving no new
-    // marks arrive and the existing three stay put — alongside reset. `change`
-    // does not: re-issuing the same changed job proves nothing further.
-    expect(view.actions.map((action) => action.step)).toEqual(["rerun-same", "reset"]);
+    // The repair leads, because it is the answer to the question a flagged
+    // board asks. The identical re-run stays available — proving no new marks
+    // arrive and the existing three stay put — alongside reset. `change` does
+    // not: re-issuing the same changed job proves nothing further.
+    expect(view.actions.map((action) => action.step)).toEqual(["repair", "rerun-same", "reset"]);
+  });
+
+  it("the repair action says what earns a flag off, without promising a wipe", () => {
+    const view = guide(
+      input({
+        tasks: [
+          task("clean_orders", { title: "Orders cleaner" }),
+          task("build_revenue", { status: "stale", stale: mark({ hops: 1 }) }),
+        ],
+      }),
+    );
+    const repair = view.actions.find((action) => action.step === "repair");
+    expect(repair).toBeDefined();
+    // Imperative and concrete, like every other button.
+    expect(repair?.label).toBe("Redo the work obsel flagged");
+    /*
+     * The detail carries the one rule that makes repair different from a reset:
+     * flags come off through redone work, and an identical redo is itself the
+     * proof that clears what was built on it. It must not read as "this button
+     * clears the flags" — nothing clears a flag except a redo, and wording that
+     * implies otherwise would promise the exact tool obsel refuses to be.
+     */
+    expect(repair?.detail).toContain("redo it in order");
+    expect(repair?.detail).toContain("identical");
+    expect(repair?.detail).not.toContain("removes");
+    expect(repair?.detail).not.toContain("wipes");
   });
 
   it("flagged omits the detection timing when the mark carries none — never a fabricated number", () => {
@@ -730,5 +759,71 @@ describe("the running step and the failed step", () => {
       input({ tasks: FOUR_COMPLETE, activity: activity({ running, lastResult }) }),
     );
     expect(view.attention).toBeNull();
+  });
+});
+
+describe("the taxi swarm gets its own buttons, recognised by its own task names", () => {
+  // Markers, never counts: recognition is the pipelines' task names, so a
+  // judge's own agents joined over MCP change nothing, and a mixed board
+  // resolves to the swarm whose buttons cannot touch the other's tables.
+  const taxiTask = (name: string, overrides: Partial<TaskRecord> = {}) =>
+    task(name, {
+      urn: `urn:li:dataJob:(urn:li:dataFlow:(obsel,orders_pipeline,prod),${name})`,
+      ...overrides,
+    });
+  const TAXI_REGISTERED = [
+    taxiTask("clean_trips", { status: "registered", finishedAt: null }),
+    taxiTask("daily_trips", { status: "registered", finishedAt: null }),
+    taxiTask("city_week", { status: "registered", finishedAt: null }),
+  ];
+
+  it("registered offers the run whose requirement changes partway", () => {
+    const view = guide(input({ tasks: TAXI_REGISTERED }));
+    expect(view.stage).toBe("registered");
+    expect(view.actions.map((action) => action.step)).toEqual([
+      "scale-change-mid",
+      "scale-register",
+    ]);
+  });
+
+  it("settled offers the requirement change, without promising counts", () => {
+    const view = guide(
+      input({ tasks: [taxiTask("clean_trips"), taxiTask("daily_trips"), taxiTask("city_week")] }),
+    );
+    expect(view.stage).toBe("settled");
+    expect(view.actions.map((action) => action.step)).toEqual(["scale-change"]);
+    // The label rule the demo buttons already follow: a count in a button is a
+    // promise the board cannot keep once an outside agent joins the swarm.
+    expect(/\b(nine|thirty|forty)\b/i.test(view.actions[0].detail)).toBe(false);
+  });
+
+  it("flagged leads with the parallel repair and keeps no demo-specific button", () => {
+    const view = guide(
+      input({
+        tasks: [
+          taxiTask("clean_trips"),
+          taxiTask("daily_trips"),
+          taxiTask("city_week", { status: "stale", stale: mark({ causedBy: ds("daily_trips") }) }),
+        ],
+      }),
+    );
+    expect(view.stage).toBe("flagged");
+    expect(view.actions.map((action) => action.step)).toEqual(["scale-repair", "reset"]);
+  });
+
+  it("a swarm that is neither pipeline gets no pipeline-specific buttons on the flagged board", () => {
+    const view = guide(
+      input({
+        tasks: [
+          task("their_ingest"),
+          task("their_report", { status: "stale", stale: mark({ causedBy: ds("their_ingest") }) }),
+        ],
+      }),
+    );
+    expect(view.stage).toBe("flagged");
+    // The demo actions still appear for now — the demo pipeline is the
+    // fallback — which is honest only while its labels name their own scope.
+    // What must never appear is a taxi button driving tables this board lacks.
+    expect(view.actions.map((action) => action.step)).not.toContain("scale-repair");
   });
 });

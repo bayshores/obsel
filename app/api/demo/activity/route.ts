@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { activity } from "@/src/server/runner/launcher";
 import { preflight } from "@/src/server/runner/preflight";
+import { venvPython } from "@/src/server/runner/steps";
 import type { DemoActivity } from "@/src/server/runner/types";
 
 export const dynamic = "force-dynamic";
@@ -16,7 +17,13 @@ export const revalidate = 0;
  */
 export async function GET() {
   try {
-    const body: DemoActivity = { ...activity(), preflight: await preflight() };
+    const body: DemoActivity = {
+      ...activity(),
+      preflight: await preflight(),
+      // The same interpreter the demo steps run under, by absolute path, so the
+      // command on the board works pasted verbatim on this machine.
+      joinCommand: `claude mcp add obsel -- ${venvPython(process.cwd())} -m agents.mcp_server`,
+    };
     return NextResponse.json(body);
   } catch (error) {
     const message = error instanceof Error ? error.message : "unknown error reading activity";

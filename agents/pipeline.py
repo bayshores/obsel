@@ -75,6 +75,12 @@ class AgentTask:
     #: false alarm, which is the failure obsel exists to prevent. So the contract
     #: is stated and checked rather than hoped for.
     output_columns: tuple[str, ...] = ()
+    #: Which dataset namespace this task's tables live in, e.g. `obsel_demo` for
+    #: the four-agent demo and `obsel_taxi` for the scale swarm. Part of every
+    #: dataset URN, so two swarms sharing one DataHub cannot collide on a table
+    #: name. Defaulted so the demo's tasks, and every capture taken before this
+    #: field existed, mean exactly what they always meant.
+    namespace: str = NAMESPACE
 
 
 TASKS: tuple[AgentTask, ...] = (
@@ -126,7 +132,17 @@ TASKS: tuple[AgentTask, ...] = (
             "Turn the cleaned orders into one row per calendar day. Each row should carry "
             "the day, the total money taken that day, how many orders made it up, and the "
             "average order value. Name the day column order_date so it still matches the "
-            "column it came from. Sort by the day, ascending."
+            # Pinned, like the cleaner's casing rule and for the same reason: the
+            # precision of an average is genuinely a choice, and two real runs made
+            # it differently. Measured 2026-07-24, the first live `repair`: the
+            # redone table carried averages at full float precision
+            # (104.48666666666666) where the previous run had rounded, so the
+            # content hash moved, obsel correctly refused to clear the two
+            # downstream tasks, and the repair redid all three instead of one.
+            # obsel was right both times; the demonstration needs the redo of an
+            # unchanged job to be byte-stable, and an unpinned precision cannot be.
+            "column it came from. Round the total and the average to two decimal "
+            "places. Sort by the day, ascending."
         ),
     ),
     AgentTask(
@@ -186,6 +202,19 @@ CHANGE_COLUMNS: tuple[str, ...] = ("order_id", "customer", "order_total_usd", "o
 def dataset_urn(short_name: str) -> str:
     """URN for one of the demo's tables. `graph.dataset_urn` takes the full name."""
     return graph.dataset_urn(f"{NAMESPACE}.{short_name}")
+
+
+def task_dataset_urn(task: AgentTask, short_name: str) -> str:
+    """URN for one of THIS task's tables, under the task's own namespace.
+
+    The demo's tasks default to `obsel_demo`, so for them this is `dataset_urn`
+    exactly; the scale swarm's tasks carry `obsel_taxi`. Everything in
+    `worker.py` goes through here rather than the module-level helper, because a
+    worker that hard-coded the demo namespace would report a scale task's
+    fingerprints against dataset URNs nothing ever registered, and every
+    comparison downstream would silently be a first run.
+    """
+    return graph.dataset_urn(f"{task.namespace}.{short_name}")
 
 
 def task_urn(task_name: str) -> str:

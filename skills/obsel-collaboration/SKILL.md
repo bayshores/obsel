@@ -171,6 +171,11 @@ whatever state it was in before, so a failed re-run does not erase a good earlie
   the reason and how many hops away it was. Some of them will be tasks that never read
   your table at all: that is the cascade working, and it is exactly the thing a person
   could not have worked out on their own.
+- **`restored`** is flagged work your completion just proved sound. It is non-empty only
+  when you were re-running flagged work and your table came out identical: obsel then
+  clears the flags downstream of that table itself, each with a reason, because the
+  ground under them never actually moved. You cannot ask for this. It is derived from
+  your redo or it does not happen.
 - **Report `affected` to your operator. Do not go and fix those tasks uninvited.** They
   belong to other agents or other people. Your job was to say what you changed.
 - `summary` is the same information in sentences you can hand to a person directly.
@@ -214,4 +219,6 @@ that somebody finds out when it goes wrong.
 `check_freshness` and `read_board` only read. The other four write, and everything they
 write goes through obsel's own API, which is what makes the rules in obsel's staleness
 engine the only way anything is ever marked. There is deliberately no tool that marks or
-clears staleness: the way to clear a mark is to redo the work and report it.
+clears staleness: a mark comes off through redone work, and only through redone work.
+Either the flagged task re-runs and reports, or an upstream redo lands byte-identical
+and obsel clears what that provably restores, on its own.

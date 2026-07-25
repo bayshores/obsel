@@ -31,6 +31,7 @@ import { useEffect, useRef } from "react";
 import {
   Background,
   BackgroundVariant,
+  Controls,
   MarkerType,
   ReactFlow,
   ReactFlowProvider,
@@ -56,24 +57,56 @@ import styles from "./lineage.module.css";
 const NODE_TYPES = { task: TaskNode, data: DataNode };
 
 /**
- * Interaction is off.
+ * How far a reader may move the picture, and how far they may not.
  *
- * This is a board someone reads, and during a recording it is a board someone
- * points a camera at. Pan, zoom, node dragging and selection all offer ways for
- * the picture to end up somewhere other than where it was laid out, with no
- * upside for a four-node graph that fits.
+ * Interaction used to be off entirely: pan, zoom, drag and selection all offer
+ * ways for the picture to end up somewhere other than where it was laid out,
+ * and for a four-node graph that fits there was no upside. Forty tasks changed
+ * the arithmetic. The whole graph fits at zoom 0.58, which puts a 13px label
+ * on screen at 7.5px, so the fitted frame is an overview and the design-size
+ * detail exists only if a reader can go and get it.
+ *
+ * So the reading moves are on and the editing moves stay off:
+ *
+ * - **Drag pans, pinch zooms.** The scroll wheel deliberately does NOT zoom:
+ *   the tall board is on a page that scrolls, and a wheel that zooms wherever
+ *   the graph happens to be under the cursor makes the page unscrollable over
+ *   its largest region.
+ * - **The zoom buttons and the fit button** (React Flow's own controls, drawn
+ *   in obsel's tokens) are the mouse path to the same moves, and the fit
+ *   button is the recovery: the old lock existed because a stranded graph had
+ *   no way back, and now there is one on screen at all times.
+ * - **Nodes cannot be dragged, connected or selected.** The layout is dagre's
+ *   statement of the pipeline's shape, not a sketch to rearrange, and a node
+ *   moved by hand would put the picture in disagreement with the record.
  */
-const LOCKED = {
+const READING = {
   nodesDraggable: false,
   nodesConnectable: false,
   elementsSelectable: false,
-  panOnDrag: false,
+  panOnDrag: true,
   panOnScroll: false,
   zoomOnScroll: false,
-  zoomOnPinch: false,
+  zoomOnPinch: true,
   zoomOnDoubleClick: false,
   preventScrolling: false,
 } as const;
+
+/**
+ * The zoom range the viewport itself will hold, as distinct from the range
+ * `fitView` may CHOOSE from (`FIT` below).
+ *
+ * These must be at least as wide as FIT's, and that is not decoration: React
+ * Flow clamps the viewport to the instance range AFTER the fit is computed,
+ * and the instance default floor is 0.5 — the exact clamp the forty-task board
+ * originally clipped against. FIT.minZoom alone never fixed that, because a
+ * fit option cannot go where the viewport is not allowed to follow; passing
+ * the range to the instance is what makes the 0.2 backstop real.
+ *
+ * The ceiling is above FIT's 1.25 on purpose: fitting never enlarges past
+ * design size, but a reader chasing a label is allowed to.
+ */
+const RANGE = { minZoom: 0.2, maxZoom: 1.5 } as const;
 
 /**
  * How the graph is framed, named once because it is applied in three places.
@@ -85,7 +118,20 @@ const LOCKED = {
  * between 13px and 15px node labels in a recording. Padding leaves room for the
  * arrowheads and for the changed table's taller box.
  */
-const FIT = { padding: 0.08, maxZoom: 1.25 } as const;
+const FIT = {
+  padding: 0.08,
+  maxZoom: 1.25,
+  /*
+   * Far below React Flow's 0.5 default, which is a floor `fitView` CLAMPS at:
+   * a layout needing 0.38 to fit rendered at 0.5, centred, cut off at the top
+   * and bottom — found live the first time forty tasks were on the board. The
+   * real fix is the panel growing to the layout (`panelHeightFor`); this floor
+   * is the backstop that turns any future miscalculation into a small graph
+   * instead of a clipped one, because a viewer can read small and cannot read
+   * absent.
+   */
+  minZoom: 0.2,
+} as const;
 
 /**
  * Everything the picture depends on, as one comparable string.
@@ -111,11 +157,11 @@ function graphSignature(tasks: TaskRecord[], origin: StaleMark | null): string {
   ]);
 }
 
-/** Pure: the swarm in, React Flow's nodes and edges out. */
+/** Pure: the swarm in, React Flow's nodes, edges and layout bounds out. */
 function buildGraph(
   tasks: TaskRecord[],
   origin: StaleMark | null,
-): { nodes: Node[]; edges: Edge[] } {
+): { nodes: Node[]; edges: Edge[]; width: number; height: number } {
   const originDataset = origin?.causedBy ?? null;
   const causeTaskUrn = origin?.causedByTask ?? null;
   const lit = cascadeEdges(tasks, originDataset, causeTaskUrn);
@@ -181,7 +227,30 @@ function buildGraph(
     };
   });
 
-  return { nodes, edges };
+  return { nodes, edges, width: placed.width, height: placed.height };
+}
+
+/**
+ * The panel height this layout needs to be shown WITHOUT clipping, at the zoom
+ * the panel's width already decides.
+ *
+ * The demo's layout is wide and short, so its zoom is pinned by width and 320px
+ * of panel has always been enough. The forty-task swarm is also TALL — ten
+ * rows of boxes — and a fixed 320px panel forced `fitView` below its zoom
+ * floor, where it clamps and centres: the graph rendered cut off at the top
+ * and bottom, which is strictly worse than small. The fix direction is more
+ * panel, never more shrinking: this computes the height the layout occupies at
+ * the width-decided zoom, and the cockpit grows the panel (and lets the page
+ * scroll) to honour it.
+ */
+export function panelHeightFor(
+  layout: { width: number; height: number },
+  panelWidth: number,
+): number {
+  if (layout.width <= 0 || layout.height <= 0 || panelWidth <= 0) return 0;
+  const usable = panelWidth * (1 - 2 * FIT.padding);
+  const zoom = Math.min(FIT.maxZoom, usable / layout.width);
+  return Math.ceil((layout.height * zoom) / (1 - 2 * FIT.padding));
 }
 
 interface LineageProps {
@@ -191,6 +260,12 @@ interface LineageProps {
    * The cockpit tells the two apart by the URN's entity type.
    */
   onSelect?: (urn: string) => void;
+  /**
+   * The panel height the current layout needs at the current panel width, from
+   * `panelHeightFor`. Reported whenever the graph or the panel width changes,
+   * so the cockpit can grow the panel instead of letting `fitView` clip.
+   */
+  onNeededHeight?: (px: number) => void;
 }
 
 /**
@@ -208,7 +283,7 @@ export function Lineage(props: LineageProps) {
   );
 }
 
-function LineageCanvas({ tasks, onSelect }: LineageProps) {
+function LineageCanvas({ tasks, onSelect, onNeededHeight }: LineageProps) {
   const origin = currentChange(tasks);
 
   /*
@@ -233,13 +308,21 @@ function LineageCanvas({ tasks, onSelect }: LineageProps) {
   const lastSignature = useRef<string | null>(null);
   const signature = graphSignature(tasks, origin);
 
+  // The layout's bounds, kept beside the nodes so the height report can be
+  // recomputed on a plain resize without rebuilding the graph.
+  const bounds = useRef<{ width: number; height: number } | null>(null);
+
   useEffect(() => {
     if (lastSignature.current === signature) return;
     lastSignature.current = signature;
     const built = buildGraph(tasks, origin);
+    bounds.current = { width: built.width, height: built.height };
     setNodes(built.nodes);
     setEdges(built.edges);
-  }, [signature, tasks, origin, setNodes, setEdges]);
+    if (onNeededHeight && canvas.current) {
+      onNeededHeight(panelHeightFor(bounds.current, canvas.current.clientWidth));
+    }
+  }, [signature, tasks, origin, setNodes, setEdges, onNeededHeight]);
 
   /*
    * Re-frame the graph. The `fitView` prop below does this exactly once, on
@@ -279,11 +362,17 @@ function LineageCanvas({ tasks, onSelect }: LineageProps) {
     const element = canvas.current;
     if (element === null) return;
     const observer = new ResizeObserver(() => {
+      // Width first, fit second: a narrower panel changes the zoom, the zoom
+      // changes the height the layout needs, and fitting before the panel has
+      // grown to that height is exactly the clipped frame this exists to end.
+      if (onNeededHeight && bounds.current) {
+        onNeededHeight(panelHeightFor(bounds.current, element.clientWidth));
+      }
       void fitView(FIT);
     });
     observer.observe(element);
     return () => observer.disconnect();
-  }, [fitView]);
+  }, [fitView, onNeededHeight]);
 
   return (
     <div className={styles.canvas} ref={canvas}>
@@ -304,9 +393,19 @@ function LineageCanvas({ tasks, onSelect }: LineageProps) {
           // URN itself says which kind of entity was chosen.
           if (onSelect) onSelect(node.id.slice(2));
         }}
-        {...LOCKED}
+        {...READING}
+        {...RANGE}
       >
         <Background variant={BackgroundVariant.Dots} gap={18} size={1} className={styles.dots} />
+        {/*
+          React Flow's own zoom-in / zoom-out / fit-view buttons, restyled by
+          `lineage.module.css` and otherwise stock: the alternative was three
+          hand-rolled buttons doing what a shipped component already does.
+          Top-right, because the key owns the bottom-left and the attribution
+          the bottom-right. `showInteractive` off: that button toggles the
+          editing lock, and the lock here is a decision, not a preference.
+        */}
+        <Controls position="top-right" showInteractive={false} fitViewOptions={FIT} />
       </ReactFlow>
     </div>
   );

@@ -14,8 +14,24 @@ export const DEMO_STEPS: readonly DemoStep[] = [
   "run",
   "rerun-same",
   "change",
+  "repair",
   "reset",
+  "scale-register",
+  "scale-run",
+  "scale-change",
+  "scale-change-mid",
+  "scale-repair",
 ];
+
+/**
+ * The `agents.run` argv a step launches. Pure, so the one translation —
+ * `scale-change-mid` is `scale-run --change-during`, a command plus a flag —
+ * lives where a test can hold it, instead of inside the spawn call.
+ */
+export function stepArgv(step: DemoStep): string[] {
+  if (step === "scale-change-mid") return ["scale-run", "--change-during"];
+  return [step];
+}
 
 /** Longest line kept, and how many lines — enough for any step's full output. */
 export const LOG_MAX_LINES = 500;

@@ -3,10 +3,13 @@ import { describe, expect, it } from "vitest";
 import {
   affectedBy,
   blocked,
+  classifyObservation,
   columnChange,
   compareFingerprints,
   readyToStart,
+  restoredBy,
   shortName,
+  supersededMark,
 } from "@/src/server/coordinator/staleness";
 import type {
   OutputFingerprint,
@@ -456,5 +459,433 @@ describe("readyToStart and blocked — what may run now", () => {
 describe("shortName", () => {
   it("pulls a readable table name out of a URN", () => {
     expect(shortName(ds("clean_orders"))).toBe("clean_orders");
+  });
+});
+
+describe("restoredBy — clearing only what a redo has proven", () => {
+  // A wrong answer from affectedBy over-marks and wastes a redo. A wrong answer
+  // here declares broken work sound, which is the one failure that would poison
+  // everything obsel says. So the negative cases lead, and there are more of
+  // them: every rule in restoredBy exists to refuse one of these.
+
+  const T0 = "2026-07-21T09:00:00.000Z";
+  const T1 = "2026-07-21T10:00:00.000Z";
+  const T2 = "2026-07-21T11:00:00.000Z";
+  const T3 = "2026-07-21T11:30:00.000Z";
+  const T4 = "2026-07-21T12:30:00.000Z"; // after every downstream task finished
+
+  function finished(record: TaskRecord, at: string | null): TaskRecord {
+    return { ...record, finishedAt: at };
+  }
+
+  function marked(record: TaskRecord, causedBy: string): TaskRecord {
+    return {
+      ...record,
+      status: "stale",
+      stale: {
+        causedBy: ds(causedBy),
+        causedByTask: null,
+        hops: 1,
+        changeKind: "schema",
+        reason: "test mark",
+        since: T4,
+        detectedMs: null,
+      },
+    };
+  }
+
+  /**
+   * The board the demo's repair starts from: clean_orders was renamed (its
+   * producer re-reported at T4), and the three finished tasks downstream carry
+   * marks. The trigger everywhere below is build_revenue redoing its work.
+   */
+  function flaggedSwarm(): {
+    swarm: SwarmSnapshot;
+    finishing: TaskRecord;
+  } {
+    const clean = finished(task("clean_orders_task", ["raw_orders"], ["clean_orders"]), T4);
+    const revenue = marked(
+      finished(task("build_revenue", ["clean_orders"], ["daily_revenue"]), T1),
+      "clean_orders",
+    );
+    const report = marked(
+      finished(task("write_report", ["daily_revenue"], ["revenue_report"]), T2),
+      "clean_orders",
+    );
+    const docs = marked(
+      finished(task("write_docs", ["daily_revenue"], ["pipeline_docs"]), T3),
+      "clean_orders",
+    );
+    return { swarm: snapshot([clean, revenue, report, docs]), finishing: revenue };
+  }
+
+  it("clears the two tasks downstream of a redo that came out identical", () => {
+    // The whole feature: build_revenue redid its work on the renamed table and
+    // daily_revenue came out byte-identical, so the report and the docs were
+    // flagged for ground that never moved. One redo, not three.
+    const { swarm, finishing } = flaggedSwarm();
+    const restored = restoredBy(swarm, finishing, [ds("daily_revenue")]);
+    expect(names(restored)).toEqual(["write_docs", "write_report"]);
+  });
+
+  it("says why, in the same voice a mark's reason uses", () => {
+    const { swarm, finishing } = flaggedSwarm();
+    const restored = restoredBy(swarm, finishing, [ds("daily_revenue")]);
+    expect(restored[0].reason).toBe(
+      "build revenue redid daily revenue and it came out identical, " +
+        "so everything this was built on still stands",
+    );
+  });
+
+  it("clears nothing when the redo changed its output", () => {
+    // A changed output is new ground, not restored ground. affectedBy is
+    // already marking what stands on it; restoring anything here would clear
+    // and re-flag the same task in one breath, or worse, only clear.
+    const { swarm, finishing } = flaggedSwarm();
+    expect(restoredBy(swarm, finishing, [])).toEqual([]);
+  });
+
+  it("clears nothing when the finishing task was not stale", () => {
+    // The rerun-same trap. On the flagged board, the changed task can re-run
+    // and produce its (renamed) table again, identical to what it last
+    // reported. That proves the current version is stable; it says nothing
+    // about work built on the PREVIOUS version, so the flags must all stay.
+    const { swarm } = flaggedSwarm();
+    const cleanTask = swarm.tasks.find((t) => t.name === "clean_orders_task");
+    expect(cleanTask).toBeDefined();
+    expect(restoredBy(swarm, cleanTask as TaskRecord, [ds("clean_orders")])).toEqual([]);
+  });
+
+  it("never clears a direct reader of the table that actually changed", () => {
+    // A second hop-one reader of clean_orders. Its own mark names the table it
+    // read, and no redo elsewhere argues with that: the ground under it really
+    // moved, and only its own redo absorbs the new version.
+    const { swarm, finishing } = flaggedSwarm();
+    const audit = marked(
+      finished(task("write_audit", ["clean_orders"], ["audit_notes"]), T2),
+      "clean_orders",
+    );
+    const withAudit = snapshot([...swarm.tasks, audit]);
+    const restored = restoredBy(withAudit, finishing, [ds("daily_revenue")]);
+    expect(names(restored)).toEqual(["write_docs", "write_report"]);
+  });
+
+  it("holds a task whose other input comes from a producer still stale", () => {
+    // write_summary reads daily_revenue, which the redo just proved sound, and
+    // audit_notes, whose producer is still flagged. One sound input out of two
+    // is not sound work.
+    const { swarm, finishing } = flaggedSwarm();
+    const audit = marked(
+      finished(task("write_audit", ["clean_orders"], ["audit_notes"]), T2),
+      "clean_orders",
+    );
+    const summary = marked(
+      finished(task("write_summary", ["daily_revenue", "audit_notes"], ["summary"]), T3),
+      "clean_orders",
+    );
+    const wider = snapshot([...swarm.tasks, audit, summary]);
+    const restored = restoredBy(wider, finishing, [ds("daily_revenue")]);
+    expect(names(restored)).toEqual(["write_docs", "write_report"]);
+  });
+
+  it("holds a reader while its producer carries a standing observation", () => {
+    // Someone read bytes the producer never reported writing. Which version any
+    // given reader consumed is unknowable until the producer reports again, so
+    // an identical redo elsewhere proves nothing about them.
+    const { swarm, finishing } = flaggedSwarm();
+    const withObservation = {
+      ...finishing,
+      observed: { [ds("daily_revenue")]: fp("seen-schema", "seen-content") },
+    };
+    const tasks = swarm.tasks.map((t) => (t.name === "build_revenue" ? withObservation : t));
+    expect(restoredBy(snapshot(tasks), withObservation, [ds("daily_revenue")])).toEqual([]);
+  });
+
+  it("holds a reader that finished before the producer's previous report", () => {
+    // The recorded fingerprint is what the producer LAST reported. A task that
+    // finished before that report read some earlier version, so an identical
+    // redo confirms a baseline this task never built on.
+    const { swarm, finishing } = flaggedSwarm();
+    const early = marked(
+      finished(task("write_early", ["daily_revenue"], ["early_notes"]), T0),
+      "clean_orders",
+    );
+    const restored = restoredBy(snapshot([...swarm.tasks, early]), finishing, [
+      ds("daily_revenue"),
+    ]);
+    expect(names(restored)).toEqual(["write_docs", "write_report"]);
+  });
+
+  it("refuses when a finish time is missing rather than guessing the order", () => {
+    const { swarm } = flaggedSwarm();
+    const tasks = swarm.tasks.map((t) => (t.name === "build_revenue" ? finished(t, null) : t));
+    const brokenFinishing = tasks.find((t) => t.name === "build_revenue") as TaskRecord;
+    expect(restoredBy(snapshot(tasks), brokenFinishing, [ds("daily_revenue")])).toEqual([]);
+  });
+
+  it("leaves running and registered work alone", () => {
+    // A running task carries its mark until a run succeeds, but it is not
+    // finished work, and restoration only speaks about finished work.
+    const { swarm, finishing } = flaggedSwarm();
+    const tasks = swarm.tasks.map((t) => {
+      if (t.name !== "write_report") return t;
+      return { ...t, status: "running" as const };
+    });
+    const restored = restoredBy(snapshot(tasks), finishing, [ds("daily_revenue")]);
+    expect(names(restored)).toEqual(["write_docs"]);
+  });
+
+  it("leaves an unrelated flagged branch exactly as it was", () => {
+    // A second pipeline in the same swarm, flagged for its own reasons. A redo
+    // over here says nothing about ground over there.
+    const { swarm, finishing } = flaggedSwarm();
+    const otherMid = marked(
+      finished(task("other_mid", ["other_source"], ["other_mid_out"]), T1),
+      "other_source",
+    );
+    const otherLeaf = marked(
+      finished(task("other_leaf", ["other_mid_out"], ["other_leaf_out"]), T2),
+      "other_source",
+    );
+    const sourceTask = finished(task("other_source_task", [], ["other_source"]), T4);
+    const wider = snapshot([...swarm.tasks, sourceTask, otherMid, otherLeaf]);
+    const restored = restoredBy(wider, finishing, [ds("daily_revenue")]);
+    expect(names(restored)).toEqual(["write_docs", "write_report"]);
+  });
+
+  it("restores transitively: a cleared producer frees the task built on it", () => {
+    // deep_leaf reads what write_report wrote. write_report clears because its
+    // ground stands; its own output was never re-reported, so what deep_leaf
+    // read stands too. The leaf is named to sort FIRST, so a single greedy pass
+    // would meet it before its producer has cleared — the fixpoint is what
+    // makes the order irrelevant.
+    const { swarm, finishing } = flaggedSwarm();
+    const leaf = marked(
+      finished(task("a_deep_leaf", ["revenue_report"], ["leaf_out"]), T3),
+      "clean_orders",
+    );
+    const restored = restoredBy(snapshot([...swarm.tasks, leaf]), finishing, [ds("daily_revenue")]);
+    expect(names(restored)).toEqual(["a_deep_leaf", "write_docs", "write_report"]);
+  });
+
+  it("refuses on the mark alone, even when every other record looks sound", () => {
+    // Artificial on purpose: the producer's report predates the reader, nothing
+    // was observed, and yet the reader's mark names its input as the table that
+    // moved. In every state the engine writes, another guard also fires here —
+    // this pins the mark guard on its own, so defense in depth survives a
+    // record shape nobody has enumerated (an old capture, a hand-edited
+    // property) without silently depending on the neighbours.
+    const producer = marked(finished(task("p_writer", ["seed"], ["p_out"]), T1), "seed");
+    const reader = marked(finished(task("r_reader", ["p_out"], ["r_out"]), T2), "p_out");
+    const restored = restoredBy(snapshot([producer, reader]), producer, [ds("p_out")]);
+    expect(restored).toEqual([]);
+  });
+
+  it("restores nothing for a completion by work that carried no mark", () => {
+    // The trigger has to be a redo of flagged work. An ordinary task finishing
+    // is not new evidence about anyone's ground, however sound the records
+    // around a flagged task happen to look at that moment.
+    const upstream = finished(task("plain_upstream", ["seed"], ["up_out"]), T1);
+    const strange = marked(
+      finished(task("strange_leaf", ["up_out"], ["leaf_out"]), T2),
+      "elsewhere",
+    );
+    const restored = restoredBy(snapshot([upstream, strange]), upstream, [ds("up_out")]);
+    expect(restored).toEqual([]);
+  });
+
+  it("terminates on a cycle of tasks that keep each other flagged", () => {
+    // A reads what B writes and B reads what A writes, both stale. Neither can
+    // clear while the other holds, and the loop has to notice it stopped
+    // making progress rather than spin.
+    const trigger = marked(finished(task("trigger", ["seed"], ["trigger_out"]), T1), "seed");
+    const a = marked(
+      finished(task("cycle_a", ["trigger_out", "cycle_b_out"], ["cycle_a_out"]), T2),
+      "seed",
+    );
+    const b = marked(finished(task("cycle_b", ["cycle_a_out"], ["cycle_b_out"]), T3), "seed");
+    const restored = restoredBy(snapshot([trigger, a, b]), trigger, [ds("trigger_out")]);
+    expect(restored).toEqual([]);
+  });
+
+  it("treats a dataset nothing in the swarm produces as stable ground", () => {
+    // raw_orders has no producer here, so there is no recorded claim about it
+    // to contradict — the same stance readyToStart takes on outside inputs.
+    const { swarm, finishing } = flaggedSwarm();
+    const mixed = marked(
+      finished(task("write_mixed", ["daily_revenue", "raw_orders"], ["mixed_out"]), T2),
+      "clean_orders",
+    );
+    const restored = restoredBy(snapshot([...swarm.tasks, mixed]), finishing, [
+      ds("daily_revenue"),
+    ]);
+    expect(names(restored)).toEqual(["write_docs", "write_mixed", "write_report"]);
+  });
+});
+
+describe("classifyObservation — a straddling reader is not a silent edit", () => {
+  // The concurrent-swarm race in miniature. v1 was replaced by v2 through an
+  // ordinary report; v3 is a silent edit somebody's read later noticed. A
+  // reader can legitimately finish holding any of them, and each verdict
+  // below is the only honest account of one of those holds.
+  const v1 = fp("schema-1", "content-1");
+  const v2 = fp("schema-2", "content-2");
+  const v3 = fp("schema-3", "content-3");
+
+  function producer(overrides: Partial<TaskRecord> = {}): TaskRecord {
+    return {
+      ...task("clean_orders", ["raw_orders"], ["clean_orders"]),
+      fingerprints: { [ds("clean_orders")]: v2 },
+      ...overrides,
+    };
+  }
+
+  it("matching the recorded fingerprint is current", () => {
+    expect(classifyObservation(producer(), ds("clean_orders"), v2)).toEqual({ kind: "current" });
+  });
+
+  it("matching a standing reader notice is current, because the notice is the latest word", () => {
+    const noticed = producer({ observed: { [ds("clean_orders")]: v3 } });
+    expect(classifyObservation(noticed, ds("clean_orders"), v3)).toEqual({ kind: "current" });
+  });
+
+  it("matching the version a re-report replaced is superseded, with the producer as author", () => {
+    // The false negative this function exists to close: before it, this
+    // observation raised an "unreported change" alarm against a change that
+    // was reported in full, and the genuinely stale reader stayed unflagged.
+    const rereported = producer({ previousFingerprints: { [ds("clean_orders")]: v1 } });
+    expect(classifyObservation(rereported, ds("clean_orders"), v1)).toEqual({
+      kind: "superseded",
+      by: "report",
+    });
+  });
+
+  it("matching the recorded version while a notice stands is superseded, author unknown", () => {
+    // The reader loaded the table before the silent edit landed. Its work is
+    // just as stale, but nobody on record made the change that stranded it.
+    const noticed = producer({ observed: { [ds("clean_orders")]: v3 } });
+    expect(classifyObservation(noticed, ds("clean_orders"), v2)).toEqual({
+      kind: "superseded",
+      by: "notice",
+    });
+  });
+
+  it("matching nothing on record is unknown, which is the unreported-change path", () => {
+    const rereported = producer({ previousFingerprints: { [ds("clean_orders")]: v1 } });
+    expect(
+      classifyObservation(rereported, ds("clean_orders"), fp("schema-x", "content-x")),
+    ).toEqual({ kind: "unknown" });
+  });
+
+  it("prefers current when previous and current are somehow identical", () => {
+    // The engine never writes previous equal to current — an identical
+    // re-report keeps the old slot — but the ordering must still hold if the
+    // stored state says otherwise: an observation matching what stands is not
+    // stale, whatever else it also matches.
+    const odd = producer({ previousFingerprints: { [ds("clean_orders")]: v2 } });
+    expect(classifyObservation(odd, ds("clean_orders"), v2)).toEqual({ kind: "current" });
+  });
+
+  it("still names the reported replacement when a later silent edit is also standing", () => {
+    // The reader holds v1: superseded by the v2 report, full stop. The v3
+    // notice is a separate fact with its own cascade, and blaming the reader's
+    // staleness on the unknown author would erase the one attribution the
+    // records genuinely support.
+    const both = producer({
+      previousFingerprints: { [ds("clean_orders")]: v1 },
+      observed: { [ds("clean_orders")]: v3 },
+    });
+    expect(classifyObservation(both, ds("clean_orders"), v1)).toEqual({
+      kind: "superseded",
+      by: "report",
+    });
+  });
+});
+
+describe("supersededMark — the mark a straddling reader earns", () => {
+  const v1 = fp("schema-1", "content-1");
+  const v2 = fp("schema-1", "content-2");
+
+  function producerWithRun(): TaskRecord {
+    return {
+      ...task("clean_orders", ["raw_orders"], ["clean_orders"]),
+      fingerprints: { [ds("clean_orders")]: v2 },
+      previousFingerprints: { [ds("clean_orders")]: v1 },
+      title: "Orders cleaner",
+      run: {
+        runner: "codex-cli 0.144.4",
+        ms: 40_000,
+        outputs: {
+          [ds("clean_orders")]: {
+            rows: 39,
+            columns: ["order_id", "customer", "order_total_usd", "order_date"],
+          },
+        },
+      },
+    };
+  }
+
+  it("names the producer, the table, and the change kind for a reported replacement", () => {
+    const mark = supersededMark(
+      ds("clean_orders"),
+      producerWithRun(),
+      { kind: "superseded", by: "report" },
+      { ...v1, columns: ["order_id", "customer", "order_total", "order_date"] },
+      NOW,
+    );
+    expect(mark.causedBy).toBe(ds("clean_orders"));
+    expect(mark.causedByTask).toBe(producerWithRun().urn);
+    expect(mark.hops).toBe(1);
+    expect(mark.changeKind).toBe("content");
+    expect(mark.since).toBe(NOW);
+    expect(mark.detectedMs).toBeNull();
+    expect(mark.reason).toContain("Orders cleaner replaced it before this finished");
+    expect(mark.reason).toContain("its rows changed");
+  });
+
+  it("carries the column diff between what was read and what now stands", () => {
+    const renamed = {
+      ...producerWithRun(),
+      fingerprints: { [ds("clean_orders")]: fp("schema-2", "content-1") },
+    };
+    const mark = supersededMark(
+      ds("clean_orders"),
+      renamed,
+      { kind: "superseded", by: "report" },
+      { ...v1, columns: ["order_id", "customer", "order_total", "order_date"] },
+      NOW,
+    );
+    expect(mark.changeKind).toBe("schema");
+    expect(mark.columns).toEqual({ added: ["order_total_usd"], removed: ["order_total"] });
+  });
+
+  it("leaves the author unknown for a noticed replacement, like every mark from that notice", () => {
+    const noticed = {
+      ...producerWithRun(),
+      previousFingerprints: undefined,
+      observed: { [ds("clean_orders")]: fp("schema-9", "content-9") },
+    };
+    const mark = supersededMark(
+      ds("clean_orders"),
+      noticed,
+      { kind: "superseded", by: "notice" },
+      v2,
+      NOW,
+    );
+    expect(mark.causedByTask).toBeNull();
+    expect(mark.columns).toBeNull();
+    expect(mark.reason).toContain("an unreported change replaced it before this finished");
+  });
+
+  it("refuses an observation that matches the standing record, rather than fabricating a change", () => {
+    expect(() =>
+      supersededMark(
+        ds("clean_orders"),
+        producerWithRun(),
+        { kind: "superseded", by: "report" },
+        v2,
+        NOW,
+      ),
+    ).toThrow(/matches the standing record/);
   });
 });

@@ -5,8 +5,28 @@
  * here without pulling `child_process` into a client bundle.
  */
 
-/** The demo steps the cockpit may launch. Exactly `agents.run`'s commands. */
-export type DemoStep = "setup" | "register" | "run" | "rerun-same" | "change" | "reset";
+/**
+ * The demo steps the cockpit may launch.
+ *
+ * Almost exactly `agents.run`'s commands. The one exception is
+ * `scale-change-mid`, a step id for `scale-run --change-during` — the run
+ * whose requirement changes while agents are still working — because the
+ * launcher passes one step token and that command is a command plus a flag.
+ * `stepArgv` in `steps.ts` owns the translation.
+ */
+export type DemoStep =
+  | "setup"
+  | "register"
+  | "run"
+  | "rerun-same"
+  | "change"
+  | "repair"
+  | "reset"
+  | "scale-register"
+  | "scale-run"
+  | "scale-change"
+  | "scale-change-mid"
+  | "scale-repair";
 
 /** A step currently executing on this machine. */
 export interface RunningStep {
@@ -63,4 +83,14 @@ export interface DemoActivity {
    */
   log: string[];
   preflight: Preflight;
+  /**
+   * The command that connects an outside MCP agent to this obsel, with this
+   * machine's real absolute interpreter path already in it.
+   *
+   * Computed on the server because only the server knows where the repository
+   * lives; a browser rendering a placeholder path would hand the reader a
+   * command that fails, which is worse than no command. Display only — nothing
+   * decides on it.
+   */
+  joinCommand: string;
 }

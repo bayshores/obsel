@@ -267,3 +267,71 @@
   font-size: var(--mm-text-cap);
   color: var(--obsel-text-quiet);
 }
+
+/* The join panel: one summary line closed, a working command open. */
+.join {
+  display: grid;
+  gap: var(--mm-space-xs);
+  padding-top: var(--mm-space-xs);
+}
+
+.joinIntro,
+.joinNote {
+  margin: 0;
+  font-size: var(--mm-text-md);
+  color: var(--obsel-text-quiet);
+  max-width: 62ch;
+}
+
+.joinCommand {
+  display: flex;
+  align-items: stretch;
+  gap: var(--mm-space-xs);
+}
+
+.joinCommand code {
+  flex: 1;
+  font-family: var(--mm-font-mono);
+  font-size: var(--mm-text-md);
+  color: var(--mm-cream-dim);
+  background: var(--mm-surface);
+  border: 1px solid var(--mm-border);
+  padding: var(--mm-space-xs) var(--mm-space-sm);
+  overflow-wrap: anywhere;
+}
+
+.copy {
+  font-family: var(--mm-font-mono);
+  font-size: var(--mm-text-md);
+  color: var(--obsel-text-quiet);
+  background: var(--mm-surface);
+  border: 1px solid var(--mm-border);
+  padding: 0 var(--mm-space-sm);
+  cursor: pointer;
+}
+
+.copy:hover {
+  color: var(--mm-cream-dim);
+}
+
+.joinTools {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 2px;
+}
+
+.joinTools li {
+  display: flex;
+  gap: var(--mm-space-sm);
+  align-items: baseline;
+  font-size: var(--mm-text-md);
+  color: var(--obsel-text-quiet);
+}
+
+.joinTools code {
+  font-family: var(--mm-font-mono);
+  color: var(--mm-cream-dim);
+  white-space: nowrap;
+}

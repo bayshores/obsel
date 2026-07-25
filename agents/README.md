@@ -259,6 +259,31 @@ one, so the command compares the whole map rather than checking that something w
 marked. If only `build_revenue` came back, the transitive half would be broken and
 "one task was marked" would still look like a pass; here it exits 1.
 
+### 6. `repair`, what the flag is for
+
+```bash
+agents/.venv/bin/python -m agents.run repair
+```
+
+Redoes the flagged work, producers before consumers, each redo a real Codex
+session replaying what that task last ran on its current inputs. There is no
+command that clears a flag, on purpose: a flag comes off through redone work,
+either the task's own redo or obsel proving the task sound when an upstream redo
+lands byte-identical. The command re-reads the board at every turn and skips
+whatever obsel has already cleared, printing the reason obsel recorded.
+
+The loop runs in passes rather than once, because a live model is allowed to
+produce a genuinely different table on a redo. obsel then rightly flags what was
+built on the new version, those flags land strictly downstream, and the next
+pass absorbs them. The first live `repair` (2026-07-24) took exactly that path:
+the redone `daily_revenue` carried averages at a different precision, obsel
+called it a content change and refused to clear the two tasks downstream, and
+all three were redone in 93.7 s, ending clean. The averaging precision is pinned
+in `pipeline.py` now, the third instruction pinned for the same reason.
+
+The closing claim is read back from the board: zero flags, or the command exits
+1 with `UNEXPECTED:` naming what still stands.
+
 ### `reset`
 
 ```bash
@@ -276,6 +301,41 @@ then does it clear `.obsel/data` and `.obsel/state` and rewrite the seed table.
 If obsel's half fails, nothing local is touched and the command exits 1. Clearing
 the local tables while DataHub still holds their fingerprints would leave the next
 run comparing against a baseline this machine no longer has.
+
+## The taxi swarm, at forty tasks
+
+The same loop at a size nobody can eyeball: forty tasks over one week of real NYC
+yellow-taxi trips (`scale.py`, seeds pinned by sha256 in `seeds/PROVENANCE.md`).
+Every task is still a real Codex session. The measured results for each step are
+in [`docs/verification.md`](../docs/verification.md).
+
+```bash
+agents/.venv/bin/python -m agents.run scale-register  # forty tasks into DataHub
+agents/.venv/bin/python -m agents.run scale-run       # all forty, concurrently
+agents/.venv/bin/python -m agents.run scale-run --change-during  # with the change landing mid-swarm
+agents/.venv/bin/python -m agents.run scale-change    # the change alone, on a settled board
+agents/.venv/bin/python -m agents.run scale-repair    # redo only the flagged, in parallel
+```
+
+- `scale-run` schedules producers before readers with a bounded pool (`--pool`,
+  default 8). With `--change-during`, one task re-runs with a renamed column
+  while others are still in flight, which is the claim that in-flight work is
+  never flagged being exercised rather than asserted.
+- `scale-change` renames the passenger column **away from wherever the board
+  currently sits**, and prints which direction before the agent runs. It reads
+  the direction off the producer's recorded run columns, because a repair never
+  touches the task that caused the cascade: a hard-coded direction made the
+  second press of the board's own button reproduce the table byte for byte and
+  fail its own assertion, three times, before this was learned. Either
+  direction must mark the same nine descendants, out to three hops, and the
+  step asserts exactly that set.
+- `scale-repair` redoes only what obsel flagged, independent redos in parallel,
+  and cancels redos out of its own plan when an identical redo upstream proves
+  them unnecessary. It prints each cancellation with obsel's reason as the
+  proof lands.
+
+Both swarms hang off the same DataFlow, so the board shows whichever is
+registered; `reset`, then register the other, to switch.
 
 ## Useful flags
 

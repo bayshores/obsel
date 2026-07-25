@@ -49,6 +49,44 @@
   text-decoration: none;
 }
 
+/*
+ * React Flow's zoom and fit buttons, in mmux's own vocabulary.
+ *
+ * The stock controls are a white card with a drop shadow, which is two
+ * anti-patterns on one element here (mmux is dark-only, and elevation comes
+ * from hairlines rather than shadows). Restyled rather than rebuilt: the
+ * component's behaviour — zoom in, zoom out, fit — is exactly what is wanted,
+ * and only its skin is off.
+ */
+.canvas :global(.react-flow__controls) {
+  box-shadow: none;
+  border: 1px solid var(--mm-rose-line);
+  background: var(--mm-ink-2);
+}
+
+.canvas :global(.react-flow__controls-button) {
+  width: 22px;
+  height: 22px;
+  background: transparent;
+  border-bottom: 1px solid var(--mm-rose-line);
+  color: var(--obsel-text-quiet);
+}
+
+.canvas :global(.react-flow__controls-button:last-child) {
+  border-bottom: none;
+}
+
+.canvas :global(.react-flow__controls-button:hover) {
+  background: var(--mm-rose-soft);
+  color: var(--mm-cream);
+}
+
+.canvas :global(.react-flow__controls-button svg) {
+  fill: currentColor;
+  max-width: 11px;
+  max-height: 11px;
+}
+
 /* The dot grid React Flow draws, pushed well back. mmux's own grid is already
    behind the data, and two competing textures read as noise. */
 .dots {

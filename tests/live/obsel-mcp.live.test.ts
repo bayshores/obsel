@@ -399,6 +399,46 @@ describe("a real change cascades to work that never read it", () => {
   }, 120_000);
 });
 
+describe("a redo that comes out identical reaches the agent as restored work", () => {
+  it("clears the two-hop task without a re-run, and the reply says so in both forms", async () => {
+    /*
+     * Runs against the state the cascade describe left: `mcpjoin_clean` holds
+     * the renamed schema, `mcpjoin_agg` is flagged at one hop and
+     * `mcpjoin_report` at two. The agent redoes `mcpjoin_agg` over the renamed
+     * table and its own table comes out byte-identical — so the report task,
+     * which never read the renamed table, was flagged for ground that never
+     * moved, and the reply an agent reads has to carry that in the structured
+     * half and in the sentences, because an agent that relays only one of them
+     * to its operator must still tell the whole story.
+     */
+    const client = await connect(obselServer.url);
+
+    await call(client, "announce_start", { taskUrn: taskUrn(AGG) });
+    const answer = await call(client, "report_complete", {
+      taskUrn: taskUrn(AGG),
+      outputs: { [AGG_OUT]: AGG_TABLE },
+    });
+
+    expect(answer.coordination.changedOutputs).toEqual([]);
+    expect(
+      answer.coordination.restored.map((entry: { task: { name: string } }) => entry.task.name),
+    ).toEqual([REPORT]);
+    expect(answer.coordination.restored[0].reason).toContain("came out identical");
+
+    const sentences = answer.summary.join("\n");
+    expect(sentences).toContain(`cleared ${REPORT} without a re-run`);
+
+    // Confirmed in DataHub itself: both flags are off and both tags are gone,
+    // one earned by the redo, one by what the redo proved.
+    for (const name of [AGG, REPORT]) {
+      const record = await readTask(taskUrn(name));
+      expect(record?.status, name).toBe("complete");
+      expect(record?.stale, name).toBeNull();
+      expect(record?.tags, name).not.toContain(STALE_TAG_URN);
+    }
+  }, 180_000);
+});
+
 describe("what an agent is refused", () => {
   it("refuses an output the task never declared it writes", async () => {
     const client = await connect(obselServer.url);

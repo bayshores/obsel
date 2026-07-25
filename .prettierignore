@@ -1,0 +1,10 @@
+# The committed seed extracts are minified on purpose: byte-stable, hash-pinned
+# in agents/scale.py, and two thousand rows long. Reflowing them would produce
+# a megabyte of diff and change the bytes the pinned hashes are of.
+agents/seeds/raw_trips.json
+agents/seeds/raw_zones.json
+
+# The forty-task board recordings are `GET /api/swarm` as the server sent it.
+# They are evidence, not source: reformatting them would leave the file claiming
+# to be a verbatim capture of bytes it no longer holds.
+e2e/fixtures/captures/

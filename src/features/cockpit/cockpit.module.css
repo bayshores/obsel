@@ -55,6 +55,25 @@
    */
   height: 100vh;
   box-sizing: border-box;
+}
+
+/*
+ * The tall board: a swarm whose graph outgrows the frame.
+ *
+ * The definite `height` above is the right rule for a swarm that fits — it is
+ * what hands the log strip the slack instead of a black gap. It cannot be the
+ * rule for a forty-task swarm, whose laid-out graph alone can need 500px and
+ * up: inside a fixed 100vh the graph panel's grown height would overflow and
+ * clip. So the cockpit switches to this class exactly when the graph panel
+ * reports a height above its 320px default (see `cockpit.tsx`): the column
+ * sizes to its content, the page scrolls, and the strip keeps its own floor
+ * instead of absorbing slack that no longer exists. Scrolling beats clipping,
+ * which is the same judgement the comment above already made for short
+ * viewports.
+ */
+.cockpitTall {
+  height: auto;
+  min-height: 100vh;
   /*
    * 1800, up from 1280.
    *
@@ -73,6 +92,56 @@
   /* Centred, not left-hugging: the recording is a full-width browser. */
   margin-inline: auto;
 }
+
+/*
+ * The tall board's gutter takes a real height, instead of the leftovers of a
+ * frame that no longer has any.
+ *
+ * `.gutter` below is `flex: 1 1 0` with a 172px floor, and that pairing is what
+ * makes the fixed-height board work: the graph takes its 320 first and the strip
+ * absorbs everything else, so a taller display grows the step list rather than a
+ * black gap. Every word of that reasoning depends on there being slack to absorb.
+ *
+ * In tall mode there is none. `height: auto` above sizes the column to its
+ * content, so `flex: 1 1 0` resolves against zero free space and the strip lands
+ * on its floor exactly. Measured on the forty-task board at 1920 x 990 before
+ * this rule: the trace panel 172px tall, its scroller 105px, showing three of
+ * eighty-six steps, with the details panel beside it the same. Two panels at the
+ * smallest size they are allowed to be, under a 900px graph, on a page already
+ * 1411px long. Nothing was clipped and nothing was wrong, and it read as an
+ * afterthought.
+ *
+ * So the strip is sized rather than fitted here. The page is scrolling anyway,
+ * which is what makes this affordable: the constraint that produced the 172px
+ * floor was a frame that had to hold everything at once, and a tall board has
+ * already given that up. `40vh` is about ten steps plus the panel's own header
+ * and footnote at the recording height, and the clamp keeps a laptop readable
+ * without letting a tall display turn the strip into the page.
+ */
+.cockpitTall .gutter {
+  flex: 0 0 auto;
+  height: clamp(360px, 40vh, 480px);
+}
+
+/*
+ * The ribbon is NOT pinned to the bottom of a tall board, and that was tried.
+ *
+ * The problem is real: the ribbon carries the measured detection time, the one
+ * claim the whole demo exists to establish, and on the forty-task board it sits
+ * at y=1338 in a 990px viewport. `position: sticky; bottom` fixes exactly that
+ * and was measured doing it.
+ *
+ * It also puts a 62px bar across the graph at every scroll position above the
+ * end, and mmux's `--mm-surface` is 2.5% cream, so the first version was
+ * transparent and the bottom row of nodes read straight through the number.
+ * Making it opaque does not fix it, it only makes the covering honest: the
+ * bottom row of a graph this file just spent a rule making sure was not clipped
+ * would be hidden behind a bar instead.
+ *
+ * A board taller than the frame scrolls. The trace panel is below the fold too,
+ * and nobody is confused by that. Trading a permanent occlusion of the picture
+ * for saving one scroll to the conclusion is the wrong way round.
+ */
 
 /* Content-sized by default; the graph panel opts into the slack inline. */
 .cockpit > * {

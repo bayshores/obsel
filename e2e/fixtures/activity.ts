@@ -27,6 +27,11 @@ export function idle(): DemoActivity {
       venv: ok("agents/.venv exists"),
       codex: ok("the Codex CLI is signed in"),
     },
+    // A plausible absolute path, so the join panel renders the way it does on a
+    // real machine. Invented like everything else here, and marked as such by
+    // the placeholder home directory.
+    joinCommand:
+      "claude mcp add obsel -- /home/operator/obsel/agents/.venv/bin/python -m agents.mcp_server",
   };
 }
 

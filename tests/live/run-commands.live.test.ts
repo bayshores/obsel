@@ -1,11 +1,13 @@
 /**
- * `agents/run.py`'s two commands that need no model, against a real obsel and a real DataHub.
+ * `agents/run.py`'s commands that need no model, against a real obsel and a real DataHub.
  *
- * `run.py` is the demo driver. Four of its six commands (`run`, `rerun-same`, `change`, and
- * `setup`) reach a live Codex session or DataHub's vocabulary registration, and are covered
- * elsewhere: the guards those commands print are checked offline by `python -m agents.run
- * self-check`, and the Codex invocation itself by `codex.live.test.ts`. `register` and
- * `reset` are the two that talk only to obsel, so they can be driven end to end here.
+ * `run.py` is the demo driver. Five of its seven commands (`run`, `rerun-same`, `change`,
+ * `repair`, and `setup`) reach a live Codex session or DataHub's vocabulary registration,
+ * and are covered elsewhere: the guards those commands print are checked offline by
+ * `python -m agents.run self-check`, and the Codex invocation itself by
+ * `codex.live.test.ts`. `register` and `reset` are the two that talk only to obsel, so
+ * they can be driven end to end here — along with `repair`'s one Codex-free path, the
+ * clean board, which reads the real swarm and must decide there is nothing to do.
  *
  * They are worth driving, because both own a failure that is silent by nature.
  *
@@ -248,5 +250,22 @@ describe("reset returns obsel to its pre-run state", () => {
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
+  });
+});
+
+describe("repair on a clean board does nothing, and says so", () => {
+  it("reads the real swarm, finds no flags, and exits 0 without spawning anything", () => {
+    /*
+     * The one path through `cmd_repair` that needs no model: the decision that
+     * there is nothing to decide. It still crosses the real boundary — the
+     * flagged set comes from a genuine swarm read, and the four demo tasks are
+     * really there at `registered` after the reset above. The full path, redo
+     * through real Codex sessions with flags coming off as they land, is a
+     * live-model run and is exercised the way `change` is: by the demo's own
+     * assertions, which exit non-zero when the board does not end clean.
+     */
+    const { code, output } = run(["repair", "--obsel-url", obselServer.url]);
+    expect(output).toContain("nothing is flagged");
+    expect(code).toBe(0);
   });
 });

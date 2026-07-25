@@ -1,0 +1,1659 @@
+{
+  "snapshot": {
+    "flow": "urn:li:dataFlow:(obsel,obsel_scale_v2,prod)",
+    "tasks": [
+      {
+        "urn": "urn:li:dataJob:(urn:li:dataFlow:(obsel,obsel_scale_v2,prod),airport_daily)",
+        "name": "airport_daily",
+        "title": "Airport daily",
+        "description": "totals the airport trips into one row per day",
+        "reads": [
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.airport_trips,PROD)"
+        ],
+        "writes": [
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.airport_daily,PROD)"
+        ],
+        "status": "complete",
+        "fingerprints": {
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.airport_daily,PROD)": {
+            "schema": "29fd18ddaefe8345df00d3c48310692f999228cd5139abbc34f57699f61c3342",
+            "content": "139fb4bb215e2b7cadc13c35c7a575b105e09ca4a79c4044effbcfba8cab26b0"
+          }
+        },
+        "finishedAt": "2026-07-24T09:37:19.853090+00:00",
+        "startedAt": "2026-07-24T09:37:02.780Z",
+        "run": {
+          "runner": "codex-cli 0.144.4",
+          "ms": 16891,
+          "outputs": {
+            "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.airport_daily,PROD)": {
+              "rows": 7,
+              "columns": [
+                "pickup_date",
+                "trips",
+                "fares_total"
+              ],
+              "path": "/Users/seane/Code/obsel/.obsel/data/airport_daily.json"
+            }
+          }
+        },
+        "stale": null,
+        "tags": [],
+        "staleTagged": false
+      },
+      {
+        "urn": "urn:li:dataJob:(urn:li:dataFlow:(obsel,obsel_scale_v2,prod),airport_trips)",
+        "name": "airport_trips",
+        "title": "Airport filter",
+        "description": "keeps the trips that touched an airport",
+        "reads": [
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.labeled_trips,PROD)"
+        ],
+        "writes": [
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.airport_trips,PROD)"
+        ],
+        "status": "complete",
+        "fingerprints": {
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.airport_trips,PROD)": {
+            "schema": "0d1e65d2eec15daa049ba2f53e5fd1cd7af22f24cb62b2142f86c5926665a7dc",
+            "content": "f9cc8267a90fd7cc941c544923ac857320a208a5104d418f149cefef87d0e033"
+          }
+        },
+        "finishedAt": "2026-07-24T09:36:59.706303+00:00",
+        "startedAt": "2026-07-24T09:36:32.875Z",
+        "run": {
+          "runner": "codex-cli 0.144.4",
+          "ms": 26559,
+          "outputs": {
+            "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.airport_trips,PROD)": {
+              "rows": 317,
+              "columns": [
+                "trip_id",
+                "pickup_date",
+                "pickup_zone",
+                "dropoff_zone",
+                "fare_amount",
+                "total_amount"
+              ],
+              "path": "/Users/seane/Code/obsel/.obsel/data/airport_trips.json"
+            }
+          }
+        },
+        "stale": null,
+        "tags": [],
+        "staleTagged": false
+      },
+      {
+        "urn": "urn:li:dataJob:(urn:li:dataFlow:(obsel,obsel_scale_v2,prod),airport_week)",
+        "name": "airport_week",
+        "title": "Airport week",
+        "description": "rolls the airport story up to one weekly row",
+        "reads": [
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.airport_daily,PROD)"
+        ],
+        "writes": [
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.airport_week,PROD)"
+        ],
+        "status": "complete",
+        "fingerprints": {
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.airport_week,PROD)": {
+            "schema": "40f2a5d222b5feee867c8284ff40a10a417f8278acdd6286438efbc048a9e33e",
+            "content": "3d1d9ae8fcf2bb98225e92670d3f430dcb1904ed7cfcf7a300129fbe16b6194c"
+          }
+        },
+        "finishedAt": "2026-07-24T09:37:37.439114+00:00",
+        "startedAt": "2026-07-24T09:37:21.002Z",
+        "run": {
+          "runner": "codex-cli 0.144.4",
+          "ms": 16277,
+          "outputs": {
+            "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.airport_week,PROD)": {
+              "rows": 1,
+              "columns": [
+                "trips",
+                "fares_total",
+                "busiest_date"
+              ],
+              "path": "/Users/seane/Code/obsel/.obsel/data/airport_week.json"
+            }
+          }
+        },
+        "stale": null,
+        "tags": [],
+        "staleTagged": false
+      },
+      {
+        "urn": "urn:li:dataJob:(urn:li:dataFlow:(obsel,obsel_scale_v2,prod),city_boroughs)",
+        "name": "city_boroughs",
+        "title": "Borough summary",
+        "description": "lines the five weekly borough rollups up side by side",
+        "reads": [
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.borough_week_bronx,PROD)",
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.borough_week_brooklyn,PROD)",
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.borough_week_manhattan,PROD)",
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.borough_week_queens,PROD)",
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.borough_week_other,PROD)"
+        ],
+        "writes": [
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.city_borough_summary,PROD)"
+        ],
+        "status": "complete",
+        "fingerprints": {
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.city_borough_summary,PROD)": {
+            "schema": "1967c50bad7fbf90b2b5d7144b0d6d0c93b6468dfc1ca881df6caa0e1c670359",
+            "content": "50f44ceec1f17969ea2b42c6ac288d84c6995b2007b993dff82ca637c4dee89d"
+          }
+        },
+        "finishedAt": "2026-07-24T09:38:14.104522+00:00",
+        "startedAt": "2026-07-24T09:37:54.121Z",
+        "run": {
+          "runner": "codex-cli 0.144.4",
+          "ms": 19771,
+          "outputs": {
+            "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.city_borough_summary,PROD)": {
+              "rows": 5,
+              "columns": [
+                "borough",
+                "trips",
+                "fares_total",
+                "tips_total",
+                "busiest_date"
+              ],
+              "path": "/Users/seane/Code/obsel/.obsel/data/city_borough_summary.json"
+            }
+          }
+        },
+        "stale": null,
+        "tags": [],
+        "staleTagged": false
+      },
+      {
+        "urn": "urn:li:dataJob:(urn:li:dataFlow:(obsel,obsel_scale_v2,prod),city_week)",
+        "name": "city_week",
+        "title": "City week",
+        "description": "rolls the whole week up into one city-wide row",
+        "reads": [
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.daily_trips,PROD)",
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.trip_lengths,PROD)"
+        ],
+        "writes": [
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.city_week,PROD)"
+        ],
+        "status": "complete",
+        "fingerprints": {
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.city_week,PROD)": {
+            "schema": "dac8d7ff6e7fbee00c4e6a1118748c1863342b3e31e5ecfa1d8c97ae957ce1ee",
+            "content": "cec0926f940f4c43dcb75bd5ce7149f458b03905ce3634fab4090a6f75495195"
+          }
+        },
+        "finishedAt": "2026-07-24T10:08:21.700074+00:00",
+        "startedAt": "2026-07-24T10:08:01.034Z",
+        "run": {
+          "runner": "codex-cli 0.144.4",
+          "ms": 20497,
+          "outputs": {
+            "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.city_week,PROD)": {
+              "rows": 1,
+              "columns": [
+                "trips",
+                "riders",
+                "total_distance",
+                "total_fares",
+                "long_trip_share"
+              ],
+              "path": "/Users/seane/Code/obsel/.obsel/data/city_week.json"
+            }
+          }
+        },
+        "stale": null,
+        "tags": [],
+        "staleTagged": false
+      },
+      {
+        "urn": "urn:li:dataJob:(urn:li:dataFlow:(obsel,obsel_scale_v2,prod),clean_trips)",
+        "name": "clean_trips",
+        "title": "Trip cleaner",
+        "description": "cleans the raw taxi trips into a tidy typed table",
+        "reads": [
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.raw_trips,PROD)"
+        ],
+        "writes": [
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.clean_trips,PROD)"
+        ],
+        "status": "complete",
+        "fingerprints": {
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.clean_trips,PROD)": {
+            "schema": "f1eea65bc9913594ab1afe545f29aa260b2ab5668e9777240d0b18c5b691914c",
+            "content": "e2eed087f31bf763930ac71c05ac49d5dadd94152f503fa97232a073e32a929f"
+          }
+        },
+        "finishedAt": "2026-07-24T09:34:54.998783+00:00",
+        "startedAt": "2026-07-24T09:34:33.903Z",
+        "run": {
+          "runner": "codex-cli 0.144.4",
+          "ms": 20831,
+          "outputs": {
+            "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.clean_trips,PROD)": {
+              "rows": 2061,
+              "columns": [
+                "trip_id",
+                "pickup_date",
+                "pickup_hour",
+                "pickup_zone_id",
+                "dropoff_zone_id",
+                "passenger_count",
+                "trip_distance",
+                "fare_amount",
+                "tip_amount",
+                "total_amount",
+                "payment_label"
+              ],
+              "path": "/Users/seane/Code/obsel/.obsel/data/clean_trips.json"
+            }
+          }
+        },
+        "stale": null,
+        "tags": [],
+        "staleTagged": false
+      },
+      {
+        "urn": "urn:li:dataJob:(urn:li:dataFlow:(obsel,obsel_scale_v2,prod),clean_zones)",
+        "name": "clean_zones",
+        "title": "Zone cleaner",
+        "description": "cleans the zone lookup into id, name and borough",
+        "reads": [
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.raw_zones,PROD)"
+        ],
+        "writes": [
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.clean_zones,PROD)"
+        ],
+        "status": "complete",
+        "fingerprints": {
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.clean_zones,PROD)": {
+            "schema": "11817a490d046e16a8bcb9d7f0da5a543b8a3742bd6671b1972303d575102868",
+            "content": "bf7c59370592a1c0055a2319c2f62c37b52752a67718b290d3d5db62a47ca41b"
+          }
+        },
+        "finishedAt": "2026-07-24T09:36:00.055451+00:00",
+        "startedAt": "2026-07-24T09:34:33.904Z",
+        "run": {
+          "runner": "codex-cli 0.144.4",
+          "ms": 85910,
+          "outputs": {
+            "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.clean_zones,PROD)": {
+              "rows": 265,
+              "columns": [
+                "zone_id",
+                "zone_name",
+                "borough"
+              ],
+              "path": "/Users/seane/Code/obsel/.obsel/data/clean_zones.json"
+            }
+          }
+        },
+        "stale": null,
+        "tags": [],
+        "staleTagged": false
+      },
+      {
+        "urn": "urn:li:dataJob:(urn:li:dataFlow:(obsel,obsel_scale_v2,prod),cross_borough)",
+        "name": "cross_borough",
+        "title": "Borough flows",
+        "description": "counts trips between every pair of boroughs",
+        "reads": [
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.labeled_trips,PROD)"
+        ],
+        "writes": [
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.cross_borough,PROD)"
+        ],
+        "status": "complete",
+        "fingerprints": {
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.cross_borough,PROD)": {
+            "schema": "34a5d45843847ffab5531fdf940b2a574317277c6a26069bab71827a7ad8fd99",
+            "content": "02dbc53b091cf9ed8f6a9142021d2266696dd8651c23daa549f9b78960977451"
+          }
+        },
+        "finishedAt": "2026-07-24T09:37:01.681589+00:00",
+        "startedAt": "2026-07-24T09:36:32.874Z",
+        "run": {
+          "runner": "codex-cli 0.144.4",
+          "ms": 28524,
+          "outputs": {
+            "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.cross_borough,PROD)": {
+              "rows": 18,
+              "columns": [
+                "pickup_borough",
+                "dropoff_borough",
+                "trips"
+              ],
+              "path": "/Users/seane/Code/obsel/.obsel/data/cross_borough.json"
+            }
+          }
+        },
+        "stale": null,
+        "tags": [],
+        "staleTagged": false
+      },
+      {
+        "urn": "urn:li:dataJob:(urn:li:dataFlow:(obsel,obsel_scale_v2,prod),daily_trips)",
+        "name": "daily_trips",
+        "title": "Daily totals",
+        "description": "totals the cleaned trips into one row per day",
+        "reads": [
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.clean_trips,PROD)"
+        ],
+        "writes": [
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.daily_trips,PROD)"
+        ],
+        "status": "complete",
+        "fingerprints": {
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.daily_trips,PROD)": {
+            "schema": "2de23f5c722394fae0db673528d798fc2d3fd74d0834db2742407173505065d0",
+            "content": "3c2ef40ebd0e540ec07c43263786a9083568cefe6d5254a64f934a00b12b60cc"
+          }
+        },
+        "previousFingerprints": {
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.daily_trips,PROD)": {
+            "schema": "60497f78944cc56fc381439732ed300af3e85c6ce178574f0077512e873bc48e",
+            "content": "3c2ef40ebd0e540ec07c43263786a9083568cefe6d5254a64f934a00b12b60cc"
+          }
+        },
+        "finishedAt": "2026-07-24T10:07:32.593458+00:00",
+        "startedAt": "2026-07-24T10:07:08.751Z",
+        "run": {
+          "runner": "codex-cli 0.144.4",
+          "ms": 23690,
+          "outputs": {
+            "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.daily_trips,PROD)": {
+              "rows": 7,
+              "columns": [
+                "pickup_date",
+                "trips",
+                "riders",
+                "total_distance",
+                "total_fares"
+              ],
+              "path": "/Users/seane/Code/obsel/.obsel/data/daily_trips.json"
+            }
+          }
+        },
+        "stale": null,
+        "tags": [],
+        "staleTagged": false
+      },
+      {
+        "urn": "urn:li:dataJob:(urn:li:dataFlow:(obsel,obsel_scale_v2,prod),docs_boroughs)",
+        "name": "docs_boroughs",
+        "title": "Borough docs",
+        "description": "documents the borough summary table",
+        "reads": [
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.city_borough_summary,PROD)"
+        ],
+        "writes": [
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.borough_docs,PROD)"
+        ],
+        "status": "complete",
+        "fingerprints": {
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.borough_docs,PROD)": {
+            "schema": "0a1d9d0244688f6ba6ef46ec05ba53b6e7bdb187a9ae0e4903b97c35ac24ee54",
+            "content": "f11a09d9254f76285e4e00f706e63947ad708e405dd1e80dbf70759aa51c5a0f"
+          }
+        },
+        "finishedAt": "2026-07-24T09:38:46.279978+00:00",
+        "startedAt": "2026-07-24T09:38:14.226Z",
+        "run": {
+          "runner": "codex-cli 0.144.4",
+          "ms": 31881,
+          "outputs": {
+            "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.borough_docs,PROD)": {
+              "rows": 5,
+              "columns": [
+                "section",
+                "heading",
+                "text"
+              ],
+              "path": "/Users/seane/Code/obsel/.obsel/data/borough_docs.json"
+            }
+          }
+        },
+        "stale": null,
+        "tags": [],
+        "staleTagged": false
+      },
+      {
+        "urn": "urn:li:dataJob:(urn:li:dataFlow:(obsel,obsel_scale_v2,prod),docs_marts)",
+        "name": "docs_marts",
+        "title": "Mart docs",
+        "description": "documents the four base marts for the next engineer",
+        "reads": [
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.daily_trips,PROD)",
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.payment_mix,PROD)",
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.hourly_profile,PROD)",
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.trip_lengths,PROD)"
+        ],
+        "writes": [
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.marts_docs,PROD)"
+        ],
+        "status": "complete",
+        "fingerprints": {
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.marts_docs,PROD)": {
+            "schema": "0a1d9d0244688f6ba6ef46ec05ba53b6e7bdb187a9ae0e4903b97c35ac24ee54",
+            "content": "e0f91922f4c40a75dacb807862070bde16582fef8ea8cec44fcca92ba59cc910"
+          }
+        },
+        "previousFingerprints": {
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.marts_docs,PROD)": {
+            "schema": "0a1d9d0244688f6ba6ef46ec05ba53b6e7bdb187a9ae0e4903b97c35ac24ee54",
+            "content": "149da3bf2295336a3bdb9bd3cdeb843b03ac9a5de430ad20f6aa5764a367af1c"
+          }
+        },
+        "finishedAt": "2026-07-24T10:08:33.952749+00:00",
+        "startedAt": "2026-07-24T10:08:01.034Z",
+        "run": {
+          "runner": "codex-cli 0.144.4",
+          "ms": 32747,
+          "outputs": {
+            "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.marts_docs,PROD)": {
+              "rows": 4,
+              "columns": [
+                "section",
+                "heading",
+                "text"
+              ],
+              "path": "/Users/seane/Code/obsel/.obsel/data/marts_docs.json"
+            }
+          }
+        },
+        "stale": null,
+        "tags": [],
+        "staleTagged": false
+      },
+      {
+        "urn": "urn:li:dataJob:(urn:li:dataFlow:(obsel,obsel_scale_v2,prod),docs_movement)",
+        "name": "docs_movement",
+        "title": "Movement docs",
+        "description": "documents the two movement tables",
+        "reads": [
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.cross_borough,PROD)",
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.zone_leaders,PROD)"
+        ],
+        "writes": [
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.movement_docs,PROD)"
+        ],
+        "status": "complete",
+        "fingerprints": {
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.movement_docs,PROD)": {
+            "schema": "0a1d9d0244688f6ba6ef46ec05ba53b6e7bdb187a9ae0e4903b97c35ac24ee54",
+            "content": "a162b592cebfe27150aaf89df0f54939c05ae5bb9951ee501e1daed7d1f73dc3"
+          }
+        },
+        "finishedAt": "2026-07-24T09:37:57.371155+00:00",
+        "startedAt": "2026-07-24T09:37:31.400Z",
+        "run": {
+          "runner": "codex-cli 0.144.4",
+          "ms": 25839,
+          "outputs": {
+            "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.movement_docs,PROD)": {
+              "rows": 2,
+              "columns": [
+                "section",
+                "heading",
+                "text"
+              ],
+              "path": "/Users/seane/Code/obsel/.obsel/data/movement_docs.json"
+            }
+          }
+        },
+        "stale": null,
+        "tags": [],
+        "staleTagged": false
+      },
+      {
+        "urn": "urn:li:dataJob:(urn:li:dataFlow:(obsel,obsel_scale_v2,prod),docs_zones)",
+        "name": "docs_zones",
+        "title": "Zone docs",
+        "description": "documents the cleaned zone lookup",
+        "reads": [
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.clean_zones,PROD)"
+        ],
+        "writes": [
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.zone_docs,PROD)"
+        ],
+        "status": "complete",
+        "fingerprints": {
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.zone_docs,PROD)": {
+            "schema": "0a1d9d0244688f6ba6ef46ec05ba53b6e7bdb187a9ae0e4903b97c35ac24ee54",
+            "content": "859b3e2549389bcfd791f6d37600a93545672cef17ac1267637e31e39a648309"
+          }
+        },
+        "finishedAt": "2026-07-24T09:36:22.422758+00:00",
+        "startedAt": "2026-07-24T09:36:00.232Z",
+        "run": {
+          "runner": "codex-cli 0.144.4",
+          "ms": 22060,
+          "outputs": {
+            "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.zone_docs,PROD)": {
+              "rows": 4,
+              "columns": [
+                "section",
+                "heading",
+                "text"
+              ],
+              "path": "/Users/seane/Code/obsel/.obsel/data/zone_docs.json"
+            }
+          }
+        },
+        "stale": null,
+        "tags": [],
+        "staleTagged": false
+      },
+      {
+        "urn": "urn:li:dataJob:(urn:li:dataFlow:(obsel,obsel_scale_v2,prod),dropoff_mix)",
+        "name": "dropoff_mix",
+        "title": "Dropoff mix",
+        "description": "counts where the week's trips ended, by borough",
+        "reads": [
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.labeled_trips,PROD)"
+        ],
+        "writes": [
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.dropoff_borough_mix,PROD)"
+        ],
+        "status": "complete",
+        "fingerprints": {
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.dropoff_borough_mix,PROD)": {
+            "schema": "b5ab68f7b75d888daa1940935931f70b53e35046961b45dd84fcb2e5c4cff245",
+            "content": "170208e9370b1b98c3d2946b5020c8027a33948ff3d28c6c8e73c8f291cd8d4a"
+          }
+        },
+        "finishedAt": "2026-07-24T09:36:50.726201+00:00",
+        "startedAt": "2026-07-24T09:36:32.873Z",
+        "run": {
+          "runner": "codex-cli 0.144.4",
+          "ms": 17570,
+          "outputs": {
+            "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.dropoff_borough_mix,PROD)": {
+              "rows": 7,
+              "columns": [
+                "dropoff_borough",
+                "trips"
+              ],
+              "path": "/Users/seane/Code/obsel/.obsel/data/dropoff_borough_mix.json"
+            }
+          }
+        },
+        "stale": null,
+        "tags": [],
+        "staleTagged": false
+      },
+      {
+        "urn": "urn:li:dataJob:(urn:li:dataFlow:(obsel,obsel_scale_v2,prod),fare_summary)",
+        "name": "fare_summary",
+        "title": "Fare summary",
+        "description": "joins daily fares with how much of each day was paid by card",
+        "reads": [
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.daily_trips,PROD)",
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.payment_mix,PROD)"
+        ],
+        "writes": [
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.fare_summary,PROD)"
+        ],
+        "status": "complete",
+        "fingerprints": {
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.fare_summary,PROD)": {
+            "schema": "c25a66beb8391fc31e1158c8485b973e1d2ee19b5bfe13a646caee4462ed373e",
+            "content": "54fcef642399aa70d37fbf6ff7f72d83d94ecd2ff4134e9e80b659886b606327"
+          }
+        },
+        "finishedAt": "2026-07-24T10:08:26.306254+00:00",
+        "startedAt": "2026-07-24T10:08:01.034Z",
+        "run": {
+          "runner": "codex-cli 0.144.4",
+          "ms": 25102,
+          "outputs": {
+            "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.fare_summary,PROD)": {
+              "rows": 7,
+              "columns": [
+                "pickup_date",
+                "total_fares",
+                "card_share"
+              ],
+              "path": "/Users/seane/Code/obsel/.obsel/data/fare_summary.json"
+            }
+          }
+        },
+        "stale": null,
+        "tags": [],
+        "staleTagged": false
+      },
+      {
+        "urn": "urn:li:dataJob:(urn:li:dataFlow:(obsel,obsel_scale_v2,prod),hourly_profile)",
+        "name": "hourly_profile",
+        "title": "Hourly profile",
+        "description": "profiles the week by hour of day",
+        "reads": [
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.clean_trips,PROD)"
+        ],
+        "writes": [
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.hourly_profile,PROD)"
+        ],
+        "status": "complete",
+        "fingerprints": {
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.hourly_profile,PROD)": {
+            "schema": "e5a04b04c5e3113b7fff49b79549cca5ff2a9ce12d99deb7e1352cf40cd8527c",
+            "content": "61cd577f2d607a23774ed8587df9f8a073b26888219081bbbb7e6878939d8eb1"
+          }
+        },
+        "finishedAt": "2026-07-24T09:35:18.469844+00:00",
+        "startedAt": "2026-07-24T09:34:55.293Z",
+        "run": {
+          "runner": "codex-cli 0.144.4",
+          "ms": 22927,
+          "outputs": {
+            "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.hourly_profile,PROD)": {
+              "rows": 1,
+              "columns": [
+                "pickup_hour",
+                "trips",
+                "average_fare"
+              ],
+              "path": "/Users/seane/Code/obsel/.obsel/data/hourly_profile.json"
+            }
+          }
+        },
+        "stale": null,
+        "tags": [],
+        "staleTagged": false
+      },
+      {
+        "urn": "urn:li:dataJob:(urn:li:dataFlow:(obsel,obsel_scale_v2,prod),label_trips)",
+        "name": "label_trips",
+        "title": "Trip labeller",
+        "description": "attaches zone names and boroughs to every trip",
+        "reads": [
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.clean_trips,PROD)",
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.clean_zones,PROD)"
+        ],
+        "writes": [
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.labeled_trips,PROD)"
+        ],
+        "status": "complete",
+        "fingerprints": {
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.labeled_trips,PROD)": {
+            "schema": "568f6fc844e2f5e0cbd2fa952dd15b050332cbb78678ab95d2a199aa28cbb3a3",
+            "content": "4e69af25875a154cfb812fa20a043146254202f632f860783f1f2fa6cc5149a9"
+          }
+        },
+        "finishedAt": "2026-07-24T09:36:32.669208+00:00",
+        "startedAt": "2026-07-24T09:36:00.232Z",
+        "run": {
+          "runner": "codex-cli 0.144.4",
+          "ms": 32284,
+          "outputs": {
+            "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.labeled_trips,PROD)": {
+              "rows": 2061,
+              "columns": [
+                "trip_id",
+                "pickup_date",
+                "pickup_hour",
+                "pickup_borough",
+                "pickup_zone",
+                "dropoff_borough",
+                "dropoff_zone",
+                "passenger_count",
+                "trip_distance",
+                "fare_amount",
+                "tip_amount",
+                "total_amount",
+                "payment_label"
+              ],
+              "path": "/Users/seane/Code/obsel/.obsel/data/labeled_trips.json"
+            }
+          }
+        },
+        "stale": null,
+        "tags": [],
+        "staleTagged": false
+      },
+      {
+        "urn": "urn:li:dataJob:(urn:li:dataFlow:(obsel,obsel_scale_v2,prod),mart_bronx)",
+        "name": "mart_bronx",
+        "title": "Bronx daily mart",
+        "description": "totals Bronx pickups into one row per day",
+        "reads": [
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.labeled_trips,PROD)"
+        ],
+        "writes": [
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.borough_mart_bronx,PROD)"
+        ],
+        "status": "complete",
+        "fingerprints": {
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.borough_mart_bronx,PROD)": {
+            "schema": "3371f82c98cc4dd5023e3dac3722528141cffbcb0b347474247bca695cac1384",
+            "content": "3b9beb0ea43619126b1e97d410bbd2d5328f528f76095041b6f3244557d84425"
+          }
+        },
+        "finishedAt": "2026-07-24T09:36:52.620613+00:00",
+        "startedAt": "2026-07-24T09:36:32.873Z",
+        "run": {
+          "runner": "codex-cli 0.144.4",
+          "ms": 19468,
+          "outputs": {
+            "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.borough_mart_bronx,PROD)": {
+              "rows": 1,
+              "columns": [
+                "pickup_date",
+                "trips",
+                "fares_total",
+                "tips_total"
+              ],
+              "path": "/Users/seane/Code/obsel/.obsel/data/borough_mart_bronx.json"
+            }
+          }
+        },
+        "stale": null,
+        "tags": [],
+        "staleTagged": false
+      },
+      {
+        "urn": "urn:li:dataJob:(urn:li:dataFlow:(obsel,obsel_scale_v2,prod),mart_brooklyn)",
+        "name": "mart_brooklyn",
+        "title": "Brooklyn daily mart",
+        "description": "totals Brooklyn pickups into one row per day",
+        "reads": [
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.labeled_trips,PROD)"
+        ],
+        "writes": [
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.borough_mart_brooklyn,PROD)"
+        ],
+        "status": "complete",
+        "fingerprints": {
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.borough_mart_brooklyn,PROD)": {
+            "schema": "3371f82c98cc4dd5023e3dac3722528141cffbcb0b347474247bca695cac1384",
+            "content": "6c769a32abefca163cd255062e422b6209a0662a6fb7b05567401ae5976fa4f1"
+          }
+        },
+        "finishedAt": "2026-07-24T09:36:55.165119+00:00",
+        "startedAt": "2026-07-24T09:36:32.874Z",
+        "run": {
+          "runner": "codex-cli 0.144.4",
+          "ms": 22005,
+          "outputs": {
+            "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.borough_mart_brooklyn,PROD)": {
+              "rows": 7,
+              "columns": [
+                "pickup_date",
+                "trips",
+                "fares_total",
+                "tips_total"
+              ],
+              "path": "/Users/seane/Code/obsel/.obsel/data/borough_mart_brooklyn.json"
+            }
+          }
+        },
+        "stale": null,
+        "tags": [],
+        "staleTagged": false
+      },
+      {
+        "urn": "urn:li:dataJob:(urn:li:dataFlow:(obsel,obsel_scale_v2,prod),mart_manhattan)",
+        "name": "mart_manhattan",
+        "title": "Manhattan daily mart",
+        "description": "totals Manhattan pickups into one row per day",
+        "reads": [
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.labeled_trips,PROD)"
+        ],
+        "writes": [
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.borough_mart_manhattan,PROD)"
+        ],
+        "status": "complete",
+        "fingerprints": {
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.borough_mart_manhattan,PROD)": {
+            "schema": "3371f82c98cc4dd5023e3dac3722528141cffbcb0b347474247bca695cac1384",
+            "content": "bf00ced47da47ff12cd7d6af51aef3e788cb0020e373c5d014021e124259067a"
+          }
+        },
+        "finishedAt": "2026-07-24T09:37:05.105725+00:00",
+        "startedAt": "2026-07-24T09:36:33.505Z",
+        "run": {
+          "runner": "codex-cli 0.144.4",
+          "ms": 30028,
+          "outputs": {
+            "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.borough_mart_manhattan,PROD)": {
+              "rows": 7,
+              "columns": [
+                "pickup_date",
+                "trips",
+                "fares_total",
+                "tips_total"
+              ],
+              "path": "/Users/seane/Code/obsel/.obsel/data/borough_mart_manhattan.json"
+            }
+          }
+        },
+        "stale": null,
+        "tags": [],
+        "staleTagged": false
+      },
+      {
+        "urn": "urn:li:dataJob:(urn:li:dataFlow:(obsel,obsel_scale_v2,prod),mart_other)",
+        "name": "mart_other",
+        "title": "Outside-borough mart",
+        "description": "totals pickups outside the four mart boroughs into one row per day",
+        "reads": [
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.labeled_trips,PROD)"
+        ],
+        "writes": [
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.borough_mart_other,PROD)"
+        ],
+        "status": "complete",
+        "fingerprints": {
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.borough_mart_other,PROD)": {
+            "schema": "3371f82c98cc4dd5023e3dac3722528141cffbcb0b347474247bca695cac1384",
+            "content": "44eda0ef230c38f16d6b58dffc770bcbf18021b73490a6634c7d1ccc744f8e40"
+          }
+        },
+        "finishedAt": "2026-07-24T09:37:06.541432+00:00",
+        "startedAt": "2026-07-24T09:36:41.064Z",
+        "run": {
+          "runner": "codex-cli 0.144.4",
+          "ms": 25163,
+          "outputs": {
+            "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.borough_mart_other,PROD)": {
+              "rows": 2,
+              "columns": [
+                "pickup_date",
+                "trips",
+                "fares_total",
+                "tips_total"
+              ],
+              "path": "/Users/seane/Code/obsel/.obsel/data/borough_mart_other.json"
+            }
+          }
+        },
+        "stale": null,
+        "tags": [],
+        "staleTagged": false
+      },
+      {
+        "urn": "urn:li:dataJob:(urn:li:dataFlow:(obsel,obsel_scale_v2,prod),mart_queens)",
+        "name": "mart_queens",
+        "title": "Queens daily mart",
+        "description": "totals Queens pickups into one row per day",
+        "reads": [
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.labeled_trips,PROD)"
+        ],
+        "writes": [
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.borough_mart_queens,PROD)"
+        ],
+        "status": "complete",
+        "fingerprints": {
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.borough_mart_queens,PROD)": {
+            "schema": "3371f82c98cc4dd5023e3dac3722528141cffbcb0b347474247bca695cac1384",
+            "content": "6cf0e5cc0ae5a33da320d5ab0f95f842b0b686fbf8bcd14c9e5a9ffffebbc64c"
+          }
+        },
+        "finishedAt": "2026-07-24T09:37:28.447188+00:00",
+        "startedAt": "2026-07-24T09:36:50.990Z",
+        "run": {
+          "runner": "codex-cli 0.144.4",
+          "ms": 36951,
+          "outputs": {
+            "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.borough_mart_queens,PROD)": {
+              "rows": 7,
+              "columns": [
+                "pickup_date",
+                "trips",
+                "fares_total",
+                "tips_total"
+              ],
+              "path": "/Users/seane/Code/obsel/.obsel/data/borough_mart_queens.json"
+            }
+          }
+        },
+        "stale": null,
+        "tags": [],
+        "staleTagged": false
+      },
+      {
+        "urn": "urn:li:dataJob:(urn:li:dataFlow:(obsel,obsel_scale_v2,prod),movement_summary)",
+        "name": "movement_summary",
+        "title": "Movement summary",
+        "description": "condenses where the city moved into one row",
+        "reads": [
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.cross_borough,PROD)",
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.zone_leaders,PROD)",
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.dropoff_borough_mix,PROD)"
+        ],
+        "writes": [
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.movement_summary,PROD)"
+        ],
+        "status": "complete",
+        "fingerprints": {
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.movement_summary,PROD)": {
+            "schema": "4a8306fa5dac7eec08990140f2a8bb18056761f188824f2f378451b05b5a106f",
+            "content": "0cc95aadc9b3d34b514eb7341f10294faa065b1088d5470bdb1cd872a00b25da"
+          }
+        },
+        "finishedAt": "2026-07-24T09:37:48.337839+00:00",
+        "startedAt": "2026-07-24T09:37:31.400Z",
+        "run": {
+          "runner": "codex-cli 0.144.4",
+          "ms": 16800,
+          "outputs": {
+            "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.movement_summary,PROD)": {
+              "rows": 1,
+              "columns": [
+                "top_flow_pickup",
+                "top_flow_dropoff",
+                "top_flow_trips",
+                "busiest_zone",
+                "busiest_zone_trips",
+                "top_dropoff_borough"
+              ],
+              "path": "/Users/seane/Code/obsel/.obsel/data/movement_summary.json"
+            }
+          }
+        },
+        "stale": null,
+        "tags": [],
+        "staleTagged": false
+      },
+      {
+        "urn": "urn:li:dataJob:(urn:li:dataFlow:(obsel,obsel_scale_v2,prod),payment_mix)",
+        "name": "payment_mix",
+        "title": "Payment mix",
+        "description": "breaks each day down by how riders paid",
+        "reads": [
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.clean_trips,PROD)"
+        ],
+        "writes": [
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.payment_mix,PROD)"
+        ],
+        "status": "complete",
+        "fingerprints": {
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.payment_mix,PROD)": {
+            "schema": "b9405b2b289f88ea3aae96c5e2f8bef1857a877987a2a69fa79ee02041ba7bf3",
+            "content": "85649127d68865e2db0b7b5c88e6f0cebb77fdad58cc5648996c2a3b6db909f4"
+          }
+        },
+        "finishedAt": "2026-07-24T09:35:31.603565+00:00",
+        "startedAt": "2026-07-24T09:34:55.292Z",
+        "run": {
+          "runner": "codex-cli 0.144.4",
+          "ms": 36063,
+          "outputs": {
+            "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.payment_mix,PROD)": {
+              "rows": 27,
+              "columns": [
+                "pickup_date",
+                "payment_label",
+                "trips",
+                "fare_total",
+                "tip_total"
+              ],
+              "path": "/Users/seane/Code/obsel/.obsel/data/payment_mix.json"
+            }
+          }
+        },
+        "stale": null,
+        "tags": [],
+        "staleTagged": false
+      },
+      {
+        "urn": "urn:li:dataJob:(urn:li:dataFlow:(obsel,obsel_scale_v2,prod),report_airport)",
+        "name": "report_airport",
+        "title": "Airport report",
+        "description": "writes the airport traffic report",
+        "reads": [
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.airport_week,PROD)"
+        ],
+        "writes": [
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.airport_report,PROD)"
+        ],
+        "status": "complete",
+        "fingerprints": {
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.airport_report,PROD)": {
+            "schema": "0a1d9d0244688f6ba6ef46ec05ba53b6e7bdb187a9ae0e4903b97c35ac24ee54",
+            "content": "408f6df01b8783c56a3b85063b30f5a59dd0acfa634f3c7ab2f3a7a57f5d3782"
+          }
+        },
+        "finishedAt": "2026-07-24T09:37:51.305394+00:00",
+        "startedAt": "2026-07-24T09:37:37.624Z",
+        "run": {
+          "runner": "codex-cli 0.144.4",
+          "ms": 13481,
+          "outputs": {
+            "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.airport_report,PROD)": {
+              "rows": 2,
+              "columns": [
+                "section",
+                "heading",
+                "text"
+              ],
+              "path": "/Users/seane/Code/obsel/.obsel/data/airport_report.json"
+            }
+          }
+        },
+        "stale": null,
+        "tags": [],
+        "staleTagged": false
+      },
+      {
+        "urn": "urn:li:dataJob:(urn:li:dataFlow:(obsel,obsel_scale_v2,prod),report_boroughs)",
+        "name": "report_boroughs",
+        "title": "Borough report",
+        "description": "writes the borough comparison report",
+        "reads": [
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.city_borough_summary,PROD)",
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.movement_summary,PROD)"
+        ],
+        "writes": [
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.borough_report,PROD)"
+        ],
+        "status": "complete",
+        "fingerprints": {
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.borough_report,PROD)": {
+            "schema": "0a1d9d0244688f6ba6ef46ec05ba53b6e7bdb187a9ae0e4903b97c35ac24ee54",
+            "content": "383a529fefe58f608150bb2d29e16777ac282ba7cf102e953760621b254fafed"
+          }
+        },
+        "finishedAt": "2026-07-24T09:38:27.569370+00:00",
+        "startedAt": "2026-07-24T09:38:14.229Z",
+        "run": {
+          "runner": "codex-cli 0.144.4",
+          "ms": 13170,
+          "outputs": {
+            "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.borough_report,PROD)": {
+              "rows": 3,
+              "columns": [
+                "section",
+                "heading",
+                "text"
+              ],
+              "path": "/Users/seane/Code/obsel/.obsel/data/borough_report.json"
+            }
+          }
+        },
+        "stale": null,
+        "tags": [],
+        "staleTagged": false
+      },
+      {
+        "urn": "urn:li:dataJob:(urn:li:dataFlow:(obsel,obsel_scale_v2,prod),report_city)",
+        "name": "report_city",
+        "title": "City report",
+        "description": "writes the citywide weekly report an operations lead reads",
+        "reads": [
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.city_week,PROD)",
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.revenue_overview,PROD)"
+        ],
+        "writes": [
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.city_report,PROD)"
+        ],
+        "status": "complete",
+        "fingerprints": {
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.city_report,PROD)": {
+            "schema": "0a1d9d0244688f6ba6ef46ec05ba53b6e7bdb187a9ae0e4903b97c35ac24ee54",
+            "content": "81c2dd9806e828af627130e3b4b365f5721e7d50d79f8f3a39d957c56c51067d"
+          }
+        },
+        "previousFingerprints": {
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.city_report,PROD)": {
+            "schema": "0a1d9d0244688f6ba6ef46ec05ba53b6e7bdb187a9ae0e4903b97c35ac24ee54",
+            "content": "80de870e6334c23fe29be19832b2b1859a476eea7e15e0b6742612830194b3fb"
+          }
+        },
+        "finishedAt": "2026-07-24T10:09:02.297669+00:00",
+        "startedAt": "2026-07-24T10:08:49.774Z",
+        "run": {
+          "runner": "codex-cli 0.144.4",
+          "ms": 12366,
+          "outputs": {
+            "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.city_report,PROD)": {
+              "rows": 3,
+              "columns": [
+                "section",
+                "heading",
+                "text"
+              ],
+              "path": "/Users/seane/Code/obsel/.obsel/data/city_report.json"
+            }
+          }
+        },
+        "stale": null,
+        "tags": [],
+        "staleTagged": false
+      },
+      {
+        "urn": "urn:li:dataJob:(urn:li:dataFlow:(obsel,obsel_scale_v2,prod),report_riders)",
+        "name": "report_riders",
+        "title": "Rider report",
+        "description": "writes the when-do-people-ride report",
+        "reads": [
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.rider_overview,PROD)"
+        ],
+        "writes": [
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.rider_report,PROD)"
+        ],
+        "status": "complete",
+        "fingerprints": {
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.rider_report,PROD)": {
+            "schema": "0a1d9d0244688f6ba6ef46ec05ba53b6e7bdb187a9ae0e4903b97c35ac24ee54",
+            "content": "17ff40be1252e7a3b0c694e9a3762123bfd0ba3fd4db8a74a617b675f665eb57"
+          }
+        },
+        "finishedAt": "2026-07-24T09:36:30.413147+00:00",
+        "startedAt": "2026-07-24T09:36:11.020Z",
+        "run": {
+          "runner": "codex-cli 0.144.4",
+          "ms": 19073,
+          "outputs": {
+            "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.rider_report,PROD)": {
+              "rows": 2,
+              "columns": [
+                "section",
+                "heading",
+                "text"
+              ],
+              "path": "/Users/seane/Code/obsel/.obsel/data/rider_report.json"
+            }
+          }
+        },
+        "stale": null,
+        "tags": [],
+        "staleTagged": false
+      },
+      {
+        "urn": "urn:li:dataJob:(urn:li:dataFlow:(obsel,obsel_scale_v2,prod),revenue_overview)",
+        "name": "revenue_overview",
+        "title": "Revenue overview",
+        "description": "condenses the week's money story into one row",
+        "reads": [
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.fare_summary,PROD)",
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.tips_by_payment,PROD)"
+        ],
+        "writes": [
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.revenue_overview,PROD)"
+        ],
+        "status": "complete",
+        "fingerprints": {
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.revenue_overview,PROD)": {
+            "schema": "6fc7d984682257d46e46e5620ac03319bc05057108d4354c55eca7c72cce7fc3",
+            "content": "466cfe009ba80390acc9b79be065a03cad7145dd60817ae02a5f1d5a3493952a"
+          }
+        },
+        "finishedAt": "2026-07-24T10:08:49.277388+00:00",
+        "startedAt": "2026-07-24T10:08:26.735Z",
+        "run": {
+          "runner": "codex-cli 0.144.4",
+          "ms": 22436,
+          "outputs": {
+            "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.revenue_overview,PROD)": {
+              "rows": 1,
+              "columns": [
+                "total_fares_week",
+                "card_share_week",
+                "best_tip_payment",
+                "best_tip_rate"
+              ],
+              "path": "/Users/seane/Code/obsel/.obsel/data/revenue_overview.json"
+            }
+          }
+        },
+        "stale": null,
+        "tags": [],
+        "staleTagged": false
+      },
+      {
+        "urn": "urn:li:dataJob:(urn:li:dataFlow:(obsel,obsel_scale_v2,prod),rider_overview)",
+        "name": "rider_overview",
+        "title": "Rider overview",
+        "description": "condenses when the city rode into one row",
+        "reads": [
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.weekday_profile,PROD)",
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.hourly_profile,PROD)"
+        ],
+        "writes": [
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.rider_overview,PROD)"
+        ],
+        "status": "complete",
+        "fingerprints": {
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.rider_overview,PROD)": {
+            "schema": "aadf57ee03c5439a5a0ad34b31cde585976087644201da99a931315f44d86c05",
+            "content": "3966bccc3763913ff815a5c17e01ea0ffce29236de90f83b90655285400ffc94"
+          }
+        },
+        "finishedAt": "2026-07-24T10:08:30.868676+00:00",
+        "startedAt": "2026-07-24T10:08:16.929Z",
+        "run": {
+          "runner": "codex-cli 0.144.4",
+          "ms": 13804,
+          "outputs": {
+            "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.rider_overview,PROD)": {
+              "rows": 1,
+              "columns": [
+                "busiest_weekday",
+                "busiest_hour",
+                "trips_at_peak_hour",
+                "riders_week"
+              ],
+              "path": "/Users/seane/Code/obsel/.obsel/data/rider_overview.json"
+            }
+          }
+        },
+        "stale": null,
+        "tags": [],
+        "staleTagged": false
+      },
+      {
+        "urn": "urn:li:dataJob:(urn:li:dataFlow:(obsel,obsel_scale_v2,prod),tips_by_payment)",
+        "name": "tips_by_payment",
+        "title": "Tips by payment",
+        "description": "compares tipping across the four payment types",
+        "reads": [
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.payment_mix,PROD)"
+        ],
+        "writes": [
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.tips_by_payment,PROD)"
+        ],
+        "status": "complete",
+        "fingerprints": {
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.tips_by_payment,PROD)": {
+            "schema": "09f3a8c9f6528da83b70facda0a621397376ae21b6950bdfad28b352cc6ade68",
+            "content": "64982dc8b44b7be0e5d8a9f757e0cc2d127027d960e4ddeac129ec3b482ade53"
+          }
+        },
+        "finishedAt": "2026-07-24T09:36:00.872634+00:00",
+        "startedAt": "2026-07-24T09:35:31.792Z",
+        "run": {
+          "runner": "codex-cli 0.144.4",
+          "ms": 28936,
+          "outputs": {
+            "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.tips_by_payment,PROD)": {
+              "rows": 4,
+              "columns": [
+                "payment_label",
+                "trips",
+                "fare_total",
+                "tip_total",
+                "tip_rate"
+              ],
+              "path": "/Users/seane/Code/obsel/.obsel/data/tips_by_payment.json"
+            }
+          }
+        },
+        "stale": null,
+        "tags": [],
+        "staleTagged": false
+      },
+      {
+        "urn": "urn:li:dataJob:(urn:li:dataFlow:(obsel,obsel_scale_v2,prod),trip_lengths)",
+        "name": "trip_lengths",
+        "title": "Trip lengths",
+        "description": "buckets each day's trips by distance",
+        "reads": [
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.clean_trips,PROD)"
+        ],
+        "writes": [
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.trip_lengths,PROD)"
+        ],
+        "status": "complete",
+        "fingerprints": {
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.trip_lengths,PROD)": {
+            "schema": "1bac54672e1c4a3fce07d52d2f3efe33d6a7bf9b4f0a4f5934aab74b21cbc6d7",
+            "content": "5c05a24b057281ce25815d7c7ccd68111a34909a15f7db8926915a4a4055a017"
+          }
+        },
+        "finishedAt": "2026-07-24T09:35:32.249450+00:00",
+        "startedAt": "2026-07-24T09:34:55.252Z",
+        "run": {
+          "runner": "codex-cli 0.144.4",
+          "ms": 36721,
+          "outputs": {
+            "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.trip_lengths,PROD)": {
+              "rows": 21,
+              "columns": [
+                "pickup_date",
+                "bucket",
+                "trips",
+                "average_distance"
+              ],
+              "path": "/Users/seane/Code/obsel/.obsel/data/trip_lengths.json"
+            }
+          }
+        },
+        "stale": null,
+        "tags": [],
+        "staleTagged": false
+      },
+      {
+        "urn": "urn:li:dataJob:(urn:li:dataFlow:(obsel,obsel_scale_v2,prod),week_bronx)",
+        "name": "week_bronx",
+        "title": "Bronx week",
+        "description": "rolls the Bronx daily mart up to one weekly row",
+        "reads": [
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.borough_mart_bronx,PROD)"
+        ],
+        "writes": [
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.borough_week_bronx,PROD)"
+        ],
+        "status": "complete",
+        "fingerprints": {
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.borough_week_bronx,PROD)": {
+            "schema": "1967c50bad7fbf90b2b5d7144b0d6d0c93b6468dfc1ca881df6caa0e1c670359",
+            "content": "21e85866addc0fbfb14a380228d2cdc146e23ac6f477d0031760ff280c62b5ae"
+          }
+        },
+        "finishedAt": "2026-07-24T09:37:19.640938+00:00",
+        "startedAt": "2026-07-24T09:37:02.669Z",
+        "run": {
+          "runner": "codex-cli 0.144.4",
+          "ms": 16812,
+          "outputs": {
+            "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.borough_week_bronx,PROD)": {
+              "rows": 1,
+              "columns": [
+                "borough",
+                "trips",
+                "fares_total",
+                "tips_total",
+                "busiest_date"
+              ],
+              "path": "/Users/seane/Code/obsel/.obsel/data/borough_week_bronx.json"
+            }
+          }
+        },
+        "stale": null,
+        "tags": [],
+        "staleTagged": false
+      },
+      {
+        "urn": "urn:li:dataJob:(urn:li:dataFlow:(obsel,obsel_scale_v2,prod),week_brooklyn)",
+        "name": "week_brooklyn",
+        "title": "Brooklyn week",
+        "description": "rolls the Brooklyn daily mart up to one weekly row",
+        "reads": [
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.borough_mart_brooklyn,PROD)"
+        ],
+        "writes": [
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.borough_week_brooklyn,PROD)"
+        ],
+        "status": "complete",
+        "fingerprints": {
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.borough_week_brooklyn,PROD)": {
+            "schema": "1967c50bad7fbf90b2b5d7144b0d6d0c93b6468dfc1ca881df6caa0e1c670359",
+            "content": "fc5b00624e2eaf7f5d54a8f342d2ba5527deb0694bf36fc3e8bdf24b1549cbbf"
+          }
+        },
+        "finishedAt": "2026-07-24T09:37:18.007760+00:00",
+        "startedAt": "2026-07-24T09:37:02.775Z",
+        "run": {
+          "runner": "codex-cli 0.144.4",
+          "ms": 15044,
+          "outputs": {
+            "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.borough_week_brooklyn,PROD)": {
+              "rows": 1,
+              "columns": [
+                "borough",
+                "trips",
+                "fares_total",
+                "tips_total",
+                "busiest_date"
+              ],
+              "path": "/Users/seane/Code/obsel/.obsel/data/borough_week_brooklyn.json"
+            }
+          }
+        },
+        "stale": null,
+        "tags": [],
+        "staleTagged": false
+      },
+      {
+        "urn": "urn:li:dataJob:(urn:li:dataFlow:(obsel,obsel_scale_v2,prod),week_manhattan)",
+        "name": "week_manhattan",
+        "title": "Manhattan week",
+        "description": "rolls the Manhattan daily mart up to one weekly row",
+        "reads": [
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.borough_mart_manhattan,PROD)"
+        ],
+        "writes": [
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.borough_week_manhattan,PROD)"
+        ],
+        "status": "complete",
+        "fingerprints": {
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.borough_week_manhattan,PROD)": {
+            "schema": "1967c50bad7fbf90b2b5d7144b0d6d0c93b6468dfc1ca881df6caa0e1c670359",
+            "content": "b6ab9fdb3848bc9ebb10f279557dbac7cb331087d2bcc53d2020e20f36ebd2bc"
+          }
+        },
+        "finishedAt": "2026-07-24T09:37:40.274032+00:00",
+        "startedAt": "2026-07-24T09:37:05.848Z",
+        "run": {
+          "runner": "codex-cli 0.144.4",
+          "ms": 34303,
+          "outputs": {
+            "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.borough_week_manhattan,PROD)": {
+              "rows": 1,
+              "columns": [
+                "borough",
+                "trips",
+                "fares_total",
+                "tips_total",
+                "busiest_date"
+              ],
+              "path": "/Users/seane/Code/obsel/.obsel/data/borough_week_manhattan.json"
+            }
+          }
+        },
+        "stale": null,
+        "tags": [],
+        "staleTagged": false
+      },
+      {
+        "urn": "urn:li:dataJob:(urn:li:dataFlow:(obsel,obsel_scale_v2,prod),week_other)",
+        "name": "week_other",
+        "title": "Outside-borough week",
+        "description": "rolls the outside the boroughs daily mart up to one weekly row",
+        "reads": [
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.borough_mart_other,PROD)"
+        ],
+        "writes": [
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.borough_week_other,PROD)"
+        ],
+        "status": "complete",
+        "fingerprints": {
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.borough_week_other,PROD)": {
+            "schema": "1967c50bad7fbf90b2b5d7144b0d6d0c93b6468dfc1ca881df6caa0e1c670359",
+            "content": "0bbf73df2ed5a43173d2367ef82c634d3fe19da217d31715b22f49b45dfe7304"
+          }
+        },
+        "finishedAt": "2026-07-24T09:37:25.641523+00:00",
+        "startedAt": "2026-07-24T09:37:08.736Z",
+        "run": {
+          "runner": "codex-cli 0.144.4",
+          "ms": 16753,
+          "outputs": {
+            "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.borough_week_other,PROD)": {
+              "rows": 1,
+              "columns": [
+                "borough",
+                "trips",
+                "fares_total",
+                "tips_total",
+                "busiest_date"
+              ],
+              "path": "/Users/seane/Code/obsel/.obsel/data/borough_week_other.json"
+            }
+          }
+        },
+        "stale": null,
+        "tags": [],
+        "staleTagged": false
+      },
+      {
+        "urn": "urn:li:dataJob:(urn:li:dataFlow:(obsel,obsel_scale_v2,prod),week_queens)",
+        "name": "week_queens",
+        "title": "Queens week",
+        "description": "rolls the Queens daily mart up to one weekly row",
+        "reads": [
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.borough_mart_queens,PROD)"
+        ],
+        "writes": [
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.borough_week_queens,PROD)"
+        ],
+        "status": "complete",
+        "fingerprints": {
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.borough_week_queens,PROD)": {
+            "schema": "1967c50bad7fbf90b2b5d7144b0d6d0c93b6468dfc1ca881df6caa0e1c670359",
+            "content": "8a05121a54e152c42eb9b106870008c7b65640d57c17931b6c2b917565ef8918"
+          }
+        },
+        "finishedAt": "2026-07-24T09:37:52.010823+00:00",
+        "startedAt": "2026-07-24T09:37:29.074Z",
+        "run": {
+          "runner": "codex-cli 0.144.4",
+          "ms": 22789,
+          "outputs": {
+            "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.borough_week_queens,PROD)": {
+              "rows": 1,
+              "columns": [
+                "borough",
+                "trips",
+                "fares_total",
+                "tips_total",
+                "busiest_date"
+              ],
+              "path": "/Users/seane/Code/obsel/.obsel/data/borough_week_queens.json"
+            }
+          }
+        },
+        "stale": null,
+        "tags": [],
+        "staleTagged": false
+      },
+      {
+        "urn": "urn:li:dataJob:(urn:li:dataFlow:(obsel,obsel_scale_v2,prod),weekday_profile)",
+        "name": "weekday_profile",
+        "title": "Weekday profile",
+        "description": "profiles the week by day of the week",
+        "reads": [
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.daily_trips,PROD)"
+        ],
+        "writes": [
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.weekday_profile,PROD)"
+        ],
+        "status": "complete",
+        "fingerprints": {
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.weekday_profile,PROD)": {
+            "schema": "ec99c49664b87c638ed48d4b3b7629a048353c511b058e8650185f9dcc574c0c",
+            "content": "99818d764d8c2a24963993de2ccb647f1c960808efcad2cdefd57dd88c4ff1ff"
+          }
+        },
+        "finishedAt": "2026-07-24T10:08:16.448393+00:00",
+        "startedAt": "2026-07-24T10:08:01.028Z",
+        "run": {
+          "runner": "codex-cli 0.144.4",
+          "ms": 15240,
+          "outputs": {
+            "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.weekday_profile,PROD)": {
+              "rows": 7,
+              "columns": [
+                "weekday",
+                "trips",
+                "riders"
+              ],
+              "path": "/Users/seane/Code/obsel/.obsel/data/weekday_profile.json"
+            }
+          }
+        },
+        "stale": null,
+        "tags": [],
+        "staleTagged": false
+      },
+      {
+        "urn": "urn:li:dataJob:(urn:li:dataFlow:(obsel,obsel_scale_v2,prod),weekend_summary)",
+        "name": "weekend_summary",
+        "title": "Weekend summary",
+        "description": "compares the week's working days against its weekend",
+        "reads": [
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.daily_trips,PROD)"
+        ],
+        "writes": [
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.weekend_summary,PROD)"
+        ],
+        "status": "complete",
+        "fingerprints": {
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.weekend_summary,PROD)": {
+            "schema": "5a5a70891f55aaf08a0c52979671096c8f4972a0ca2a206fef6f6d109237c6c6",
+            "content": "4da725a52d8f620d2e419d8a3282e311d0f9a50859d6f7d9e87e349ff083262a"
+          }
+        },
+        "finishedAt": "2026-07-24T10:08:17.914187+00:00",
+        "startedAt": "2026-07-24T10:08:01.032Z",
+        "run": {
+          "runner": "codex-cli 0.144.4",
+          "ms": 16712,
+          "outputs": {
+            "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.weekend_summary,PROD)": {
+              "rows": 1,
+              "columns": [
+                "weekday_trips",
+                "weekend_trips",
+                "weekday_riders",
+                "weekend_riders"
+              ],
+              "path": "/Users/seane/Code/obsel/.obsel/data/weekend_summary.json"
+            }
+          }
+        },
+        "stale": null,
+        "tags": [],
+        "staleTagged": false
+      },
+      {
+        "urn": "urn:li:dataJob:(urn:li:dataFlow:(obsel,obsel_scale_v2,prod),zone_leaders)",
+        "name": "zone_leaders",
+        "title": "Zone leaders",
+        "description": "ranks the fifteen busiest pickup zones",
+        "reads": [
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.labeled_trips,PROD)"
+        ],
+        "writes": [
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.zone_leaders,PROD)"
+        ],
+        "status": "complete",
+        "fingerprints": {
+          "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.zone_leaders,PROD)": {
+            "schema": "d58fb3ff9c4e25743b6c59ceed0bd2e80651a6ba2215842897b9eccaf594c7eb",
+            "content": "5aae500af681aedd0eac82684ed27215d9540525c810b6dbe171df8f529b0f6a"
+          }
+        },
+        "finishedAt": "2026-07-24T09:37:31.253136+00:00",
+        "startedAt": "2026-07-24T09:37:02.561Z",
+        "run": {
+          "runner": "codex-cli 0.144.4",
+          "ms": 28519,
+          "outputs": {
+            "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_taxi.zone_leaders,PROD)": {
+              "rows": 15,
+              "columns": [
+                "rank",
+                "zone_name",
+                "borough",
+                "trips"
+              ],
+              "path": "/Users/seane/Code/obsel/.obsel/data/zone_leaders.json"
+            }
+          }
+        },
+        "stale": null,
+        "tags": [],
+        "staleTagged": false
+      }
+    ],
+    "at": "2026-07-24T10:09:26.238Z"
+  },
+  "ready": [],
+  "blocked": [],
+  "datahubUrl": "http://localhost:9002"
+}

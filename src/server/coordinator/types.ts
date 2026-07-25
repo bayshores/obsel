@@ -255,6 +255,29 @@ export interface TaskRecord {
    */
   observed?: Record<string, OutputFingerprint>;
   /**
+   * The fingerprint each of this task's outputs held before the current one,
+   * kept from the moment a completion replaced it. One slot per dataset, not a
+   * history: the previous version is the only one another task can have
+   * legitimately read and still be finishing on.
+   *
+   * This exists for concurrent swarms. A reader that loaded a table, was still
+   * running when this task re-reported it, and then finished, reports an
+   * observation of bytes that are no longer current — but were never unreported
+   * either. Matching that observation against this slot is what tells the
+   * benign half of the race apart from a genuinely silent edit: without it, the
+   * reader's own staleness goes unflagged (a false negative) while an
+   * "unreported change" alarm fires against a change that was reported in full.
+   *
+   * One version deep, deliberately. A run long enough to straddle two
+   * re-reports of the same input classifies as unknown and raises the
+   * unreported-change alarm — over-alarming with an imprecise author, never
+   * under-flagging, which is the direction every obsel rule falls.
+   *
+   * Optional as well as omitted-when-empty, like `observed`: records captured
+   * before this existed lack the key and stay valid.
+   */
+  previousFingerprints?: Record<string, OutputFingerprint>;
+  /**
    * Whether `urn:li:tag:obsel-stale` is among `tags`.
    *
    * Derived here rather than in the browser on purpose. Browser code must never
@@ -332,6 +355,22 @@ export interface AffectedTask {
   mark: StaleMark;
 }
 
+/**
+ * A flagged task a redo has just proven sound, before the mark is taken off.
+ *
+ * The inverse of `AffectedTask`, produced by `restoredBy` when a stale task
+ * re-runs and its output comes out byte-identical: everything downstream that
+ * was flagged only for ground this output carried never had its ground move.
+ * `reason` is held to the same standard as a mark's reason — a clear with no
+ * traceable cause would be a tool for silencing flags, which is the one tool
+ * obsel refuses to be.
+ */
+export interface RestoredTask {
+  task: TaskRecord;
+  /** Plain-English sentence naming the redo that proved the ground unmoved. */
+  reason: string;
+}
+
 /** What a completing agent reports back. */
 export interface CompletionReport {
   taskUrn: string;
@@ -369,6 +408,17 @@ export interface CoordinationResult {
   observedChanges: { dataset: string; kind: ChangeKind }[];
   /** Finished work invalidated by those changes. Empty when nothing moved. */
   affected: AffectedTask[];
+  /**
+   * Flagged work this completion proved sound, cleared without a re-run.
+   *
+   * Non-empty only when a stale task redid its work and an output came back
+   * byte-identical: the tasks downstream of that output were flagged for
+   * ground that never moved, and `restoredBy` in `staleness.ts` is the rule
+   * deciding which of them the records genuinely prove. Empty on every other
+   * completion. Optional because results captured before restoration existed
+   * lack the key and remain valid records; the engine always includes it.
+   */
+  restored?: RestoredTask[];
   /** Wall-clock milliseconds from receiving the report to having the answer. */
   elapsedMs: number;
 }

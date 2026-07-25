@@ -10,7 +10,9 @@ import type {
   AffectedTask,
   ChangeKind,
   ColumnChange,
+  InputObservation,
   OutputFingerprint,
+  RestoredTask,
   StaleMark,
   SwarmSnapshot,
   TaskRecord,
@@ -88,6 +90,128 @@ export function columnChange(
 
   if (removed.length === 0 && added.length === 0) return null;
   return { added, removed };
+}
+
+/**
+ * What a completing task's input observation means, against everything the
+ * producer's record holds.
+ *
+ * This exists for concurrent swarms, where "what this task read" and "what is
+ * currently true" can legitimately differ without anything having gone
+ * unreported: a reader loads a table, the producer re-reports it while the
+ * reader is still working, and the reader's completion then carries an
+ * observation of bytes that are one version old. Before this function, that
+ * benign race was indistinguishable from a silent edit — the reader's own
+ * staleness went unflagged, and a false "nothing reported this change" cascade
+ * fired against a change that was reported in full, overwriting correct marks
+ * with a wrong story.
+ *
+ * The verdicts, in the order they are checked:
+ *
+ * - **current** — the observation matches the version that stands: the
+ *   reader-noticed entry when one is standing, the recorded fingerprint
+ *   otherwise. Nothing new to say.
+ * - **superseded, by report** — the observation matches the fingerprint the
+ *   producer's own re-report replaced. The reader read the previous version
+ *   and finished after the replacement landed, so the reader's finished work
+ *   is stale, with the producer named as the cause. No unreported-change alarm:
+ *   the change was reported, just not before this reader loaded its input.
+ * - **superseded, by notice** — a reader-noticed entry is standing (someone
+ *   already caught an unreported edit) and this observation matches the
+ *   producer's recorded fingerprint: the version the silent edit replaced.
+ *   Same conclusion for the reader, but the author is unknown, exactly as it
+ *   is for every mark descending from that notice.
+ * - **unknown** — matches nothing on record. The unreported-change path: the
+ *   only remaining explanation is bytes nothing ever reported.
+ *
+ * One version of memory, deliberately. A run long enough to straddle two
+ * re-reports of one input classifies as unknown and raises the alarm with an
+ * unknown author — imprecise attribution, never a false all-clear, which is
+ * the direction every rule in this file falls.
+ */
+export type ObservationVerdict =
+  { kind: "current" } | { kind: "superseded"; by: "report" | "notice" } | { kind: "unknown" };
+
+export function classifyObservation(
+  producer: TaskRecord,
+  dataset: string,
+  observation: InputObservation,
+): ObservationVerdict {
+  const matches = (record: OutputFingerprint | undefined): boolean =>
+    record !== undefined &&
+    record.schema === observation.schema &&
+    record.content === observation.content;
+
+  const noticed = producer.observed?.[dataset];
+  const standing = noticed ?? producer.fingerprints[dataset];
+
+  if (matches(standing)) return { kind: "current" };
+  if (noticed && matches(producer.fingerprints[dataset])) {
+    return { kind: "superseded", by: "notice" };
+  }
+  if (matches(producer.previousFingerprints?.[dataset])) {
+    return { kind: "superseded", by: "report" };
+  }
+  return { kind: "unknown" };
+}
+
+/**
+ * The mark a task earns by finishing on an input that was replaced mid-run.
+ *
+ * Carried by the FINISHING task itself, which is the one place `affectedBy`
+ * can never reach it: the cascade excludes the reporter, and rightly, because
+ * an observation normally proves the reporter read the current version. Here
+ * the observation proves the opposite, and the proof is the same sha256
+ * comparison every other mark rests on — the observed pair matches the
+ * superseded record and differs from the standing one.
+ *
+ * `changeKind` is the difference between what was read and what now stands,
+ * because that is the change this task's finished work is on the wrong side
+ * of. The caller only reaches this after a superseded verdict, so the two
+ * fingerprints are known to differ; a null comparison here means the call
+ * order was violated, and that is raised rather than papered over with a
+ * fabricated kind.
+ */
+export function supersededMark(
+  dataset: string,
+  producer: TaskRecord,
+  verdict: { kind: "superseded"; by: "report" | "notice" },
+  observation: InputObservation,
+  now: string,
+): StaleMark {
+  const standing = producer.observed?.[dataset] ?? producer.fingerprints[dataset];
+  const kind = compareFingerprints(
+    { schema: observation.schema, content: observation.content },
+    standing,
+  );
+  if (kind === null) {
+    throw new Error(
+      `supersededMark(${dataset}): the observation matches the standing record, ` +
+        "so nothing was superseded; classifyObservation decides this, and it was not asked",
+    );
+  }
+
+  const table = tableLabel(dataset);
+  const reported = verdict.by === "report";
+  return {
+    causedBy: dataset,
+    // A reported replacement has an author; a noticed one has whoever made the
+    // silent edit, which is nobody on record. Blaming the producer for bytes
+    // it never wrote is the mistake the unreported path already refuses.
+    causedByTask: reported ? producer.urn : null,
+    hops: 1,
+    changeKind: kind,
+    columns: reported
+      ? columnChange(observation.columns, producer.run?.outputs[dataset]?.columns)
+      : null,
+    reason: reported
+      ? `read ${table}, and ${taskLabel(producer)} replaced it before this finished; ` +
+        `${describe(kind)} between the version read and the version now standing`
+      : `read ${table}, and an unreported change replaced it before this finished; ` +
+        `${describe(kind)} between the version read and the version now standing`,
+    since: now,
+    detectedMs: null,
+  };
 }
 
 function describe(kind: ChangeKind): string {
@@ -295,6 +419,120 @@ export function affectedBy(
   }
 
   return affected;
+}
+
+/**
+ * Which stale tasks a redo has just proven still sound.
+ *
+ * When a stale task re-runs and its output comes out byte-identical, the tasks
+ * downstream of that output were flagged for ground that never actually moved.
+ * This function finds them, so a repair can redo one task instead of every
+ * flagged one. The inverse of `affectedBy`, and held to the inverse standard:
+ * `affectedBy` may over-mark and be forgiven, but a wrong answer here declares
+ * broken work sound, so **every rule below prefers keeping a flag to clearing
+ * one**. A task this function refuses to clear is cleared the ordinary way, by
+ * its own redo.
+ *
+ * A stale, finished task S clears only when every dataset E it reads is proven
+ * still the version S was built on:
+ *
+ * - **No producer in the swarm** — nothing here has ever written E, so there is
+ *   no recorded claim for the current bytes to contradict.
+ * - Otherwise the producer must be `complete` (the task that just reported and
+ *   tasks cleared earlier in this same pass count), because a stale producer is
+ *   itself standing on moved ground and a running one has not settled what E is.
+ * - **No standing reader observation of E.** An `observed` entry means someone
+ *   has already read bytes the producer never reported writing; the unreported
+ *   change is live and nothing about this redo answers for it.
+ * - **S's own mark must not name E as the table that moved.** A hop-one mark is
+ *   the record saying E changed after S finished, and no amount of soundness in
+ *   S's other inputs argues with it.
+ * - **The producer's previous report must predate S's finish.** The recorded
+ *   fingerprint of E is whatever the producer last reported; that is what S
+ *   read only if nothing re-reported E after S finished. The snapshot is read
+ *   before the triggering completion lands, so for the finishing task this is
+ *   its previous run's time — which is exactly what stops an identical re-run
+ *   of the *changed* table from clearing its own direct readers: their ground
+ *   really did move, and the re-report that moved it postdates their work.
+ *   The comparison is between two agent-stamped finish times; where they are
+ *   missing or unreadable the answer is refusal, not a guess.
+ *
+ * Runs to a fixpoint: clearing S makes S count as `complete` for the tasks
+ * built on S's output, whose bytes were never re-reported and so stand exactly
+ * as read. Each round either clears a task or stops, so a cyclic graph
+ * terminates after at most one round per task.
+ *
+ * Fires only for a redo that proved something: the finishing task carried a
+ * mark, and at least one output it reported came back identical. A first run,
+ * a plain re-run of unmarked work, and a redo that changed its output all
+ * return nothing — the last one because a changed output is new ground, and
+ * `affectedBy` is already marking what stands on it.
+ */
+export function restoredBy(
+  snapshot: SwarmSnapshot,
+  finishing: TaskRecord,
+  unchangedOutputs: readonly string[],
+): RestoredTask[] {
+  if (finishing.stale === null || unchangedOutputs.length === 0) return [];
+
+  const producerOf = new Map<string, TaskRecord>();
+  for (const task of snapshot.tasks) {
+    for (const output of task.writes) producerOf.set(output, task);
+  }
+
+  const finishedAtOf = (task: TaskRecord): number => {
+    if (task.finishedAt === null) return Number.NaN;
+    return Date.parse(task.finishedAt);
+  };
+
+  const cleared = new Set<string>();
+
+  const sound = (input: string, reader: TaskRecord): boolean => {
+    const producer = producerOf.get(input);
+    if (!producer) return true;
+
+    const settled =
+      producer.urn === finishing.urn || cleared.has(producer.urn) || producer.status === "complete";
+    if (!settled) return false;
+
+    if (producer.observed?.[input]) return false;
+    if (reader.stale?.causedBy === input) return false;
+
+    const wrote = finishedAtOf(producer);
+    const read = finishedAtOf(reader);
+    if (Number.isNaN(wrote) || Number.isNaN(read)) return false;
+    return wrote <= read;
+  };
+
+  // Sorted once so the output order cannot depend on registration order.
+  const candidates = [...snapshot.tasks].sort((a, b) => a.urn.localeCompare(b.urn));
+  const reason = restoredReason(finishing, unchangedOutputs);
+  const restored: RestoredTask[] = [];
+
+  let progressed = true;
+  while (progressed) {
+    progressed = false;
+    for (const task of candidates) {
+      if (task.status !== "stale" || task.stale === null) continue;
+      if (task.urn === finishing.urn || cleared.has(task.urn)) continue;
+      if (task.finishedAt === null) continue;
+
+      if (task.reads.every((input) => sound(input, task))) {
+        cleared.add(task.urn);
+        restored.push({ task, reason });
+        progressed = true;
+      }
+    }
+  }
+
+  return restored;
+}
+
+/** The one sentence every task cleared by the same redo carries. */
+function restoredReason(finishing: TaskRecord, unchangedOutputs: readonly string[]): string {
+  const tables = unchangedOutputs.map(tableLabel).sort().join(", ");
+  const came = unchangedOutputs.length === 1 ? "it came out identical" : "they came out identical";
+  return `${taskLabel(finishing)} redid ${tables} and ${came}, so everything this was built on still stands`;
 }
 
 /**

@@ -223,6 +223,10 @@ describe("a completion that changes nothing marks nothing", () => {
     );
 
     expect(again.affected).toEqual([]);
+    // And it restores nothing. The re-run proves the CURRENT version is stable,
+    // which says nothing about the work that was built on the previous one —
+    // clearing anything here would be restoration's one catastrophic answer.
+    expect(again.restored).toEqual([]);
     const after = (await readSwarm()).snapshot.tasks.map((t) => [t.name, t.stale?.since ?? null]);
     expect(after).toEqual(before);
   });
@@ -423,6 +427,99 @@ describe("a change nothing reported is caught by the next honest read", () => {
   });
 });
 
+describe("a redo that comes out identical clears what it proves, in DataHub", () => {
+  /** The flagged board: everyone finished, then the rename marked three. */
+  async function flaggedBoard(): Promise<void> {
+    await runAll(["order_id", "order_total"]);
+    await coordinateCompletion(finished("audit_orders", "audit_report", "sA", "cA"));
+    await coordinateCompletion(
+      finished("clean_orders", "clean_orders", "s1-changed", "c1", ["order_id", "order_total_usd"]),
+    );
+  }
+
+  it("one redo clears the two transitive marks, holds the direct reader, and untags for real", async () => {
+    /*
+     * The repair's money moment, against the real thing. Four tasks are
+     * flagged after the rename: build_revenue and audit_orders read the table
+     * itself, write_report and write_docs are two hops out. build_revenue
+     * redoes its work on the renamed table and daily_revenue comes out
+     * byte-identical — so the two tasks built on daily_revenue were flagged
+     * for ground that never moved, and audit_orders was not: the ground under
+     * it really changed, and only its own redo answers for that.
+     */
+    await flaggedBoard();
+
+    await startTask(taskUrn("build_revenue"));
+    const result = await coordinateCompletion(
+      finished("build_revenue", "daily_revenue", "s2", "c2"),
+    );
+
+    expect(result.changedOutputs).toEqual([]);
+    expect(result.restored?.map((entry) => entry.task.name).sort()).toEqual([
+      "write_docs",
+      "write_report",
+    ]);
+    // The reason names the redo and the table, in words a person reads.
+    for (const entry of result.restored ?? []) {
+      expect(entry.reason).toBe(
+        "Daily revenue redid daily revenue and it came out identical, " +
+          "so everything this was built on still stands",
+      );
+    }
+
+    // As DataHub holds it, not as the return value described it: both cleared
+    // tasks are complete, unmarked, untagged — and their record of the work
+    // they did is untouched, because that work was never redone.
+    for (const name of ["write_report", "write_docs"] as const) {
+      const task = await readTask(taskUrn(name));
+      expect(task?.status, name).toBe("complete");
+      expect(task?.stale, name).toBeNull();
+      expect(await tagsOn(name), name).toEqual([]);
+      expect(task?.staleTagged, name).toBe(false);
+      expect(Object.keys(task?.fingerprints ?? {}), name).toHaveLength(1);
+      expect(task?.finishedAt, name).not.toBeNull();
+    }
+
+    // Its own mark came off the ordinary way: it redid the work.
+    const revenue = await readTask(taskUrn("build_revenue"));
+    expect(revenue?.status).toBe("complete");
+    expect(await tagsOn("build_revenue")).toEqual([]);
+
+    // The direct reader of the renamed table stays exactly as flagged as it
+    // was, tag included. Clearing it here would be a false all-clear over
+    // ground that genuinely moved.
+    const audit = await readTask(taskUrn("audit_orders"));
+    expect(audit?.status).toBe("stale");
+    expect(audit?.stale?.causedBy).toBe(datasetUrn("clean_orders"));
+    expect(await tagsOn("audit_orders")).toEqual([STALE_TAG_URN]);
+
+    expect(result.elapsedMs).toBeGreaterThan(0);
+  });
+
+  it("a redo that lands a different table restores nothing and cascades instead", async () => {
+    await flaggedBoard();
+
+    await startTask(taskUrn("build_revenue"));
+    const result = await coordinateCompletion(
+      finished("build_revenue", "daily_revenue", "s2-changed", "c2"),
+    );
+
+    // New ground, not restored ground: the two downstream tasks get fresh
+    // marks naming daily_revenue, and nothing is cleared.
+    expect(result.restored).toEqual([]);
+    expect(Object.fromEntries(result.affected.map((a) => [a.task.name, a.mark.hops]))).toEqual({
+      write_report: 1,
+      write_docs: 1,
+    });
+    for (const name of ["write_report", "write_docs"] as const) {
+      const task = await readTask(taskUrn(name));
+      expect(task?.status, name).toBe("stale");
+      expect(task?.stale?.causedBy, name).toBe(datasetUrn("daily_revenue"));
+      expect(await tagsOn(name), name).toEqual([STALE_TAG_URN]);
+    }
+  });
+});
+
 describe("only finished work goes stale", () => {
   it("never marks work that is in flight, and stops the walk there", async () => {
     /*
@@ -545,5 +642,113 @@ describe("reset clears both halves, because they live on different aspects", () 
     await runAll();
     const result = await resetSwarm();
     expect(result.tagsCleared).toEqual([]);
+  });
+});
+
+describe("a reader that straddled a re-report is marked, not mistaken for a silent edit", () => {
+  /*
+   * The concurrent-swarm race, held still by driving the API directly: a reader
+   * loads its input, the producer re-reports that input while the reader is
+   * still working, and the reader's completion then carries an observation one
+   * version old with nothing unreported anywhere. Before `classifyObservation`
+   * this was the worst of both worlds — the genuinely stale reader went
+   * unflagged because the cascade excludes the reporter, while a false
+   * "nothing reported this change" alarm re-marked other tasks with a wrong
+   * author. The scale runner exercises this with live Codex timing, where
+   * either interleaving can happen; this test is the deterministic proof.
+   */
+  it("marks the finishing reader itself, with the producer named and no false alarm", async () => {
+    await runAll();
+
+    // build_revenue re-runs; while it is away, clean_orders re-reports with a
+    // schema change. The running reader is skipped by the cascade — and the
+    // walk stops at it — so only audit_orders, the other finished reader of
+    // the changed table, is marked here.
+    await coordinateCompletion(finished("audit_orders", "audit_report", "sa", "ca"));
+    await startTask(taskUrn("build_revenue"));
+    const change = await coordinateCompletion(
+      finished("clean_orders", "clean_orders", "s1b", "c1", ["order_id", "order_total_usd"]),
+    );
+    expect(change.affected.map((entry) => entry.task.name).sort()).toEqual(["audit_orders"]);
+
+    // The reader finishes on the version it actually read: the one the
+    // re-report replaced. Its own output is byte-identical to its last run.
+    const completion = await coordinateCompletion({
+      ...finished("build_revenue", "daily_revenue", "s2", "c2"),
+      inputs: { [datasetUrn("clean_orders")]: { schema: "s1", content: "c1" } },
+    });
+
+    // The one mark is the reader's own: hop 1, the producer named, the reason
+    // saying the table was replaced before this finished. No unreported-change
+    // alarm fires, because nothing went unreported.
+    expect(completion.observedChanges).toEqual([]);
+    expect(completion.affected.map((entry) => entry.task.name)).toEqual(["build_revenue"]);
+    const mark = completion.affected[0].mark;
+    expect(mark.causedBy).toBe(datasetUrn("clean_orders"));
+    expect(mark.causedByTask).toBe(taskUrn("clean_orders"));
+    expect(mark.hops).toBe(1);
+    expect(mark.changeKind).toBe("schema");
+    expect(mark.reason).toContain("replaced it before this finished");
+
+    // The mark is real in DataHub: properties and the tag both landed, and the
+    // producer's record now carries the superseded fingerprint that made the
+    // verdict possible.
+    const reader = await readTask(taskUrn("build_revenue"));
+    expect(reader?.status).toBe("stale");
+    expect(reader?.stale?.reason).toContain("replaced it before this finished");
+    expect(await tagsOn("build_revenue")).toContain(STALE_TAG_URN);
+    const producer = await readTask(taskUrn("clean_orders"));
+    expect(producer?.previousFingerprints?.[datasetUrn("clean_orders")]).toEqual({
+      schema: "s1",
+      content: "c1",
+    });
+  });
+
+  it("leaves a reader alone when it read the version that stands", async () => {
+    await runAll();
+    await startTask(taskUrn("build_revenue"));
+    await coordinateCompletion(finished("clean_orders", "clean_orders", "s1b", "c1"));
+
+    // The reader read the NEW version — it started before the change landed
+    // but loaded after. Current input, identical output: nothing to say.
+    const completion = await coordinateCompletion({
+      ...finished("build_revenue", "daily_revenue", "s2", "c2"),
+      inputs: { [datasetUrn("clean_orders")]: { schema: "s1b", content: "c1" } },
+    });
+
+    expect(completion.affected).toEqual([]);
+    expect(completion.observedChanges).toEqual([]);
+    expect((await readTask(taskUrn("build_revenue")))?.status).toBe("complete");
+  });
+
+  it("treats two versions behind as unknown, which over-alarms and never under-flags", async () => {
+    /*
+     * The documented depth bound, pinned live. `previousFingerprints` is one
+     * version deep, so a reader that straddled TWO re-reports of one input
+     * matches nothing on record and classifies as unknown: the
+     * unreported-change alarm fires with the author unknown. Imprecise
+     * attribution in the rare double-straddle, never a false all-clear — the
+     * direction every obsel rule falls, and the trade `types.ts` documents.
+     */
+    await runAll();
+    await coordinateCompletion(finished("audit_orders", "audit_report", "sa", "ca"));
+    await startTask(taskUrn("build_revenue"));
+    await coordinateCompletion(finished("clean_orders", "clean_orders", "s1b", "c1"));
+    await coordinateCompletion(finished("clean_orders", "clean_orders", "s1c", "c1"));
+
+    const completion = await coordinateCompletion({
+      ...finished("build_revenue", "daily_revenue", "s2", "c2"),
+      inputs: { [datasetUrn("clean_orders")]: { schema: "s1", content: "c1" } },
+    });
+
+    // The alarm names no author — v1 matches nothing on record — and reaches
+    // the other finished reader. The finishing reader is excluded from that
+    // cascade as every reporter is; its miss here is the accepted cost of the
+    // one-deep memory, and the alarm it raises is what keeps the miss loud.
+    expect(completion.observedChanges.length).toBe(1);
+    const marked = completion.affected.find((entry) => entry.task.name === "audit_orders");
+    expect(marked).toBeDefined();
+    expect(marked?.mark.causedByTask).toBeNull();
+    expect(marked?.mark.reason).toContain("Nothing reported that change");
   });
 });

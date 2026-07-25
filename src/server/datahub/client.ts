@@ -62,6 +62,13 @@ export const PROP = {
   startedAt: "obsel.startedAt",
   fingerprints: "obsel.fingerprints",
   /**
+   * The fingerprint each output held before the current one, kept when a
+   * completion replaces it. One slot per dataset, written by the engine and
+   * read by `classifyObservation`, which uses it to tell a reader that
+   * straddled a re-report apart from a silent edit in a concurrent swarm.
+   */
+  previousFingerprints: "obsel.fingerprints.previous",
+  /**
    * Reader-observed fingerprints of this task's outputs, kept only while they
    * disagree with `fingerprints`. Written when a completing task reports having
    * read a version of this output that was never recorded — the unreported
@@ -511,6 +518,15 @@ function toTaskRecord(entity: DataJobEntity): TaskRecord {
     ...(props[PROP.observed]
       ? { observed: parseFingerprints(props[PROP.observed], entity.urn, PROP.observed) }
       : {}),
+    ...(props[PROP.previousFingerprints]
+      ? {
+          previousFingerprints: parseFingerprints(
+            props[PROP.previousFingerprints],
+            entity.urn,
+            PROP.previousFingerprints,
+          ),
+        }
+      : {}),
     finishedAt: finishedAt ? finishedAt : null,
     startedAt: startedAt ? startedAt : null,
     run: parseRun(props),
@@ -525,6 +541,9 @@ export async function readTask(urn: string): Promise<TaskRecord | null> {
   return entity ? toTaskRecord(entity) : null;
 }
 
+/** How many entities one batchGet asks for. Forty tasks fit in one request. */
+const BATCH_GET_SIZE = 100;
+
 /**
  * Everything obsel knows about the swarm.
  *
@@ -532,24 +551,50 @@ export async function readTask(urn: string): Promise<TaskRecord | null> {
  * for the same reason traversal does: a task registered a second ago is present
  * in the graph store and absent from the index.
  *
- * A URN the graph reported but that cannot be read is raised, not skipped. A
- * missing task is a hole in the cascade.
+ * The entities come back through `POST /openapi/v3/entity/datajob/batchGet` —
+ * one request, not one per task. The per-task version was measured fine at four
+ * tasks and even at twelve, but the request COUNT is linear, and the board asks
+ * for a snapshot every second: a forty-task swarm would put ~41 requests per
+ * second on DataHub just to render a screen. batchGet was verified on this
+ * instance before being adopted (2026-07-24): it carries `dataJobInfo`,
+ * `dataJobInputOutput` and `globalTags` when present, and — unlike
+ * `GET /entities/<urn>` — it OMITS an invented URN rather than fabricating a
+ * response for it, which is what makes the missing-entity check below real.
+ *
+ * A URN the graph reported but the aspect store did not return is raised, not
+ * skipped. A missing task is a hole in the cascade, and an incomplete swarm is
+ * not a smaller answer, it is a wrong one.
  */
 export async function readSnapshot(): Promise<SwarmSnapshot> {
   const urns = await relationships(FLOW_URN, "INCOMING", MEMBERSHIP_EDGE);
 
-  const tasks = await Promise.all(
-    urns.map(async (urn) => {
-      const entity = await readTaskEntity(urn);
-      if (!entity) {
-        throw new DataHubError(
-          `flow ${FLOW_URN} lists task ${urn}, but reading it returned 404, so the graph and the aspect store disagree`,
-        );
-      }
-      return toTaskRecord(entity);
-    }),
-  );
+  const entities: DataJobEntity[] = [];
+  for (let start = 0; start < urns.length; start += BATCH_GET_SIZE) {
+    const chunk = urns.slice(start, start + BATCH_GET_SIZE);
+    const page = await gmsJson<DataJobEntity[]>("/openapi/v3/entity/datajob/batchGet", {
+      method: "POST",
+      body: JSON.stringify(chunk.map((urn) => ({ urn }))),
+    });
+    if (!Array.isArray(page)) {
+      throw new DataHubError(
+        `unusable batchGet response for ${chunk.length} tasks: expected an array, ` +
+          `got ${JSON.stringify(page).slice(0, 200)}`,
+      );
+    }
+    entities.push(...page);
+  }
 
+  const returned = new Set(entities.map((entity) => entity.urn));
+  const missing = urns.filter((urn) => !returned.has(urn));
+  if (missing.length > 0) {
+    throw new DataHubError(
+      `flow ${FLOW_URN} lists ${missing.length} task(s) the aspect store did not return ` +
+        `(${missing.slice(0, 3).join(", ")}${missing.length > 3 ? ", …" : ""}), ` +
+        `so the graph and the aspect store disagree`,
+    );
+  }
+
+  const tasks = entities.map(toTaskRecord);
   tasks.sort((a, b) => a.urn.localeCompare(b.urn));
   return { flow: FLOW_URN, tasks, at: new Date().toISOString() };
 }
