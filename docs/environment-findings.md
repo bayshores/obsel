@@ -537,3 +537,68 @@ than quietly matched.
 commit, and it derived relationship answers from its own entity map, so its edges were
 never late and this behaviour did not exist in it. The fake was deleted and the suite runs
 against a real DataHub, which is what surfaced this within one run.
+
+## 12. Two halves of DataHub fail separately, and the shallow probe cannot tell
+
+**Measured 2026-07-24.** GMS is one process in front of two stores: a document store holding
+aspects, and a search index holding the graph. Section 7 established that they disagree about
+freshness and section 11 measured the lag. This section is the harder case: one of them can be
+**entirely gone** while every cheap health signal stays green.
+
+Observed after `datahub-opensearch-1` exited on its own, four hours before it was noticed:
+
+```bash
+docker ps --format '{{.Names}}\t{{.Status}}' | grep -E 'gms|opensearch'
+# datahub-datahub-gms-quickstart-1   Up 3 days (healthy)
+# (no opensearch row; `docker ps -a` showed: Exited (127) 4 hours ago)
+
+curl -s -o /dev/null -w '%{http_code}\n' http://localhost:8080/config
+# 200
+
+curl -s -o /dev/null -w '%{http_code}\n' \
+  'http://localhost:8080/openapi/v3/entity/dataflow/urn%3Ali%3AdataFlow%3A(obsel,orders_pipeline,prod)'
+# 200   <- the aspect store, still serving
+
+curl -s 'http://localhost:8080/relationships?urn=urn%3Ali%3AdataFlow%3A%28obsel%2Corders_pipeline%2Cprod%29&direction=INCOMING&types=IsPartOf&start=0&count=200'
+# 500   {"exceptionClass":"com.linkedin.restli.server.RestLiServiceException", ...
+#        com.datahub.util.exception.ESQueryException: Search query failed
+```
+
+So `/config` answers, Docker reports the container healthy, entity reads by URN succeed, and
+**every traversal fails**. Since traversal is the whole of obsel's reasoning (section 7), obsel
+was completely blind while three separate signals said it was fine.
+
+`docker start datahub-opensearch-1` was enough; the container reported healthy in about 20 s and
+the board recovered on its next poll, roughly 3 s later. No data was lost, because the graph is
+rebuilt from the aspect store rather than stored only in the index.
+
+### The frontend is a worse version of the same trap
+
+Section 10 records that `:9002` is the web app and will not answer GMS calls. Measured properly,
+it is more dangerous than "will not answer":
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' http://localhost:9002/config
+# 200
+
+curl -s 'http://localhost:9002/relationships?urn=urn%3Ali%3AdataFlow%3A%28obsel%2Cx%2Cprod%29&direction=INCOMING&types=IsPartOf&start=0&count=10' | head -c 60
+# <!DOCTYPE html>
+# <html lang="en">
+```
+
+Both probes return **200**. An unknown path under a single-page app serves the app, so a health
+check written against status codes passes twice over against a server that cannot answer a single
+lineage question. Only reading the body distinguishes them.
+
+### Consequence for obsel
+
+A prerequisite check must exercise the call the product depends on, not a cheaper one that shares
+a process with it. `checkDataHub` in `src/server/runner/preflight.ts` now asks `/config` first, to
+separate "DataHub is not running" from "DataHub is running and cannot answer", and then makes the
+exact `relationships()` call `readSnapshot` opens with. `relationships()` already validates the
+body shape rather than the status, so the frontend's HTML fails it as an unusable response.
+
+Both addresses are covered by `tests/live/preflight.live.test.ts` against the real servers. The
+stopped-container case is not automated there, because reproducing it means stopping a container
+the rest of the suite is using for the ~40 s it takes to return; it was reproduced by hand and
+`docs/verification.md` records that run.

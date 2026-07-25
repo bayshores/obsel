@@ -188,3 +188,45 @@ describe("failures are named, not swallowed", () => {
     expect(await readTagUrns(absent)).not.toContain(STALE_TAG_URN);
   });
 });
+
+describe("a session that dies under obsel is survived, not cached", () => {
+  /*
+   * The corpse bug, with a real corpse.
+   *
+   * Found live on 2026-07-24: the module caches one connection for the process,
+   * and the cache used to be cleared only when CONNECTING failed. A session
+   * that connected and died later — the uvx child outlived by a night of
+   * forty-task runs — left a client every later call hit, and the SDK answers
+   * calls on a closed transport with "Not connected". Every completion after
+   * that moment 500ed at the tag step with the staleness decision already
+   * committed, which put the record and the visible tag in disagreement: the
+   * exact state `confirmTagState` exists to rule out.
+   *
+   * The hostile input is real, per the house rule: the actual subprocess gets
+   * SIGKILL, and the assertion is that the next apply lands on the entity
+   * anyway, read back over GMS. Killing is safe to retry through because both
+   * tag tools are idempotent, proven above. Last in the file on purpose: it
+   * executes the shared session so every earlier test runs on a session whose
+   * history it knows.
+   */
+  it("kills the real subprocess, and the next apply reconnects and lands", async () => {
+    const { execSync } = await import("node:child_process");
+
+    // Warm and proven: the session exists and can write.
+    await applyStaleTag([taskUrn(SUBJECT)]);
+    await removeStaleTag([taskUrn(SUBJECT)]);
+
+    // The kill must have something to kill, or this test is not testing it.
+    const pids = execSync("pgrep -f mcp-server-datahub || true").toString().trim();
+    expect(pids, "the MCP subprocess should be running").not.toBe("");
+    execSync("pkill -9 -f mcp-server-datahub");
+
+    // No settling wait on purpose: whether the close event beats the next call
+    // or races it, both paths must end in a fresh session doing the work.
+    await applyStaleTag([taskUrn(SUBJECT)]);
+    expect(await readTagUrns(taskUrn(SUBJECT))).toContain(STALE_TAG_URN);
+
+    await removeStaleTag([taskUrn(SUBJECT)]);
+    expect(await readTagUrns(taskUrn(SUBJECT))).not.toContain(STALE_TAG_URN);
+  }, 300_000);
+});

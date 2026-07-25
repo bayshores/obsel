@@ -176,7 +176,9 @@ def build_server(obsel_url: str = OBSEL_URL) -> Any:
         if description:
             body["description"] = description
 
-        reply = worker.post_json(f"{obsel_url}/api/tasks/register", body)
+        reply = worker.post_json(
+            f"{obsel_url}/api/tasks/register", body, timeout=worker.MUTATION_TIMEOUT
+        )
         if not isinstance(reply, dict) or "urn" not in reply:
             raise mcp_core.ObselReplyError(
                 f"obsel's reply to registering {name!r} carries no task urn: {reply!r:.300}"
@@ -229,6 +231,12 @@ def build_server(obsel_url: str = OBSEL_URL) -> Any:
         invalidated, each with the reason and how many hops away it was. Tell
         your operator about it. Do not go and "fix" another agent's work uninvited.
 
+        If you were re-running flagged work and your table came out identical,
+        the reply's `restored` lists flagged work downstream of you that obsel
+        cleared without a re-run: your redo proved the ground under it never
+        moved. You cannot request this -- there is no tool that clears a flag,
+        and the only way to earn one off is a real redo, yours or an upstream one.
+
         Args:
             taskUrn: the `urn` from `register_task`.
             outputs: one entry per table you wrote, keyed by SHORT table name,
@@ -244,7 +252,13 @@ def build_server(obsel_url: str = OBSEL_URL) -> Any:
         body, fingerprints = mcp_core.completion_body(
             record, outputs, _now(), runner=runner, ms=ms, inputs=inputs
         )
-        coordination = worker.post_json(f"{obsel_url}/api/tasks/complete", body)
+        # The mutation ceiling, not the 60 s read default: obsel answers this
+        # POST only after the whole cascade is walked, written and confirmed,
+        # and a slow DataHub has genuinely outrun a shorter client while the
+        # server finished the work. See MUTATION_TIMEOUT in `agents/worker.py`.
+        coordination = worker.post_json(
+            f"{obsel_url}/api/tasks/complete", body, timeout=worker.MUTATION_TIMEOUT
+        )
         # Read the lists before returning: a reply that lost `affected` must not
         # reach the agent looking like "nothing was invalidated".
         summary = mcp_core.summarise_coordination(coordination)

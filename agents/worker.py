@@ -402,9 +402,25 @@ def has_recorded_output(task_urn: str, dataset_urn: str, obsel_url: str = OBSEL_
     return dataset_urn in fingerprints
 
 
+# How long a mutation is given before the client stops waiting.
+#
+# These are not the 60-second default, and the difference was paid for. A
+# completion report is answered only after obsel has walked the lineage, written
+# every mark, and had DataHub confirm each write, which measured 13.3 s for a
+# nine-mark cascade on a quiet stack -- and on 2026-07-24, with DataHub under
+# sustained load from a night of forty-task runs, the same call outran a 60 s
+# client while the server finished the work. The completion landed, every mark
+# correct, and the worker had already declared the run dead: the worst shape of
+# failure, because the operator is told the opposite of what is true. A timeout
+# on a mutation is an UNKNOWN outcome, not a failure, so the ceiling is set
+# where a genuine hang is the only thing left that can reach it.
+MUTATION_TIMEOUT = 300.0
+
+
 def announce_start(task_urn: str, obsel_url: str = OBSEL_URL) -> Any:
     """Tell obsel this agent has begun. Work in flight is never marked stale."""
-    return post_json(f"{obsel_url}/api/tasks/start", {"taskUrn": task_urn})
+    return post_json(f"{obsel_url}/api/tasks/start", {"taskUrn": task_urn},
+                     timeout=MUTATION_TIMEOUT)
 
 
 def abandon_run(task_urn: str, obsel_url: str = OBSEL_URL) -> Any:
@@ -415,7 +431,8 @@ def abandon_run(task_urn: str, obsel_url: str = OBSEL_URL) -> Any:
     later traversal while the board still shows a healthy swarm -- a false
     negative, which is the one answer obsel must never give.
     """
-    return post_json(f"{obsel_url}/api/tasks/abandon", {"taskUrn": task_urn})
+    return post_json(f"{obsel_url}/api/tasks/abandon", {"taskUrn": task_urn},
+                     timeout=MUTATION_TIMEOUT)
 
 
 def report_completion(
@@ -453,7 +470,7 @@ def report_completion(
         body["run"] = run
     if inputs is not None:
         body["inputs"] = inputs
-    return post_json(f"{obsel_url}/api/tasks/complete", body)
+    return post_json(f"{obsel_url}/api/tasks/complete", body, timeout=MUTATION_TIMEOUT)
 
 
 # --------------------------------------------------------------------------
@@ -608,18 +625,58 @@ def _abandon_running(task_name: str, task_urn: str, obsel_url: str, root: Path) 
     _leave_running(task_name, root)
 
 
+def work_dir(task_name: str, root: Path = REPO_ROOT) -> Path:
+    """This task's private working directory for one run."""
+    return root / ".obsel" / "work" / task_name
+
+
+def _snapshot_inputs(
+    task: pipeline.AgentTask,
+    canonical_inputs: dict[str, Table],
+    root: Path,
+) -> Path:
+    """Write the exact tables that were hashed into a private working directory.
+
+    The agent reads these copies, never the shared data directory. This exists
+    for the concurrent swarm: the input observation is hashed from the tables
+    loaded at the top of `run_task`, but a Codex session reads its input FILES
+    seconds later, and in a concurrent swarm an upstream re-run can replace a
+    shared file in that gap. The observation would then describe bytes the agent
+    never saw, and every conclusion obsel draws from it — including the
+    straddling-reader mark — would be about the wrong read. Snapshotting the
+    loaded tables makes the hash and the agent's read the same bytes by
+    construction.
+
+    The canonical form is written, because the canonical form is what was
+    hashed. Published tables are already canonical (every writer canonicalises
+    before saving), so for tables written by these workers the copies are
+    byte-identical to the originals anyway.
+    """
+    directory = work_dir(task.name, root)
+    if directory.exists():
+        import shutil
+
+        shutil.rmtree(directory)
+    directory.mkdir(parents=True)
+    for name, table in canonical_inputs.items():
+        (directory / f"{name}.json").write_text(
+            json.dumps(table, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
+    return directory
+
+
 def _run_codex(
     task: pipeline.AgentTask,
     job: str,
     expect_columns: tuple[str, ...] | None,
-    root: Path,
+    working_dir: Path,
 ) -> tuple[Table, float, str]:
     """Run this task as a real Codex session and return what it produced.
 
-    Codex works in the data directory, so it reads its inputs and writes its
-    output as ordinary files, the way the tables actually live. The table comes
-    back from disk rather than from the agent's reply, because what is on disk is
-    what the next agent will read and what obsel will fingerprint.
+    Codex works in the task's private working directory: it reads the
+    snapshotted inputs and writes its output as ordinary files. The table comes
+    back from disk rather than from the agent's reply, because what is on disk
+    is what gets published for the next agent and what obsel will fingerprint.
     """
     from agents import codex_runner
 
@@ -628,7 +685,7 @@ def _run_codex(
         instruction=job,
         input_files=[f"{name}.json" for name in task.reads],
         output_file=f"{task.writes}.json",
-        working_dir=data_dir(root),
+        working_dir=working_dir,
         expect_columns=contract,
     )
     return table, seconds, version
@@ -652,6 +709,7 @@ def run_task(
     # machine's problem and has nothing to do with obsel's view of the swarm, so
     # failing here should leave the task exactly as it was.
     inputs = {name: load_table(name, root) for name in task.reads}
+    canonical_inputs = {name: canonicalise_numbers(table) for name, table in inputs.items()}
 
     # Hashed now, before the agent touches anything, because this is the exact
     # version the work is about to be built on. Reported alongside the output at
@@ -660,12 +718,17 @@ def run_task(
     # report is the only evidence of that anywhere. Canonicalised first, so the
     # observation uses the same definition of "changed" as every fingerprint.
     observed_inputs = {
-        pipeline.dataset_urn(name): {
+        pipeline.task_dataset_urn(task, name): {
             **fingerprint(canonical["rows"], canonical["columns"]),
             "columns": list(canonical["columns"]),
         }
-        for name, canonical in ((name, canonicalise_numbers(table)) for name, table in inputs.items())
+        for name, canonical in canonical_inputs.items()
     }
+
+    # The agent reads private copies of exactly the tables hashed above, so the
+    # observation and the agent's read are the same bytes even while another
+    # task is replacing the shared file. See `_snapshot_inputs`.
+    working_dir = _snapshot_inputs(task, canonical_inputs, root)
 
     # ORDER MATTERS, and it is the reverse of what it once was.
     #
@@ -694,7 +757,7 @@ def run_task(
     # hears anything -- a plausible-looking bad table would fingerprint as a real
     # change and mark the chain stale for nothing.
     try:
-        output, model_seconds, plan_source = _run_codex(task, job, expect_columns, root)
+        output, model_seconds, plan_source = _run_codex(task, job, expect_columns, working_dir)
     except BaseException:
         # Nothing was produced, so there is no partial result to resume from and
         # the honest state is the one before the announcement. BaseException, not
@@ -716,7 +779,7 @@ def run_task(
         _remember_run(task.name, job, list(output["columns"]), root)
 
         fingerprints = {
-            pipeline.dataset_urn(task.writes): fingerprint(output["rows"], output["columns"])
+            pipeline.task_dataset_urn(task, task.writes): fingerprint(output["rows"], output["columns"])
         }
         finished_at = datetime.now(timezone.utc).isoformat()
 
@@ -727,7 +790,7 @@ def run_task(
             "runner": plan_source,
             "ms": round(model_seconds * 1000),
             "outputs": {
-                pipeline.dataset_urn(task.writes): {
+                pipeline.task_dataset_urn(task, task.writes): {
                     "rows": len(output["rows"]),
                     "columns": list(output["columns"]),
                     # Where the table actually lives, so the board can point at

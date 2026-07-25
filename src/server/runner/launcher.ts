@@ -20,7 +20,7 @@ import "server-only";
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 
-import { LOG_MAX_LINES, appendBounded, refusal, splitLines, venvPython } from "./steps";
+import { LOG_MAX_LINES, appendBounded, refusal, splitLines, stepArgv, venvPython } from "./steps";
 import type { LaunchRefusal } from "./steps";
 import type { DemoStep, RunningStep, StepResult } from "./types";
 
@@ -44,8 +44,21 @@ function state(): LauncherState {
  *
  * The child's stdout and stderr become the activity log verbatim — the step's
  * own printed assertions are the evidence the cockpit shows, not a paraphrase.
+ *
+ * `origin` is the server's own address as the request that asked for the
+ * launch saw it, and passing it down is load-bearing, found the hard way on
+ * 2026-07-24. The agents default to `http://localhost:3000`, so a step spawned
+ * by an obsel on any other port reported to whatever was listening on 3000
+ * instead of to the server whose button was pressed. With two obsels up (an
+ * operator's and an isolated one) the isolated board's reset button reset the
+ * operator's flow, and its register button put one foreign task into the
+ * operator's pipeline before the step's own URN-mismatch guard stopped it.
+ * The child now reports to the origin it was launched from, whatever that is.
  */
-export function launchStep(step: DemoStep): LaunchRefusal | { running: RunningStep } {
+export function launchStep(
+  step: DemoStep,
+  origin?: string,
+): LaunchRefusal | { running: RunningStep } {
   const current = state();
   const repoRoot = process.cwd();
   const python = venvPython(repoRoot);
@@ -57,16 +70,23 @@ export function launchStep(step: DemoStep): LaunchRefusal | { running: RunningSt
   const running: RunningStep = { step, startedAt: new Date(startedAtMs).toISOString() };
 
   // -u: unbuffered, so the step's lines reach the log as they are printed
-  // rather than all at once at exit. The step name comes from the DemoStep
-  // union, never from raw request text, and there is no shell involved.
-  const child = spawn(python, ["-u", "-m", "agents.run", step], {
+  // rather than all at once at exit. The argv comes from `stepArgv` over the
+  // DemoStep union, never from raw request text, and there is no shell involved.
+  // The origin is not request text either: the route derives it from the URL
+  // Next resolved, not from a header a client typed.
+  const argv = stepArgv(step);
+  const child = spawn(python, ["-u", "-m", "agents.run", ...argv], {
     cwd: repoRoot,
-    env: { ...process.env, PYTHONUNBUFFERED: "1" },
+    env: {
+      ...process.env,
+      PYTHONUNBUFFERED: "1",
+      ...(origin ? { OBSEL_URL: origin } : {}),
+    },
     stdio: ["ignore", "pipe", "pipe"],
   });
 
   current.running = running;
-  current.log = [`$ agents/.venv/bin/python -m agents.run ${step}`];
+  current.log = [`$ agents/.venv/bin/python -m agents.run ${argv.join(" ")}`];
 
   let restOut = "";
   let restErr = "";

@@ -6,9 +6,22 @@ import { launchStep } from "@/src/server/runner/launcher";
 export const dynamic = "force-dynamic";
 
 // Exactly agents.run's commands. The enum is the allowlist: nothing from the
-// request reaches the spawn except one of these six literals.
+// request reaches the spawn except one of these seven literals.
 const Body = z.object({
-  step: z.enum(["setup", "register", "run", "rerun-same", "change", "reset"]),
+  step: z.enum([
+    "setup",
+    "register",
+    "run",
+    "rerun-same",
+    "change",
+    "repair",
+    "reset",
+    "scale-register",
+    "scale-run",
+    "scale-change",
+    "scale-change-mid",
+    "scale-repair",
+  ]),
 });
 
 /**
@@ -25,7 +38,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: message }, { status: 400 });
   }
 
-  const outcome = launchStep(parsed.step);
+  // The server's own address, from the URL Next resolved for this request,
+  // never from a header a client typed. The spawned step reports here rather
+  // than to the agents' default port; `launcher.ts` records why that matters.
+  const outcome = launchStep(parsed.step, new URL(request.url).origin);
   if ("status" in outcome) {
     return NextResponse.json(
       { error: outcome.error, fix: outcome.fix },

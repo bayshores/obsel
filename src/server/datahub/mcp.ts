@@ -29,6 +29,7 @@ import {
   StdioClientTransport,
   getDefaultEnvironment,
 } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { ErrorCode, McpError } from "@modelcontextprotocol/sdk/types.js";
 import { confirmWrite, readTagUrns } from "./client";
 import { STALE_TAG_URN } from "./urns";
 
@@ -105,14 +106,49 @@ async function connect(): Promise<Client> {
 
 async function mcpClient(): Promise<Client> {
   if (!connection) {
-    connection = connect().catch((error: unknown) => {
-      // Do not cache a failed connection: the next call should retry rather than
-      // inherit an error from a DataHub that was briefly down.
-      connection = null;
-      throw error;
-    });
+    const attempt: Promise<Client> = connect()
+      .then((client) => {
+        /*
+         * A dead subprocess must not leave a cached client behind. The cache
+         * used to be cleared only when CONNECTING failed; a session that
+         * connected and then died — the uvx child crashing hours later — left
+         * a corpse every subsequent call hit, and the SDK answers calls on a
+         * closed transport with "Not connected". Found live on 2026-07-24: a
+         * night of forty-task runs outlived the session, and every completion
+         * after that 500ed at the tag step with the decision already
+         * committed. Guarded on `attempt` so a close arriving late cannot
+         * tear down a newer connection that already replaced this one.
+         */
+        client.onclose = () => {
+          if (connection === attempt) connection = null;
+        };
+        return client;
+      })
+      .catch((error: unknown) => {
+        // Do not cache a failed connection: the next call should retry rather
+        // than inherit an error from a DataHub that was briefly down.
+        if (connection === attempt) connection = null;
+        throw error;
+      });
+    connection = attempt;
   }
   return await connection;
+}
+
+/**
+ * The SDK's two shapes for a call that met a dead transport, and only those.
+ *
+ * A call made AFTER the transport closed throws a plain Error("Not connected");
+ * a call already IN FLIGHT when it closes rejects with
+ * `McpError(ErrorCode.ConnectionClosed)`. The second shape was found by the
+ * live test that really kills the subprocess: the string alone missed it.
+ * Matched narrowly on purpose — a tool-level error (a rejected URN, a missing
+ * tag) is an answer, not an outage, and must never be retried on the strength
+ * of a string.
+ */
+function isClosedTransport(error: unknown): boolean {
+  if (error instanceof McpError && error.code === ErrorCode.ConnectionClosed) return true;
+  return error instanceof Error && error.message.includes("Not connected");
 }
 
 interface ToolTextContent {
@@ -140,13 +176,33 @@ function resultText(result: unknown): string {
  */
 async function callTagTool(tool: "add_tags" | "remove_tags", taskUrns: string[]): Promise<string> {
   if (taskUrns.length === 0) return "";
-  const client = await mcpClient();
 
-  const result = await client.callTool(
-    { name: tool, arguments: { tag_urns: [STALE_TAG_URN], entity_urns: taskUrns } },
-    undefined,
-    { timeout: CALL_TIMEOUT_MS },
-  );
+  const call = async () => {
+    const client = await mcpClient();
+    return client.callTool(
+      { name: tool, arguments: { tag_urns: [STALE_TAG_URN], entity_urns: taskUrns } },
+      undefined,
+      { timeout: CALL_TIMEOUT_MS },
+    );
+  };
+
+  let result;
+  try {
+    result = await call();
+  } catch (error) {
+    if (!isClosedTransport(error)) throw error;
+    /*
+     * The one retry, and only for a session that died under us. `onclose`
+     * above usually clears the cache first, but a call already in flight when
+     * the transport drops races it, so the corpse is dropped here explicitly
+     * and the call made once more on a fresh session. Once is safe because
+     * both tag tools are idempotent — proven live in
+     * `tests/live/mcp.live.test.ts` — so the ambiguous case, a call that
+     * landed before the connection died, re-lands as a no-op.
+     */
+    connection = null;
+    result = await call();
+  }
 
   if (result.isError) {
     const detail = resultText(result) || "no detail returned";

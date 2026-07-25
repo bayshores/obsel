@@ -14,8 +14,8 @@ import "server-only";
 import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
 
-import { gmsUrl, tagExists } from "@/src/server/datahub/client";
-import { STALE_TAG_URN } from "@/src/server/datahub/urns";
+import { gmsUrl, relationships, tagExists } from "@/src/server/datahub/client";
+import { FLOW_URN, MEMBERSHIP_EDGE, STALE_TAG_URN } from "@/src/server/datahub/urns";
 import { venvPython } from "./steps";
 import type { Preflight, PreflightCheck } from "./types";
 
@@ -52,6 +52,26 @@ async function cached(key: string, check: () => Promise<PreflightCheck>): Promis
   return value;
 }
 
+/**
+ * Two questions, because they fail separately and only the second one decides
+ * whether obsel can do anything.
+ *
+ * This asked `GET /config` and nothing else until 2026-07-24, when the board sat
+ * on "The board lost its connection" with all four prerequisites ticked green.
+ * DataHub's search container had exited four hours earlier. GMS stayed up and
+ * kept answering `/config`, because that reply is served from the process rather
+ * than from any index, so the checklist reported a healthy DataHub while every
+ * read the board makes was coming back 500.
+ *
+ * That is the worst shape a check can have. A missing check leaves the reader
+ * looking; a green check that is wrong sends them looking inside obsel, which is
+ * the one place the fault was not.
+ *
+ * So the second probe is the exact call `readSnapshot` opens with. It reads the
+ * graph store, which is the half that went down, and it is the half obsel cannot
+ * work without: every traversal is `GET /relationships`. Whatever blinds the
+ * board now fails this check first.
+ */
 async function checkDataHub(): Promise<PreflightCheck> {
   const url = `${gmsUrl()}/config`;
   try {
@@ -66,7 +86,6 @@ async function checkDataHub(): Promise<PreflightCheck> {
         fix: "datahub docker quickstart",
       };
     }
-    return { ok: true, detail: `DataHub answered at ${gmsUrl()}`, fix: null };
   } catch {
     return {
       ok: false,
@@ -74,6 +93,26 @@ async function checkDataHub(): Promise<PreflightCheck> {
       fix: "datahub docker quickstart",
     };
   }
+
+  try {
+    await relationships(FLOW_URN, "INCOMING", MEMBERSHIP_EDGE);
+  } catch (error) {
+    const status = error instanceof Error && "status" in error ? error.status : null;
+    return {
+      ok: false,
+      detail:
+        `DataHub is running at ${gmsUrl()}, but it could not answer what is connected to ` +
+        `what${typeof status === "number" ? ` (${status})` : ""}. That question is served by ` +
+        `DataHub's search index, which can stop while the rest of it keeps running.`,
+      fix: "datahub docker quickstart",
+    };
+  }
+
+  return {
+    ok: true,
+    detail: `DataHub answered at ${gmsUrl()}, and obsel could read the swarm from it.`,
+    fix: null,
+  };
 }
 
 async function checkVocabulary(datahubOk: boolean): Promise<PreflightCheck> {
@@ -143,8 +182,11 @@ function checkCodex(): Promise<PreflightCheck> {
 
 /** Every check, concurrently where independent. Never throws — a failed check is a value. */
 export async function preflight(): Promise<Preflight> {
+  // Keyed by the address, not by the bare word: the verdict is about one GMS,
+  // and a cache key that does not name it hands the answer for the old address
+  // to the new one.
   const [datahub, codex] = await Promise.all([
-    cached("datahub", checkDataHub),
+    cached(`datahub:${gmsUrl()}`, checkDataHub),
     cached("codex", checkCodex),
   ]);
   const vocabulary = await cached(`vocabulary:${datahub.ok}`, () => checkVocabulary(datahub.ok));
