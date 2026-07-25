@@ -235,4 +235,40 @@ export function empty(): SwarmResponse {
   return wrap([]);
 }
 
+/**
+ * obsel's own demo, plus somebody else's agent part way through joining.
+ *
+ * **These two tasks are in `obsel_demo`, and that is deliberate.** It is what
+ * the MCP door genuinely emits: `register_task` takes short names and
+ * `datasetUrn` qualifies anything unnamespaced under the demo namespace, so a
+ * stranger's table really is `obsel_demo.clean_expenses`. An earlier version of
+ * this fixture gave the visitor a `finance.` prefix that no caller produces,
+ * and it hid a classifier that would have counted every real visiting agent as
+ * obsel's own. A fixture written to match a belief tests the belief.
+ *
+ * `clean_expenses` has finished and `monthly_totals` has only declared itself,
+ * so three of the four steps have happened and the fourth has not.
+ *
+ * Invented, like everything else in this file. `docs/verification.md` records
+ * the real MCP session this shape was checked against.
+ */
+export function visiting(): SwarmResponse {
+  const mine = (name: string, reads: string[], writes: string[], extra: Partial<TaskRecord> = {}) =>
+    ({ ...task(name, reads, writes, extra), title: null, description: null }) satisfies TaskRecord;
+
+  return wrap([
+    ...calm().snapshot.tasks,
+    mine("clean_expenses", ["expenses_csv"], ["clean_expenses"], {
+      startedAt: AT,
+      finishedAt: AT,
+      fingerprints: { [ds("clean_expenses")]: print("7", "8") },
+    }),
+    mine("monthly_totals", ["clean_expenses"], ["monthly_totals"], {
+      status: "registered",
+      startedAt: null,
+      finishedAt: null,
+    }),
+  ]);
+}
+
 export const REASONS = { one: R1, two: R2 };

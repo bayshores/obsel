@@ -1,0 +1,141 @@
+/*
+ * The joining panel. mmux tokens throughout: hairline borders rather than
+ * shadows, square corners, monospace chrome, one rose accent on the tick that
+ * has happened.
+ *
+ * The panel's surface, header and heading all come from `Panel` in `mmux.tsx`.
+ * What is here is only the inside of the fold.
+ */
+
+.fold {
+  display: block;
+}
+
+.summary {
+  cursor: pointer;
+  font-family: var(--mm-font-mono);
+  font-size: var(--mm-text-md);
+  color: var(--obsel-text-quiet);
+  list-style-position: inside;
+  padding: var(--mm-space-sm) var(--mm-space-lg);
+}
+
+.summary:hover {
+  color: var(--mm-cream-dim);
+}
+
+/* Only the open body is padded; the summary carries its own, so a closed panel
+   is a heading and one line rather than a heading and a gap. */
+.body {
+  display: grid;
+  gap: var(--mm-space-md);
+  padding: 0 var(--mm-space-lg) var(--mm-space-lg);
+}
+
+.intro,
+.note {
+  margin: 0;
+  font-size: var(--mm-text-md);
+  color: var(--obsel-text-quiet);
+  max-width: 68ch;
+}
+
+.command {
+  display: flex;
+  align-items: stretch;
+  gap: var(--mm-space-xs);
+}
+
+.command code {
+  flex: 1;
+  font-family: var(--mm-font-mono);
+  font-size: var(--mm-text-md);
+  color: var(--mm-cream-dim);
+  background: var(--mm-surface);
+  border: 1px solid var(--mm-border);
+  padding: var(--mm-space-xs) var(--mm-space-sm);
+  overflow-wrap: anywhere;
+}
+
+.copy {
+  font-family: var(--mm-font-mono);
+  font-size: var(--mm-text-md);
+  color: var(--obsel-text-quiet);
+  background: var(--mm-surface);
+  border: 1px solid var(--mm-border);
+  padding: 0 var(--mm-space-sm);
+  cursor: pointer;
+}
+
+.copy:hover {
+  color: var(--mm-cream-dim);
+}
+
+/* The four steps. Numbering is suppressed: the tick is the state, and a number
+   beside a tick reads as a second, contradicting status. */
+.steps {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: var(--mm-space-sm);
+}
+
+.step {
+  display: flex;
+  gap: var(--mm-space-sm);
+  align-items: baseline;
+  font-size: var(--mm-text-md);
+}
+
+.tick {
+  font-family: var(--mm-font-mono);
+  color: var(--obsel-text-quiet);
+  flex: 0 0 auto;
+}
+
+.step[data-done="true"] .tick {
+  color: var(--mm-rose);
+}
+
+.stepName {
+  display: block;
+  font-family: var(--mm-font-mono);
+  color: var(--obsel-text-quiet);
+}
+
+.step[data-done="true"] .stepName {
+  color: var(--mm-cream-dim);
+}
+
+.stepDetail {
+  display: block;
+  color: var(--obsel-text-quiet);
+  max-width: 68ch;
+}
+
+.tools > .summary {
+  padding: 0;
+}
+
+.toolList {
+  margin: var(--mm-space-xs) 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 2px;
+}
+
+.toolList li {
+  display: flex;
+  gap: var(--mm-space-sm);
+  align-items: baseline;
+  font-size: var(--mm-text-md);
+  color: var(--obsel-text-quiet);
+}
+
+.toolList code {
+  font-family: var(--mm-font-mono);
+  color: var(--mm-cream-dim);
+  white-space: nowrap;
+}

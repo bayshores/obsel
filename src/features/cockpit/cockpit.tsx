@@ -15,12 +15,14 @@
  * connection is precisely the false all-clear obsel exists to prevent.
  */
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 
 import { Backdrop } from "./backdrop";
 import { guide } from "./guide";
 import { GuidePanel } from "./guide-panel";
 import { DataInspector, Inspector } from "./inspector";
+import { joining } from "./joining";
+import { JoiningPanel } from "./joining-panel";
 import { Lineage } from "./lineage";
 import { Panel, PulseDot, StatCell, StatRibbon, Wordmark } from "./mmux";
 import { TracePanel } from "./trace-panel";
@@ -51,6 +53,27 @@ export function Cockpit() {
   // stale while the rest of the cockpit moves on.
   const [selectedUrn, setSelectedUrn] = useState<string | null>(null);
 
+  /*
+   * The graph panel's height, which the LAYOUT decides at scale.
+   *
+   * 320 is the four-task demo's number and stays its number: that layout is
+   * wide and short, its zoom is pinned by width, and extra height would only
+   * be empty panel. A forty-task swarm is also TALL, and the same 320 forced
+   * `fitView` below its zoom floor, where it clamps and centres — the graph
+   * rendered cut off top and bottom. So the graph reports what its current
+   * layout needs at the current width (`panelHeightFor`), the panel grows to
+   * it, and the page scrolls when the board genuinely cannot fit the frame.
+   * The floor keeps small swarms exactly as they were; the dead-band stops a
+   * one-pixel resize from re-fitting the graph every second.
+   */
+  const [graphHeight, setGraphHeight] = useState(320);
+  const onGraphNeedsHeight = useCallback((px: number) => {
+    setGraphHeight((current) => {
+      const target = Math.max(320, px);
+      return Math.abs(target - current) > 8 ? target : current;
+    });
+  }, []);
+
   const tasks = inDependencyOrder(data?.snapshot.tasks ?? []);
   const t = totals(tasks);
 
@@ -72,8 +95,16 @@ export function Cockpit() {
     activity,
   });
 
+  const joinView = joining({
+    trusted,
+    tasks,
+    command: activity?.joinCommand ?? null,
+  });
+
   return (
-    <main className={styles.cockpit}>
+    <main
+      className={graphHeight > 320 ? `${styles.cockpit} ${styles.cockpitTall}` : styles.cockpit}
+    >
       {/*
         One line: who this is, which pipeline, and whether the board is live.
 
@@ -160,8 +191,11 @@ export function Cockpit() {
            */
           style={{
             flex: "0 1 auto",
-            height: 320,
-            minHeight: 220,
+            height: graphHeight,
+            // A grown panel must not be squeezed back into clipping by a short
+            // viewport; the page scrolls instead. Small swarms keep the 220
+            // floor, giving up graph before strip exactly as before.
+            minHeight: graphHeight > 320 ? graphHeight : 220,
             display: "flex",
             flexDirection: "column",
           }}
@@ -171,7 +205,11 @@ export function Cockpit() {
           <div className={styles.grid} />
           <div className={styles.graphBody}>
             {tasks.length > 0 ? (
-              <Lineage tasks={tasks} onSelect={setSelectedUrn} />
+              <Lineage
+                tasks={tasks}
+                onSelect={setSelectedUrn}
+                onNeededHeight={onGraphNeedsHeight}
+              />
             ) : (
               // Gated on `trusted`, not on `everRead && data !== null`. `data` is
               // deliberately retained across a failed read, so those two are true
@@ -295,6 +333,16 @@ export function Cockpit() {
           />
         </div>
       </div>
+
+      {/*
+        Under the graph a reader has just watched, above the numbers.
+
+        That is the order a judge reads in, and it is where "now do this with
+        your own agents" belongs. It was a closed 17px line above the graph,
+        which is how the person who wrote its contents came to ask whether obsel
+        had any way to help somebody connect.
+      */}
+      <JoiningPanel view={joinView} />
 
       {/*
         Two figures, down from five.

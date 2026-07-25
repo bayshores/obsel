@@ -205,6 +205,12 @@ export function GuidePanel({
           ))}
         </div>
       )}
+
+      {/*
+        The join panel used to be here, as one closed 17px line under the
+        actions. It is `joining-panel.tsx` now, a real panel below the graph,
+        and that file's header records why it moved.
+      */}
     </section>
   );
 }

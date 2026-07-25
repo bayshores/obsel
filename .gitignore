@@ -30,3 +30,8 @@ agents/.venv/
 CLAUDE.md
 hackathon.md
 docs/demo-script.md
+
+# Recorded takes and picture locks: same-run evidence for the video, never committed.
+# The reference take lives here so a reboot cannot eat it; the submission video
+# is cut by the owner from a take like these.
+out/

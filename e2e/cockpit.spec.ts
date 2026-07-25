@@ -8,9 +8,18 @@ import {
   nothingInstalled,
   runningStep,
 } from "./fixtures/activity";
-import { calm, cascaded, empty, leftOverTag, midWrite, withoutTagInfo } from "./fixtures/swarm";
+import {
+  calm,
+  cascaded,
+  empty,
+  leftOverTag,
+  midWrite,
+  visiting,
+  withoutTagInfo,
+} from "./fixtures/swarm";
 import { openCockpit } from "./fixtures/mount";
 import { cascadeSteps, manyDecisions } from "./fixtures/trace";
+import { boardWords, describeWords } from "./fixtures/words";
 
 /**
  * Everything here needs a real browser.
@@ -662,6 +671,119 @@ test.describe("paint", () => {
   });
 });
 
+/**
+ * The door an outside agent joins through.
+ *
+ * These exist because of a specific failure: the panel's contents were correct
+ * and complete, and were rendered as a closed 17px line above the graph, and the
+ * person who wrote them did not know they were on the page. Every test here is
+ * about being findable, which is the property that was missing. `joining.ts`'s
+ * own unit tests cover which steps tick; none of that is repeated here.
+ */
+test.describe("bring your own agent", () => {
+  const panel = (page: Page) => page.locator('[aria-label="Bring your own agent"]');
+
+  test("is a panel with a heading, not a line somebody has to notice", async ({ page }) => {
+    await openCockpit(page, cascaded(), finishedStep());
+
+    const heading = panel(page).getByRole("heading", { name: "bring your own agent" });
+    await expect(heading).toBeVisible();
+
+    // The measurement that motivated the work, kept as the assertion. The old
+    // disclosure was 12px type in a 17px row. A heading below either number is
+    // this regression coming back.
+    const size = await heading.evaluate((node) => ({
+      font: Number.parseFloat(getComputedStyle(node).fontSize),
+      height: Math.round(node.getBoundingClientRect().height),
+    }));
+    expect(size.font, "the heading is back to disclosure type").toBeGreaterThan(12);
+    expect(size.height, "the heading is back to a single thin row").toBeGreaterThan(17);
+  });
+
+  test("says nobody has joined, and keeps the steps folded, on obsel's own board", async ({
+    page,
+  }) => {
+    // The state the board is in on camera, and the state the word ceiling
+    // measures. The heading is visible; the four steps are not painted.
+    await openCockpit(page, cascaded(), finishedStep());
+
+    await expect(panel(page).getByText("nobody has joined yet")).toBeVisible();
+    await expect(panel(page).getByText("how an agent joins")).toBeVisible();
+    // The step rows, which are the prose the fold exists to hold back. In the
+    // DOM, painted by nobody.
+    await expect(panel(page).locator("li[data-done]").first()).toBeHidden();
+  });
+
+  test("opens itself, and counts the steps, once somebody's agent is on the board", async ({
+    page,
+  }) => {
+    await openCockpit(page, visiting(), finishedStep());
+
+    // Three of four: registered, announced and reported have happened for the
+    // visitor's own tasks, and no change has landed on their data yet.
+    await expect(panel(page).getByText("3 of 4")).toBeVisible();
+    await expect(panel(page).getByText("clean expenses", { exact: false }).first()).toBeVisible();
+
+    const ticks = await panel(page).evaluate((node) =>
+      [...node.querySelectorAll("li[data-done]")].map((li) => li.getAttribute("data-done")),
+    );
+    expect(ticks).toEqual(["true", "true", "true", "false"]);
+  });
+
+  test("does not count obsel's own demonstration as somebody having joined", async ({ page }) => {
+    // The whole four-task demo, finished and flagged. None of it is the reader's
+    // agent, so none of it is their progress, and a panel that ticked here would
+    // be congratulating them on work they did not do.
+    await openCockpit(page, cascaded(), finishedStep());
+    await expect(panel(page).getByText("nobody has joined yet")).toBeVisible();
+    await expect(panel(page).getByText(/\d of 4/)).toBeHidden();
+  });
+
+  test("hands over this machine's real command, not a placeholder path", async ({ page }) => {
+    await openCockpit(page, visiting(), finishedStep());
+
+    // `idle()` and friends carry the command the activity route builds from this
+    // machine's own paths. A fixture path would be a command that fails.
+    const command = panel(page).locator("code").first();
+    await expect(command).toContainText("claude mcp add obsel");
+    await expect(panel(page).getByRole("button", { name: "copy" })).toBeVisible();
+  });
+
+  test("a reader who opens it is not overruled by the next poll", async ({ page }) => {
+    // The other half of the toggle fix. The board re-renders every second, and
+    // the derivation says folded on this board, so a panel that took the derived
+    // value back would shut under somebody a second after they opened it.
+    const { serve } = await openCockpit(page, cascaded(), finishedStep());
+    const steps = panel(page).locator("li[data-done]").first();
+    await expect(steps).toBeHidden();
+
+    await panel(page).getByText("how an agent joins").click();
+    await expect(steps).toBeVisible();
+
+    // Three polls' worth of fresh reads, all still saying folded.
+    serve(calm());
+    serve(cascaded());
+    await page.waitForTimeout(2500);
+    await expect(steps).toBeVisible();
+  });
+
+  test("stops counting a visitor's progress the moment the read fails", async ({ page }) => {
+    /*
+     * The same rule the ribbon follows: a number obsel cannot currently see is
+     * withheld, never held at its last value. This panel is a claim about
+     * somebody's agent, and "3 of 4" beside a broken connection is the same
+     * false all-clear the rest of the board refuses to give.
+     */
+    const { serve } = await openCockpit(page, visiting(), finishedStep());
+    await expect(panel(page).getByText("3 of 4")).toBeVisible();
+
+    serve("fail");
+    await expect(obselAlert(page)).toBeVisible();
+    await expect(panel(page).getByText("nobody has joined yet")).toBeVisible();
+    await expect(panel(page).locator("li[data-done]").first()).toBeHidden();
+  });
+});
+
 test.describe("guide", () => {
   test("an empty swarm offers register, and the click launches the real step", async ({ page }) => {
     const { launches } = await openCockpit(page, empty());
@@ -734,6 +856,14 @@ test.describe("what obsel is doing", () => {
     await expect(page.getByText("marked Daily revenue out of date")).toBeVisible();
 
     /*
+     * Scoped to the panel by its label, not `main ol li`.
+     *
+     * The broad selector meant "the trace panel's steps" only for as long as this
+     * panel owned the one ordered list on the board. The joining panel added a
+     * second, and four assertions here started counting its four steps as
+     * coordinator steps — 21 where 17 were expected. They were never assertions
+     * about the page's lists; they were always about this panel.
+     *
      * Oldest first. A cascade only makes sense read forwards — the comparison that
      * found the change, then the walk, then the marks it caused — so a panel that put
      * the newest on top would show every mark above its own cause. Asserted on laid
@@ -749,7 +879,7 @@ test.describe("what obsel is doing", () => {
      * position. What must be ordered is the steps.
      */
     const tops = await page.evaluate(() =>
-      [...document.querySelectorAll<HTMLElement>("main ol li")]
+      [...document.querySelectorAll<HTMLElement>('[aria-label="What obsel is doing"] ol li')]
         .filter((li) => getComputedStyle(li).position !== "sticky")
         .map((li) => Math.round(li.getBoundingClientRect().top)),
     );
@@ -766,7 +896,7 @@ test.describe("what obsel is doing", () => {
     await expect
       .poll(async () =>
         page.evaluate(() => {
-          const list = document.querySelector("main ol");
+          const list = document.querySelector('[aria-label="What obsel is doing"] ol');
           if (list === null) return null;
           return list.scrollHeight - list.scrollTop - list.clientHeight;
         }),
@@ -788,10 +918,10 @@ test.describe("what obsel is doing", () => {
      * directly above the step that says exactly that.
      */
     await openCockpit(page, cascaded(), idle(), manyDecisions());
-    await page.waitForSelector("main ol li", { state: "attached" });
+    await page.waitForSelector('[aria-label="What obsel is doing"] ol li', { state: "attached" });
 
     const headings = await page.evaluate(() =>
-      [...document.querySelectorAll("main ol li")]
+      [...document.querySelectorAll('[aria-label="What obsel is doing"] ol li')]
         .filter((li) => getComputedStyle(li).position === "sticky")
         .map((li) => li.textContent ?? ""),
     );
@@ -804,7 +934,9 @@ test.describe("what obsel is doing", () => {
     // The header counts decisions, and every step it counts is in the DOM: the old
     // "last 8 of 25" named 17 steps scrolling could never reach.
     await expect(page.getByText("5 decisions, 17 steps")).toBeVisible();
-    const steps = await page.evaluate(() => document.querySelectorAll("main ol li").length);
+    const steps = await page.evaluate(
+      () => document.querySelectorAll('[aria-label="What obsel is doing"] ol li').length,
+    );
     expect(steps).toBe(17);
   });
 
@@ -820,7 +952,7 @@ test.describe("what obsel is doing", () => {
      */
     const onScreen = async () =>
       page.evaluate(() => {
-        const list = document.querySelector("main ol");
+        const list = document.querySelector('[aria-label="What obsel is doing"] ol');
         if (list === null) return 0;
         const box = list.getBoundingClientRect();
         return [...list.querySelectorAll("li")]
@@ -835,11 +967,11 @@ test.describe("what obsel is doing", () => {
       });
 
     await openCockpit(page, cascaded(), idle(), cascadeSteps());
-    await page.waitForSelector("main ol li", { state: "attached" });
+    await page.waitForSelector('[aria-label="What obsel is doing"] ol li', { state: "attached" });
     const short = await onScreen();
 
     await openCockpit(page, cascaded(), idle(), manyDecisions());
-    await page.waitForSelector("main ol li", { state: "attached" });
+    await page.waitForSelector('[aria-label="What obsel is doing"] ol li', { state: "attached" });
     const long = await onScreen();
 
     // Three times the trace, and the visible text is bounded by the panel rather than
@@ -948,9 +1080,12 @@ test.describe("how much the board says", () => {
    * look up — the `DemoStep` ids the launcher takes, the keys of the preflight
    * record, and process exit vocabulary.
    *
-   * Three exclusions, all places a raw value BELONGS:
+   * Four exclusions, all places a raw value BELONGS:
    *
    * - the details panel, which exists to show uncompressed values including the URN;
+   * - the join panel, which is the tool list an outside agent calls by name plus
+   *   the command that connects it — a name you must type cannot be said any
+   *   other way, and the whole panel is a closed disclosure;
    * - `<pre>`, which is the launched command's own stdout, verbatim, and is
    *   evidence rather than copy;
    * - `<code>`, which carries the fix commands. Those are meant to be read as
@@ -975,7 +1110,9 @@ test.describe("how much the board says", () => {
 
       const found = await page.evaluate(() => {
         const KEPT_OUT = ["venv", "vocabulary", "rerun-same", "exit 0", "exited", "urn:li:"];
-        const RAW = '[aria-label="What obsel is doing"], [aria-label="Details"], pre, code';
+        const RAW =
+          '[aria-label="What obsel is doing"], [aria-label="Details"], ' +
+          '[aria-label="Bring your own agent"], pre, code';
         const main = document.querySelector("main");
         if (main === null) return { seen: ["there is no <main>"], bare: [] as string[] };
 
@@ -992,9 +1129,15 @@ test.describe("how much the board says", () => {
 
         // A fix command is a command: it has a verb and an argument. A lone
         // identifier in a code span is the launcher's internal name leaking into a
-        // sentence, which is the exact shape of "`change` finished clean".
+        // sentence, which is the exact shape of "`change` finished clean". The
+        // join panel is excluded with the details panel: an MCP tool's name is a
+        // single token by nature, and listing what a visiting agent may call is
+        // that panel's entire job.
         const bare = [...main.querySelectorAll("code")]
-          .filter((el) => el.closest('[aria-label="Details"]') === null)
+          .filter(
+            (el) =>
+              el.closest('[aria-label="Details"], [aria-label="Bring your own agent"]') === null,
+          )
           .map((el) => (el.textContent ?? "").trim())
           .filter((text) => !text.includes(" "));
 
@@ -1017,92 +1160,52 @@ test.describe("how much the board says", () => {
     await openCockpit(page, cascaded(), finishedStep(), manyDecisions());
     await page.waitForSelector(".react-flow__edge", { state: "attached" });
 
-    /*
-     * Split, because these are not the same kind of reading.
-     *
-     * `prose` is the metric that matters and the one that went wrong: sentences a
-     * reader has to actually read. `graph` is one- to three-word labels on boxes,
-     * scanned rather than read. `log` is a scrolling step list, skimmed. Lumping
-     * them together would let 40 words of new prose hide behind a shorter log.
-     *
-     * Two exclusions, both for the same reason: this is a budget about what is on
-     * screen, so text that is not on screen must not count against it.
-     *
-     * - The screen-reader-only live region is real text in the accessibility tree and
-     *   is deliberately never painted.
-     * - **The log counts only its VISIBLE steps.** The panel used to slice the trace
-     *   to the most recent eight, and dropping that cap put the whole run in the DOM.
-     *   Counting all of it would make this ceiling track how much obsel narrated
-     *   rather than how dense the board is, and the fix for a failure would be to
-     *   narrate less, which is backwards. About a dozen steps are on screen at a time
-     *   however many are held.
-     */
-    const counts = await page.evaluate(() => {
-      const count = (text: string): number => text.trim().split(/\s+/).filter(Boolean).length;
-      const words = (el: Element | null): number =>
-        el === null ? 0 : count((el as HTMLElement).innerText ?? "");
-
-      const panel = document.querySelector('[aria-label="What obsel is doing"]');
-      const list = panel?.querySelector("ol") ?? null;
-      const logAll = words(panel);
-      // Anything with pixels inside the scroller's box, so a step half under a
-      // sticky heading still counts: a reader can read part of it.
-      const logSeen =
-        list === null
-          ? 0
-          : (() => {
-              const box = list.getBoundingClientRect();
-              return [...list.querySelectorAll("li")]
-                .filter((li) => {
-                  const b = li.getBoundingClientRect();
-                  return b.bottom > box.top + 1 && b.top < box.bottom - 1;
-                })
-                .reduce((n, li) => n + count(li.textContent ?? ""), 0);
-            })();
-      // The panel's own chrome — its title, the count, the footnote — is on screen
-      // always, so it belongs in the visible figure.
-      const chrome = logAll - words(list);
-
-      const graph = [...document.querySelectorAll(".react-flow__node")].reduce(
-        (n, node) => n + count(node.textContent ?? ""),
-        0,
-      );
-      const announced = words(document.querySelector('main [aria-live="polite"]'));
-      const log = logSeen + chrome;
-      const prose = words(document.body) - logAll - graph - announced;
-      return { all: prose + log + graph, log, logAll, graph, announced, prose };
-    });
+    // Measured by `e2e/fixtures/words.ts`, which explains the split and is shared
+    // with the scale suite so the two boards are measured identically.
+    const counts = await boardWords(page);
 
     /*
-     * Measured on this commit at the recording viewport: 267 words on screen, of which
-     * 105 is the step log (176 held, so 71 are scrolled out), 36 is graph labels and
-     * 16 is the live region, leaving **126 words of prose**. The laptop comes out at
-     * 246, showing 21 fewer words of log in a shorter panel, and the same 126 of prose,
-     * which is the point of splitting the two: prose does not depend on panel height.
+     * Measured on this commit at the recording viewport: 90 words of step log (182
+     * held, so 92 are scrolled out), 43 of graph labels over nine boxes, 16 in the
+     * live region, and **155 words of prose**. The laptop shows more words of log in
+     * its shorter panel and the same 155 of prose, which is the point of splitting
+     * the two: prose does not depend on panel height.
      *
-     * **Prose is up from 104, and the rise was bought deliberately.** The ceiling was
-     * 110 with six words of slack, and it had stopped protecting the thing it was
-     * written for. It was introduced when the board was 604 words in two stacked
-     * panels of paragraphs, and by this commit it was the reason the board could not
-     * say anything a stranger could read: a word count scores `venv: the agents'
-     * Python environment does not exist yet` better than a sentence that explains
-     * itself, because an identifier is short. The complaint the owner kept raising was
-     * never that the board said too much. It was that what it said was written for
-     * somebody who already knew.
+     * **Was 147 on the commit before the joining panel, and 154 before that.** The
+     * step from 154 to 147 was a measurement fix rather than a copy change: `prose`
+     * is a subtraction, and the
+     * graph was being counted with `textContent` while the body it was subtracted
+     * from used `innerText`, so each node ran its title into its status word and gave
+     * prose one word per node that was not prose. `e2e/fixtures/words.ts` explains
+     * it. Nine nodes made it look like rounding; eighty-two made it a paragraph.
      *
-     * Where the 22 went, each of them replacing something that was already there:
+     * **Prose is up from 126, and every word of the rise was bought deliberately.**
+     * Two purchases, +36 between them, less the 7 the measurement fix above took
+     * back off the total: 126 + 36 - 7 = 155.
      *
-     * - **+7** the graph's heading. A question naming nothing ("is this finished work
-     *   still built on something that is still true?") became a sentence naming an
-     *   agent, a table and a change.
-     * - **+6** the reset button's line, and **+4** the re-run's. "clears the marks,
-     *   keeps the lineage" assumes the reader knows what a mark and a lineage are.
-     * - **+4** the flagged subline, which now calls a column a column and splits one
-     *   20-word sentence into two.
-     * - **+3** the key, which stopped glossing three colours the nodes already print
-     *   and started naming the two shapes, which nothing on the board ever did.
+     * - **+24** the repair button, label and line. The flagged board asks a question —
+     *   three agents are out of date, now what — and until this button the only
+     *   answers on screen were re-running the cause and wiping the take. Its line
+     *   carries the one rule that makes it different from a dismiss button: flags
+     *   come off through redone work, and an identical redo is itself proof.
+     * - **+12** the joining panel, which is 4 words of heading, 4 of state
+     *   ("nobody has joined yet") and 4 inviting the click. It replaced a closed
+     *   17px disclosure that cost 4, and the extra 8 are the entire fix: the
+     *   owner of this repository, who wrote that disclosure's contents, did not
+     *   know it was on the page. Everything behind the fold, the command and the
+     *   four steps and the tool list, still costs nothing until opened, and
+     *   `joining.ts` keeps it folded on exactly the board this test measures.
      *
-     * The ceiling stays, six words above the measurement, exactly as before. What it
+     * The history of this ceiling, kept because it is the argument for having one: it
+     * was introduced when the board was 604 words in two stacked panels of paragraphs,
+     * and an earlier raise (104 → 126) paid for the graph heading, the button lines,
+     * the subline and the key each being rewritten for a stranger — because a word
+     * count scores `venv: the agents' Python environment does not exist yet` better
+     * than a sentence that explains itself, and the owner's complaint was never that
+     * the board said too much, but that what it said was written for somebody who
+     * already knew.
+     *
+     * The ceiling stays six words above the measurement, exactly as before. What it
      * guards against is unchanged: two stacked panels of prose, which is what putting
      * the ledger back would cost (205 words on its own). What it is no longer allowed
      * to do is push the board back toward saying things in code. `no internal
@@ -1110,9 +1213,21 @@ test.describe("how much the board says", () => {
      * to be read together: one caps how much is said, the other requires it be
      * readable. A failure here is not proof of a bug, but it is always a decision
      * worth a second look.
+     *
+     * **The graph is no longer inside the total, and that is a correction rather
+     * than a relaxation.** It was, at 36 words for four tasks and nine boxes. A
+     * forty-task pipeline draws eighty-two boxes and about 230 words of label, so
+     * the old combined ceiling failed on a board whose copy had not changed by one
+     * word: it was measuring the size of the user's pipeline. Labels are scanned,
+     * there is one per box, and the number of boxes is not obsel's to budget. What
+     * is obsel's is how wordy each label is, which `scale.spec.ts` caps per node,
+     * and how much prose is on the board, which is the number below and holds at
+     * any size. That claim is asserted rather than assumed: the scale suite
+     * measures the same figures on the forty-task board and requires the prose to
+     * match this one.
      */
-    const where = `on screen ${counts.all}: prose ${counts.prose}, graph ${counts.graph}, log ${counts.log} of ${counts.logAll} held, announced ${counts.announced}`;
-    expect(counts.prose, where).toBeLessThan(132);
-    expect(counts.all, where).toBeLessThan(274);
+    const where = describeWords(counts);
+    expect(counts.prose, where).toBeLessThan(160);
+    expect(counts.prose + counts.log, where).toBeLessThan(263);
   });
 });

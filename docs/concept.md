@@ -46,7 +46,8 @@ detects invalidation _after_ work is finished.
 **Read that sentence narrowly.** It is a claim about agent-coordination tooling, and it was written
 before orchestrators were checked. They were checked on 2026-07-23 and Dagster does detect
 invalidation after the fact, cascading downstream, for assets declared in its own graph. Section 3a
-records that in full. Nothing below should be read as claiming the idea is unprecedented.
+records that in full, and section 3b records agent-coherence, the closest agent-side neighbour,
+checked 2026-07-24. Nothing below should be read as claiming the idea is unprecedented.
 
 - **Prevention is the whole state of the art.** A representative April 2026 survey of the field
   ([source](https://getautonoma.com/blog/parallel-ai-agent-prs)) lists five strategies: scope agents
@@ -114,7 +115,41 @@ wiring that up. **If the agents in question are Dagster assets, use Dagster.**
 existing open metadata platform with a real UI, in the case where no single orchestrator owns the
 graph. The "what can start next" half is table stakes and is not the pitch.
 
-## 4. Why DataHub, and not a task queue
+### 3b. agent-coherence, the closest neighbour, checked on 2026-07-24
+
+Found during a competitive assessment and added here because leaving the nearest tool out of a
+prior-art survey would make the survey worth less than nothing. Facts re-verified against the
+project site, the GitHub repository (`hipvlady/agent-coherence`), and the paper behind it
+([arXiv 2603.15183](https://arxiv.org/abs/2603.15183), "Token Coherence", Parakhin, March 2026)
+before writing this.
+
+**What it is.** A coherence layer for agents that share mutable state: shared plans, specs,
+scratchpads, memory. It adapts MESI, the cache-coherence protocol CPUs use, to artifacts cached
+per agent: a write commits to a coordinator, which sends small invalidation signals (about a dozen
+tokens) to peers whose cached view just went stale, instead of rebroadcasting the artifact. The
+paper reports simulated token savings of 84 to 95 percent over naive rebroadcast depending on
+staleness tolerance, with the protocol invariants checked in TLA+. Adapters for LangGraph, CrewAI
+and AutoGen.
+
+**Where it genuinely overlaps obsel.** Both exist because one agent's finished reasoning can be
+quietly built on another agent's superseded output, and both refuse to let that stay silent. The
+stale-read-then-write-back failure it blocks is a first cousin of obsel's straddling reader.
+
+**Where it is a different tool, in its own words.** The project draws the line itself: "If your
+agents only read from sources you don't control, you need a freshness pipeline. If your agents
+write to each other's state, you need a coherence protocol." agent-coherence is the second thing:
+in-memory artifacts, inside one run, on a single host (multi-host is described as roadmap), with
+the goal of preventing a lost update at the moment of write. obsel is closer to the first, with a
+difference: it is not about whether a READ is about to be stale, it is about whether FINISHED,
+reported work is still standing on ground that is still true, across sessions and machines, with
+the record kept in a metadata platform other tools and people already read. obsel judges nothing
+in flight and blocks nothing; it marks completed work after the fact, with the cause attached,
+and the mark outlives every process that produced it.
+
+**What obsel takes from the comparison.** Coherence for in-flight shared state and staleness for
+finished recorded work compose rather than compete; a swarm could run both. And the existence of
+a second tool, with a paper, built on the same underlying observation, is evidence the problem is
+real rather than invented for a demo.
 
 The strongest anticipated judge question. The answer is the demo scenario, not an argument.
 

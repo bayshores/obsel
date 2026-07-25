@@ -202,11 +202,23 @@ lays the whole graph out taller than the bounds that were fitted. `lineage.tsx` 
 two signals of its own: a `ResizeObserver` on the panel, and `useNodesInitialized` after the
 picture's content changes.
 
-The failure it prevents is silent and total. The panel clips its overflow and pan and zoom are
-turned off, so a graph fitted against a stale size sits entirely outside the visible area with no
-way to drag it back: nine nodes and eight edges present and correct in the DOM, none of them on
-screen, and no warning anywhere. `e2e/cockpit.spec.ts` asserts every node stays inside the panel
-across a resize.
+The failure it prevents is silent and total. The panel clips its overflow, so a graph fitted
+against a stale size sits entirely outside the visible area: nine nodes and eight edges present
+and correct in the DOM, none of them on screen, and no warning anywhere. `e2e/cockpit.spec.ts`
+asserts every node stays inside the panel across a resize.
+
+Interaction is bounded rather than off, which reverses an earlier decision and records why. All
+interaction used to be disabled: a stranded graph had no way back, so nothing was allowed to move
+it. The forty-task board changed the arithmetic, because its whole-graph fit is zoom 0.58 and its
+labels land at 7.5 px, so the fitted frame is an overview and the design-size detail exists only
+if a reader can go and get it. The reading moves are on (drag pans, pinch zooms, React Flow's own
+zoom and fit buttons restyled to obsel's tokens), the recovery the lock used to substitute for is
+on screen at all times (the fit button), and the editing moves stay off: nodes cannot be dragged,
+connected or selected, because the layout is dagre's statement of the pipeline's shape and a node
+moved by hand would put the picture in disagreement with the record. The scroll wheel deliberately
+does not zoom, so the tall page stays scrollable over its largest region. `READING` and `RANGE`
+in `lineage.tsx` carry the full reasoning; `e2e/scale.spec.ts` zooms to design size, strands the
+picture with a hard pan on purpose, and asserts the fit button recovers it.
 
 ## 4. Traversal reads the graph store, never the search index
 
@@ -291,6 +303,20 @@ Three constraints in that module are non-negotiable, each because the alternativ
 - **One connection per process.** Spawning a Python process per mark would add seconds to the
   latency obsel reports, and would make the measurement a claim about `uvx` startup.
 
+The cached connection survives its own subprocess dying, which was paid for on 2026-07-24: the
+cache used to be cleared only when connecting failed, so a session that connected and died hours
+later left a corpse every call hit, and completions 500ed at the tag step with the decision
+already committed. The fix is drop-on-close plus one reconnect retry, matched narrowly to the
+SDK's two closed-transport error shapes and safe because both tag tools are idempotent. The live
+test kills the real subprocess and asserts the next apply lands, read back over GMS.
+
+A related ceiling lives on the other side of the API: every agent mutation call, in
+`agents/worker.py` and the MCP server both, waits up to `MUTATION_TIMEOUT` (300 s) rather than the
+60 s read default, because a completion is answered only after the whole cascade is walked,
+written and confirmed, and a slow DataHub genuinely outran a 60 s client once while the server
+finished the work. A timeout on a mutation is an unknown outcome, not a failure; the ceiling is
+what keeps the two distinct.
+
 **As a server**, so an agent that is not in this repository can join a swarm.
 [`agents/mcp_server.py`](../agents/mcp_server.py) serves six tools over stdio: `check_freshness`,
 `register_task`, `announce_start`, `report_complete`, `abandon_task`, `read_board`. Three properties
@@ -313,6 +339,19 @@ of it are deliberate:
   writer-independent half of detection: one silent writer cannot hide from the next honest reader.
   The first observation triggers the cascade and is written onto the producer's record
   (`obsel.observed`), so a second identical read compares clean instead of re-flagging.
+- **A stale observation is not automatically a silent edit.** In a concurrent swarm a task can read
+  a table, keep working while that table's producer re-reports it, and then finish holding an
+  observation that is one version old with nothing unreported anywhere. The engine keeps the
+  fingerprint each re-report replaces (`obsel.fingerprints.previous`, one version deep), and
+  `classifyObservation` in `staleness.ts` decides what an observation means: matching the standing
+  record is clean; matching the replaced version means the finishing task itself is marked stale,
+  with the producer named and the reason saying the table was replaced before this task finished;
+  matching nothing is the unreported-change path above. Before this distinction existed, the
+  straddling reader was the worst of both worlds: itself unflagged, because the cascade excludes
+  the reporter, while a false "nothing reported this change" alarm re-marked other tasks with a
+  wrong story. One version of memory is deliberate: a run that straddles two re-reports of one
+  input classifies as unknown and over-alarms with an unknown author, which is the direction every
+  obsel rule falls, rather than under-flagging.
 
 The decisions live in [`agents/mcp_core.py`](../agents/mcp_core.py), which imports nothing outside
 the standard library so `pnpm verify` can check them without the virtual environment. The wiring is
@@ -372,39 +411,40 @@ every DataHub call.
 Checked against the working tree on 2026-07-23. Treat the shipped column as "present and
 readable", not as "covered by end-to-end evidence". See [Evidence](#9-evidence) below.
 
-| Piece                                     | Path                                                                                                                        | State                                               |
-| ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
-| The contracts                             | `src/server/coordinator/types.ts`                                                                                           | shipped                                             |
-| Staleness rules                           | `src/server/coordinator/staleness.ts`                                                                                       | shipped, 34 passing tests                           |
-| Coordinator IO                            | `src/server/coordinator/engine.ts`                                                                                          | shipped, 14 integration tests vs a live DataHub     |
-| GMS client                                | `src/server/datahub/client.ts`                                                                                              | shipped, exercised by those 14 plus 14 on `tags.ts` |
-| MCP tag writes                            | `src/server/datahub/mcp.ts`                                                                                                 | shipped, 8 integration tests vs the real MCP server |
-| The integration harness                   | `tests/live/`, `vitest.live.config.ts`, `tests/support/server-only.ts`                                                      | shipped, 44 tests, no stand-ins                     |
-| URN shapes                                | `src/server/datahub/urns.ts`                                                                                                | shipped                                             |
-| HTTP API                                  | `app/api/swarm`, `app/api/trace`, `app/api/tasks/{register,start,abandon,complete}`, `app/api/demo/{reset,launch,activity}` | shipped                                             |
-| Cockpit                                   | `app/page.tsx`, `src/features/cockpit/`                                                                                     | shipped, 133 unit + 51 browser tests                |
-| Live agent progress                       | `src/features/cockpit/progress.ts`                                                                                          | shipped, 23 passing tests, seen live                |
-| The guide                                 | `src/features/cockpit/guide.ts`, `guide-panel.tsx`                                                                          | shipped, 24 passing tests, driven live              |
-| Human names for tasks and tables          | `src/features/cockpit/naming.ts`, `staleness.ts` (`tableLabel`, `taskLabel`)                                                | shipped, 16 passing tests                           |
-| The coordinator's live trace              | `src/server/coordinator/trace.ts`, `trace-buffer.ts`, `app/api/trace`, `trace-panel.tsx`                                    | shipped, 10 tests, seen live                        |
-| Grouping the trace into decisions         | `src/features/cockpit/passes.ts`                                                                                            | shipped, 15 unit + 2 browser tests                  |
-| The lineage graph                         | `src/features/cockpit/lineage.tsx`, `nodes.tsx`, `graph/positions.ts`, `graph/cascade.ts`, on React Flow and dagre          | shipped, 33 unit + 4 browser tests                  |
-| Naming which columns moved                | `src/server/coordinator/staleness.ts` (`columnChange`); `obsel.stale.columns`                                               | shipped, 9 tests, verified live                     |
-| Reading the stale tag back onto the board | `src/server/datahub/tags.ts`, `timing.ts` (`totals`); the ribbon's write-back cell                                          | shipped, 14 unit + 6 browser tests                  |
-| The link into DataHub's own UI            | `src/features/cockpit/datahub-link.ts`, `inspector.tsx`                                                                     | shipped, 8 tests, path read from DataHub's bundle   |
-| Demo runner                               | `src/server/runner/`: `steps.ts`, `launcher.ts`, `preflight.ts`                                                             | shipped, 11 tests on the pure half                  |
-| Task registration and traversal in Python | `agents/graph.py`                                                                                                           | shipped, verified live                              |
-| Fingerprinting                            | `agents/fingerprint.py`                                                                                                     | shipped, 7 self-check properties                    |
-| Demo shape, jobs and seed data            | `agents/pipeline.py`, `agents/seed_data.py`                                                                                 | shipped                                             |
-| Vocabulary setup                          | `agents/setup.py`                                                                                                           | shipped                                             |
-| Agent worker                              | `agents/worker.py`                                                                                                          | shipped, 16 self-checks + 6 integration             |
-| Demo command line                         | `agents/run.py`                                                                                                             | shipped, 33 self-checks + 8 integration             |
-| The Codex session an agent actually is    | `agents/codex_runner.py`                                                                                                    | shipped, 22 self-checks + 1 real agent run          |
-| Demo reset                                | `app/api/demo/reset/route.ts`, `engine.resetSwarm`                                                                          | shipped, 2 integration tests vs a live DataHub      |
-| Agent output contract                     | `agents/worker.py` (`canonicalise_numbers`)                                                                                 | shipped, 7 self-check properties                    |
-| Sample outputs                            | `examples/`                                                                                                                 | shipped, captured from a real run                   |
-| obsel's own MCP server                    | `agents/mcp_server.py` over `agents/mcp_core.py`                                                                            | shipped, 31 self-checks + 14 integration            |
-| The agent skill                           | `skills/obsel-collaboration/SKILL.md`                                                                                       | shipped, instructions rather than code              |
+| Piece                                       | Path                                                                                                                        | State                                               |
+| ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| The contracts                               | `src/server/coordinator/types.ts`                                                                                           | shipped                                             |
+| Staleness rules                             | `src/server/coordinator/staleness.ts`                                                                                       | shipped, 34 passing tests                           |
+| Coordinator IO                              | `src/server/coordinator/engine.ts`                                                                                          | shipped, 14 integration tests vs a live DataHub     |
+| GMS client                                  | `src/server/datahub/client.ts`                                                                                              | shipped, exercised by those 14 plus 14 on `tags.ts` |
+| MCP tag writes                              | `src/server/datahub/mcp.ts`                                                                                                 | shipped, 8 integration tests vs the real MCP server |
+| The integration harness                     | `tests/live/`, `vitest.live.config.ts`, `tests/support/server-only.ts`                                                      | shipped, 44 tests, no stand-ins                     |
+| URN shapes                                  | `src/server/datahub/urns.ts`                                                                                                | shipped                                             |
+| HTTP API                                    | `app/api/swarm`, `app/api/trace`, `app/api/tasks/{register,start,abandon,complete}`, `app/api/demo/{reset,launch,activity}` | shipped                                             |
+| Cockpit                                     | `app/page.tsx`, `src/features/cockpit/`                                                                                     | shipped, 133 unit + 51 browser tests                |
+| Live agent progress                         | `src/features/cockpit/progress.ts`                                                                                          | shipped, 23 passing tests, seen live                |
+| The guide                                   | `src/features/cockpit/guide.ts`, `guide-panel.tsx`                                                                          | shipped, 24 passing tests, driven live              |
+| The joining guide, four steps off the swarm | `src/features/cockpit/joining.ts`, `joining-panel.tsx`                                                                      | shipped, 24 unit + 7 browser tests                  |
+| Human names for tasks and tables            | `src/features/cockpit/naming.ts`, `staleness.ts` (`tableLabel`, `taskLabel`)                                                | shipped, 16 passing tests                           |
+| The coordinator's live trace                | `src/server/coordinator/trace.ts`, `trace-buffer.ts`, `app/api/trace`, `trace-panel.tsx`                                    | shipped, 10 tests, seen live                        |
+| Grouping the trace into decisions           | `src/features/cockpit/passes.ts`                                                                                            | shipped, 15 unit + 2 browser tests                  |
+| The lineage graph                           | `src/features/cockpit/lineage.tsx`, `nodes.tsx`, `graph/positions.ts`, `graph/cascade.ts`, on React Flow and dagre          | shipped, 33 unit + 4 browser tests                  |
+| Naming which columns moved                  | `src/server/coordinator/staleness.ts` (`columnChange`); `obsel.stale.columns`                                               | shipped, 9 tests, verified live                     |
+| Reading the stale tag back onto the board   | `src/server/datahub/tags.ts`, `timing.ts` (`totals`); the ribbon's write-back cell                                          | shipped, 14 unit + 6 browser tests                  |
+| The link into DataHub's own UI              | `src/features/cockpit/datahub-link.ts`, `inspector.tsx`                                                                     | shipped, 8 tests, path read from DataHub's bundle   |
+| Demo runner                                 | `src/server/runner/`: `steps.ts`, `launcher.ts`, `preflight.ts`                                                             | shipped, 11 tests on the pure half                  |
+| Task registration and traversal in Python   | `agents/graph.py`                                                                                                           | shipped, verified live                              |
+| Fingerprinting                              | `agents/fingerprint.py`                                                                                                     | shipped, 7 self-check properties                    |
+| Demo shape, jobs and seed data              | `agents/pipeline.py`, `agents/seed_data.py`                                                                                 | shipped                                             |
+| Vocabulary setup                            | `agents/setup.py`                                                                                                           | shipped                                             |
+| Agent worker                                | `agents/worker.py`                                                                                                          | shipped, 16 self-checks + 6 integration             |
+| Demo command line                           | `agents/run.py`                                                                                                             | shipped, 33 self-checks + 8 integration             |
+| The Codex session an agent actually is      | `agents/codex_runner.py`                                                                                                    | shipped, 22 self-checks + 1 real agent run          |
+| Demo reset                                  | `app/api/demo/reset/route.ts`, `engine.resetSwarm`                                                                          | shipped, 2 integration tests vs a live DataHub      |
+| Agent output contract                       | `agents/worker.py` (`canonicalise_numbers`)                                                                                 | shipped, 7 self-check properties                    |
+| Sample outputs                              | `examples/`                                                                                                                 | shipped, captured from a real run                   |
+| obsel's own MCP server                      | `agents/mcp_server.py` over `agents/mcp_core.py`                                                                            | shipped, 31 self-checks + 14 integration            |
+| The agent skill                             | `skills/obsel-collaboration/SKILL.md`                                                                                       | shipped, instructions rather than code              |
 
 ## 9. Evidence
 
@@ -584,10 +624,18 @@ What has been verified directly, and what has not.
   model's determinism rather than obsel's decision, so it is left to the demo's own `rerun-same` step,
   which asserts it and exits non-zero when it fails.
 - **`run_task(report=False)`.** Nothing calls it, so no test spends a real agent session on it.
-- **The browser suite still uses canned bodies.** `e2e/` intercepts `/api/swarm` with invented JSON to
-  drive the board through states a live run cannot easily produce, notably a failed read. Its fixtures
-  say so in their own header. It is the one place left in the repository that tests against something
-  invented, and it is named here rather than left to be found.
+- **The browser suite still uses canned bodies, for the four-task states.** `e2e/` intercepts
+  `/api/swarm` to drive the board through states a live run cannot easily produce, notably a failed
+  read, and those bodies are invented. Its fixtures say so in their own header. It is the one place
+  left in the repository that tests against something invented, and it is named here rather than
+  left to be found.
+
+  Narrowed on 2026-07-24, and only narrowed. The forty-task board's two fixtures are recordings of
+  real `GET /api/swarm` responses rather than invented ones, because a hand-typed forty-task graph
+  would be a hand-typed claim about the layout those tests exist to check. The interception is
+  unchanged: what is replayed is real, and it is still replayed, so the server half is still absent
+  from every browser test.
+
 - **Anything on a machine other than this one.** Every integration figure is a single observation
   against a Docker quickstart on one laptop.
 - **The window between a mark landing and its tag landing.** `markStale` awaits the confirmed property
@@ -622,8 +670,15 @@ What has been verified directly, and what has not.
 - **Auth.** The local quickstart runs with `METADATA_SERVICE_AUTH_ENABLED=false` and issues no
   token. obsel sends one if `DATAHUB_GMS_TOKEN` is set and otherwise does not, which is the correct
   behaviour against a default quickstart and is not a production posture.
-- **Anything that repairs stale work.** obsel reports which finished work is no longer built on
-  something true. Deciding what to do about it is a person's job, or the next agent's.
+- **Anything that repairs stale work itself.** obsel reports which finished work is no longer
+  built on something true. Deciding what to do about it is a person's job, or the next agent's.
+  The demo's `repair` command does not change this: it is the agents redoing their own work in
+  dependency order, with obsel doing exactly what it always does at each completion. The one
+  thing the coordinator now derives on its own is the inverse of a mark: when a flagged task's
+  redo lands byte-identical, the flags downstream of that output were standing on ground that
+  never moved, and `restoredBy` (`src/server/coordinator/staleness.ts`) clears the ones the
+  records prove. Nothing can request that clear, since no route and no tool takes a task to
+  unflag, which keeps the only path to a clean board through redone work.
 
 ## 11. The HTTP API
 
@@ -781,6 +836,7 @@ detail rather than leaving it, so the cockpit never captions a run with the last
     { "dataset": "urn:li:dataset:(…,obsel_demo.clean_orders,PROD)", "kind": "schema" },
   ],
   "affected": [{ "task": { "…": "a TaskRecord as it was found" }, "mark": { "…": "a StaleMark" } }],
+  "restored": [{ "task": { "…": "a TaskRecord as it was found" }, "reason": "a sentence" }],
   "elapsedMs": 118,
 }
 ```
@@ -789,6 +845,15 @@ detail rather than leaving it, so the cockpit never captions a run with the last
 `affected` is empty too. That is the quiet case, and it is the one the loud case depends on.
 `elapsedMs` is measured across the whole call including the writes. Each `mark.detectedMs` carries
 the same measurement, written onto the mark in DataHub.
+
+`restored` is the inverse of `affected`, and non-empty only on one specific completion: the
+reporting task was itself flagged, it redid its work, and an output came back byte-identical to
+the recorded baseline. The flags downstream of that output were then standing on ground that never
+moved, and `restoredBy` (`staleness.ts`) clears the ones the records prove: producer settled, no
+standing reader observation, the mark not naming that very table, and the producer's previous
+report predating the reader's finish. Each clear removes the properties and the DataHub tag, and
+carries a reason like a mark does. It cannot be requested: the field exists only as a consequence
+of redone work.
 
 ### `GET /api/swarm`
 
@@ -857,7 +922,7 @@ clearing failed.
 
 Run one demo step on this machine, the same `agents/.venv/bin/python -m agents.run <step>` the
 README documents, spawned verbatim with no shell and no interpolation: the step name is a Zod enum
-of the six commands, and nothing else from the request reaches the spawn. Answers immediately;
+of the seven commands, and nothing else from the request reaches the spawn. Answers immediately;
 progress is read from `/api/demo/activity` and from the swarm itself.
 
 One step at a time, enforced server-side with a 409, because the steps share the demo's tables, so a
@@ -870,7 +935,7 @@ explicitly decided against.
 
 ```jsonc
 // request
-{ "step": "run" } // "setup" | "register" | "run" | "rerun-same" | "change" | "reset"
+{ "step": "run" } // "setup" | "register" | "run" | "rerun-same" | "change" | "repair" | "reset"
 ```
 
 ```jsonc
@@ -910,11 +975,24 @@ because without the tag staleness would be detected and silently not recorded.
   },
   "log": ["$ agents/.venv/bin/python -m agents.run rerun-same", "…"],
   "preflight": {
-    "datahub": { "ok": true, "detail": "DataHub answered at http://localhost:8080", "fix": null },
+    // Two probes behind one verdict: `/config` separates "not running" from
+    // "running and cannot answer", then the traversal `readSnapshot` opens with,
+    // because GMS keeps serving `/config` with its search index gone. See
+    // `docs/environment-findings.md` section 12.
+    "datahub": {
+      "ok": true,
+      "detail": "DataHub answered at http://localhost:8080, and obsel could read the swarm from it.",
+      "fix": null,
+    },
     "vocabulary": { "ok": true, "detail": "urn:li:tag:obsel-stale is registered", "fix": null },
     "venv": { "ok": true, "detail": "agents/.venv exists", "fix": null },
     "codex": { "ok": false, "detail": "the Codex CLI is not signed in", "fix": "codex login" },
   },
+  // The command that connects an outside MCP agent to this obsel, with this
+  // machine's real absolute interpreter path. Display only; the board's
+  // "bring your own agent" panel renders it, because a placeholder path would
+  // hand the reader a command that fails.
+  "joinCommand": "claude mcp add obsel -- /…/agents/.venv/bin/python -m agents.mcp_server",
 }
 ```
 
@@ -926,9 +1004,11 @@ cascade arrives in one burst and a two-second poll would show it already finishe
 
 Emitted by `engine.ts` as it works: the swarm read, one step per fingerprint comparison **whichever
 way it goes**, the lineage walk with what it found, one step per mark once that mark's writes are
-confirmed, and a closing step carrying the measured end-to-end figure. Tables and tasks are named the
-way the stale reasons name them, through `tableLabel` and `taskLabel` in `staleness.ts`, so one task
-is never called two different things on one screen.
+confirmed, one step per restoration clear carrying its full reason (a cleared task keeps no mark to
+carry it, so the trace and the reply are the only places the reason lives), and a closing step
+carrying the measured end-to-end figure. Tables and tasks are named the way the stale reasons name
+them, through `tableLabel` and `taskLabel` in `staleness.ts`, so one task is never called two
+different things on one screen.
 
 Reads nothing from DataHub, so it answers even when GMS is unreachable, which is deliberate: a
 panel explaining what obsel is doing is most useful when something is wrong.

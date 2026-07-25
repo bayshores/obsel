@@ -1,10 +1,10 @@
-# Screenshots
+# Screenshots and recordings
 
 What goes in this directory, and the rules that make the images worth including.
 
 These are **not decoration**. A judge who will not start Docker currently sees the board only in
 the video, and the hackathon asks for sample outputs in `examples/` specifically "so judges can
-evaluate output quality without running the code". Two images close that gap. They are the same
+evaluate output quality without running the code". The images close that gap. They are the same
 category of artifact as the JSON already in `examples/`: captured from a real run, not drawn.
 
 Capturing them is the owner's action, like recording the video. Nothing here is generated.
@@ -15,6 +15,16 @@ Capturing them is the owner's action, like recording the video. Nothing here is 
 | ------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `settled.png` | settled     | Four done boxes, the headline reading `all 4 finished, nothing out of date`, and the write-back cell reading `·· nothing to write yet`.                                                                 |
 | `flagged.png` | flagged     | Three amber boxes, `- order_total` / `+ order_total_usd` on the changed table, the subline naming how many never read it, the measured detection time, and the write-back cell reading `3 of 3 tagged`. |
+| `cascade.gif` | flagging    | The moment itself, animated: three boxes turning amber, the amber path moving outward from the changed table, and the ribbon's measured figures landing.                                                |
+| `repair.gif`  | repairing   | The way back: flags coming off as one redo lands, the strip's `cleared … without a re-run` lines with their reasons, and the headline returning to nothing out of date.                                 |
+
+The two GIFs exist because a still of a finished cascade shows nothing moving, which was the exact
+reason the edges were animated in the first place. Fourteen seconds each, cut around the moment a
+swarm read confirmed it: three marks standing with all three tags for the cascade, zero marks
+standing for the repair. `record.mjs` at the repository root takes them, the way `capture.mjs`
+takes the stills: it launches the real step through the launch route, records the live board with
+Playwright, refuses to save anything when the moment never arrives or the step exits non-zero, and
+writes the cut point beside each video.
 
 ## Rules
 
@@ -34,8 +44,15 @@ Capturing them is the owner's action, like recording the video. Nothing here is 
 
 ## What is in here now
 
-Both files exist, captured 2026-07-23 from commit `9bd695e` against a live DataHub and a live Codex
-CLI, and referenced from `README.md` and `examples/README.md`.
+The two stills exist, captured 2026-07-23 from commit `9bd695e` against a live DataHub and a live
+Codex CLI, and referenced from `README.md` and `examples/README.md`.
+
+The two GIFs exist, recorded 2026-07-24 in one sequence against the same live stack, from the
+working tree that became the repair-and-restoration commit. Their run's own measured numbers are
+in frame: the cascade landed its three marks with a detection time of 2444 ms and `3 of 3 tagged`
+on the ribbon, and the repair redid one task in a 30.2 s step, with obsel clearing the other two
+flags itself because the redone table came out identical, the strip showing both `cleared` lines
+with their reasons. The `change` and `repair` steps behind them exited 0 in 49.9 s and 30.2 s.
 
 They came from one run, in this order: `run` (206.0 s, four Codex sessions) which produced
 `settled.png`, then `change` which renamed a column and flagged three tasks in a measured 5399 ms,

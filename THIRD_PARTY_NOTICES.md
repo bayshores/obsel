@@ -58,8 +58,16 @@ Node and Python dependency licences are recorded in `pnpm-lock.yaml` and
 ## Sample data
 
 `showcase-ecommerce`, DataHub's own sample datapack, is loaded on the development instance.
-obsel's demo tables are generated locally by `agents/seed_data.py` from a fixed seed and
-contain no real people, orders, or companies.
+The four-agent demo's tables are generated locally by `agents/seed_data.py` from a fixed
+seed and contain no real people, orders, or companies.
+
+The scale swarm's seed tables in `agents/seeds/` are derived from the **NYC Taxi and
+Limousine Commission trip record data** (yellow taxi, January 2026) and the TLC taxi zone
+lookup, published by the City of New York at nyc.gov/tlc as open data. Trip records carry
+no passenger identities; the extract keeps 2,100 rows of times, zones, distances and
+fares. The full derivation, source URLs and hashes are in
+[`agents/seeds/PROVENANCE.md`](agents/seeds/PROVENANCE.md), and the extract is committed so
+nothing is fetched from the TLC at demo time.
 
 ## The demo agents run on Codex, signed in with a ChatGPT subscription
 

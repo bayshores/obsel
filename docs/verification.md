@@ -113,27 +113,56 @@ The guide is a lens, not a script: it derives its stage from what DataHub actual
 driving a step from the terminal instead moves the board the same way, and nothing on screen is
 staged or pre-recorded.
 
-Updated 2026-07-23. Everything described below this section is code that exists in this repository
+**Added 2026-07-24: the loop closes.** Three things shipped together, because each is what makes
+the others mean something.
+
+- **A flag is now something you act on.** The flagged board leads with **Redo the work obsel
+  flagged**, a new `repair` demo step: the flagged agents re-run in dependency order, real Codex
+  sessions replaying what each task last ran, and every flag comes off through a redo. There is
+  still no way to clear a flag directly, anywhere, and that is the point of the wording on the
+  button.
+- **Restoration: an identical redo clears what it proves.** The semantics change this required was
+  approved by the owner on 2026-07-24. When a _flagged_ task redoes its work and an output comes
+  back byte-identical, the tasks downstream of that output were flagged for ground that never
+  moved, and the engine clears them itself: properties nulled, the DataHub tag removed, a reason
+  recorded in the trace and in the completion reply's new `restored` list. The rule is one pure
+  function, `restoredBy` in `staleness.ts`, and it prefers a kept flag to a wrong clear: the
+  producer must be settled, no reader observation may be standing, the mark must not name that very
+  table, and the producer's previous report must predate the reader's finish. Nothing can request
+  it. No route and no MCP tool takes a task to clear.
+- **The joining panel.** A panel under the graph carrying a four-step checklist that ticks itself
+  off from the swarm as a visiting agent declares, announces, reports and gets an answer, plus the
+  `claude mcp add obsel …` command with this machine's real absolute path (served by the activity
+  route, because a placeholder path is a command that fails), the six MCP tools with what each is
+  for, and the two things a visiting agent deliberately cannot do. The copy button falls back to
+  selecting the command when the clipboard API refuses, which an embedded webview does. It was a
+  closed 17px disclosure until 2026-07-24; the entry further down records why that was a defect.
+
+Updated 2026-07-24. Everything described below this section is code that exists in this repository
 and type-checks, not a plan.
 
 ### Where each piece lives
 
-| Piece                                                                          | Where                                                                |
-| ------------------------------------------------------------------------------ | -------------------------------------------------------------------- |
-| A task is a `DataJob` with real lineage edges                                  | `agents/graph.py`, `src/server/datahub/urns.ts`                      |
-| Output fingerprinting, schema and content separately                           | `agents/fingerprint.py`                                              |
-| The staleness rules, pure and testable                                         | `src/server/coordinator/staleness.ts`                                |
-| Marks written back into DataHub                                                | `src/server/coordinator/engine.ts`, `src/server/datahub/mcp.ts`      |
-| Four demo agent workers, each a real Codex session                             | `agents/worker.py`, `agents/run.py`                                  |
-| The agent output contract, names and number form                               | `agents/worker.py` (`canonicalise_numbers`), with a self-check       |
-| The cockpit: graph, headline, stats, step log, details                         | `app/page.tsx`, `src/features/cockpit/`                              |
-| Live agent progress on the board                                               | `src/features/cockpit/progress.ts`                                   |
-| The guide: stage derived from live state, buttons that launch the real steps   | `src/features/cockpit/guide.ts`, `guide-panel.tsx`                   |
-| The demo runner: spawns `agents.run` steps, checks the machine's prerequisites | `src/server/runner/`                                                 |
-| Each task's job, stored on its DataJob in DataHub and read back onto the board | `agents/pipeline.py`, `src/server/datahub/client.ts`                 |
-| The stale tag read back off the entity, and counted on the board               | `src/server/datahub/tags.ts`, `src/features/cockpit/timing.ts`       |
-| A link from any task to its real page in DataHub's UI                          | `src/features/cockpit/datahub-link.ts`, `inspector.tsx`              |
-| HTTP API, eight routes including launch and activity                           | `app/api/`, see [`docs/architecture.md`](architecture.md) section 11 |
+| Piece                                                                          | Where                                                                    |
+| ------------------------------------------------------------------------------ | ------------------------------------------------------------------------ |
+| A task is a `DataJob` with real lineage edges                                  | `agents/graph.py`, `src/server/datahub/urns.ts`                          |
+| Output fingerprinting, schema and content separately                           | `agents/fingerprint.py`                                                  |
+| The staleness rules, pure and testable                                         | `src/server/coordinator/staleness.ts`                                    |
+| Marks written back into DataHub                                                | `src/server/coordinator/engine.ts`, `src/server/datahub/mcp.ts`          |
+| Four demo agent workers, each a real Codex session                             | `agents/worker.py`, `agents/run.py`                                      |
+| The agent output contract, names and number form                               | `agents/worker.py` (`canonicalise_numbers`), with a self-check           |
+| The cockpit: graph, headline, stats, step log, details                         | `app/page.tsx`, `src/features/cockpit/`                                  |
+| Live agent progress on the board                                               | `src/features/cockpit/progress.ts`                                       |
+| The guide: stage derived from live state, buttons that launch the real steps   | `src/features/cockpit/guide.ts`, `guide-panel.tsx`                       |
+| The demo runner: spawns `agents.run` steps, checks the machine's prerequisites | `src/server/runner/`                                                     |
+| Each task's job, stored on its DataJob in DataHub and read back onto the board | `agents/pipeline.py`, `src/server/datahub/client.ts`                     |
+| The stale tag read back off the entity, and counted on the board               | `src/server/datahub/tags.ts`, `src/features/cockpit/timing.ts`           |
+| A link from any task to its real page in DataHub's UI                          | `src/features/cockpit/datahub-link.ts`, `inspector.tsx`                  |
+| The restoration rule: which flags an identical redo provably clears            | `restoredBy` in `src/server/coordinator/staleness.ts`                    |
+| The repair loop: flagged work redone in order, restored work skipped           | `cmd_repair` in `agents/run.py`, the guide's leading flagged action      |
+| The joining panel and its four derived steps                                   | `joining.ts`, `joining-panel.tsx`, `joinCommand` on `/api/demo/activity` |
+| The two animated captures and the script that takes them                       | `docs/images/*.gif`, `record.mjs`                                        |
+| HTTP API, eight routes including launch and activity                           | `app/api/`, see [`docs/architecture.md`](architecture.md) section 11     |
 
 **Added 2026-07-23, the reader-side cross-check.** obsel's trigger is an agent reporting, so a
 process that rewrites a shared table and never reports was invisible, and the silence read as "all
@@ -165,12 +194,34 @@ display-only `path` on the run detail; nothing decides on it.
 
 ## Verified directly
 
-- **The staleness rules**, by 38 deterministic tests in `tests/staleness.test.ts`. About half assert
+- **The staleness rules**, by 65 deterministic tests in `tests/staleness.test.ts`. About half assert
   that nothing happens, which is deliberate, because the failure that kills this kind of tool is a
   false alarm rather than a miss. An identical re-run marks nothing, an unrelated branch is untouched,
   a running
   task is neither marked nor walked through, a cycle terminates. The reader-observed change carries
   no author at any hop, and a reported change still names its producer.
+- **The straddling-reader rules, added 2026-07-24 for the concurrent swarm**, by 11 of those 65,
+  over `classifyObservation` and `supersededMark`. A task that read a table, kept working while the
+  producer re-reported it, and then finished used to be the worst of both worlds: itself unflagged
+  (the cascade excludes the reporter) while a false "nothing reported this change" alarm re-marked
+  other tasks with a wrong author. Now an observation matching the version a re-report replaced
+  marks the finishing task itself, producer named; matching the version a noticed silent edit
+  replaced marks it with the author unknown; matching what stands is clean; matching nothing is
+  still the unreported path. **Every guard was pinned by breaking it**: four mutations, each
+  deleting or reordering one rule, each failed at least one named test, and the restored file
+  passed all 65. The engine half (keeping `obsel.fingerprints.previous`, writing the mark) is
+  exercised live once the concurrent runner lands; see Not done.
+- **The restoration rule, negative cases first**, by 16 of those 54. For `restoredBy` the dangerous
+  wrong answer inverts: a false clear declares broken work sound, so the refusals lead, and an
+  identical re-run by _unflagged_ work restores nothing (the rerun-same trap, twice, once at the
+  gate and once as an ordinary completion), a direct reader of the changed table never clears, a
+  second still-flagged producer holds, a changed redo restores nothing, running work and an
+  unrelated flagged branch are untouched, a standing reader observation refuses, a missing finish
+  time refuses rather than guessing the order, and a cycle terminates. **Every guard was pinned by
+  breaking it**: six mutations, each deleting one guard, each failed at least one test, and the
+  restored file passed all 54. The positives: the demo shape clears exactly two, a three-deep chain
+  clears transitively through the fixpoint, and an input nothing in the swarm produces counts as
+  stable ground.
 - **The cockpit's own logic**, by 161 further tests across `tests/cockpit-*.test.ts`. The load-bearing
   ones: graph geometry is byte-identical across every task status, so nothing moves on the frame
   three tasks flip amber; no label can overflow its box, checked against measured per-character
@@ -201,20 +252,23 @@ display-only `path` on the run detail; nothing decides on it.
   silently. Registration now confirms the edge too. A stand-in derives its edges from its own entity
   map, so they are never late and this could not exist in one.
 
-- **The Python agents, by 118 self-checks** in `pnpm test:python`, now wired into `pnpm verify` so they
+- **The Python agents, by 125 self-checks** in `pnpm test:python`, now wired into `pnpm verify` so they
   actually run rather than sitting unrun. All over real files in real temporary directories. `worker.py`
-  contributes 16, including the instruction remembered together with the columns it produced, the pair
+  contributes 17, including the instruction remembered together with the columns it produced, the pair
   whose separation reverted a rename live. `codex_runner.py` contributes 22 over `_validate`, the only
   thing between a live model's output and obsel's fingerprint: a table the agent never wrote, one that
   is not JSON, one with no rows, a row missing a declared column, and the right columns in the wrong
   order are each refused, because a plausible-looking bad table hashes cleanly and would mark the whole
-  chain stale for nothing. `run.py` contributes 33 over the guards behind its printed claims, the
+  chain stale for nothing. `run.py` contributes 38 over the guards behind its printed claims, the
   sharpest being that `_required_list` refuses a missing key rather than reading it as an empty list:
-  mutating it to `reply.get(key) or []` fails six of them. `mcp_core.py` contributes 31 over what
+  mutating it to `reply.get(key) or []` fails six of them; the newest cover the repair's redo order
+  and the refusal to read a reply that lost its `restored` key as "nothing was cleared".
+  `mcp_core.py` contributes 41 over what
   obsel's own MCP server decides before it speaks: the same refusal of a missing key (the same
   mutation fails five of these), an output the task never declared it writes, a table with no
-  registered producer reported as exactly that rather than as fresh, and `217` and `217.0` reaching
-  one fingerprint while `218` still moves it.
+  registered producer reported as exactly that rather than as fresh, `217` and `217.0` reaching
+  one fingerprint while `218` still moves it, and the summary of an identical redo carrying its
+  cleared flags beside the quiet line.
 
 - **One real Codex session**, in `tests/live/codex.live.test.ts`, the only automated model call in the
   repository. The subject is the invocation, not the reasoning: `--sandbox workspace-write` and
@@ -222,6 +276,38 @@ display-only `path` on the run detail; nothing decides on it.
   and no stand-in can say whether today's Codex still accepts them. The agent reads a real file, writes
   a real table, and meets an exact column contract.
 
+- **Restoration against the real DataHub**, added to `engine.live.test.ts` on 2026-07-24: from a
+  flagged board with four marks standing, one deterministic identical redo of the middle task
+  cleared exactly the two transitive marks, held the direct reader of the changed table with its
+  tag still on (read back off `globalTags`, not inferred), left the cleared tasks' fingerprints and
+  finish times untouched, and carried the reason on each entry. The changed-redo negative runs
+  beside it: a redo landing a different table restores nothing and cascades instead, fresh marks
+  naming the redone table. The identical re-run on a flagged board now also asserts
+  `restored: []`, the trap where restoration would be catastrophically wrong, held live. Over the
+  MCP wire, `obsel-mcp.live.test.ts` drives the same shape through a real client on real stdio:
+  the reply's `restored` names the two-hop task, the summary carries
+  `cleared mcpjoin_report without a re-run`, and both flags and both tags are confirmed off in
+  DataHub itself.
+- **The repair, live, both ways it can go.** Two full `repair` runs against the live DataHub with
+  live Codex sessions on 2026-07-24, and they took the two different paths that exist:
+  - **The first found a third agent instability.** The redone `daily_revenue` carried averages at
+    full float precision (`104.48666666666666`) where the previous run had rounded, so its content
+    hash moved, obsel correctly called it a change and refused to clear anything, marked the two
+    downstream tasks with the redone table as cause, and the repair's pass loop redid all three:
+    `redid 3 of the 3 flagged task(s) in 93.7 s`, exit 0, board clean. obsel was right at every
+    step; the averaging precision is now pinned in `pipeline.py`, the third instruction pinned for
+    the same class of reason.
+  - **The second, after the pin, is the money moment.** One Codex session redid `build_revenue`
+    over the renamed table, the output came back byte-identical, and obsel cleared the other two
+    itself, each with its reason: `redid 1 of the 3 flagged task(s) in 30.0 s`,
+    `obsel cleared 2 without a re-run: write_docs, write_report`, restoration confirmed end to end
+    in a measured 1035 ms, the step exiting 0 in 30.2 s. Both runs' closing claims were read back
+    from the board, not assumed from the loop ending.
+- **The two animated captures**, `docs/images/cascade.gif` and `docs/images/repair.gif`, recorded
+  2026-07-24 in one sequence by `record.mjs`: the real launch route, the live board, the moment
+  decided from swarm reads rather than pixels. The cascade's ribbon landed at 2444 ms detection
+  with `3 of 3 tagged`; the repair GIF holds the strip's two `cleared` lines with their reasons.
+  The `change` and `repair` steps behind them exited 0 in 49.9 s and 30.2 s.
 - **The cascade, end to end against a live DataHub** on 2026-07-21. A schema-only change posted to
   `POST /api/tasks/complete`, with content byte-identical and schema moved, marked exactly
   `build_revenue` (1 hop), `write_report` and `write_docs` (2 hops), each with its reason, in a
@@ -317,21 +403,438 @@ display-only `path` on the run detail; nothing decides on it.
 - **The existence predicate and swarm enumeration**, by curl against the live instance.
   See [`docs/environment-findings.md`](environment-findings.md) sections 1 and 9.
 
+- **`readSnapshot` now reads the whole swarm in one `batchGet`, adopted 2026-07-24.** The
+  2026-07-23 entry here recorded the per-task version's linear request count as a risk and the
+  batch endpoint as researched but not worth adopting before a submission. The forty-task swarm
+  changed that arithmetic: the board polls every second, and forty tasks would have put ~41
+  requests per second on DataHub to render a screen. The endpoint adopted is the one already
+  verified safe (`POST /openapi/v3/entity/datajob/batchGet` carries every aspect obsel reads and
+  omits an invented URN rather than fabricating one, re-confirmed against this instance with a
+  real and an invented URN before the switch). A URN the graph lists that the batch does not
+  return is still an error, never a silent skip. Measured 2026-07-24 with the forty-task flow
+  registered, five samples during a live concurrent run: 197, 274, 65, 65 and 54 ms, the first
+  two including route warm-up. One `/relationships` call plus one `batchGet` per snapshot,
+  regardless of swarm size, against the previous one-per-task.
+
+- **The forty-task swarm, live, the whole loop, on 2026-07-24.** One sequence against a live
+  DataHub with a live Codex CLI, on an isolated flow, every closing claim read back from the board
+  rather than assumed from the loop ending. Three measured results:
+  - **The concurrent run.** 41 real Codex sessions (the forty tasks plus the mid-run change)
+    finished in **252.6 s** wall clock at a measured peak of 8 running at once, scheduled by
+    `agents/swarm.py` with producers always before readers. The tables are one week of real NYC
+    yellow-taxi trips, from the pinned extract in `agents/seeds/`.
+  - **The change, landing mid-swarm.** `daily_trips` re-ran with its passenger column renamed
+    while **9 agents were still in flight**. obsel marked exactly **8 of 40** finished tasks in a
+    measured **13,349 ms**, five direct readers and three transitive, each with its reason, and
+    none of the nine in-flight agents was touched. The 31 tasks outside the change's descendants
+    ended complete and unflagged, including `report_city`, which finished after the cascade on
+    inputs whose bytes had not moved and was correctly left alone. The step exited 0 with every
+    assertion passing.
+  - **The parallel repair.** From the 8-flag board, `scale-repair` redid the five direct readers
+    concurrently and cancelled the other three out of its own plan as proofs landed:
+    `weekday_profile`'s identical redo cleared `rider_overview` and `report_riders`,
+    `fare_summary`'s cleared `revenue_overview`, each cancellation printed with obsel's reason.
+    `docs_marts`'s redo correctly came back different, since its prose documents the renamed
+    column, and being a leaf it cascaded to nothing. **Redid 5 of 8 in a measured 42.4 s** against about
+    188 s to redo all eight, that baseline estimated from each task's last measured run and
+    labeled as an estimate everywhere it appears. The board ended with zero flags, read back from
+    DataHub.
+
+- **A second full cycle on the same board, and three rules confirmed by accident, 2026-07-24.**
+  Run while recording the browser fixtures, which is why it is here: these are observations from
+  work with another purpose, not a benchmark set up to produce them.
+  - **An identical re-run at forty tasks marked nothing.** `scale-change` was run against a board
+    already carrying the rename. The agent produced a byte-identical table, obsel reported zero
+    changed outputs and **zero marks across all 40**, and the producer's recorded previous
+    fingerprint stayed at the version before the rename rather than collapsing to equal the
+    current one. That is the documented behaviour of both rules, seen at scale without being
+    arranged.
+  - **The cascade is direction-agnostic.** Re-running the same task with its ORIGINAL instruction,
+    putting `riders` back, is as much a schema change as the rename was: obsel marked **the same
+    nine tasks at the same hops** (five at one, three at two, one at three) in a measured
+    **6391 ms**. Nothing in the engine knows which direction is the demo's.
+  - **The parallel repair, a second time, on nine flags.** **Redid 8 of 9 in a measured 62.0 s**
+    against about 221 s to redo all nine, estimated from each task's last measured run.
+    `rider_overview`'s redo came back identical and took `report_riders` off the plan without it
+    running, obsel's reason printed as the proof landed. Two of the eight redos came back
+    different and cascaded to nothing, both being leaves. Every flag came off through a redo or a
+    proof.
+  - **The forward change, a second time.** `daily_trips` renamed the column on a settled board:
+    **9 of 40 marked out to 3 hops in a measured 3968 ms**, 30 tasks outside it and none flagged,
+    all nine tags confirmed in DataHub. This is the run the browser fixtures were recorded from.
+
+- **`scale-change` now renames whichever way the board sits, proven live in both directions,
+  2026-07-24.** The step used to be one hard-coded direction, and a repair never touches the task
+  that causes the cascade, so pressing the settled board's own button a second time in a session
+  reproduced the table byte for byte and the step failed its own descendant assertion; obsel was
+  right every time and the demo was wrong, observed three times. The step now reads the producer's
+  recorded run columns off the board and renames away from wherever they sit
+  (`scale.change_for`), with the choice printed in words before the agent runs. Five new
+  self-checks pin the chooser and the mirror property. Live: the forward press marked the nine
+  descendants at their exact hops with the schema kind and the right column diff, and the reverse
+  press then exited 0 on its first attempt, printing "the passenger column is passenger_total on
+  the board today; this run renames it to riders" and marking **the same nine at the same hops out
+  to 3**. The final repair settled the board with zero flags and zero tags, read back. The
+  mid-swarm form stays forward on purpose: it lands on a board that just ran the original
+  instructions.
+
+- **A night of load found two real operational bugs, both fixed and both now tested with real
+  hostile input, 2026-07-24.** DataHub slowed under hours of forty-task runs, and two things broke
+  that a quiet afternoon had never exposed.
+  - **A client timeout on a completion that landed.** A cascade's coordination outran the worker's
+    60 s HTTP ceiling; the server finished the work, every mark correct, and the worker declared
+    the run dead: the operator told the opposite of the truth. Verified by read-back at the time
+    (nine marks at the exact expected hops with the client having reported failure). Every
+    mutation call now gets a 300 s ceiling (`MUTATION_TIMEOUT` in `agents/worker.py`, used by the
+    demo runner and the MCP server both), sized so a genuine hang is the only thing left that can
+    reach it. A timeout on a mutation is an unknown outcome, not a failure, and the ceiling is the
+    difference between the two staying rare.
+  - **A dead MCP session was cached forever.** `mcp.ts` cleared its cached connection only when
+    CONNECTING failed; a session that connected and died hours later left a corpse every call hit,
+    and every completion after that moment 500ed at the tag step with the decision already
+    committed. Fixed with drop-on-close plus one reconnect retry, narrowly matched to the SDK's
+    two closed-transport shapes; the retry is safe because both tag tools are proven idempotent.
+    The live test kills the real subprocess with SIGKILL and asserts the next apply lands on the
+    entity, read back over GMS. The kill found the second error shape ("Connection closed" for a
+    call in flight) that the first fix missed, which is what a real hostile input is for. The MCP
+    live file is 9 tests now; the live suite is 72.
+
+- **A launched step now reports to the server that launched it, found by running two obsels at
+  once, 2026-07-24.** The agents default to `http://localhost:3000`, and the launcher spawned
+  steps with that default intact, so a button pressed on an obsel at any other port sent the
+  step's writes to whatever was listening on 3000. With an operator's board and an isolated one
+  both up, the isolated board's reset button reset the operator's flow, and its register button
+  put one foreign task into the operator's pipeline before the step's own URN-mismatch guard
+  stopped it at a single task. The launch route now passes its own origin (from the URL Next
+  resolved, never from a client header) into the child's `OBSEL_URL`, so the child reports to
+  the obsel whose button was pressed, whatever its port. Validated live by re-running the same
+  two steps on the isolated port with the fix in place: both exited 0 against the isolated flow
+  with the operator's board untouched. The operator's flow was restored through the ordinary
+  demo path, and the one foreign task's soft delete is left as an owner action, the command
+  dry-run verified.
+
+- **The demo has a capture harness, and a reference picture lock exists, measured by ffprobe,
+  2026-07-24.** `video.mjs` records the whole take in one shot through the real guide buttons: it
+  refuses a board that is not forty registered tasks, clicks the swarm and the repair with a
+  visible cursor, decides every beat from the swarm and the activity feed rather than from
+  pixels, and refuses to save anything when a step exits non-zero or a beat never arrives. It
+  writes the continuous recording, two same-run screenshots, and a `timeline.json` carrying the
+  beats, the segment plan (1x through the moments, the three waits sped and labeled), and the
+  exact ffmpeg command that assembles the lock. `--replan` recomputes the cut from a saved take
+  without a seven minute retake.
+
+  Two full dry takes ran end to end, both clean in one shot each. The first: marks at +143.9 s,
+  swarm exit 0, first flag off at +260.9 s, assembled to a measured **162.9 s**. The second, with
+  the holds tuned to the narration: the change landed mid-swarm and marked **7 of 40** (two of
+  the nine descendants were still in flight, correctly untouched, and resolved on their own),
+  swarm step "finished in 4 m 06 s" on its own result line, repair cleared everything, assembled
+  to a measured **157.9 s against the 176 s cap**, ffprobe both times. The per-run marked count
+  varying between 7, 8 and 9 on the mid-swarm form is the design working: only finished work is
+  marked at the moment the change lands. The reference take, its lock, its screenshots and its
+  timeline are kept under `out/take2/` (ignored by git). `docs/demo-script.md` was rewritten the
+  same day around this sequence. Voiceover, the cut, and the upload are the owner's.
+
+- **The forty-task labels problem is answered with bounded zoom, measured, 2026-07-24.** The
+  whole-graph fit at 1920 x 990 lands at zoom 0.583, which is a 7.5 px label: fine on a monitor,
+  mush on a 1080p recording. The hybrid keeps that fit as the establishing shot and adds the
+  reading moves: drag pans, pinch zooms, and React Flow's own zoom and fit buttons (restyled to
+  obsel's tokens, not rebuilt) give the mouse the same range. The instance now carries the zoom
+  range too, which made a latent backstop real: `fitView`'s 0.2 floor option was silently clamped
+  by the viewport's own 0.5 default the whole time. Editing stays off: nodes cannot be dragged,
+  connected or selected, and the scroll wheel deliberately does not zoom so the tall page stays
+  scrollable. Measured on the live board: six clicks reach zoom 1.5 with labels at **19.5 px**,
+  and the fit button returns to exactly 0.583 with zero nodes clipped, which is the recovery the
+  old interaction lock existed to substitute for. A browser test zooms, strands the picture on
+  purpose with a hard pan, and asserts the fit button recovers it: **107 browser checks pass**.
+
+- **The bring-your-own-data path, executed end to end over MCP, 2026-07-24.** A judge's own data
+  through obsel's own door, nothing simulated: a five-row expenses CSV, read the way an agent
+  reads a file, driven through the six MCP tools against a dedicated flow. Two tasks registered
+  (a cleaner reading the file, a totals task reading the cleaner's table); first runs completed
+  quietly in 39 and 49 ms of coordination; the file's `amount` column renamed to `amount_usd`;
+  the cleaner re-reported and obsel answered **changed clean_expenses (schema), marked 1 finished
+  task stale in 3934 ms**, the mark carrying "read clean expenses, and its columns changed after
+  this finished". The totals redo landed identical (a rename upstream does not move the totals)
+  and the flag came off through it. The walkthrough is written up in `docs/setup.md`; every reply
+  quoted there is from this run.
+
+- **The graph panel grows to the layout instead of clipping it, found and fixed the same day.**
+  The first forty-task board rendered cut off at the top and bottom: `fitView` has a 0.5 zoom
+  floor it clamps at, and the fixed 320px panel needed roughly 0.38. The panel now takes its
+  height from the laid-out graph (`panelHeightFor` in `lineage.tsx`), the page scrolls when the
+  board genuinely cannot fit the frame, and the four-task demo keeps its exact previous geometry.
+  Measured after the fix at 1920 x 990: pane 1758 x 845, zoom 0.58, zero nodes clipped in either
+  direction.
+
+- **Growing the graph panel starved the panels under it, found by the owner and fixed the same
+  day.** The strip below the graph holds the details panel and obsel's own narration, and it is
+  `flex: 1 1 0` with a 172px floor. That pairing is what makes the four-task board work: the graph
+  takes its fixed height first and the strip absorbs whatever the frame has left, so a taller
+  display grows the step list rather than a black gap. All of it depends on there being slack.
+  A tall board has none, so the strip resolved to its floor exactly, and the fix for the clipping
+  had quietly made the panels beneath it as small as they are allowed to get.
+
+  Measured at 1920 x 990 before: trace panel 172px, its scroller 105px, three of eighty-six steps
+  legible, the details panel beside it identical. After, with the strip sized rather than fitted
+  on a tall board: **panel 396px, scroller 329px**, both panels showing a full decision group and
+  the whole detail list without scrolling at all. The laptop comes out at 360 and 293 against the
+  clamp's floor. Nothing about the four-task board changed, which the browser suite checks by
+  comparing the two rather than by pinning a number.
+
+  A pinned ribbon was tried for the same complaint, the measured detection time sitting at y=1338
+  in a 990px viewport, and rejected. `position: sticky` does put it on screen, and it also lays a
+  62px bar across the bottom row of the graph at every scroll position: mmux's surface token is
+  2.5% cream, so the first attempt was transparent and the nodes read through the number, and
+  making it opaque only makes the covering honest. Hiding a row of the picture to save one scroll
+  to the conclusion is the wrong way round. It is written up in `cockpit.module.css` so it is not
+  tried a third time.
+
+- **The straddling-reader mark, proven live and deterministically, 2026-07-24.** Three tests
+  added to `tests/live/engine.live.test.ts` hold the concurrent race still by driving the real
+  API: a reader announces, its input's producer re-reports a schema change mid-run (the running
+  reader correctly skipped by that cascade, and the walk stopping at it), and the reader then
+  finishes carrying an observation of the replaced version. obsel marks the finishing reader
+  itself, with the producer named, hop 1, and the reason saying the table was replaced before this
+  finished. It raises no unreported-change alarm, lands the tag (read back off the entity), and the producer's
+  record carries the superseded fingerprint that made the verdict possible. Beside it: a reader
+  that loaded the version that stands completes clean, and a reader two versions behind raises
+  the unreported alarm with no author, which is the documented one-deep memory bound, pinned
+  live. The whole suite: 71 tests across 7 files, exit 0. What remains chance-dependent is only
+  the on-camera Codex-timed sighting during a scale run, where both interleavings are asserted
+  correct for what they are.
+
+- **The forty-task board is browser-tested, against two recordings of a real one, 2026-07-24.**
+  `e2e/scale.spec.ts`, 13 tests, run at both viewports: **103 browser tests pass, 1 skipped,
+  exit 0**, up from 78. Its fixtures are the difference worth stating. Every other fixture in that
+  suite is hand-written and says so; these two are `GET /api/swarm` as the server sent it, captured
+  a minute apart off the live board on flow `obsel_scale_v2`: forty finished Codex sessions with
+  nothing marked, then the same board after `daily_trips` renamed one column, carrying the nine
+  marks obsel wrote and the nine tags DataHub confirmed. A hand-typed forty-task graph would be a
+  hand-typed claim about the layout these tests exist to check. They are read through a structural
+  type check plus a runtime check of the three unions and every mark's cause, so a capture of a bug
+  cannot pass as a fixture.
+
+  What the browser establishes that nothing else did: no node clipped on either board, at either
+  viewport, across a shrink to 1100 x 620 and back; eighty-two boxes with not one overlapping pair
+  in pixels; no sideways scroll; exactly the recorded nine painted amber and no other, matched task
+  by task against the capture, with the amber proven to still resolve to a colour; all three hop
+  distances present, one task at three hops; the three-hop reason opening in full, naming the task
+  in between in words; the changed table showing `riders` leaving and `passenger_total` arriving;
+  and both scale buttons clicked, launching `scale-change` and `scale-repair`.
+
+  Confirmed the same day against a live read rather than a recording, on a server pointed at the
+  real flow at 1920 x 990: 82 nodes, **zero clipped**, pane 1758 x 846 at zoom 0.578, document
+  width equal to the viewport so nothing scrolls sideways, page height 1411 so the tall board
+  scrolls down as designed, 18 cascade edges lit, and no console error.
+
+- **The board's word ceiling was measuring the wrong thing, and the correction moved the numbers.**
+  Rescoping it for forty tasks turned up a defect in the measurement itself. `prose` is a
+  subtraction, everything on the body less the parts counted separately, and the graph was being
+  counted with `textContent` while the body used `innerText`, so each node ran its title into its
+  status word and handed prose one word per node that was not prose. Nine nodes made that look like
+  rounding; eighty-two made it a paragraph. Corrected in `e2e/fixtures/words.ts`, which both suites
+  now share so the two boards are measured identically.
+
+  Measured at 1920 x 990 after the correction: the four-task flagged board is **147 words of prose**
+  (recorded as 154 before, with no copy changed) and the forty-task flagged board is **135**. Ten
+  times the pipeline, twelve words fewer, because the taxi stage offers two actions where the demo
+  offers three and every other sentence is the same sentence with different nouns in it. The graph
+  left the combined total, which is a correction and not a relaxation: labels are scanned, there is
+  one per box, and the box count is the user's pipeline rather than obsel's to budget. It is capped
+  per node instead, at 9 against a worst observed 8. `scale.spec.ts` asserts the two boards' prose
+  figures against each other rather than against a constant, so the claim that density does not
+  track pipeline size is checked rather than assumed.
+
+- **The prerequisite checklist reported four green ticks while obsel was completely blind.**
+  Found on 2026-07-24 by opening the board cold. It showed "The board lost its connection" over a
+  500, and its own checklist showed DataHub, the tag, the Python packages and Codex all passing.
+  `docker ps -a` explained it: `datahub-opensearch-1  Exited (127) 4 hours ago`.
+
+  The check asked `GET /config` and stopped there. That reply is served from the GMS process, so
+  it kept answering 200 with the graph store gone, as did entity reads by URN against the aspect
+  store, while every `/relationships` call returned 500 with `ESQueryException: Search query
+failed`. Traversal is the whole of obsel's reasoning, so obsel could do nothing, and three
+  separate signals said it was fine. Full measurements in `docs/environment-findings.md` section 12.
+
+  This is the failure shape this repository treats as the worst available. A missing check leaves
+  the reader looking. A green check that is wrong sends them looking inside obsel, which is the one
+  place the fault was not.
+
+  `checkDataHub` in `src/server/runner/preflight.ts` now asks `/config` first, which is what
+  separates "DataHub is not running" from "DataHub is running and cannot answer", and then makes
+  the exact `relationships()` call `readSnapshot` opens with. Measured after the fix, by genuinely
+  stopping the container rather than simulating it:
+
+  ```
+  docker stop datahub-opensearch-1
+  RED  datahub: DataHub is running at http://localhost:8080, but it could not answer what is
+       connected to what (500). That question is served by DataHub's search index, which can stop
+       while the rest of it keeps running.
+  RED  vocabulary: Cannot be checked until DataHub answers.
+  OK   venv, OK codex
+  ```
+
+  Every one of those four had read green in the same state ten minutes earlier.
+
+  **The board's dead end closed with it, and no cockpit code changed.** The connect stage already
+  renders a failing DataHub check with its fix; it had nothing to render because preflight was
+  reporting success. With the truth reaching it, the same screen that had offered a newcomer no
+  next step now carries the failure and `Run this in a terminal: datahub docker quickstart`.
+  Recovery measured the same session: `docker start datahub-opensearch-1` reported healthy in about
+  20 s and the board came back on its next poll about 3 s later, with no data lost, because the
+  graph is rebuilt from the aspect store rather than stored only in the index.
+
+- **The frontend port answers 200 to both probes a status check would make.** Measured the same
+  day while looking for a hostile input that did not require stopping a container. `:9002` returns
+  200 for `/config` and 200 for `/relationships`, the second with the web app's HTML, because an
+  unknown path under a single-page app serves the page. So the old check called it healthy, and a
+  traversal check reading only status codes would have called it healthy too. `relationships()`
+  validates the body shape rather than the status, which is what catches it.
+
+  It is the better test input precisely because it is not destructive: real server from the same
+  quickstart, real failure, and the mistake an operator actually makes.
+  `tests/live/preflight.live.test.ts` covers both that address and a port nothing is listening on,
+  and asserts the two verdicts do not leak into each other now that the cache key names the address.
+
+  **Pinned by breaking it, and the break found a false claim in the test's own comment.** With the
+  traversal probe removed, the frontend case failed as intended, and the case asserting the healthy
+  detail sentence stayed green: that sentence is written at the end of the function either way, so
+  it never pinned the traversal it claimed to. The comment now says which test does.
+
+- **The door an outside agent joins through was on the page, 17 pixels tall, and its own author
+  did not know it was there.** The owner asked on 2026-07-24 why obsel had no way to help somebody
+  get connected. It had one: a `<details>` carrying this machine's real `claude mcp add` command, a
+  copy button, and the six tools with what each is for. Measured on the running board at 1440 x 900
+  before it was replaced: **12px type in a 17px row**, closed, above the graph. He wrote its
+  contents. A door its own author cannot find is not a door, and no amount of correct content
+  inside it changes that.
+
+  It is `src/features/cockpit/joining-panel.tsx` now, an mmux `Panel` under the graph and above the
+  numbers, which is the order a judge reads in. Measured after: a **75px panel with a 13px
+  heading**, a state line beside it, and a line inviting the click.
+
+  What it gained is a checklist that ticks itself off, derived the way every other sentence on the
+  board is derived. `src/features/cockpit/joining.ts` recomputes four steps from the swarm snapshot
+  on every poll, in the order `skills/obsel-collaboration/SKILL.md` teaches: the agent declared what
+  it reads and writes, it announced before writing, it reported what it produced, and obsel answered
+  a change to its data. There is no stored step anywhere.
+
+  Three decisions in it are worth recording, because each was the honest option rather than the
+  impressive one:
+
+  - **No step claims obsel can see an agent's settings**, because it cannot. Nothing on this
+    machine can tell whether somebody pasted the command or edited a configuration file. The command
+    sits above the list as the thing to do, and the first tick is that agent's own first call
+    arriving. It is a weaker promise than a setup wizard makes and it is the only one obsel can keep.
+  - **obsel's own work is the closed set, and everything else is a visitor.** The first version had
+    this exactly backwards and it would have broken the feature completely. It classified anything
+    outside the `obsel_demo` and `obsel_taxi` namespaces as a visitor, which sounds structural and
+    is wrong: `datasetUrn` in `src/server/datahub/urns.ts` qualifies any unnamespaced table under
+    `obsel_demo`, and the HTTP API takes short names, so a visiting agent registering
+    `expenses_csv` lands in `obsel_demo.expenses_csv`. Every real visitor would have been counted
+    as obsel's own and the panel would have sat at zero of four forever.
+
+    **The unit tests passed, because the fixture was written to match the belief.** It gave the
+    visitor a `finance.` prefix that no caller produces. What found it was asking what the MCP door
+    actually emits and then running one, which is the same lesson as the deleted in-memory GMS in
+    `CLAUDE.md`: a stand-in can only assert what its author already believed.
+
+    The rule is now obsel's own four demo task names, read out of `agents/pipeline.py` by a test,
+    plus anything touching the taxi namespace, read out of `agents/scale.py` by another. That also
+    puts the risk on the safe side: an unknown task is a visitor, so the panel works for a stranger,
+    and only an exact collision with one of four names misreads.
+
+  - **An identical re-run does not tick the fourth step.** `previousFingerprints` is written
+    whenever a completion replaces a fingerprint, including a re-run that produced the same bytes,
+    and that case is the opposite of what the step is about. The hashes are compared, so only a
+    genuine difference counts.
+
+  **The panel refusing to close was a real bug, found by the browser suite.** A reader who opens a
+  folded panel must not have it shut under them by the next one-second poll, so a choice that
+  differs from the derivation is remembered. The first version remembered any `toggle` event at
+  all, which is not the same thing: React sets `open` on the element after creating it, the browser
+  sees `false` become `true` and fires `toggle`, so mount was indistinguishable from a click. The
+  panel recorded a preference nobody had expressed and then honoured it forever, including through
+  a failed read, where it kept displaying "3 of 4" about an agent obsel could no longer see. Storing
+  the choice only while it differs from the derivation fixes it exactly. Both halves are pinned:
+  "a reader who opens it is not overruled by the next poll" and "stops counting a visitor's progress
+  the moment the read fails".
+
+  **Driven end to end by a real MCP session, 2026-07-24.** A `next start` on port 3200 pointed at
+  its own flow, `obsel_join_check`, and a real `agents.mcp_server` over stdio registering and
+  reporting two tasks of its own. The board was read after each step:
+
+  ```
+  1. both registered            clean_expenses registered   monthly_totals registered
+     writes=obsel_demo.clean_expenses      <- the URN that broke the first classifier
+  2. the cleaner announced      clean_expenses running
+  3. both reported              clean_expenses complete     monthly_totals complete
+  4. one column renamed         clean_expenses complete     monthly_totals stale FLAGGED
+  ```
+
+  The panel read **4 of 4** with every step naming the visitor's own registered title: "Expense
+  cleaner is on the board, with its tables wired to it", through to "obsel has seen Expense
+  cleaner's table change since it was first recorded". The headline above it read "1 of 2 finished
+  agents are out of date". Somebody else's two agents, on a real DataHub, with obsel answering.
+
+  The demo flow on port 3000 was confirmed unchanged across the whole exercise, which is the check
+  the launcher-origin incident earlier the same day earned.
+
+  Measured cost to the board's prose budget: **147 words to 155**, ceiling 160. Twelve words bought
+  the heading, the state line and the invitation, less the four the old disclosure spent. Everything
+  behind the fold still costs nothing until opened, and `joining.ts` keeps it folded on exactly the
+  board the ceiling measures. Counts after this work: 298 unit tests across 14 files, 76 live across
+  8, 121 browser checks, 174 Python self-checks.
+
 ## Not done
 
-- **The demo has passed a handful of times, not repeatedly.** Six full clean sequences across
-  2026-07-22 and 2026-07-23, four from the terminal and two from the browser, on one machine. That is
-  not a pass rate. Codex is a live agent and its output is not guaranteed identical between runs. See
-  the next point for the one instance of that already found and fixed, and expect the possibility of
-  others in categories nobody has hit yet.
-- **Codex's output needed pinning down twice, and may need it again.** Two separate instabilities
-  have shown up in live runs, both of which made a re-run look like a real change: customer-name
-  casing (fixed by pinning the instruction, see `agents/pipeline.py`) and numeric serialisation, with
-  `order_id` 1012's money value written `217` on three runs and `217.0` on a fourth, which broke
-  `rerun-same` and made `change` report `both` instead of `schema`. The second is now handled by
+- **Every scale figure above is one observation.** One registered board, one concurrent run, one
+  mid-run cascade, one parallel repair, on one machine. That is a demonstration, not a pass rate,
+  and the demo-stability bar the four-task demo was held to, repeated clean sequences across days,
+  has not begun for the forty-task one.
+- **The forty-task board is browser-tested against recordings, not against a live read.** See the
+  entry above for what the browser suite now covers. What it still does not do is drive the real
+  `/api/swarm`: the two fixtures are recordings of one, replayed. A scale button has been clicked
+  in the browser and the launch call asserted, but the step it launches is intercepted, so no
+  forty-agent run has yet been started from the board end to end.
+- **The window between a committed decision and its tag is real, and a crash inside it leaves a
+  tag behind.** Observed once on 2026-07-24, under the dead-session bug described above: two
+  completions committed their clears, the tag removal failed with the session already dead, and
+  two complete tasks kept the tag. The board named the state honestly ("tags left over from
+  before"), and the residue laundered itself through the next ordinary cycle: the reverse change
+  re-marked both tasks, the repair's redos cleared them properly, and the board ended with zero
+  tags anywhere, read back. The reconnect retry makes the window smaller; it does not close it,
+  and nothing yet re-sweeps a tag on a task obsel considers sound.
+- **The scale commands are proven by their recorded runs, not yet by repeatable tests.** The
+  straddling-reader ENGINE rules are now in the live suite (above); the concurrent runner, the
+  mid-run choreography and the shrinking repair as commands are proven by the 2026-07-24 runs and
+  their own exit-0 assertions, which is one observation each.
+- **The demo has passed a handful of times, not repeatedly.** Seven full clean sequences across
+  2026-07-22 to 2026-07-24, on one machine, the newest being the first to run the whole loop
+  including `repair`. That is not a pass rate. Codex is a live agent and its output is not
+  guaranteed identical between runs. See the next point for the instances already found and fixed,
+  and expect the possibility of others in categories nobody has hit yet.
+- **Restoration has fired live exactly once.** The rule is proven deterministically and against the
+  real DataHub in the suites, but the on-camera version, a live Codex redo landing byte-identical
+  and two flags coming off without re-runs, has one observation behind it, from the run the repair
+  GIF shows. The other path, a redo landing different and the repair absorbing the new cascade, also
+  has one. The demo script says what to do when either happens on the day, and neither is a broken
+  take.
+- **Codex's output has needed pinning down three times, and may need it again.** Three separate
+  instabilities have shown up in live runs, each of which made a re-run look like a real change:
+  customer-name casing (fixed by pinning the instruction, see `agents/pipeline.py`), numeric
+  serialisation, with `order_id` 1012's money value written `217` on three runs and `217.0` on a
+  fourth, which broke `rerun-same` and made `change` report `both` instead of `schema` (handled by
   `canonicalise_numbers` in `agents/worker.py`, which fixes the serialised form per column before
-  anything is hashed. Both were caught by the demo's own assertions rather than seen on camera,
-  which is the property worth keeping. obsel itself called every one of those runs correctly.
+  anything is hashed), and averaging precision, found by the first live `repair` on 2026-07-24 and
+  pinned in the instruction the same day. All three were caught by the demo's own assertions rather
+  than seen on camera, which is the property worth keeping. obsel itself called every one of those
+  runs correctly.
+- **An outside agent joining the demo's own board has not been watched visually.** The join path is
+  real and proven, since the MCP live suite registers, works and cascades through it against the
+  integration flow and the layout suite proves a fifth joined task lays out on the demo's shape,
+  but nobody has yet watched a fifth box appear on the demo board from a real outside agent. The
+  join panel's command is the real one for this machine; the watching is still to do.
 - **An identical re-run is not driven through two real agents.** Everything that used to sit here is
   closed: `agents/run.py`, `agents/codex_runner.py` and `worker.py`'s `run_task` are all now covered,
   the last of them by a real agent run against a real obsel from announcement to confirmed completion.
@@ -352,23 +855,18 @@ display-only `path` on the run detail; nothing decides on it.
   steps, and it does not survive a restart. Anything it says is corroborated by the marks in DataHub
   or it is not corroborated at all.
 - **The word ceiling is a guard, not a design proof.** `e2e/cockpit.spec.ts` fails the build if the
-  flagged board goes past 110 words of prose or 260 words in total, which stops the density that
-  prompted this rebuild from creeping back. It cannot tell whether what remains is the right 238
-  words, and no test can.
-- **The graph has only been laid out for one pipeline shape.** dagre handles arbitrary DAGs and the
-  unit suite exercises a six-task fan-out and a cycle, but every visual check has been of the same
-  four-task demo. A swarm with many more parallel branches would be taller than the strip reserved
-  for it, and nothing yet says what should give.
-- **`readSnapshot` costs one request per task, and the board asks for it every second.** Measured
-  2026-07-23 against a live DataHub: one `/relationships` call plus one entity read per member,
-  issued in parallel, giving 30 ms for the demo's 4 tasks and 40 ms for the test flow's 12. That is
-  sub-linear and comfortably inside the 1 s poll, so it is not a bottleneck at any size obsel has
-  been run at. It is recorded because the request _count_ is linear even though the latency is not:
-  a 50-task swarm would put 51 requests per second on DataHub to render a screen. DataHub does offer
-  `POST /openapi/v3/entity/datajob/batchGet`, which was checked the same day and confirmed both to
-  carry every aspect obsel reads and, unlike `/entities/`, to omit an invented URN rather than
-  fabricate one. It was measured at roughly 10 ms faster than the 12 parallel reads it would
-  replace, which does not justify rewriting the most load-bearing read in the system before a
-  submission. The finding is written down so the next person does not have to rediscover either the
-  cost or the safe endpoint.
-- The demo video is not recorded.
+  flagged board goes past 160 words of prose, or 263 of prose and visible step log together, which
+  stops the density that prompted this rebuild from creeping back. It cannot tell whether what
+  remains is the right 147 words, and no test can.
+- **The graph is laid out for two pipeline shapes now, not one.** The unit suite exercises a
+  six-task fan-out and a cycle, and the browser suite covers the four-task demo and the forty-task
+  taxi board in both states at both viewports. Nothing has been checked between or beyond those:
+  a swarm much wider than the taxi pipeline, or one deeper than three hops, has never been drawn.
+- The submission video is not voiced or uploaded. A reference picture lock exists (157.9 s,
+  ffprobe, from a clean one-shot take), and the shoot, the voiceover, the cut approval and
+  the upload are the owner's.
+- **That lock predates the joining panel and no longer matches the board.** It was taken before
+  the panel went in under the graph, so every wide shot in it is missing a section the live board
+  now has, and the page is taller than it was. `video.mjs` drives buttons rather than pixels so it
+  needs no change, but the take does: the reference has to be shot again before anything is cut
+  from it. Nothing has been re-recorded yet.
