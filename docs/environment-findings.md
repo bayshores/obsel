@@ -602,3 +602,120 @@ Both addresses are covered by `tests/live/preflight.live.test.ts` against the re
 stopped-container case is not automated there, because reproducing it means stopping a container
 the rest of the suite is using for the ~40 s it takes to return; it was reproduced by hand and
 `docs/verification.md` records that run.
+
+---
+
+## 13. Lineage is recorded between datasets; the job that produced them usually is not
+
+Measured 2026-07-26 against a live quickstart with `showcase-ecommerce` loaded, over
+`GET /relationships` rather than the search-backed lineage surface (section 7).
+
+This finding corrected a design rule before it was implemented, so it is recorded with the
+correction it forced.
+
+### The direction convention, stated because it is easy to get backwards
+
+For `DownstreamOf` on a dataset URN:
+
+- `direction=OUTGOING` returns that dataset's **upstreams** (the things it is downstream _of_)
+- `direction=INCOMING` returns its **downstreams**
+
+```bash
+# dbt customers: 23 upstream edges (column-level, collapsing to 1 snowflake dataset), 1 downstream
+curl -s ".../relationships?urn=<dbt customers>&direction=OUTGOING&types=DownstreamOf" # total 23
+curl -s ".../relationships?urn=<dbt customers>&direction=INCOMING&types=DownstreamOf" # total 1
+```
+
+Edge counts are column-level and collapse to far fewer distinct datasets. Deduplicate by dataset
+URN before treating a count as a fan-out.
+
+### The finding
+
+Walking downstream from `snowflake order_entry.customers` reaches **23 datasets over 3 hops across
+5 platforms** (snowflake, dbt, powerbi, tableau, looker). The cross-platform graph is real.
+
+**But almost nothing has a producing `DataJob`.** Across the instance, 45 of 73 datasets have none.
+On the reachable set, 22 of 23 have none. Assets with zero producing jobs still carry rich upstream
+lineage:
+
+| Dataset                             | Upstream edges | Distinct upstream datasets | Producing jobs |
+| ----------------------------------- | -------------- | -------------------------- | -------------- |
+| `snowflake analytics.order_details` | 109            | 12                         | 0              |
+| `looker view.order_details`         | 57             | 1                          | 0              |
+| `powerbi ORDER_DETAILS`             | 58             | 1                          | 0              |
+| `tableau f32082e5…`                 | 5              | 1                          | 0              |
+
+The 23 `DATA_JOB` entities in the pack are all `spark` 1:1 table exports, sitting between S3 and
+Snowflake. Nothing models the dbt run, the Looker view build, or the BI extract refresh.
+
+### The correction it forced
+
+An erasure-coverage rule that grants a derived asset coverage only when a producing `DataJob`
+exists was measured at **1 of 23 coverable, 22 permanently unverifiable, 95.7%**. Rebinding the
+same rule to _recorded upstream lineage_ rather than to a job entity, on the same graph, gives
+**22 of 23 cross-checkable**.
+
+Same assets, same catalog. The job entity was only ever a proxy for "something built this from
+those inputs", and the lineage edges carry that directly. See `docs/erasure-coverage.md`.
+
+### 13.1 Structured properties: definition creation and foreign-entity writes both work
+
+Section 8 recorded this path as never exercised. It has now been exercised.
+
+```bash
+POST /openapi/v3/entity/structuredproperty?async=false   # create definition  -> 200
+POST /openapi/v3/entity/dataset?async=false              # write value        -> 200
+```
+
+Both read back correctly. The write targeted a **foreign** showcase dataset obsel did not create.
+
+**The write is additive.** After it, the target still carried all 18 of its aspects, including
+`upstreamLineage` (109 edges intact), `schemaMetadata` (55 fields), `glossaryTerms` (4),
+`ownership`, and `siblings`.
+
+This matters because `updateTaskProperties` (`src/server/datahub/client.ts`) reconstructs
+`dataJobInfo` from four fields and would destroy `externalUrl`, `created` and `flowUrn` on a real
+entity. Writing the `structuredProperties` aspect directly does not go near that path, so it is the
+safe way to mark an asset obsel does not own. Both writes were reverted afterwards and the target
+was confirmed clean.
+
+### 13.2 The evidence ledger belongs in `document`, not `dataProcessInstance`
+
+An append-only ledger of attestations needs an entity type nothing sweeps. `dataProcessInstance` is
+the wrong one and `document` is the right one.
+
+**`dataProcessInstance` is swept by default.** DataHub's stock `datahub-gc` ingestion source ships
+`dataprocess_cleanup` with `enabled: true`, `retention_days: 10`, `keep_last_n: 5`, targeting
+`DataProcessInstance`. The default is a **soft** delete, and the graph index filters soft-deleted
+entities out of relationship queries, so the chain does not 404 on day eleven: the edges simply stop
+coming back while the aspects sit intact in storage. That is the same silent blindness section 7
+exists to prevent, arriving by a different door.
+
+**`document` is targeted by no cleanup module.** Of the six modules `datahub-gc` provides
+(`truncate_indices`, `cleanup_expired_tokens`, `dataprocess_cleanup`, `execution_request_cleanup`,
+`query_cleanup`, `soft_deleted_entities_cleanup`), none names `document`, including the
+soft-deleted sweep, whose entity list covers twenty-three types and omits it.
+
+**Verified writable on this instance.** The aspect shape is not obvious and a first attempt failed
+validation, so the working form is recorded here:
+
+```jsonc
+{
+  "urn": "urn:li:document:<id>",
+  "documentInfo": {
+    "value": {
+      "status": { "state": "PUBLISHED" }, // required
+      "contents": { "text": "..." }, // required
+      "created": { "time": <ms>, "actor": "urn:li:corpuser:datahub" }, // required
+      "lastModified": { "time": <ms>, "actor": "..." }, // required
+      "title": "...",
+      "source": { "sourceType": "EXTERNAL" },
+      "customProperties": { "request": "...", "verdict": "..." }
+    }
+  }
+}
+```
+
+`POST /openapi/v3/entity/document?async=false` returned 200 and the record read back with its
+`customProperties` intact. `documentInfo` also carries `relatedAssets`, which is how an attestation
+binds to the asset it is about. The probe was deleted afterwards.
