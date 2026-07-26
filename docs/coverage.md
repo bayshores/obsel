@@ -19,8 +19,8 @@ And a row names its evidence precisely enough to re-run it or look it up.
 | browser | Playwright against the built app                                       | `pnpm e2e`         |
 | run     | a dated, measured run recorded in [`verification.md`](verification.md) | see its entry      |
 
-Counts on 2026-07-26: 305 unit tests across 14 files, 174 python self-checks across 7 modules,
-78 live tests across 8 files, 121 browser checks across two viewports. Live runs are single
+Counts on 2026-07-26: 334 unit tests across 15 files, 174 python self-checks across 7 modules,
+84 live tests across 9 files, 121 browser checks across two viewports. Live runs are single
 observations unless their entry says otherwise.
 
 Nothing in the unit or python columns uses a stand-in for a system boundary; that rule and its

@@ -238,6 +238,23 @@ catalog alone.
 in a `review_probe` flow, left by an audit agent earlier in this work. They are isolated from
 `orders_pipeline` and do not affect these counts, which are dataset-scoped.
 
+## One thing the paper rule got wrong about real edges
+
+Building the traversal found a trap the specification could not have: `DownstreamOf` carries
+**column-level lineage down the same edge type as table lineage**. `order_details` answers with 109
+upstream edges, of which 12 are datasets and 97 are `schemaField` URNs.
+
+The CLOSED condition cross-checks an attestor's declared inputs against those edges. Unfiltered,
+every rebuild claim on that table would be refused for not declaring ninety-seven columns as
+upstream tables, and the board would be red everywhere for a reason no operator could act on. The
+rule is unchanged; the thing it reads had to be filtered to datasets. Recorded in
+`environment-findings.md` §13.3, and pinned by a live test that asserts both that the `schemaField`
+edges are genuinely present and that none of them reaches an input set.
+
+This is the second time in this document that a rule which was right on paper met a catalog and
+needed the artifact it binds to corrected. Both were found by running it against real data, and
+neither would have been found by reasoning harder.
+
 ## Result of Phase 0
 
 All ten required cases come out right on paper, the snapshot-isolation case comes out right without

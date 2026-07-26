@@ -719,3 +719,33 @@ validation, so the working form is recorded here:
 `POST /openapi/v3/entity/document?async=false` returned 200 and the record read back with its
 `customProperties` intact. `documentInfo` also carries `relatedAssets`, which is how an attestation
 binds to the asset it is about. The probe was deleted afterwards.
+
+### 13.3 Column-level lineage rides the same edge type as table lineage
+
+`GET /relationships?types=DownstreamOf` does not return only datasets. On this instance,
+`snowflake b2fd91.order_entry_db.analytics.order_details` answers `direction=OUTGOING` with **109
+edges: 12 datasets and 97 `schemaField` URNs**, shaped like
+
+```
+urn:li:schemaField:(urn:li:dataset:(urn:li:dataPlatform:dbt,b2fd91.ORDER_ENTRY_DB.analytics.order_details,PROD),cust_first_name)
+```
+
+Column-level lineage is a genuine DataHub feature and a good one. The trap is that it arrives
+unannounced down the edge type a caller asked table lineage for, and nothing in the shape of the
+request suggests it will.
+
+**Consequence for obsel, found by running it.** The erasure kernel cross-checks an attestor's
+declared input set against these edges. Unfiltered, every rebuild claim on `order_details` would be
+refused for failing to declare ninety-seven columns as though they were upstream tables — a board
+red everywhere, for a reason that is nobody's fault and that no operator could act on. The filter
+is `onlyDatasets` in `src/server/datahub/client.ts`, and `tests/live/lineage.live.test.ts` asserts
+both halves: that the `schemaField` edges are really there, and that none of them reaches an input
+set. Removing the filter fails that test by name.
+
+**Also corrected here.** The showcase pack's dataset URNs carry a database segment that shorthand
+labels elsewhere in these documents omit. The real URN is
+`urn:li:dataset:(urn:li:dataPlatform:snowflake,b2fd91.order_entry_db.analytics.order_details,PROD)`,
+not `…,analytics.order_details,PROD)`. A hand-typed URN of the shorter form returns `total=0` from
+`/relationships` rather than an error, which reads exactly like an asset with no lineage. Section 1's
+rule about fabricated existence has a sibling here: **a wrong URN on a traversal endpoint returns an
+empty graph, not a 404.** Discover URNs from the graph; do not type them.

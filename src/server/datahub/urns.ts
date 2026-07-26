@@ -33,6 +33,28 @@ export const FLOW_ID = process.env.OBSEL_FLOW_ID ?? "orders_pipeline";
 export const READS_EDGE = "Consumes";
 export const WRITES_EDGE = "Produces";
 
+/**
+ * Dataset-to-dataset lineage, which is what a real catalog actually records.
+ *
+ * Measured on `showcase-ecommerce` 2026-07-26 and written up in
+ * `docs/environment-findings.md` §13: `snowflake analytics.order_details` has
+ * 109 `DownstreamOf` edges resolving to 12 distinct upstream datasets and
+ * **zero** producing DataJobs. Across the instance, 45 of 73 datasets have no
+ * producing job at all. Anything that traverses by job on a real estate goes
+ * blind on most of it.
+ *
+ * The direction convention is the trap and was verified against a known
+ * snowflake/dbt pair rather than assumed: `OUTGOING` returns the dataset's
+ * UPSTREAMS, `INCOMING` returns its downstreams. Getting it backwards produces
+ * a plausible non-empty answer about the wrong half of the graph.
+ */
+export const LINEAGE_EDGE = "DownstreamOf";
+
+/** Whether a dataset URN is one obsel itself registered, rather than a foreign one. */
+export function isObselDataset(urn: string): boolean {
+  return urn.startsWith(`urn:li:dataset:(urn:li:dataPlatform:${PLATFORM},`);
+}
+
 /** Edge from a DataJob to the DataFlow it belongs to. Used to enumerate a swarm. */
 export const MEMBERSHIP_EDGE = "IsPartOf";
 
@@ -50,8 +72,17 @@ export const FLOW_URN = `urn:li:dataFlow:(${PLATFORM},${FLOW_ID},prod)`;
  * is passed through unchanged: the scale swarm registers under its own
  * namespace, and the earlier prefix-only check would have double-prefixed it
  * into `obsel_demo.obsel_taxi.clean_trips`, a URN nothing else builds.
+ *
+ * **A fully-qualified URN is passed through untouched**, which is what lets
+ * obsel refer to a table it did not create. Everything this function built
+ * before carried `urn:li:dataPlatform:obsel`, so a snowflake table or a looker
+ * dashboard was not merely inconvenient to name, it was unrepresentable, and
+ * erasure coverage is entirely about assets on somebody else's platform. Passing
+ * one through here does NOT make it writable: `updateTaskProperties` refuses
+ * anything outside obsel's own flow, for the reason recorded there.
  */
 export function datasetUrn(name: string): string {
+  if (name.startsWith("urn:li:dataset:(")) return name;
   const qualified = name.includes(".") ? name : `${DATASET_NAMESPACE}.${name}`;
   return `urn:li:dataset:(urn:li:dataPlatform:${PLATFORM},${qualified},PROD)`;
 }

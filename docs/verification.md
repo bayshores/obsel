@@ -871,6 +871,45 @@ What is NOT yet re-measured: the ~48-mark cascade. The batching fix removes the 
 broke it, and the live cascades confirm the batched call tags every entity, but the figure that
 named the defect was a scale run and only a scale run replaces it.
 
+### The erasure coverage kernel, and reading a catalog obsel did not create (2026-07-26)
+
+`src/server/coordinator/erasure.ts` implements `docs/erasure-coverage.md`. Pure, no model calls, no
+network, the same discipline as `staleness.ts` and without importing its defaults. The
+counterexample table from that document is `tests/erasure.test.ts`, one named test per row.
+
+- **Twelve mutations against the kernel, all killed.** Eleven fell immediately to exactly one named
+  test each: TOTAL, sole-producer, the recorded-lineage requirement, the closure cross-check, the
+  input-attested requirement, predicate coverage, request scoping, retraction, version exactness,
+  partition scope, and the least fixpoint (replacing it with a greatest fixpoint failed 17 of 24).
+- **The twelfth survived, and mattered.** Deleting the signature check from the rebuild path passed
+  all 24 tests, because the case covering ATTRIBUTED only ever exercised the direct path. An
+  unsigned rebuild claim over attested inputs would have been accepted, and a rebuild claim is the
+  one worth forging: it covers a whole table without anybody looking inside it. Now a named test,
+  and the mutation is killed.
+- **Nothing reaches ATTESTED in production yet, by design.** The kernel refuses any attestation
+  whose `signatureVerified` is false, and the layer that sets it truthfully is Phase 3.
+
+`readLineageDownstream` walks a real catalog over `GET /relationships`, and `datasetUrn` now passes
+fully-qualified foreign URNs through, which is what makes a snowflake table or a looker dashboard
+nameable at all. Both are covered by `tests/live/lineage.live.test.ts` against the real
+`showcase-ecommerce` pack.
+
+- **A live bug the unit tests could not have found.** `DownstreamOf` returns column-level lineage
+  down the same edge type as table lineage: `order_details` answers with 109 upstream edges, **12
+  datasets and 97 `schemaField` URNs**. Unfiltered, the kernel's closure cross-check would refuse
+  every rebuild claim on that table for failing to declare ninety-seven columns as upstream tables.
+  Nothing in the shape of the API suggests it. Written up as `environment-findings.md` §13.3;
+  removing the filter fails a named live test.
+- **Writing onto a foreign entity is refused before the read, not after.** `updateTaskProperties`
+  rebuilds `dataJobInfo` from four fields, so on somebody's real entity it would drop `externalUrl`,
+  `created` and `flowUrn`. The live test reads every aspect of a real showcase dataset before and
+  after the refused call and asserts the set is unchanged, so it proves nothing happened rather than
+  that an exception was raised. `resetSwarm` carries the same guard, and it names the flow
+  independently of the scoping it is checking, because that scoping has silently failed once before.
+
+Counts after this work: `pnpm verify` green with **334 unit tests across 15 files**; `pnpm test:live`
+green with **84 tests across 9 files in 260 s**.
+
 ## Not done
 
 - **Every scale figure above is one observation.** One registered board, one concurrent run, one

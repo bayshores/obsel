@@ -18,7 +18,7 @@ import {
   registerTask as writeTask,
   updateTaskProperties,
 } from "@/src/server/datahub/client";
-import { taskUrn } from "@/src/server/datahub/urns";
+import { FLOW_URN, isTaskUrn, taskUrn } from "@/src/server/datahub/urns";
 import {
   affectedBy,
   blocked,
@@ -779,6 +779,30 @@ async function writeStaleProperties(entry: AffectedTask): Promise<void> {
  */
 export async function resetSwarm(): Promise<{ reset: string[]; tagsCleared: string[] }> {
   const snapshot = await readSnapshot();
+
+  /*
+   * Refuses outright if anything in the snapshot is not a task in obsel's own
+   * flow, before a single tag comes off.
+   *
+   * This is the most destructive call in the codebase: it strips status,
+   * fingerprints, run detail and every mark from everything it is handed. That
+   * is correct between demo takes on entities obsel registered, and it would be
+   * vandalism on somebody's real catalog. The membership read is already
+   * flow-scoped, so today this can only fire if that scoping breaks — which is
+   * exactly when it needs to, and it has broken once before: the integration
+   * suite's flow override silently did nothing because ESM hoisted the import
+   * ahead of the assignment, and the tests were resetting the demo's own board.
+   * A guard whose job is to catch a scoping failure cannot be derived from the
+   * same scoping it is checking, so it names the flow independently.
+   */
+  const foreign = snapshot.tasks.filter((task) => !isTaskUrn(task.urn));
+  if (foreign.length > 0) {
+    throw new Error(
+      `refusing to reset: ${foreign.length} of ${snapshot.tasks.length} entities are not tasks ` +
+        `in ${FLOW_URN} (${foreign[0].urn}). Reset strips every recorded fact from what it is ` +
+        `given, and obsel never does that to an entity it did not create.`,
+    );
+  }
 
   /*
    * Filtered on the tag DataHub actually holds, not on obsel's own record of

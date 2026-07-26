@@ -22,6 +22,7 @@ import {
   PLATFORM,
   datasetName,
   datasetUrn,
+  isObselDataset,
   taskName,
   taskUrn,
 } from "@/src/server/datahub/urns";
@@ -109,6 +110,38 @@ describe("round trips", () => {
     // A name round-tripped out of DataHub arrives qualified. Prefixing it again would
     // build `obsel_demo.obsel_demo.clean_orders`, a different entity.
     expect(datasetUrn(`${DATASET_NAMESPACE}.clean_orders`)).toBe(datasetUrn("clean_orders"));
+  });
+});
+
+describe("naming a table obsel did not create", () => {
+  /*
+   * Everything `datasetUrn` built used to carry `urn:li:dataPlatform:obsel`,
+   * which made a snowflake table or a looker dashboard not merely inconvenient
+   * to name but unrepresentable. Erasure coverage is entirely about assets on
+   * somebody else's platform, so a fully-qualified URN now passes through.
+   */
+  const FOREIGN = "urn:li:dataset:(urn:li:dataPlatform:snowflake,order_entry.customers,PROD)";
+
+  it("passes a fully-qualified foreign URN through untouched", () => {
+    expect(datasetUrn(FOREIGN)).toBe(FOREIGN);
+  });
+
+  it("still qualifies a short name into obsel's own namespace", () => {
+    expect(datasetUrn("clean_orders")).toContain(
+      "urn:li:dataPlatform:obsel,obsel_demo.clean_orders",
+    );
+  });
+
+  it("tells obsel's own datasets apart from foreign ones", () => {
+    // The distinction the write guard keys on. A foreign entity is readable and
+    // referenceable; it is never a target for obsel's property writes.
+    expect(isObselDataset(datasetUrn("clean_orders"))).toBe(true);
+    expect(isObselDataset(FOREIGN)).toBe(false);
+  });
+
+  it("does not mistake a dbt table under a similar name for one of obsel's", () => {
+    const lookalike = "urn:li:dataset:(urn:li:dataPlatform:dbt,obsel_demo.clean_orders,PROD)";
+    expect(isObselDataset(lookalike)).toBe(false);
   });
 });
 

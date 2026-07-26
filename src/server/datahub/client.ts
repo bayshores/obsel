@@ -41,8 +41,10 @@ import {
   DATASET_NAMESPACE,
   FLOW_URN,
   MEMBERSHIP_EDGE,
+  LINEAGE_EDGE,
   PLATFORM,
   datasetUrn,
+  isTaskUrn,
   taskName,
   taskUrn,
 } from "./urns";
@@ -213,6 +215,97 @@ export async function relationships(
   }
 
   return found;
+}
+
+/** What one downstream walk found: the assets reached, and each one's upstreams. */
+export interface LineageReach {
+  /** Every dataset reachable downstream of the seeds, seeds included. Sorted. */
+  reachable: string[];
+  /**
+   * Upstream datasets DataHub records for each reachable asset.
+   *
+   * This is the independent source the erasure kernel's CLOSED condition is
+   * checked against, which is why it is collected during the same walk rather
+   * than re-derived later from the downstream edges. The two are not the same
+   * set: an asset reached from one seed usually has upstreams the walk never
+   * visited, and cross-checking a rebuild declaration against a partial view of
+   * its inputs would pass declarations that should be refused.
+   */
+  upstreamOf: Record<string, string[]>;
+}
+
+/**
+ * Walk the real lineage graph downstream from a set of seed datasets.
+ *
+ * Over `GET /relationships`, never GraphQL `searchAcrossLineage`, for the reason
+ * in `docs/environment-findings.md` §7: the GraphQL surface is served from a
+ * search index that lags minutes behind and answers with an empty list rather
+ * than an error, and an empty list here reads as "nothing is affected".
+ *
+ * Dataset-to-dataset, not through jobs. On `showcase-ecommerce` a walk by
+ * producing job sees almost nothing, because 45 of 73 datasets have no job
+ * recorded; the `DownstreamOf` edges carry the same information and are
+ * actually present. §13 has the measurement.
+ *
+ * `maxHops` is a real bound rather than a safety net. The traversal already
+ * terminates on its visited set, but an unbounded walk on a large estate is a
+ * long series of live calls with no upper bound on how long an operator waits,
+ * and a coverage report over three hops that arrives is worth more than one over
+ * nine that times out. Where the walk stopped is reported by the caller as an
+ * assurance gap rather than passed off as the whole graph.
+ */
+export async function readLineageDownstream(seeds: string[], maxHops = 3): Promise<LineageReach> {
+  const seen = new Set(seeds);
+  const upstreamOf: Record<string, string[]> = {};
+  let frontier = [...seeds];
+
+  for (let hop = 0; hop < maxHops && frontier.length > 0; hop += 1) {
+    const next: string[] = [];
+    for (const asset of frontier) {
+      // INCOMING is downstream, OUTGOING is upstream. Verified against a known
+      // pair rather than assumed, because reversing it returns a plausible
+      // non-empty answer about the wrong half of the graph.
+      const downstream = await relationships(asset, "INCOMING", LINEAGE_EDGE);
+      for (const found of onlyDatasets(downstream)) {
+        if (seen.has(found)) continue;
+        seen.add(found);
+        next.push(found);
+      }
+    }
+    frontier = next;
+  }
+
+  // Upstreams for everything reached, including the seeds. Collected after the
+  // walk so each asset is asked exactly once however many paths reached it.
+  const reachable = [...seen].sort();
+  for (const asset of reachable) {
+    const upstream = await relationships(asset, "OUTGOING", LINEAGE_EDGE);
+    upstreamOf[asset] = [...new Set(onlyDatasets(upstream))].sort();
+  }
+
+  return { reachable, upstreamOf };
+}
+
+/**
+ * Datasets only. `DownstreamOf` returns column-level lineage down the same edge
+ * type, and most of what comes back is not a table.
+ *
+ * Measured on this instance rather than guessed: `analytics.order_details`
+ * answers with 109 upstream edges, of which **12 are datasets and 97 are
+ * `schemaField` URNs** like `urn:li:schemaField:(urn:li:dataset:(…),
+ * cust_first_name)`. Column-level lineage is a genuine feature and obsel may
+ * use it later; what it must not do is arrive unnoticed in an input set.
+ *
+ * The consequence of skipping this filter is specific and silent. The erasure
+ * kernel cross-checks an attestor's declared inputs against these edges, so
+ * every rebuild claim on this table would be refused for failing to declare
+ * ninety-seven columns as if they were upstream tables — a board that is red
+ * everywhere for a reason that is nobody's fault and that no operator could
+ * act on. Found by running the walk against the real catalog; nothing in the
+ * shape of the API suggests it.
+ */
+function onlyDatasets(urns: string[]): string[] {
+  return urns.filter((urn) => urn.startsWith("urn:li:dataset:"));
 }
 
 // ---------------------------------------------------------------------------
@@ -719,6 +812,34 @@ export async function registerTask(
  * promise is kept here or nowhere.
  */
 export async function updateTaskProperties(urn: string, props: PropertyPatch): Promise<TaskRecord> {
+  /*
+   * Refuses anything outside obsel's own flow, before it reads and long before
+   * it writes.
+   *
+   * This function reconstructs `dataJobInfo` from four fields, because the
+   * OpenAPI upsert replaces the aspect wholesale. On a job obsel registered that
+   * is lossless: those four fields are all there ever were. On a foreign entity
+   * it would silently destroy `externalUrl`, `created` and `flowUrn` — a real
+   * team's link back to their own orchestrator, gone, in a tool whose stated
+   * promise is that its writes are additive and reversible.
+   *
+   * The guard exists now rather than later because `datasetUrn` began passing
+   * foreign URNs through, which is what erasure coverage needs, and the distance
+   * between "obsel can name your table" and "obsel can overwrite your job" is
+   * one careless call site. Marking a foreign entity is a structured-property
+   * write, which is genuinely additive: verified 2026-07-26 against a real
+   * showcase dataset, all 18 aspects intact afterwards including 109 upstream
+   * edges and 55 schema fields. See `docs/environment-findings.md` §13.1.
+   */
+  if (!isTaskUrn(urn)) {
+    throw new DataHubError(
+      `refusing to write obsel properties onto ${urn}: it is not a task in ${FLOW_URN}. ` +
+        `This call rebuilds dataJobInfo from four fields and would drop externalUrl, created ` +
+        `and flowUrn from an entity obsel did not create. Foreign entities are marked with ` +
+        `structured properties, which are additive.`,
+    );
+  }
+
   const entity = await readTaskEntity(urn);
   if (!entity) throw new DataHubError(`cannot update ${urn}: no such task in DataHub`);
 
