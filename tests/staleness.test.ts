@@ -213,6 +213,33 @@ describe("affectedBy — following the chain", () => {
     expect(names(found)).toEqual(["write_docs", "write_report"]);
   });
 
+  it("excludes the reporter even when the walk comes back around to it", () => {
+    /*
+     * The test above passes with the exclusion deleted: `build_revenue` never
+     * reads daily_revenue, so the walk could not have reached it anyway and the
+     * option was doing nothing the graph shape was not already doing. This is
+     * the case that needs it — a two-task cycle where the reporter genuinely IS
+     * downstream of its own change.
+     *
+     * `enrich` reports new bytes in clean_orders. `summarize` read that table
+     * and is stale, and what `summarize` writes is `enrich`'s own input, so the
+     * second hop arrives back at the task that just ran. It must not be marked:
+     * it reported these bytes, its work is built on the version standing now,
+     * and a task flagged by its own completion is a flag nobody can ever clear.
+     */
+    const enrich = task("enrich", ["raw_orders"], ["clean_orders"]);
+    const summarize = task("summarize", ["clean_orders"], ["raw_orders"]);
+
+    const found = affectedBy(
+      snapshot([enrich, summarize]),
+      [{ dataset: ds("clean_orders"), kind: "content" }],
+      NOW,
+      { excludeTasks: [enrich.urn] },
+    );
+
+    expect(names(found)).toEqual(["summarize"]);
+  });
+
   it("leaves detectedMs unset, because deciding cannot know how long writing takes", () => {
     // The engine fills this in once every mark has been written and confirmed.
     // A guess here would be exactly the unmeasured timing claim obsel's rules forbid,
@@ -720,6 +747,160 @@ describe("restoredBy — clearing only what a redo has proven", () => {
       ds("daily_revenue"),
     ]);
     expect(names(restored)).toEqual(["write_docs", "write_mixed", "write_report"]);
+  });
+});
+
+describe("two tasks writing one table", () => {
+  /*
+   * A backfill beside a daily build, two agents appending to one export: legal,
+   * ordinary, and until these tests existed, resolved three different ways by
+   * three call sites. `affectedBy` kept the LAST registered writer, `engine.ts`
+   * kept the FIRST, and `restoredBy` kept the last — so on the same board, which
+   * writer counted depended on which function was asking.
+   *
+   * Nothing recorded says which of two writers produced the bytes standing now.
+   * So every rule here is the conservative one: all writers must be settled
+   * before a flag comes off, all writers must be finished before a reader
+   * starts, and nobody is named as the author of a change two tasks could have
+   * made.
+   */
+
+  const T1 = "2026-07-21T10:00:00.000Z";
+  const T2 = "2026-07-21T11:00:00.000Z";
+  const T3 = "2026-07-21T11:30:00.000Z";
+  const T4 = "2026-07-21T12:30:00.000Z";
+
+  function finished(record: TaskRecord, at: string | null): TaskRecord {
+    return { ...record, finishedAt: at };
+  }
+
+  function marked(record: TaskRecord, causedBy: string): TaskRecord {
+    return {
+      ...record,
+      status: "stale",
+      stale: {
+        causedBy: ds(causedBy),
+        causedByTask: null,
+        hops: 1,
+        changeKind: "schema",
+        reason: "test mark",
+        since: T4,
+        detectedMs: null,
+      },
+    };
+  }
+
+  it("refuses to clear a flag while the table's other writer is still stale", () => {
+    /*
+     * The reachable false clear. `build_revenue` redoes daily_revenue and it
+     * comes back identical, which proves what THAT task writes has not moved —
+     * and proves nothing about `backfill_revenue`, which writes the same table
+     * and is still flagged. Its redo could put different bytes in daily_revenue
+     * at any moment, so the work downstream is not proven sound.
+     *
+     * The order of the two writers in the swarm is the whole point: the old
+     * last-writer-wins map resolved daily_revenue to `build_revenue`, the task
+     * that just finished, saw it settled, and took the flags off both readers.
+     */
+    const clean = finished(task("clean_orders_task", ["raw_orders"], ["clean_orders"]), T4);
+    const backfill = marked(
+      finished(task("backfill_revenue", ["clean_orders"], ["daily_revenue"]), T1),
+      "clean_orders",
+    );
+    const revenue = marked(
+      finished(task("build_revenue", ["clean_orders"], ["daily_revenue"]), T1),
+      "clean_orders",
+    );
+    const report = marked(
+      finished(task("write_report", ["daily_revenue"], ["revenue_report"]), T2),
+      "clean_orders",
+    );
+    const docs = marked(
+      finished(task("write_docs", ["daily_revenue"], ["pipeline_docs"]), T3),
+      "clean_orders",
+    );
+
+    const restored = restoredBy(snapshot([clean, backfill, revenue, report, docs]), revenue, [
+      ds("daily_revenue"),
+    ]);
+    expect(names(restored)).toEqual([]);
+  });
+
+  it("clears once every writer of the table is settled", () => {
+    // The same board with the backfill complete rather than stale. Now both
+    // writers of daily_revenue are settled, so the redo does prove the readers
+    // sound — the rule above is conservative, not simply refusing.
+    const clean = finished(task("clean_orders_task", ["raw_orders"], ["clean_orders"]), T4);
+    const backfill = finished(task("backfill_revenue", ["clean_orders"], ["daily_revenue"]), T1);
+    const revenue = marked(
+      finished(task("build_revenue", ["clean_orders"], ["daily_revenue"]), T1),
+      "clean_orders",
+    );
+    const report = marked(
+      finished(task("write_report", ["daily_revenue"], ["revenue_report"]), T2),
+      "clean_orders",
+    );
+
+    const restored = restoredBy(snapshot([clean, backfill, revenue, report]), revenue, [
+      ds("daily_revenue"),
+    ]);
+    expect(names(restored)).toEqual(["write_report"]);
+  });
+
+  it("names nobody as the author of a change either writer could have made", () => {
+    // `causedByTask` sends a person to ask an agent what it did. With two
+    // writers on one table obsel does not know which to send them to, and a
+    // guess costs someone a wasted interrogation of an agent that wrote
+    // nothing — the same refusal the unreported-change path already makes.
+    const nightly = task("nightly_load", ["raw_orders"], ["clean_orders"]);
+    const backfill = task("backfill_load", ["raw_orders"], ["clean_orders"]);
+    const revenue = task("build_revenue", ["clean_orders"], ["daily_revenue"]);
+
+    const affected = affectedBy(
+      snapshot([nightly, backfill, revenue]),
+      [{ dataset: ds("clean_orders"), kind: "content" }],
+      NOW,
+    );
+
+    expect(names(affected)).toEqual(["build_revenue"]);
+    expect(affected[0].mark.causedByTask).toBeNull();
+    // The mark itself still fires, and still names the table. Declining to name
+    // an author is not declining to report the change.
+    expect(affected[0].mark.causedBy).toBe(ds("clean_orders"));
+  });
+
+  it("still names the author when exactly one task writes the table", () => {
+    const nightly = task("nightly_load", ["raw_orders"], ["clean_orders"]);
+    const revenue = task("build_revenue", ["clean_orders"], ["daily_revenue"]);
+
+    const affected = affectedBy(
+      snapshot([nightly, revenue]),
+      [{ dataset: ds("clean_orders"), kind: "content" }],
+      NOW,
+    );
+    expect(affected[0].mark.causedByTask).toBe(nightly.urn);
+  });
+
+  it("holds a task back while any writer of its input is still running", () => {
+    // Registration order is the trap: the old map kept the last writer, which
+    // here is the finished one, and let the reader start on a table the other
+    // writer was in the middle of replacing.
+    const slow = task("slow_writer", ["raw_orders"], ["shared_table"], "running");
+    const fast = task("fast_writer", ["raw_orders"], ["shared_table"], "complete");
+    const consumer = task("consumer", ["shared_table"], ["summary"], "registered");
+
+    const swarm = snapshot([slow, fast, consumer]);
+    expect(readyToStart(swarm).map((t) => t.name)).toEqual([]);
+    expect(blocked(swarm).map((entry) => entry.waitingOn)).toEqual([["slow_writer"]]);
+  });
+
+  it("names every writer a task is waiting on, not the first one found", () => {
+    const first = task("first_writer", ["raw_orders"], ["shared_table"], "running");
+    const second = task("second_writer", ["raw_orders"], ["shared_table"], "running");
+    const consumer = task("consumer", ["shared_table"], ["summary"], "registered");
+
+    const [entry] = blocked(snapshot([first, second, consumer]));
+    expect(entry.waitingOn.sort()).toEqual(["first_writer", "second_writer"]);
   });
 });
 

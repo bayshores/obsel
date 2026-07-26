@@ -287,6 +287,43 @@ export function taskLabel(task: Pick<TaskRecord, "name" | "title">): string {
 }
 
 /**
+ * Every task that writes each dataset, not one of them.
+ *
+ * Two tasks writing the same table is legal and happens: a backfill beside a
+ * daily build, two agents appending to one export. The three call sites that
+ * each resolved a producer their own way disagreed about which one counted —
+ * one kept the last registered, one kept the first — and the disagreement was
+ * reachable: a flag could be cleared because the wrong writer of the same table
+ * looked settled. The map holds all of them so each caller states its own rule
+ * out loud, and every rule below is the conservative one.
+ */
+export function producersOf(snapshot: SwarmSnapshot): Map<string, TaskRecord[]> {
+  const producers = new Map<string, TaskRecord[]>();
+  for (const task of snapshot.tasks) {
+    for (const output of task.writes) {
+      const writers = producers.get(output);
+      if (writers) writers.push(task);
+      else producers.set(output, [task]);
+    }
+  }
+  return producers;
+}
+
+/**
+ * The producer to name in a sentence, or nobody.
+ *
+ * Attribution needs certainty. With two writers on one table obsel cannot know
+ * which of them wrote the bytes that moved, and naming either one sends whoever
+ * acts on the mark to interrogate an agent that may have written nothing — the
+ * same wrong turn the unreported-change path already refuses to cause. The mark
+ * still fires; it just declines to guess an author.
+ */
+function soleProducer(producers: Map<string, TaskRecord[]>, dataset: string): TaskRecord | null {
+  const writers = producers.get(dataset);
+  return writers !== undefined && writers.length === 1 ? writers[0] : null;
+}
+
+/**
  * Which finished tasks a set of changed datasets invalidates.
  *
  * Walks outward from the change, alternating between "who read this data" and
@@ -313,11 +350,10 @@ export function affectedBy(
   if (changes.length === 0) return [];
 
   const excluded = new Set(options.excludeTasks ?? []);
-  const producerOf = new Map<string, TaskRecord>();
+  const producers = producersOf(snapshot);
   const readersOf = new Map<string, TaskRecord[]>();
 
   for (const task of snapshot.tasks) {
-    for (const output of task.writes) producerOf.set(output, task);
     for (const input of task.reads) {
       const readers = readersOf.get(input);
       if (readers) readers.push(task);
@@ -381,14 +417,16 @@ export function affectedBy(
           // An unreported change has no known author. Naming the producer here
           // would blame it for bytes it never wrote, and someone acting on the
           // mark would go interrogate the wrong agent.
-          causedByTask: pending.noticedBy ? null : (producerOf.get(pending.origin)?.urn ?? null),
+          causedByTask: pending.noticedBy
+            ? null
+            : (soleProducer(producers, pending.origin)?.urn ?? null),
           hops,
           changeKind: pending.kind,
           columns: pending.columns,
           reason: reasonFor(
             hops,
             pending.origin,
-            hops > 1 ? (producerOf.get(pending.dataset) ?? null) : null,
+            hops > 1 ? soleProducer(producers, pending.dataset) : null,
             pending.kind,
             pending.noticedBy,
           ),
@@ -438,6 +476,11 @@ export function affectedBy(
  *
  * - **No producer in the swarm** — nothing here has ever written E, so there is
  *   no recorded claim for the current bytes to contradict.
+ * - Otherwise EVERY producer of E must pass every rule below, not one of them.
+ *   Which writer wrote the bytes now standing is not recorded anywhere, so a
+ *   rule that consulted a single writer would be picking one at random; if the
+ *   one it happened to pick looks settled while the other is stale, the flag
+ *   comes off work built on ground that did move.
  * - Otherwise the producer must be `complete` (the task that just reported and
  *   tasks cleared earlier in this same pass count), because a stale producer is
  *   itself standing on moved ground and a running one has not settled what E is.
@@ -475,10 +518,7 @@ export function restoredBy(
 ): RestoredTask[] {
   if (finishing.stale === null || unchangedOutputs.length === 0) return [];
 
-  const producerOf = new Map<string, TaskRecord>();
-  for (const task of snapshot.tasks) {
-    for (const output of task.writes) producerOf.set(output, task);
-  }
+  const producers = producersOf(snapshot);
 
   const finishedAtOf = (task: TaskRecord): number => {
     if (task.finishedAt === null) return Number.NaN;
@@ -487,10 +527,7 @@ export function restoredBy(
 
   const cleared = new Set<string>();
 
-  const sound = (input: string, reader: TaskRecord): boolean => {
-    const producer = producerOf.get(input);
-    if (!producer) return true;
-
+  const provenBy = (producer: TaskRecord, input: string, reader: TaskRecord): boolean => {
     const settled =
       producer.urn === finishing.urn || cleared.has(producer.urn) || producer.status === "complete";
     if (!settled) return false;
@@ -502,6 +539,13 @@ export function restoredBy(
     const read = finishedAtOf(reader);
     if (Number.isNaN(wrote) || Number.isNaN(read)) return false;
     return wrote <= read;
+  };
+
+  const sound = (input: string, reader: TaskRecord): boolean => {
+    const writers = producers.get(input);
+    if (writers === undefined) return true;
+    // `every`, not `find`: see the rule about multiple producers above.
+    return writers.every((producer) => provenBy(producer, input, reader));
   };
 
   // Sorted once so the output order cannot depend on registration order.
@@ -543,18 +587,20 @@ function restoredReason(finishing: TaskRecord, unchangedOutputs: readonly string
  * be out of date, which is a decision for a human rather than a reason to block.
  */
 export function readyToStart(snapshot: SwarmSnapshot): TaskRecord[] {
-  const producerOf = new Map<string, TaskRecord>();
-  for (const task of snapshot.tasks) {
-    for (const output of task.writes) producerOf.set(output, task);
-  }
+  const producers = producersOf(snapshot);
 
   return snapshot.tasks
     .filter((task) => task.status === "registered")
     .filter((task) =>
       task.reads.every((input) => {
-        const producer = producerOf.get(input);
-        if (!producer) return true; // supplied from outside the swarm
-        return producer.status === "complete" || producer.status === "stale";
+        const writers = producers.get(input);
+        if (writers === undefined) return true; // supplied from outside the swarm
+        // Every writer, not one: a table two tasks write is finished when both
+        // are, and starting on it while the second is mid-write reads a version
+        // that is about to be replaced.
+        return writers.every(
+          (producer) => producer.status === "complete" || producer.status === "stale",
+        );
       }),
     )
     .sort((a, b) => a.urn.localeCompare(b.urn));
@@ -562,20 +608,16 @@ export function readyToStart(snapshot: SwarmSnapshot): TaskRecord[] {
 
 /** Tasks that cannot start yet, with what each is waiting on. */
 export function blocked(snapshot: SwarmSnapshot): { task: TaskRecord; waitingOn: string[] }[] {
-  const producerOf = new Map<string, TaskRecord>();
-  for (const task of snapshot.tasks) {
-    for (const output of task.writes) producerOf.set(output, task);
-  }
+  const producers = producersOf(snapshot);
 
   const result: { task: TaskRecord; waitingOn: string[] }[] = [];
   for (const task of snapshot.tasks) {
     if (task.status !== "registered") continue;
+    // Every unfinished writer is named, so a task waiting on two of them says
+    // so rather than reporting one and looking nearly ready.
     const waitingOn = task.reads
-      .map((input) => producerOf.get(input))
-      .filter((producer): producer is TaskRecord => {
-        if (!producer) return false;
-        return producer.status !== "complete" && producer.status !== "stale";
-      })
+      .flatMap((input) => producers.get(input) ?? [])
+      .filter((producer) => producer.status !== "complete" && producer.status !== "stale")
       .map((producer) => producer.name);
     if (waitingOn.length > 0) result.push({ task, waitingOn });
   }

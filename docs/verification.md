@@ -209,9 +209,9 @@ display-only `path` on the run detail; nothing decides on it.
   replaced marks it with the author unknown; matching what stands is clean; matching nothing is
   still the unreported path. **Every guard was pinned by breaking it**: four mutations, each
   deleting or reordering one rule, each failed at least one named test, and the restored file
-  passed all 65. The engine half (keeping `obsel.fingerprints.previous`, writing the mark) is
+  passed all 72. The engine half (keeping `obsel.fingerprints.previous`, writing the mark) is
   exercised live once the concurrent runner lands; see Not done.
-- **The restoration rule, negative cases first**, by 16 of those 54. For `restoredBy` the dangerous
+- **The restoration rule, negative cases first**, by 16 of those 72. For `restoredBy` the dangerous
   wrong answer inverts: a false clear declares broken work sound, so the refusals lead, and an
   identical re-run by _unflagged_ work restores nothing (the rerun-same trap, twice, once at the
   gate and once as an ordinary completion), a direct reader of the changed table never clears, a
@@ -219,10 +219,10 @@ display-only `path` on the run detail; nothing decides on it.
   unrelated flagged branch are untouched, a standing reader observation refuses, a missing finish
   time refuses rather than guessing the order, and a cycle terminates. **Every guard was pinned by
   breaking it**: six mutations, each deleting one guard, each failed at least one test, and the
-  restored file passed all 54. The positives: the demo shape clears exactly two, a three-deep chain
+  restored file passed all 72. The positives: the demo shape clears exactly two, a three-deep chain
   clears transitively through the fixpoint, and an input nothing in the swarm produces counts as
   stable ground.
-- **The cockpit's own logic**, by 161 further tests across `tests/cockpit-*.test.ts`. The load-bearing
+- **The cockpit's own logic**, by 192 further tests across `tests/cockpit-*.test.ts`. The load-bearing
   ones: graph geometry is byte-identical across every task status, so nothing moves on the frame
   three tasks flip amber; no label can overflow its box, checked against measured per-character
   advances; a six-task pipeline the layout has never seen draws correctly; amber fills a node if and
@@ -784,7 +784,92 @@ failed`. Traversal is the whole of obsel's reasoning, so obsel could do nothing,
   the heading, the state line and the invitation, less the four the old disclosure spent. Everything
   behind the fold still costs nothing until opened, and `joining.ts` keeps it folded on exactly the
   board the ceiling measures. Counts after this work: 298 unit tests across 14 files, 76 live across
-  8, 121 browser checks, 174 Python self-checks.
+  8, 121 browser checks, 174 Python self-checks. (Both counts moved on 2026-07-26; see the
+  defect section below.)
+
+### Four defects an outside review found, and what each fix is pinned by (2026-07-26)
+
+Three independent cold reviews of the coordinator turned up four ways it could give a wrong answer,
+none of which any existing test caught. All four are fixed on branch `erasure-coverage`. Every fix
+below was confirmed by breaking it again and watching a named test fail; the mutation and its
+observed failure are recorded with each, because "the tests pass" is not evidence when the tests
+passed before the fix as well.
+
+- **Two tasks writing one table resolved three different ways.** `affectedBy` kept the LAST
+  registered writer, `engine.ts` kept the FIRST, `restoredBy` kept the last. All three now go
+  through one `producersOf` map that keeps every writer, and each caller states its own rule:
+  `restoredBy` requires EVERY writer to be settled before a flag comes off, `readyToStart` requires
+  every writer to have finished, `blocked` names all of them, and `affectedBy` names nobody as the
+  author of a change either writer could have made. Which writer produced the bytes standing now is
+  recorded nowhere, so a rule that consults one is picking at random.
+
+  Pinned by 6 tests in `tests/staleness.test.ts` under "two tasks writing one table". Mutating
+  `restoredBy` back to last-writer-wins clears `write_report` and `write_docs` on a board where the
+  table's other writer is still stale: a false clear, the one answer that must never happen.
+  Mutating the author rule back names an arbitrary writer; mutating `readyToStart` back starts a
+  task on a table another writer is mid-way through replacing.
+
+- **A cascade that failed halfway was lost permanently.** `recordCompletion` ran before the marks
+  were written, advancing the baseline the decision had been computed against. A retry of the same
+  report then compared the new fingerprints against themselves and answered `changedOutputs: []`.
+  Marks are now written first; the baseline moves only once nothing is left that could fail and lose
+  them, and every write in that order is idempotent under retry.
+
+  Pinned live, with a real failure rather than a simulated one: `mcp.ts` spawns the tag server by
+  bare `uvx` through PATH, so the test drops the cached connection and empties PATH. Measured
+  against the pre-fix ordering: the retry returned `changedOutputs: []` and `affected: []` for a
+  rename that had genuinely happened. After the fix it returns the rename and all three finished
+  readers, with the tags confirmed on the entities.
+
+- **Two completions at once tore each other's record.** `updateTaskProperties` is read-modify-write
+  over one `dataJobInfo` aspect and DataHub offers no compare-and-swap, so two completions touching
+  one task interleaved. `coordinateCompletion` now serializes process-wide. That scope is honest
+  rather than complete: two obsel processes against one DataHub would need a lock DataHub does not
+  offer. `elapsedMs` is stamped before the wait, so a completion queued behind another reports the
+  time its caller actually waited rather than quietly excluding it.
+
+  Measured against the unlocked engine, three runs of three: both completions rejected with
+  `DataHubError: DataHub write was not confirmed within 10000 ms` — the collision surfacing, because
+  `confirmWrite` polls for its own value and the other completion's write had replaced the aspect.
+  The tag half lives on `globalTags` and is not rolled back with it, so an unlucky interleaving
+  leaves a task obsel's record calls complete and DataHub's UI shows flagged.
+
+- **A cascade tagged one URN per call through a single stdio pipe.** Measured previously at ~48
+  marks: three tags landed at 14.6, 15.0 and 17.6 seconds and the rest failed at 20.5 and 68.4.
+  `mcp.ts:177` has always accepted an array and nothing was passing one. `markAllStale` now writes
+  every task's properties together and applies one tag call for the whole cascade, so its cost is
+  one round trip regardless of width. The ordering rule survives: all properties are written and
+  confirmed before any tag, so a tag never points at a task with no recorded cause.
+
+  Covered by the live cascade tests, which read every tag back off its entity. **The 48-mark figure
+  has not yet been re-measured after the fix**; that needs a scale run and is listed under Not done.
+
+- **`resetSwarm` could not clean up the state that most needed cleaning.** Found while fixing the
+  above, not reported by any review. It decided what to untag from obsel's own properties rather
+  than from the tags DataHub actually holds, so a task whose properties were cleared while its tag
+  survived was walked straight past — and that is exactly the disagreement a reset exists to remove.
+  One was left in the integration flow by the run that measured the concurrency defect, and every
+  later run started on a board carrying a flag from a take that was over. Now filtered on
+  `staleTagged`, the real aspect. Confirmed by the live suite recovering from that leftover state
+  on its first run after the change.
+
+- **One test was vacuous, and is now real.** The reporter-exclusion guard at `staleness.ts` could be
+  deleted with all tests still passing: the case that covered it used a reporter the walk could
+  never have reached, so the graph shape was doing the work the option claimed to. Replaced with a
+  two-task cycle where the reporter genuinely is downstream of its own change. Deleting the guard
+  now fails that test by name.
+
+Counts and measurements after this work, all on 2026-07-26 against DataHub v1.5.0.6:
+
+- `pnpm verify` green: **305 unit tests across 14 files** (was 298), 174 Python self-checks, clean
+  build.
+- `pnpm test:live` green: **78 tests across 8 files in 267 s**, including two real Codex sessions.
+  `engine.live.test.ts` is 24 of those (was 22) and runs in 164 s.
+- `pnpm e2e` green: 121 browser checks across two viewports, 31 s, one skipped by design.
+
+What is NOT yet re-measured: the ~48-mark cascade. The batching fix removes the mechanism that
+broke it, and the live cascades confirm the batched call tags every entity, but the figure that
+named the defect was a scale run and only a scale run replaces it.
 
 ## Not done
 

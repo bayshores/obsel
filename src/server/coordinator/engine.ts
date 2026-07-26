@@ -25,6 +25,7 @@ import {
   classifyObservation,
   columnChange,
   compareFingerprints,
+  producersOf,
   readyToStart,
   restoredBy,
   supersededMark,
@@ -244,7 +245,54 @@ function datahubUrl(): string | null {
  */
 export async function coordinateCompletion(report: CompletionReport): Promise<CoordinationResult> {
   const startedAt = Date.now();
+  const release = await acquireCoordinationLock();
+  try {
+    return await decideCompletion(report, startedAt);
+  } finally {
+    release();
+  }
+}
 
+/**
+ * One completion is decided at a time, process-wide.
+ *
+ * Every completion reads its own snapshot and then writes marks derived from
+ * it, and the two halves were not atomic. Two agents finishing at once each read
+ * the graph before the other's marks landed, so a clear computed from a snapshot
+ * that predated a mark could be written after it — taking the flag off work that
+ * had just been correctly flagged. A false clear is the one answer obsel must
+ * never give, so the read-decide-write triple is serialized rather than made
+ * cleverer.
+ *
+ * `startedAt` is stamped before the wait, not after, because the number obsel
+ * reports is what the agent that called actually waited for. Under contention
+ * that figure now includes time queued behind another completion, and it says so
+ * on the board rather than quietly excluding it.
+ *
+ * Process-wide is the honest scope. It holds because obsel is one server; two
+ * obsel processes against one DataHub would need a lock DataHub does not offer,
+ * and that limit belongs written down rather than papered over.
+ */
+let coordinationLock: Promise<void> = Promise.resolve();
+
+function acquireCoordinationLock(): Promise<() => void> {
+  const previous = coordinationLock;
+  let release: () => void = () => {};
+  coordinationLock = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  // Settled either way: a completion that threw must not wedge the queue behind
+  // it, because the next one is a different agent's work and is still valid.
+  return previous.then(
+    () => release,
+    () => release,
+  );
+}
+
+async function decideCompletion(
+  report: CompletionReport,
+  startedAt: number,
+): Promise<CoordinationResult> {
   const snapshot = await readSnapshot();
   const finishing = snapshot.tasks.find((task) => task.urn === report.taskUrn);
   if (!finishing) {
@@ -316,17 +364,23 @@ export async function coordinateCompletion(report: CompletionReport): Promise<Co
   // carries the mark; the rest are narrated. Two marks on one task would just
   // overwrite each other's properties.
   let superseded: AffectedTask | null = null;
+  const producers = producersOf(snapshot);
   for (const dataset of Object.keys(report.inputs ?? {}).sort()) {
     const observation = (report.inputs ?? {})[dataset];
     // A dataset this task also reported writing was already compared above.
     if (report.fingerprints[dataset]) continue;
 
-    const producer = snapshot.tasks.find((task) => task.writes.includes(dataset));
-    if (!producer || (!producer.observed?.[dataset] && !producer.fingerprints[dataset])) {
+    const writers = producers.get(dataset) ?? [];
+    const onRecord = writers.filter(
+      (writer) => writer.observed?.[dataset] || writer.fingerprints[dataset],
+    );
+    if (onRecord.length === 0) {
       emit(
         "compare",
         `checked ${tableLabel(dataset)}, which this task read`,
-        producer ? "its writer has not finished, nothing to compare" : "nothing here writes it",
+        writers.length > 0
+          ? "its writer has not finished, nothing to compare"
+          : "nothing here writes it",
       );
       continue;
     }
@@ -340,7 +394,26 @@ export async function coordinateCompletion(report: CompletionReport): Promise<Co
      * task that really is stale — this one — unflagged, because the cascade
      * excludes the reporter. `classifyObservation` owns the distinction.
      */
-    const verdict = classifyObservation(producer, dataset, observation);
+    /*
+     * Checked against EVERY writer that has something on record, not one.
+     *
+     * Two tasks writing one table is legal, and which of them wrote the bytes
+     * now standing is recorded nowhere. Asking a single writer picked by
+     * registration order would raise an unreported-change alarm against bytes
+     * the other writer reported in full. So the verdicts are ranked
+     * current > superseded > unknown, and the alarm fires only when NO writer
+     * on record can account for what this task read.
+     */
+    const verdicts = onRecord.map((writer) => ({
+      producer: writer,
+      verdict: classifyObservation(writer, dataset, observation),
+    }));
+    const decided =
+      verdicts.find((entry) => entry.verdict.kind === "current") ??
+      verdicts.find((entry) => entry.verdict.kind === "superseded") ??
+      verdicts[0];
+    const producer = decided.producer;
+    const verdict = decided.verdict;
     emit(
       "compare",
       `checked ${tableLabel(dataset)}, which this task read`,
@@ -373,25 +446,18 @@ export async function coordinateCompletion(report: CompletionReport): Promise<Co
           columns: columnChange(producer.run?.outputs[dataset]?.columns, observation.columns),
           noticedBy: finishing,
         });
-        const patch = observationsFor.get(producer) ?? {};
-        patch[dataset] = { schema: observation.schema, content: observation.content };
-        observationsFor.set(producer, patch);
+        // Written onto every writer on record, not just the one consulted for
+        // the verdict. These bytes contradict all of their claims equally, and
+        // an entry missing from one of them lets the next reader raise the same
+        // silent change a second time against that writer.
+        for (const writer of onRecord) {
+          const patch = observationsFor.get(writer) ?? {};
+          patch[dataset] = { schema: observation.schema, content: observation.content };
+          observationsFor.set(writer, patch);
+        }
       }
     }
   }
-
-  await recordCompletion(finishing, report);
-
-  // Remember what was observed, on the producer whose record it contradicts.
-  // One write per producer, not per dataset, so two observations cannot race
-  // each other's merge of the same property.
-  await Promise.all(
-    [...observationsFor.entries()].map(([producer, patch]) =>
-      updateTaskProperties(producer.urn, {
-        [PROP.observed]: JSON.stringify({ ...producer.observed, ...patch }),
-      }),
-    ),
-  );
 
   const changes: DatasetChange[] = [...changedOutputs, ...observedChanges];
   const affected =
@@ -417,15 +483,45 @@ export async function coordinateCompletion(report: CompletionReport): Promise<Co
     );
   }
 
-  // Independent per task, so they are written together rather than in a queue
-  // whose length would show up in the reported latency.
-  await Promise.all(affected.map(markStale));
+  /*
+   * Marks first, and the baseline only after they have landed.
+   *
+   * `recordCompletion` and the observation writes below are what MOVE the
+   * baseline this whole decision was computed against: the new fingerprints
+   * become the recorded ones, and a noticed version becomes the standing one.
+   * Advancing the baseline first meant a cascade that failed halfway — one
+   * unreachable tag, one GMS timeout — was lost permanently, because the retry
+   * of that same completion report now compared the new bytes against
+   * themselves, found no change, and answered `affected: 0`. The work
+   * downstream stayed unmarked with nothing left in the record to notice it.
+   *
+   * In this order every write is idempotent under retry: the marks are recomputed
+   * identically from an unmoved baseline and rewritten with the same values, and
+   * the baseline advances only once nothing is left that could fail and lose them.
+   * The cost is a window where downstream tasks carry marks while the task that
+   * caused them still reads `running`. That window is the length of one write,
+   * and the alternative is silence about work that is genuinely out of date.
+   */
+  await markAllStale(affected);
+
+  await recordCompletion(finishing, report);
+
+  // Remember what was observed, on the producer whose record it contradicts.
+  // One write per producer, not per dataset, so two observations cannot race
+  // each other's merge of the same property.
+  await Promise.all(
+    [...observationsFor.entries()].map(([producer, patch]) =>
+      updateTaskProperties(producer.urn, {
+        [PROP.observed]: JSON.stringify({ ...producer.observed, ...patch }),
+      }),
+    ),
+  );
 
   // After recordCompletion, deliberately: that call just recorded this task's
   // outputs and cleared any old mark, and this one writes the new mark it
   // earned by finishing on a replaced input. The other order would let the
   // completion bookkeeping wipe the mark it is supposed to leave standing.
-  if (superseded) await markStale(superseded);
+  if (superseded) await markAllStale([superseded]);
   const marked = superseded ? [...affected, superseded] : affected;
 
   /*
@@ -604,7 +700,44 @@ function verdict(kind: ChangeKind | null): string {
   return "columns and values both changed";
 }
 
-async function markStale(entry: AffectedTask): Promise<void> {
+/**
+ * Write a whole cascade's marks, with ONE tag call for all of them.
+ *
+ * The properties are per task and go to GMS over HTTP, so they are written
+ * together. The tag does not: `applyStaleTag` speaks to `mcp-server-datahub`
+ * over a single stdio pipe, and firing one call per task down it is what made a
+ * forty-eight mark cascade fall over — three tags landed at 14.6, 15.0 and 17.6
+ * seconds and the rest failed at 20.5 and 68.4. `mcp.ts:177` has always taken an
+ * array; nothing was passing one. A cascade's cost is now one round trip
+ * regardless of how wide it is.
+ *
+ * The ordering rule survives the batching: every task's properties are written
+ * and confirmed before any tag is applied, so a tag never points at a task with
+ * no recorded cause.
+ */
+async function markAllStale(entries: AffectedTask[]): Promise<void> {
+  if (entries.length === 0) return;
+
+  await Promise.all(entries.map(writeStaleProperties));
+  await applyStaleTag(entries.map((entry) => entry.task.urn));
+
+  for (const { task, mark } of entries) {
+    // After the tag, not before: by here both halves of the mark have landed and
+    // been confirmed, so the step is reporting something that is true in DataHub
+    // rather than something that has been requested.
+    /*
+     * The outcome is the distance, not the reason sentence.
+     *
+     * The reason is a dozen words, and it is already carried on the mark, written
+     * into DataHub, and shown verbatim when the task is opened. Repeating it here
+     * would put the trace's longest line beside the one place it adds nothing, in
+     * the panel whose whole purpose is being scannable.
+     */
+    emit("mark", `marked ${label(task)} out of date`, `${hops(mark.hops)} from the change`);
+  }
+}
+
+async function writeStaleProperties(entry: AffectedTask): Promise<void> {
   const { task, mark } = entry;
 
   await updateTaskProperties(task.urn, {
@@ -629,21 +762,6 @@ async function markStale(entry: AffectedTask): Promise<void> {
     // property, so the gap reads "not measured" until the real one lands.
     [PROP.staleDetectedMs]: null,
   });
-
-  await applyStaleTag([task.urn]);
-
-  // After the tag, not before: by here both halves of the mark have landed and
-  // been confirmed, so the step is reporting something that is true in DataHub
-  // rather than something that has been requested.
-  /*
-   * The outcome is the distance, not the reason sentence.
-   *
-   * The reason is a dozen words, and it is already carried on the mark, written
-   * into DataHub, and shown verbatim when the task is opened. Repeating it here
-   * would put the trace's longest line beside the one place it adds nothing, in
-   * the panel whose whole purpose is being scannable.
-   */
-  emit("mark", `marked ${label(task)} out of date`, `${hops(mark.hops)} from the change`);
 }
 
 /**
@@ -662,7 +780,21 @@ async function markStale(entry: AffectedTask): Promise<void> {
 export async function resetSwarm(): Promise<{ reset: string[]; tagsCleared: string[] }> {
   const snapshot = await readSnapshot();
 
-  const tagged = snapshot.tasks.filter((task) => task.stale !== null);
+  /*
+   * Filtered on the tag DataHub actually holds, not on obsel's own record of
+   * having written one.
+   *
+   * `task.stale` is obsel's properties; `task.staleTagged` is `globalTags`, a
+   * different aspect written by a different call. Trusting the properties meant
+   * reset could only clean up after itself when the two already agreed — and a
+   * task whose properties were cleared while its tag survived is precisely the
+   * disagreement that needs clearing most. That state is reachable: an
+   * interleaved write leaves it, and one was left behind in the integration
+   * flow on 2026-07-26 by the run that measured the concurrency defect. Reset
+   * walked straight past it and every later run started on a board carrying a
+   * flag from a take that was over.
+   */
+  const tagged = snapshot.tasks.filter((task) => task.staleTagged || task.stale !== null);
   if (tagged.length > 0) {
     await removeStaleTag(tagged.map((task) => task.urn));
   }

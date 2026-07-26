@@ -752,3 +752,132 @@ describe("a reader that straddled a re-report is marked, not mistaken for a sile
     expect(marked?.mark.reason).toContain("Nothing reported that change");
   });
 });
+
+describe("a cascade that fails halfway is not lost", () => {
+  /*
+   * The failure this closes was silent and permanent. `recordCompletion` ran
+   * BEFORE the marks were written, so it advanced the baseline the whole
+   * decision had been computed against. If any mark then failed — one
+   * unreachable tag, one GMS timeout — the call threw, and the retry of that
+   * same completion report compared the new fingerprints against themselves,
+   * found no change, and answered `changedOutputs: []`. Everything downstream
+   * stayed unmarked, with nothing left in the record to notice it later. An
+   * operator who saw the error, retried, and got a clean answer had been told
+   * the opposite of the truth.
+   *
+   * Measured against the pre-fix ordering on 2026-07-26: the retry returned
+   * `changedOutputs: []` and `affected: []` for a rename that had genuinely
+   * happened. With marks written first it returns the rename and all three
+   * finished readers.
+   *
+   * The hostile input is real, per the house rule. `mcp.ts` spawns the tag
+   * server by bare `uvx`, resolved through PATH at spawn time, so a PATH that
+   * genuinely lacks it is a genuinely unreachable tag writer, not a simulated
+   * one. The cached connection is dropped first, or the still-live session from
+   * the tests above would serve the call and nothing would fail.
+   */
+  it("re-marks everything after a real tag failure, instead of reporting nothing to do", async () => {
+    await runAll();
+
+    const change = finished("clean_orders", "clean_orders", "s1-renamed", "c1", [
+      "order_id",
+      "order_total_usd",
+    ]);
+
+    const realPath = process.env.PATH;
+    await closeMcpClient();
+    process.env.PATH = "/nonexistent-so-uvx-cannot-be-found";
+
+    let failed = false;
+    try {
+      await coordinateCompletion(change);
+    } catch {
+      failed = true;
+    } finally {
+      process.env.PATH = realPath;
+      await closeMcpClient();
+    }
+
+    // If this is false the rest proves nothing: the test would be asserting
+    // that a cascade which never failed survived.
+    expect(failed, "removing uvx from PATH should have failed the tag write").toBe(true);
+
+    // The same report, posted again, exactly as an operator or an agent's own
+    // retry would post it.
+    const retry = await coordinateCompletion(change);
+
+    expect(retry.changedOutputs.map((entry) => entry.dataset)).toEqual([
+      datasetUrn("clean_orders"),
+    ]);
+    // The three tasks `runAll` finished. `audit_orders` reads clean_orders too,
+    // but it has never run here, and work that has not finished cannot be out
+    // of date.
+    expect(retry.affected.map((entry) => entry.task.name).sort()).toEqual([
+      "build_revenue",
+      "write_docs",
+      "write_report",
+    ]);
+
+    // And the tags really landed this time, read back off the entities.
+    expect(await tagsOn("build_revenue")).toContain(STALE_TAG_URN);
+    expect(await tagsOn("write_report")).toContain(STALE_TAG_URN);
+  }, 300_000);
+});
+
+describe("two completions at once cannot tear each other's record", () => {
+  /*
+   * `updateTaskProperties` is read-modify-write over one `dataJobInfo` aspect,
+   * because the OpenAPI upsert replaces the aspect wholesale and a blind write
+   * would drop everything obsel did not put there. DataHub offers no
+   * compare-and-swap, so two completions touching one task at the same moment
+   * interleave: one reads the properties, the other writes, and the first
+   * writes its own map back over the top.
+   *
+   * Measured against the unlocked engine on 2026-07-26, three runs out of
+   * three: both completions rejected with `DataHubError: DataHub write was not
+   * confirmed within 10000 ms`. That is the collision surfacing rather than
+   * passing silently — `confirmWrite` polls for its own value and never sees
+   * it, because the other completion's write replaced the aspect. The half of
+   * the mark that lives on `globalTags` is written by a different call and is
+   * not rolled back with it, so what an unlucky interleaving leaves behind is a
+   * task obsel's record calls complete and DataHub's UI shows flagged — the one
+   * disagreement `recordCompletion` promises never to leave.
+   *
+   * The assertion is order-independent on purpose, because a lock decides an
+   * order rather than choosing one: whichever completion is decided first, the
+   * recorded status and the tag must agree at the end. Both sequential orders
+   * are legitimate boards. Neither of them is torn.
+   */
+  it("leaves the recorded status and the real tag agreeing, whichever went first", async () => {
+    await runAll();
+
+    // Both of these write build_revenue's properties: the first through the
+    // cascade its change sets off, the second through its own completion record.
+    const results = await Promise.allSettled([
+      coordinateCompletion(finished("clean_orders", "clean_orders", "s1-moved", "c1-moved")),
+      coordinateCompletion(finished("build_revenue", "daily_revenue", "s2-moved", "c2-moved")),
+    ]);
+
+    for (const result of results) {
+      expect(result.status, "neither completion should have failed").toBe("fulfilled");
+    }
+
+    const record = await readTask(taskUrn("build_revenue"));
+    expect(record).not.toBeNull();
+
+    const recordedStale = record?.status === "stale";
+    const tagged = (record?.tags ?? []).includes(STALE_TAG_URN);
+    expect(
+      tagged,
+      `build_revenue is recorded ${record?.status} and ${tagged ? "is" : "is not"} tagged in ` +
+        `DataHub; the two must never disagree about the same task`,
+    ).toBe(recordedStale);
+
+    // A stale record must also still carry the cause that put it there, or the
+    // mark survived as a status with no traceable reason behind it.
+    if (recordedStale) {
+      expect(record?.stale?.causedBy).toBeTruthy();
+      expect(record?.stale?.reason).toBeTruthy();
+    }
+  }, 300_000);
+});

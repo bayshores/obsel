@@ -231,9 +231,9 @@ pnpm e2e         # browser checks; builds and serves the app itself
 
 **`pnpm verify` is the one to run first.** It needs no Docker and no browser download.
 
-Checked 2026-07-24: `pnpm verify` passes end to end, with 298 tests and 174 Python self-checks
-across seven modules. `pnpm test:live` passes 76 tests across eight files in about 330 s, one of
-them a real Codex session. `pnpm e2e` passes 121 browser checks across two viewports, with one
+Checked 2026-07-26: `pnpm verify` passes end to end, with 305 tests and 174 Python self-checks
+across seven modules. `pnpm test:live` passes 78 tests across eight files in 267 s, two of
+them real Codex sessions. `pnpm e2e` passes 121 browser checks across two viewports, with one
 skipped by design, half of them against a forty-task board recorded off a real run.
 
 ---
