@@ -335,13 +335,25 @@ def _send(request: urllib.request.Request, url: str, timeout: float) -> Any:
         ) from error
 
 
-def post_json(url: str, body: dict[str, Any], timeout: float = 60.0) -> Any:
-    """POST JSON to obsel and return the parsed reply."""
+def post_json(
+    url: str,
+    body: dict[str, Any],
+    timeout: float = 60.0,
+    headers: dict[str, str] | None = None,
+) -> Any:
+    """POST JSON to obsel and return the parsed reply.
+
+    `headers` is additive and optional: the swarm routes are unauthenticated and
+    every existing caller passes nothing. The erasure routes want a bearer token,
+    and it belongs on the call rather than in this module's own configuration,
+    because a worker holding a credential it never uses is a credential waiting
+    to leak into a log.
+    """
     return _send(
         urllib.request.Request(
             url,
             data=json.dumps(body).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
+            headers={"Content-Type": "application/json", **(headers or {})},
             method="POST",
         ),
         url,
@@ -349,9 +361,9 @@ def post_json(url: str, body: dict[str, Any], timeout: float = 60.0) -> Any:
     )
 
 
-def get_json(url: str, timeout: float = 60.0) -> Any:
+def get_json(url: str, timeout: float = 60.0, headers: dict[str, str] | None = None) -> Any:
     """GET JSON from obsel and return the parsed reply."""
-    return _send(urllib.request.Request(url, method="GET"), url, timeout)
+    return _send(urllib.request.Request(url, headers=headers or {}, method="GET"), url, timeout)
 
 
 def read_swarm(obsel_url: str = OBSEL_URL) -> dict[str, Any]:

@@ -74,12 +74,30 @@ SERVER_VERSION = "0.1.0"
 OBSEL_URL = os.environ.get("OBSEL_URL", "http://localhost:3000")
 
 
+def _erasure_headers() -> dict[str, str]:
+    """The bearer token, or a refusal that names what to set.
+
+    Read per call rather than at startup so an operator can set it without
+    restarting every agent, and refused loudly when absent: obsel would answer
+    503 anyway, and an error naming the variable is more use to whoever is
+    holding the terminal than a status code from two processes away.
+    """
+    token = os.environ.get("OBSEL_API_TOKEN", "").strip()
+    if not token:
+        raise mcp_core.ToolInputError(
+            "the erasure routes need a bearer token and OBSEL_API_TOKEN is not set in this "
+            "server's environment. obsel refuses erasure writes without one, deliberately: an "
+            "unconfigured deployment is a closed one."
+        )
+    return {"Authorization": f"Bearer {token}"}
+
+
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
 def build_server(obsel_url: str = OBSEL_URL) -> Any:
-    """Wire the six tools. Imported here so the module loads without the SDK.
+    """Wire the nine tools. Imported here so the module loads without the SDK.
 
     The server builds and lists its tools whether or not obsel is reachable.
     Failing at startup would hand the calling agent's MCP client a mute
@@ -292,6 +310,79 @@ def build_server(obsel_url: str = OBSEL_URL) -> Any:
             "task": mcp_core.required_dict(reply, "task", "abandoning a task"),
             "reverted": mcp_core.required(reply, "reverted", "abandoning a task"),
         }
+
+    @server.tool()
+    def erasure_board(request: str, scope: list[str] | None = None) -> dict[str, Any]:
+        """What an erasure request still has nobody speaking for, as work to do.
+
+        Every asset that is not covered comes back with a named next step and the
+        reason obsel gave, sorted so gaps that unblock other gaps come first: an
+        unattested upstream before the things built on it, a cataloguing gap last
+        because an owner cannot answer a question about lineage nobody recorded.
+
+        `scope` is the URN prefixes you can actually act on. Rows outside it are
+        still returned and marked `inScope: false` rather than hidden, because an
+        agent that dropped what it could not do would report a smaller problem
+        than exists.
+
+        Read only. **Nothing in this server can mark an asset covered.** That
+        happens when a signed attestation obsel verified arrives, and nowhere
+        else, because a tool that could declare work done would be a tool for
+        silencing the one thing obsel is for.
+
+        Args:
+            request: the erasure request id.
+            scope: optional URN prefixes, e.g. ["urn:li:dataset:(urn:li:dataPlatform:snowflake,*"].
+        """
+        report = worker.get_json(f"{obsel_url}/api/erasure/{request}")
+        return mcp_core.open_obligations(report, scope)
+
+    @server.tool()
+    def request_challenge(request: str, asset: str) -> dict[str, Any]:
+        """Ask obsel for the one-time value your attestation must be signed over.
+
+        Get this BEFORE you look in the asset, not after. The challenge is what
+        makes your signature evidence about now rather than an answer you could
+        have prepared at any time, and it is single use and expires.
+
+        Needs `OBSEL_API_TOKEN` in this server's environment.
+
+        Args:
+            request: the erasure request id.
+            asset: the dataset URN you are about to check.
+        """
+        return worker.post_json(
+            f"{obsel_url}/api/erasure/challenge",
+            {"request": request, "asset": asset},
+            headers=_erasure_headers(),
+        )
+
+    @server.tool()
+    def submit_attestation(request: str, envelope: dict[str, Any]) -> dict[str, Any]:
+        """Hand obsel a signed attestation and get the recomputed coverage back.
+
+        `envelope` is a DSSE envelope over the record you signed, with the
+        challenge nonce inside it. obsel verifies the signature over the bytes
+        you sent, that your key is registered and not reported compromised, that
+        you are in scope for that asset, and that the challenge was fresh and
+        unused. If any of that fails you get every failure at once rather than
+        one per round trip.
+
+        **obsel never checks the data.** It has no warehouse credentials and
+        never reads warehouse rows. You are a trusted attestor; what obsel adds
+        is that your claim is attributable, scoped, version-bound and revocable.
+        Say what you actually executed in the predicate, because two attestors
+        answering different questions is otherwise undetectable.
+
+        Args:
+            request: the erasure request id.
+            envelope: {"payloadType", "payload", "signatures"}.
+        """
+        return worker.post_json(
+            f"{obsel_url}/api/erasure/proof",
+            {"request": request, "envelope": envelope},
+            headers=_erasure_headers(),
+        )
 
     @server.tool()
     def read_board() -> dict[str, Any]:

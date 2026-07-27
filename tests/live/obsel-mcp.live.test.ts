@@ -199,17 +199,47 @@ afterAll(async () => {
 }, 180_000);
 
 describe("the tools an agent finds when it connects", () => {
-  it("registers exactly the six tools, verified and not assumed", async () => {
+  it("registers exactly the nine tools, verified and not assumed", async () => {
     const client = await connect(obselServer.url);
     const { tools } = await client.listTools();
     expect(tools.map((tool) => tool.name).sort()).toEqual([
       "abandon_task",
       "announce_start",
       "check_freshness",
+      "erasure_board",
       "read_board",
       "register_task",
       "report_complete",
+      "request_challenge",
+      "submit_attestation",
     ]);
+  });
+
+  it("offers no tool that marks anything covered, freshened or cleared", async () => {
+    /*
+     * The inventory is the door, and this asserts what is deliberately not
+     * behind it. obsel clears a stale flag only through work that was genuinely
+     * redone, and an asset becomes covered only when a signed attestation obsel
+     * verified arrives. A tool that took a name and called it done would be a
+     * tool for silencing the one thing obsel is for, and it is exactly the kind
+     * of convenience a later commit adds.
+     */
+    const client = await connect(obselServer.url);
+    const { tools } = await client.listTools();
+    const names = tools.map((tool) => tool.name);
+    for (const forbidden of [
+      "clear_stale",
+      "mark_fresh",
+      "dismiss",
+      "mark_covered",
+      "attest",
+      "close_obligation",
+    ]) {
+      expect(names, `${forbidden} must not exist`).not.toContain(forbidden);
+    }
+    // And the one tool that does change coverage says whose decision it is.
+    const submit = tools.find((tool) => tool.name === "submit_attestation");
+    expect(submit?.description).toContain("obsel never checks the data");
   });
 
   it("describes each tool in words a model can act on", async () => {
@@ -459,7 +489,7 @@ describe("what an agent is refused", () => {
     // The server still starts and still lists its tools. Dying at boot would hand the
     // agent's MCP client a connection error with no cause in it.
     const { tools } = await client.listTools();
-    expect(tools).toHaveLength(6);
+    expect(tools).toHaveLength(9);
 
     const message = await callError(client, "check_freshness", { reads: [CLEAN_OUT] });
     expect(message).toContain("could not reach obsel");

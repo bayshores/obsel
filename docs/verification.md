@@ -995,10 +995,42 @@ Two defects were found by running this, neither reachable from the unit tests:
 Counts: `pnpm verify` green with **373 unit tests across 17 files**; `pnpm test:live` green with
 **93 tests across 10 files in 256 s**; `pnpm e2e` green with 121 browser checks in 35 s.
 
-**Still not built, and named rather than implied.** No agent yet traverses the coverage board,
-selects an adapter, routes work to an owner, or explains a blocker: every attestation in the live run
-above is produced by the test signing one directly. The demonstration script and the cockpit's
-erasure view do not exist. Article 19 recipient notification is out of scope and stated as such.
+### The door an agent joins the erasure board through (2026-07-26)
+
+`agents/mcp_server.py` now registers **nine** tools rather than six: `erasure_board`,
+`request_challenge` and `submit_attestation` sit beside the swarm's original set. Every mutation
+still goes through obsel's HTTP API, so the server holds no DataHub credentials, and the decisions
+live in `agents/mcp_core.py` where `pnpm verify` checks them with the system `python3`.
+
+`open_obligations` is the agent-facing work: it turns a coverage report into a sorted list of gaps,
+each with a named next step. An unattested upstream is offered before the assets built on it,
+because closing it may close them without anyone querying a table. A cataloguing gap sorts last,
+because an owner cannot answer a question about lineage DataHub never recorded. A merge is never
+offered as a rebuild.
+
+That mapping is a lookup table rather than a model judgement, deliberately: what closes a gap is a
+fact about the rule in `erasure.ts`, so a model choosing per row would invent variation where the
+answer is fixed. The model is for the parts that are genuinely judgement — which owner to ask, how
+to phrase it, when to give up and say so.
+
+- **Nine self-checks** cover it, including that an unknown residue kind produces `unknown` rather
+  than a guessed action, that out-of-scope work is marked rather than hidden, and that nothing the
+  module returns can mark an asset covered.
+- **A live test asserts what is deliberately not behind the door**: no `clear_stale`, `mark_fresh`,
+  `dismiss`, `mark_covered`, `attest` or `close_obligation`. The tool inventory is the interface, and
+  a tool that took a name and called it done is exactly the convenience a later commit adds.
+- Counts are reported against a total, never as a bare percentage, because "96% covered" invites a
+  reader to round up to done and the remainder is the entire point.
+
+Final counts, all measured 2026-07-26 against DataHub v1.5.0.6: `pnpm verify` green with **373 unit
+tests across 17 files and 183 Python self-checks**; `pnpm test:live` green with **94 tests across 10
+files in 245 s**; `pnpm e2e` green with **121 browser checks in 35 s**.
+
+**Still not built, and named rather than implied.** No demo agent yet drives the erasure board end to
+end on its own: the live run signs its attestation directly rather than routing work to an owner and
+waiting. There is no cockpit view for erasure, so the board a judge sees is still the staleness one.
+The demonstration script for the erasure path does not exist. Article 19 recipient notification is
+out of scope and stated as such. The ~48-mark cascade figure is still not re-measured.
 
 ## Not done
 
