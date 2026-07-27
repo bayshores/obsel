@@ -910,6 +910,49 @@ nameable at all. Both are covered by `tests/live/lineage.live.test.ts` against t
 Counts after this work: `pnpm verify` green with **334 unit tests across 15 files**; `pnpm test:live`
 green with **84 tests across 9 files in 260 s**.
 
+### The attestation layer: what turns a claim into evidence (2026-07-26)
+
+`src/server/coordinator/attestation.ts` is the only thing entitled to set `signatureVerified` true,
+and the kernel refuses everything where it is false. Real Ed25519 keys and real `node:crypto` in the
+tests, generated per run; nothing is stubbed, because a stand-in for a signature check can only
+assert what its author already believed.
+
+Nothing here is invented where a standard exists. The signed bytes are DSSE's Pre-Authentication
+Encoding, the format in-toto and Sigstore sign. Four conditions must all hold, and they fail
+separately so the report can name which one: the signature verifies over the canonical bytes, the
+key was usable and has not since been reported compromised, the attestor is in scope for that asset,
+and obsel's challenge was fresh, unexpired and never used before.
+
+- **Seven mutations, all killed.** Ignoring the signature result, dropping the challenge check,
+  dropping scope, dropping the attestor binding, and time-bounding a compromise each fail named
+  tests.
+- **One mutation appeared to survive, and the harness was wrong, not the code.** Replacing the
+  received payload with a re-serialisation before verifying passed all 30 tests. That is the classic
+  way a signature check ends up covering something other than what was signed, so a test was written
+  for it: a payload whose fields are re-ordered after signing parses to an identical record and must
+  still be refused. Re-running then showed the earlier mutation had been rewriting the _signing_
+  call rather than the verifying one, because both sites shared a string and only the first was
+  replaced. The test stands on its own merits and does kill the real mutation; the sequence is
+  recorded because a mutation that never applied looks exactly like a guard that is not needed.
+- **Rotation and compromise are separate paths, deliberately.** A retired key's past signatures
+  stand, because retirement says only that a key is out of use and dropping its work would punish
+  good hygiene. A compromised key's signatures all fall, whenever they were made, because the report
+  says somebody else may have held it and there is no honest way to say for how long. Same shape as
+  RETRACTED against SUPERSEDED in the kernel.
+- **Key compromise is not a write, and nothing else in obsel would notice it.** Every other way
+  coverage is lost happens because somebody touched data. `invalidatedByKeys` is what takes back
+  attestations after a compromise report, including for a key deleted from the registry rather than
+  marked, since reading its absence as "still fine" is the exact failure obsel exists to catch. A
+  test drives the whole loop: an asset goes ATTESTED, the key is reported compromised, nothing about
+  the data changes, and the asset goes back to UNPROVEN.
+
+Counts: `pnpm verify` green with **365 unit tests across 16 files**.
+
+**Not built yet, and named rather than implied.** There is still no `POST /api/erasure/proof` route
+and no authentication on any of obsel's HTTP routes. The verification logic above is complete and
+tested; what is missing is the transport that carries an envelope to it. Until that lands, the
+attestation layer is reachable only from tests, and no end-to-end erasure has been run.
+
 ## Not done
 
 - **Every scale figure above is one observation.** One registered board, one concurrent run, one
