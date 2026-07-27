@@ -704,9 +704,21 @@ integrating with obsel would ever call.
 **One asymmetry to know before you call anything:** `POST /api/tasks/register` takes **short dataset
 names** like `clean_orders`, not a URN. Every other route, and every field in every response, uses full
 URNs. The namespace and platform are applied server-side in `urns.ts` so that the naming convention
-lives in one place and an agent cannot hand-build a malformed URN. If you send a URN to `register`
-you get a task wired to `obsel_demo.urn:li:dataset:(...)`, which is a different entity that nothing
-else will ever match.
+lives in one place and an agent cannot hand-build a malformed URN. A URN sent to `register` is now a
+400 naming the mistake; it used to be accepted, wiring the task to
+`obsel_demo.urn:li:dataset:(...)`, a different entity that nothing else will ever match.
+
+Building the URNs server-side was only half of that guarantee, and the other half is new. The names
+themselves were checked for nothing but being non-empty, so `clean,orders` or `a.b.c` registered a
+real DataJob whose lineage pointed at a URN no reader could recover the name from — `datasetUrn`
+interpolates the name, and `datasetName`, `shortName` in the cockpit and `dataset_short_name` in
+Python all split back on commas and dots. The board drew a box with the truncated name and nothing
+downstream could tell. A dataset name must now be lowercase letters, digits and underscores,
+optionally with one namespace segment (`obsel_taxi.clean_trips`, which the scale swarm uses); a task
+name must be the same without the namespace. The rule lives in `NAME_PATTERN` in `urns.ts`, is
+mirrored by `agents/mcp_core.py` so the MCP door refuses the same names before the round trip, and
+`tests/register-body.test.ts` asserts the two patterns are identical the way `tests/urns.test.ts`
+asserts the two URN builders are.
 
 Every route answers `400 {"error": string}` on a body that fails validation and
 `500 {"error": string}` when the work fails. Errors are never an empty success: a swarm that cannot

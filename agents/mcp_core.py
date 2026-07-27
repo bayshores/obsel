@@ -32,6 +32,7 @@ The rules it enforces, and why each one exists:
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence
 
@@ -129,6 +130,83 @@ def short_names(dataset_urns: Iterable[str]) -> list[str]:
 # --------------------------------------------------------------------------
 # Registration
 # --------------------------------------------------------------------------
+
+
+#: The shape a name must have for a URN built from it to be readable again.
+#:
+#: The mirror of `NAME_PATTERN` in `src/server/datahub/urns.ts`, and asserted equal
+#: to it by `tests/register-body.test.ts` the way the URN builders are. It matters
+#: on this side because `dataset_short_name` above recovers a table name by
+#: splitting on commas and then dots: a name carrying either is interpolated into a
+#: URN that comes back as something shorter, so obsel registers a real DataJob whose
+#: lineage points at an entity nobody can look up. The board draws it and nothing
+#: downstream can tell.
+NAME_PATTERN = re.compile(r"^[a-z0-9][a-z0-9_]*$")
+
+#: One phrasing of the rule, so the two doors and the docs do not drift apart.
+_SHAPE = "lowercase letters, digits and underscores, starting with a letter or digit"
+
+
+def task_name_problem(name: str) -> str | None:
+    """Why this task id cannot be used, or None if it can.
+
+    Returns the reason rather than a boolean because the caller is handing the
+    message to a model, and "invalid name" gives it nothing to correct.
+    """
+    if NAME_PATTERN.match(name):
+        return None
+    return (
+        f"task name {name!r} is not a code identifier. Use {_SHAPE}, "
+        'e.g. "build_revenue". The name is interpolated into this task\'s DataJob '
+        "URN, so anything else builds an entity that cannot be read back by name."
+    )
+
+
+def dataset_name_problem(name: str) -> str | None:
+    """Why this table name cannot be used, or None if it can.
+
+    One namespace segment is allowed -- `obsel_taxi.clean_trips` -- because obsel
+    passes a qualified name through untouched and the scale swarm registers that
+    way. A second dot is refused: every reader takes the LAST dot-separated
+    segment, so `a.b.c` comes back as `c`.
+
+    A URN is refused, which is the case an agent actually hits. obsel's HTTP API
+    takes short names and builds the URNs itself; a URN sent to registration is
+    qualified into `obsel_demo.urn:li:dataset:(...)`, an entity nothing else
+    matches.
+    """
+    segments = name.split(".")
+    if len(segments) <= 2 and all(NAME_PATTERN.match(segment) for segment in segments):
+        return None
+    tail = (
+        "obsel takes SHORT names here and builds the URNs itself; a URN would be "
+        "qualified into obsel_demo.urn:li:dataset:(...), a different entity."
+        if name.startswith("urn:li:")
+        else "The name is interpolated into the dataset URN and recovered by "
+        "splitting on commas and dots, so anything else names a table nothing "
+        "can look up."
+    )
+    return (
+        f"dataset name {name!r} is not a table name. Use {_SHAPE}, "
+        'e.g. "clean_orders", optionally with one namespace segment like '
+        f'"obsel_taxi.clean_trips". {tail}'
+    )
+
+
+def registration_problem(name: str, reads: Sequence[str], writes: Sequence[str]) -> str | None:
+    """The first thing wrong with a registration's names, or None.
+
+    First rather than all of them: the caller is a model that will fix one name
+    and call again, and a list of five reasons for one typo reads as five faults.
+    """
+    problem = task_name_problem(name)
+    if problem is not None:
+        return problem
+    for table in [*reads, *writes]:
+        problem = dataset_name_problem(table)
+        if problem is not None:
+            return problem
+    return None
 
 
 def lineage_matches(record: Mapping[str, Any], reads: Sequence[str], writes: Sequence[str]) -> bool:
@@ -796,6 +874,45 @@ def _self_check() -> int:
 
     print()
     print("registration")
+
+    check(
+        "a plain table name and a namespaced one both pass",
+        registration_problem("build_revenue", ["clean_orders"], ["daily_revenue"]) is None
+        and registration_problem("clean_trips", ["obsel_taxi.raw_trips"], ["obsel_taxi.clean_trips"])
+        is None,
+        "the scale swarm registers qualified names and obsel passes them through",
+    )
+    check(
+        "a comma in a table name is refused",
+        (dataset_name_problem("clean_orders,PROD") or "").startswith("dataset name"),
+        "it would build a urn whose readers recover 'clean_orders' and lose the rest",
+    )
+    check(
+        "a second dot is refused",
+        dataset_name_problem("a.b.c") is not None and dataset_name_problem("a.b") is None,
+        "readers take the LAST dot-separated segment, so 'a.b.c' comes back as 'c'",
+    )
+    check(
+        "a urn sent where a short name belongs is refused, and told why",
+        "SHORT names" in (dataset_name_problem(dataset) or ""),
+        "obsel would qualify it into obsel_demo.urn:li:dataset:(...), a different entity",
+    )
+    check(
+        "an empty name is refused",
+        task_name_problem("") is not None and dataset_name_problem("") is not None,
+        "the URN would carry an empty segment rather than fail",
+    )
+    check(
+        "the message names the offending value and the shape wanted",
+        "'Clean Orders'" in (dataset_name_problem("Clean Orders") or "")
+        and "underscores" in (dataset_name_problem("Clean Orders") or ""),
+        "a model fixing this needs the value it sent and the rule, not 'invalid name'",
+    )
+    check(
+        "one bad name is reported, not five",
+        registration_problem("ok_task", ["a,b", "c.d.e"], ["f g"]) == dataset_name_problem("a,b"),
+        "a model fixes one name and calls again; a list of reasons for one typo reads as five faults",
+    )
 
     check(
         "identical lineage in a different order still matches",
