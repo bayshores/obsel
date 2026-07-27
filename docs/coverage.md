@@ -19,7 +19,7 @@ And a row names its evidence precisely enough to re-run it or look it up.
 | browser | Playwright against the built app                                       | `pnpm e2e`         |
 | run     | a dated, measured run recorded in [`verification.md`](verification.md) | see its entry      |
 
-Counts on 2026-07-26: 410 unit tests across 19 files, 183 python self-checks across 7 modules,
+Counts on 2026-07-26: 424 unit tests across 19 files, 183 python self-checks across 7 modules,
 96 live tests across 10 files, 139 browser checks across two viewports. Live runs are single
 observations unless their entry says otherwise.
 

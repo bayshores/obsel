@@ -1207,8 +1207,26 @@ eslint's `.next/**` ignore anchors at the repository root. Working in worktrees 
 the ignores gained `**/.next/**` and `.claude/**`. A gate that breaks whenever a worktree exists is a
 gate that cries wolf.
 
-Counts after the merge, measured 2026-07-26: `pnpm verify` green with **410 unit tests across 19
-files**; `pnpm e2e` green with **139 browser checks**, one skipped by design.
+**Every counted sentence now agrees with the number it is about**, landed the same day in the second
+worktree. "1 agents ready to run" reached a real browser, seen while driving the form above: obsel's
+own demonstrations register four tasks or forty, so a count of one never reached a stage until the
+board could register one at a time, and every sentence that counts something had been written for the
+plural.
+
+Two of those were wrong at counts that needed no new feature to reach. The flagged headline and
+`summaryLine` both keyed their **noun** to the marked count when it belongs to the finished count, so
+**"1 of 3 finished agent is out of date" was reachable on the demo board** — the ratio's own
+denominator contradicted by the word after it. The noun counts the finished work; only the verb and
+the pronoun count the stale part. `agreeing` in `naming.ts` deliberately does not print the number,
+because half these sentences put the count elsewhere in the clause than beside the noun it governs,
+so a helper owning the number could serve only the easy half and the hard half is where the bug was.
+Every stage that counts something is now checked at one rather than only the stage that broke, since
+zero, four and forty all pass a sentence written for the plural, which is how it survived.
+
+Counts after both merges, measured 2026-07-26: `pnpm verify` green with **424 unit tests across 19
+files and 183 Python self-checks**; `pnpm e2e` green with **139 browser checks across two
+viewports**, one skipped by design. `pnpm test:live` was not re-run for any of this work; its 96
+tests are unaffected, and no live test covers the form.
 
 ## Not done
 
