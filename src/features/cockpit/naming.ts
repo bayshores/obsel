@@ -63,6 +63,28 @@ export function taskTitle(task: Pick<TaskRecord, "name"> & { title?: string | nu
 }
 
 /**
+ * The word that agrees with a count: `agreeing(1, "agent")` is `agent`, and
+ * every other count gets `agents`.
+ *
+ * It exists because a board holding exactly one task was an impossible state
+ * until the bring-your-own-data panel started registering tasks one at a time,
+ * and every sentence that counted something had been written for the demo's own
+ * four or forty. "1 agents ready to run" reached a real browser.
+ *
+ * The count is deliberately NOT printed here. Half these sentences put the
+ * number somewhere else in the clause than beside the noun it governs —
+ * "3 of 4 finished agents are out of date" agrees its noun with the denominator
+ * and its verb with the numerator — so a helper that owned the number could only
+ * serve the easy half, and the hard half is where the bug was.
+ *
+ * `many` defaults to the plain -s plural, and is passed explicitly for the verbs
+ * and the pairs that do not take one: `agreeing(n, "is", "are")`.
+ */
+export function agreeing(count: number, one: string, many = `${one}s`): string {
+  return count === 1 ? one : many;
+}
+
+/**
  * The human name for a dataset, from its URN — `clean orders` out of
  * `urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_demo.clean_orders,PROD)`.
  *

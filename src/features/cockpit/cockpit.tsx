@@ -27,6 +27,7 @@ import { Lineage } from "./lineage";
 import { mine } from "./mine";
 import { MinePanel } from "./mine-panel";
 import { Panel, PulseDot, StatCell, StatRibbon, Wordmark } from "./mmux";
+import { agreeing } from "./naming";
 import { TracePanel } from "./trace-panel";
 import { useActivity } from "./use-activity";
 import { useTrace } from "./use-trace";
@@ -473,7 +474,7 @@ function writeBack(trusted: boolean, t: SwarmTotals): React.ReactElement {
   if (t.tagged === null || t.leftOver === null) return cell(BLANK, "obsel did not check");
   if (t.marked === 0) {
     return t.leftOver > 0
-      ? cell(String(t.leftOver), "tags left over from before")
+      ? cell(String(t.leftOver), `${agreeing(t.leftOver, "tag")} left over from before`)
       : cell(BLANK, "nothing to write yet");
   }
   return cell(

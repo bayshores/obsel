@@ -34,7 +34,7 @@
  * only guard on the copy was a word count and an identifier is short.
  */
 
-import { datasetTitle, taskTitle } from "./naming";
+import { agreeing, datasetTitle, taskTitle } from "./naming";
 import { formatDuration, inFlightMs } from "./progress";
 import type { DemoStep, DemoActivity } from "@/src/server/runner/types";
 import type { TaskRecord } from "@/src/server/coordinator/types";
@@ -396,7 +396,7 @@ function registered(tasks: TaskRecord[], finished: number, attention: string | n
     stage: "registered",
     headline:
       finished === 0
-        ? `${tasks.length} agents ready to run`
+        ? `${tasks.length} ${agreeing(tasks.length, "agent")} ready to run`
         : `${finished} of ${tasks.length} finished`,
     subline: "When an agent finishes, obsel records what its table looked like",
     checks: [],
@@ -427,7 +427,14 @@ function settled(tasks: TaskRecord[], attention: string | null): GuideView {
   const taxi = swarmKind(tasks) === "taxi";
   return {
     stage: "settled",
-    headline: `all ${tasks.length} finished, nothing out of date`,
+    // "all 1 finished" is what the counted form produces on a one-task board, so
+    // the singular is worded rather than counted. Same reason as the one-agent
+    // branch in `flaggedSubline`: the number is the whole swarm, and saying "all"
+    // of one thing reads as a bug.
+    headline:
+      tasks.length === 1
+        ? "the one agent finished, nothing out of date"
+        : `all ${tasks.length} finished, nothing out of date`,
     subline: taxi
       ? "Try changing one requirement and watch how far it reaches"
       : "Try one of these and watch what obsel does",
@@ -563,7 +570,10 @@ function flagged(tasks: TaskRecord[], attention: string | null): GuideView {
 
   return {
     stage: "flagged",
-    headline: `${marked.length} of ${finished} finished agents are out of date`,
+    // The noun agrees with the denominator and the verb with the numerator: "1 of
+    // 3 finished agents is out of date" is right on both counts, and keying either
+    // to the wrong number is how "1 of 1 finished agents are" got onto a board.
+    headline: `${marked.length} of ${finished} finished ${agreeing(finished, "agent")} ${agreeing(marked.length, "is", "are")} out of date`,
     subline: newest === null ? null : flaggedSubline(newest, marked),
     checks: [],
     actions:
@@ -605,7 +615,7 @@ function flagged(tasks: TaskRecord[], attention: string | null): GuideView {
               // avoids false alarms on a calm board has not proved much.
               step: "rerun-same",
               label: "Run the orders cleaner again, no changes",
-              detail: `Nothing new should go out of date, and these ${marked.length} should stay.`,
+              detail: `Nothing new should go out of date, and ${marked.length === 1 ? "this one" : `these ${marked.length}`} should stay.`,
             },
             {
               step: "reset",

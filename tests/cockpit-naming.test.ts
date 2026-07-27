@@ -11,6 +11,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  agreeing,
   datasetTitle,
   flowLine,
   humanize,
@@ -120,5 +121,27 @@ describe("flowLine", () => {
 
   it("says so plainly when a task declares neither", () => {
     expect(flowLine(task({ reads: [], writes: [] }))).toBe("declares no inputs or outputs");
+  });
+});
+
+describe("agreeing", () => {
+  it("gives the singular at exactly one and the plural everywhere else", () => {
+    expect(agreeing(1, "agent")).toBe("agent");
+    expect(agreeing(0, "agent")).toBe("agents");
+    expect(agreeing(2, "agent")).toBe("agents");
+    expect(agreeing(40, "agent")).toBe("agents");
+  });
+
+  it("takes an explicit plural for the pairs that do not take an s", () => {
+    expect(agreeing(1, "is", "are")).toBe("is");
+    expect(agreeing(3, "is", "are")).toBe("are");
+    expect(agreeing(1, "agent has", "agents have")).toBe("agent has");
+  });
+
+  it("prints no number, so the count can sit elsewhere in the clause", () => {
+    // "3 of 4 finished agents are out of date" agrees its noun with the
+    // denominator and its verb with the numerator. A helper that owned the
+    // number could not write that sentence at all.
+    expect(agreeing(4, "agent")).not.toContain("4");
   });
 });

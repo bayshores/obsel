@@ -380,7 +380,7 @@ test.describe("the write-back is reported, not asserted", () => {
     await openCockpit(page, leftOverTag());
     await expect
       .poll(() => cell(page, "written into DataHub"))
-      .toMatch(/1tags left over from before/);
+      .toMatch(/1tag left over from before/);
   });
 
   test("says nothing was marked rather than counting zero of zero", async ({ page }) => {
