@@ -705,11 +705,15 @@ function verdict(kind: ChangeKind | null): string {
  *
  * The properties are per task and go to GMS over HTTP, so they are written
  * together. The tag does not: `applyStaleTag` speaks to `mcp-server-datahub`
- * over a single stdio pipe, and firing one call per task down it is what made a
- * forty-eight mark cascade fall over — three tags landed at 14.6, 15.0 and 17.6
- * seconds and the rest failed at 20.5 and 68.4. `mcp.ts:177` has always taken an
- * array; nothing was passing one. A cascade's cost is now one round trip
- * regardless of how wide it is.
+ * over a single stdio pipe, and firing one call per task down it puts a whole
+ * cascade's worth of round trips through a single-threaded child process.
+ * `mcp.ts:177` has always taken an array; nothing was passing one. A cascade's
+ * cost is now one round trip regardless of how wide it is.
+ *
+ * No timing figure is quoted here on purpose. An earlier version of this comment
+ * carried one, taken from a review summary rather than from a run of obsel, and
+ * `docs/verification.md` records its withdrawal. The argument for batching does
+ * not need a number: it is one round trip against N.
  *
  * The ordering rule survives the batching: every task's properties are written
  * and confirmed before any tag is applied, so a tag never points at a task with

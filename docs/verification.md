@@ -834,15 +834,25 @@ passed before the fix as well.
   The tag half lives on `globalTags` and is not rolled back with it, so an unlucky interleaving
   leaves a task obsel's record calls complete and DataHub's UI shows flagged.
 
-- **A cascade tagged one URN per call through a single stdio pipe.** Measured previously at ~48
-  marks: three tags landed at 14.6, 15.0 and 17.6 seconds and the rest failed at 20.5 and 68.4.
-  `mcp.ts:177` has always accepted an array and nothing was passing one. `markAllStale` now writes
-  every task's properties together and applies one tag call for the whole cascade, so its cost is
-  one round trip regardless of width. The ordering rule survives: all properties are written and
-  confirmed before any tag, so a tag never points at a task with no recorded cause.
+- **A cascade tagged one URN per call through a single stdio pipe.** Structural, and verifiable at
+  the `pre-erasure-proof` tag: `engine.ts:633` called `applyStaleTag([task.urn])` once per task
+  inside a `Promise.all`, while `mcp.ts:177` had always accepted an array and nothing was passing
+  one. `markAllStale` now writes every task's properties together and applies one tag call for the
+  whole cascade, so its cost is one round trip regardless of width. The ordering rule survives: all
+  properties are written and confirmed before any tag, so a tag never points at a task with no
+  recorded cause.
 
-  Covered by the live cascade tests, which read every tag back off its entity. **The 48-mark figure
-  has not yet been re-measured after the fix**; that needs a scale run and is listed under Not done.
+  Covered by the live cascade tests, which read every tag back off its entity.
+
+  **A correction, recorded rather than quietly dropped.** An earlier version of this section carried
+  a specific failure measurement for this defect: roughly 48 marks, three tags landing at 14.6, 15.0
+  and 17.6 seconds and the rest failing at 20.5 and 68.4. Those numbers came from a code review
+  summary and were written here as though they were a recorded run. Searching every file at every
+  commit in this repository finds no such measurement, and the largest cascade the scale board can
+  produce is nine marks, not forty-eight, so the figure cannot have come from the scale runner
+  either. **It has been removed rather than re-measured, because it was never obsel's measurement to
+  begin with.** What justifies the fix is the structure above, which anyone can check out and read.
+  The rule this violated is the project's own: a claim must name its evidence.
 
 - **`resetSwarm` could not clean up the state that most needed cleaning.** Found while fixing the
   above, not reported by any review. It decided what to untag from obsel's own properties rather
@@ -867,9 +877,9 @@ Counts and measurements after this work, all on 2026-07-26 against DataHub v1.5.
   `engine.live.test.ts` is 24 of those (was 22) and runs in 164 s.
 - `pnpm e2e` green: 121 browser checks across two viewports, 31 s, one skipped by design.
 
-What is NOT yet re-measured: the ~48-mark cascade. The batching fix removes the mechanism that
-broke it, and the live cascades confirm the batched call tags every entity, but the figure that
-named the defect was a scale run and only a scale run replaces it.
+No timing claim is made for the batching fix. The mechanism it removes is verifiable in the
+pre-pivot source, and the live cascades confirm the batched call tags every entity; what obsel does
+not have is a before-and-after measurement at scale, and it does not assert one.
 
 ### The erasure coverage kernel, and reading a catalog obsel did not create (2026-07-26)
 
@@ -1054,7 +1064,7 @@ files in 297 s**; `pnpm e2e` green with **121 browser checks in 35 s**.
 end on its own: the live run signs its attestation directly rather than routing work to an owner and
 waiting. There is no cockpit view for erasure, so the board a judge sees is still the staleness one.
 The demonstration script for the erasure path does not exist. Article 19 recipient notification is
-out of scope and stated as such. The ~48-mark cascade figure is still not re-measured.
+out of scope and stated as such. No cascade timing figure is claimed at scale; see the correction above for why the one previously printed here was withdrawn.
 
 ## Not done
 
