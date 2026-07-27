@@ -292,6 +292,109 @@ describe("one erasure request, from opening to covered and back", () => {
   }, 300_000);
 });
 
+describe("two attestors answering at the same instant", () => {
+  /*
+   * Single use is only true if checking a nonce and consuming it cannot
+   * interleave with another submission doing the same. Two attestors answering
+   * at once would otherwise both read the challenge unconsumed and both be
+   * accepted, which is exactly the replay the challenge exists to stop.
+   *
+   * The hostile input is real: two genuinely concurrent HTTP requests carrying
+   * the same valid envelope, against a real server writing to real DataHub.
+   */
+  it("accepts one and refuses the other when both carry the same challenge", async () => {
+    const asset = CUSTOMERS;
+    const challenge = await api("/api/erasure/challenge", {
+      method: "POST",
+      body: JSON.stringify({ request: REQUEST, asset }),
+    });
+    const nonce = challenge.body.nonce as string;
+
+    const envelope = signAttestation(
+      {
+        kind: "direct",
+        request: REQUEST,
+        asset,
+        version: "snapshot-race",
+        predicate: {
+          identifiers: ["cust_88213"],
+          expression: "customer_id = 'cust_88213'",
+          columns: ["customer_id"],
+        },
+        scope: { kind: "whole" },
+        result: "absent",
+        attestor: ATTESTOR,
+        signatureVerified: false,
+        at: new Date().toISOString(),
+        nonce,
+      },
+      PRIVATE_PEM,
+      KEY_ID,
+    );
+
+    const body = JSON.stringify({ request: REQUEST, envelope });
+    const [first, second] = await Promise.all([
+      api("/api/erasure/proof", { method: "POST", body }),
+      api("/api/erasure/proof", { method: "POST", body }),
+    ]);
+
+    const codes = [first.status, second.status].sort();
+    expect(codes, "exactly one of the two should be accepted").toEqual([200, 422]);
+
+    const refused = first.status === 422 ? first : second;
+    expect((refused.body.failures as { kind: string }[]).map((f) => f.kind)).toContain(
+      "challenge-replayed",
+    );
+  }, 300_000);
+
+  it("writes each accepted attestation beside the last, never over it", async () => {
+    /*
+     * The ledger is append-only, and the sequence number is what makes that
+     * true rather than aspirational. Two challenges answered for one asset must
+     * land as two records; a shared URN would silently replace the first, and
+     * the evidence chain would be a chain of one.
+     */
+    const before = await readAttestationsFor(REQUEST, CUSTOMERS);
+
+    const challenge = await api("/api/erasure/challenge", {
+      method: "POST",
+      body: JSON.stringify({ request: REQUEST, asset: CUSTOMERS }),
+    });
+    const envelope = signAttestation(
+      {
+        kind: "direct",
+        request: REQUEST,
+        asset: CUSTOMERS,
+        version: "snapshot-appended",
+        predicate: {
+          identifiers: ["cust_88213"],
+          expression: "customer_id = 'cust_88213'",
+          columns: ["customer_id"],
+        },
+        scope: { kind: "whole" },
+        result: "absent",
+        attestor: ATTESTOR,
+        signatureVerified: false,
+        at: new Date().toISOString(),
+        nonce: challenge.body.nonce as string,
+      },
+      PRIVATE_PEM,
+      KEY_ID,
+    );
+
+    const accepted = await api("/api/erasure/proof", {
+      method: "POST",
+      body: JSON.stringify({ request: REQUEST, envelope }),
+    });
+    expect(accepted.status).toBe(200);
+
+    const after = await readAttestationsFor(REQUEST, CUSTOMERS);
+    expect(after.length).toBe(before.length + 1);
+    // The earlier record is byte-identical, not merely present.
+    expect(after[0].body).toBe(before[0].body);
+  }, 300_000);
+});
+
 describe("a key reported compromised takes its coverage back", () => {
   it("returns the asset to unattested, with no data having changed", async () => {
     /*
@@ -323,8 +426,15 @@ describe("a key reported compromised takes its coverage back", () => {
     // And it says why, rather than quietly going grey.
     const dropped = (status.body.assurance as Record<string, unknown>)
       .attestationsDroppedForKeys as { asset: string; reason: string }[];
-    expect(dropped).toHaveLength(1);
-    expect(dropped[0].reason).toBe("key-compromised");
-    expect(dropped[0].asset).toBe(CUSTOMERS);
+    // Every attestation this request holds, not a fixed number: the tests above
+    // add more over time, and a compromise takes back all of them or it has not
+    // understood what a compromise is.
+    const recorded = await readAttestationsFor(REQUEST, CUSTOMERS);
+    expect(dropped.length).toBe(recorded.length);
+    expect(dropped.length).toBeGreaterThan(1);
+    for (const entry of dropped) {
+      expect(entry.reason).toBe("key-compromised");
+      expect(entry.asset).toBe(CUSTOMERS);
+    }
   }, 300_000);
 });

@@ -1022,9 +1022,33 @@ to phrase it, when to give up and say so.
 - Counts are reported against a total, never as a bare percentage, because "96% covered" invites a
   reader to round up to done and the remainder is the entire point.
 
+### Hostile concurrency on the erasure path (2026-07-26)
+
+A challenge is single use, and single use is only true if checking a nonce and consuming it cannot
+interleave with another submission doing the same. Two genuinely concurrent HTTP requests carrying
+the same valid envelope go to a real server writing to real DataHub.
+
+**Measured against the unlocked engine: both were accepted, 200 and 200.** That is the replay the
+challenge exists to stop, reproduced. With `serialized` in place, one is accepted and the other
+refused with `challenge-replayed`.
+
+A second test pins the ledger's append-only property: two challenges answered for one asset land as
+two records, and the earlier record is asserted byte-identical afterwards rather than merely
+present. A shared URN would silently replace the first, and the evidence chain would be a chain of
+one.
+
+The lock's scope is stated rather than implied. It holds because obsel is one process; two obsels
+against one DataHub would need a lock DataHub does not offer. That is the same honest limit the
+completion lock carries.
+
+**A note on how this was checked, because the first attempt was wrong.** Running the concurrency
+test alone with vitest's `-t` filter skipped the test that opens the request, so every run failed
+for a reason unrelated to the lock, including the run with the lock restored. A mutation whose
+control does not pass proves nothing. The result above is from running the whole file both ways.
+
 Final counts, all measured 2026-07-26 against DataHub v1.5.0.6: `pnpm verify` green with **373 unit
-tests across 17 files and 183 Python self-checks**; `pnpm test:live` green with **94 tests across 10
-files in 245 s**; `pnpm e2e` green with **121 browser checks in 35 s**.
+tests across 17 files and 183 Python self-checks**; `pnpm test:live` green with **96 tests across 10
+files in 297 s**; `pnpm e2e` green with **121 browser checks in 35 s**.
 
 **Still not built, and named rather than implied.** No demo agent yet drives the erasure board end to
 end on its own: the live run signs its attestation directly rather than routing work to an owner and
