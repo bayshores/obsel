@@ -279,7 +279,7 @@ pnpm e2e         # browser checks; builds and serves the app itself
 
 Checked 2026-07-26: `pnpm verify` passes end to end, with 424 tests and 183 Python self-checks
 across seven modules. `pnpm test:live` passes 96 tests across ten files in 266 s, two of
-them real Codex sessions. `pnpm e2e` passes 139 browser checks across two viewports, with one
+them real Codex sessions. `pnpm e2e` passes 145 browser checks across two viewports, with one
 skipped by design, half of them against a forty-task board recorded off a real run.
 
 ---

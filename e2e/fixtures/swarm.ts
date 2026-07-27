@@ -236,6 +236,38 @@ export function empty(): SwarmResponse {
 }
 
 /**
+ * A board holding exactly one task, in each of the three states a count of one
+ * can be in.
+ *
+ * Invented, like the rest of this file, and it exists because a swarm of one was
+ * an impossible state until the bring-your-own-data panel started registering
+ * tasks one at a time. Every sentence on the board that counts something had been
+ * written for the demo's four or the taxi swarm's forty, and "1 agents ready to
+ * run" reached a real browser on 2026-07-26.
+ *
+ * `guide.ts` and `timing.ts` are checked at one by their own unit tests, which is
+ * where the wording is decided. What only a browser can show is the rendered
+ * board agreeing with itself: the headline, the live region and the ribbon are
+ * three separate derivations of the same count, and nothing but the page puts
+ * them side by side.
+ */
+export function justOne(state: "waiting" | "finished" | "flagged"): SwarmResponse {
+  if (state === "waiting") {
+    return wrap([
+      task("clean_orders", ["raw_orders"], ["clean_orders"], {
+        status: "registered",
+        finishedAt: null,
+      }),
+    ]);
+  }
+  const finished = task("clean_orders", ["raw_orders"], ["clean_orders"], {
+    fingerprints: { [ds("clean_orders")]: print("a", "b") },
+  });
+  if (state === "finished") return wrap([finished]);
+  return wrap([{ ...finished, status: "stale", stale: mark(1, R1) }]);
+}
+
+/**
  * obsel's own demo, plus somebody else's agent part way through joining.
  *
  * **These two tasks are in `obsel_demo`, and that is deliberate.** It is what

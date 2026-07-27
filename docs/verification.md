@@ -1223,8 +1223,17 @@ so a helper owning the number could serve only the easy half and the hard half i
 Every stage that counts something is now checked at one rather than only the stage that broke, since
 zero, four and forty all pass a sentence written for the plural, which is how it survived.
 
+**A one-task board is now rendered in a browser too**, which the merged work did not cover: its tests
+are all unit-level over `guide()` and `summaryLine()`, and the state had no fixture. `justOne()` in
+`e2e/fixtures/swarm.ts` gives the three states a count of one can be in, and "a swarm of one" in
+`e2e/cockpit.spec.ts` asserts no sentence anywhere on the page says `1 agents` or `all 1`, or glues a
+singular noun to a plural ratio. It reads the live region's `textContent` as well as the page's
+`innerText`, because a visually-hidden sentence is the one most likely to be left plural: nothing but
+a screen reader ever reads it. Mutation: restoring the counted form in `registered()` fails that test
+on both viewports, checked rather than assumed.
+
 Counts after both merges, measured 2026-07-26: `pnpm verify` green with **424 unit tests across 19
-files and 183 Python self-checks**; `pnpm e2e` green with **139 browser checks across two
+files and 183 Python self-checks**; `pnpm e2e` green with **145 browser checks across two
 viewports**, one skipped by design. `pnpm test:live` was not re-run for any of this work; its 96
 tests are unaffected, and no live test covers the form.
 

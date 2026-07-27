@@ -12,6 +12,7 @@ import {
   calm,
   cascaded,
   empty,
+  justOne,
   leftOverTag,
   midWrite,
   visiting,
@@ -990,6 +991,65 @@ test.describe("bring your own data", () => {
     await page.waitForTimeout(2500);
     await expect(field).toBeVisible();
     await expect(field).toHaveValue("half_typed");
+  });
+});
+
+/**
+ * A board holding exactly one task, rendered.
+ *
+ * `tests/cockpit-guide.test.ts` and `tests/cockpit-timing.test.ts` decide the
+ * wording at a count of one and are not repeated here. What only a browser shows
+ * is the whole board agreeing with itself: the headline, the screen-reader live
+ * region and the write-back cell are three separate derivations of one count, and
+ * nothing but the page puts them together in front of a reader.
+ *
+ * The state was unreachable until the bring-your-own-data panel registered tasks
+ * one at a time, and "1 agents ready to run" was on a real screen before it.
+ */
+test.describe("a swarm of one", () => {
+  test("says one agent, in every sentence that counts it", async ({ page }) => {
+    await openCockpit(page, justOne("waiting"), finishedStep());
+
+    const board = page.locator("main");
+    await expect(board.getByRole("heading", { name: "1 agent ready to run" })).toBeVisible();
+
+    // Nothing anywhere may say "1 agents", in any of the three states, including
+    // the live region a screen reader is the only thing that reads.
+    for (const state of ["waiting", "finished", "flagged"] as const) {
+      await openCockpit(page, justOne(state), finishedStep());
+      const text = await board.evaluate((node) => {
+        const main = node as HTMLElement;
+        // innerText misses the visually-hidden live region, which is exactly the
+        // sentence most likely to be left plural because nobody sees it.
+        return `${main.innerText} ${main.querySelector('[aria-live="polite"]')?.textContent ?? ""}`;
+      });
+      expect(text, `"1 agents" on the ${state} board`).not.toMatch(/\b1 agents\b/);
+      expect(text, `"all 1" on the ${state} board`).not.toMatch(/\ball 1\b/);
+      // The other half of the rule: a singular noun must not be glued to a plural
+      // ratio. "1 of 1 finished agent is" is right; "1 of 3 finished agent" is the
+      // bug this guards.
+      expect(text, `a singular noun after a plural ratio on ${state}`).not.toMatch(
+        /\b1 of ([2-9]|\d\d+) finished agent\b(?!s)/,
+      );
+    }
+  });
+
+  test("the settled board words its whole-swarm claim rather than counting to one", async ({
+    page,
+  }) => {
+    await openCockpit(page, justOne("finished"), finishedStep());
+    await expect(
+      page.locator("main").getByRole("heading", { name: /the one agent finished/ }),
+    ).toBeVisible();
+  });
+
+  test("the flagged board agrees its noun with finished and its verb with marked", async ({
+    page,
+  }) => {
+    await openCockpit(page, justOne("flagged"), finishedStep());
+    await expect(
+      page.locator("main").getByRole("heading", { name: "1 of 1 finished agent is out of date" }),
+    ).toBeVisible();
   });
 });
 
