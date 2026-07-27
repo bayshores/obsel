@@ -245,6 +245,86 @@ describe("tampering", () => {
     }
   });
 
+  it("refuses a signed record whose kind promises fields it does not carry", () => {
+    /*
+     * Found by driving the real HTTP route against the real catalog, not here:
+     * every record these tests build carries a full predicate and scope, so
+     * nothing exercised a payload that is well formed as far as `kind` and
+     * empty after it.
+     *
+     * That record was accepted. It is signed by a registered key, in scope,
+     * bound to a fresh challenge, so every check below the shape guard passed
+     * it, the route answered `accepted: true`, and it went into an append-only
+     * ledger permanently. Then it explained nothing, because
+     * `residueFromDirect` looks for `result === "absent"` and this record has
+     * no result, so the asset stayed unattested with the reason
+     * `no-attestation` — the report saying nobody had spoken for it while the
+     * attestation sat in the ledger.
+     *
+     * "Nobody attested" and "somebody attested unusably" are different
+     * findings with different next steps, and the whole of `documents.ts`
+     * exists so a lagging index cannot blur that same distinction. An adapter
+     * emitting the wrong shape has to be told on the submission, while a
+     * refusal still costs only a re-sign.
+     */
+    const halfRecords: [string, Record<string, unknown>][] = [
+      ["direct with no result", { ...record(), result: undefined }],
+      ["direct with no predicate", { ...record(), predicate: undefined }],
+      ["direct with a predicate that is a bare string", { ...record(), predicate: "id = 88213" }],
+      [
+        "direct whose predicate names no identifiers",
+        { ...record(), predicate: { identifiers: [], expression: "x", columns: [] } },
+      ],
+      ["direct with no scope", { ...record(), scope: undefined }],
+      [
+        "partition scope naming no partitions",
+        { ...record(), scope: { kind: "partitions", total: 730 } },
+      ],
+      ["rebuild with no materialization", { ...record({ kind: "rebuild" }), inputs: [] }],
+      [
+        "rebuild that never says whether it was the sole producer",
+        { ...record({ kind: "rebuild" }), materialization: "full", inputs: [] },
+      ],
+      [
+        "rebuild whose inputs name no version",
+        {
+          ...record({ kind: "rebuild" }),
+          materialization: "full",
+          soleProducer: true,
+          inputs: [{ asset: CUSTOMERS }],
+        },
+      ],
+    ];
+
+    for (const [why, fields] of halfRecords) {
+      // Undefined keys are dropped rather than encoded, which is what an
+      // adapter that never set the field actually sends.
+      const payload = JSON.parse(JSON.stringify(fields)) as SignedRecord;
+      const result = verifyAttestation(sign(payload), context());
+      expect(result.ok, `${why} should be refused`).toBe(false);
+      expect(failureKinds(result), why).toContain("malformed-envelope");
+    }
+  });
+
+  it("still accepts the two shapes the kernel can actually read", () => {
+    // The guard above is only worth having if it lets real evidence through,
+    // and a shape check that refuses everything would pass every test above.
+    expect(verifyAttestation(sign(), context()).ok).toBe(true);
+
+    const rebuilt = record({
+      kind: "rebuild",
+      materialization: "full",
+      soleProducer: true,
+      inputs: [{ asset: CUSTOMERS, version: "v1" }],
+    } as Partial<SignedRecord>);
+    expect(verifyAttestation(sign(rebuilt), context()).ok).toBe(true);
+
+    const partitioned = record({
+      scope: { kind: "partitions", covered: ["2026-07-01"], total: 730 },
+    } as Partial<SignedRecord>);
+    expect(verifyAttestation(sign(partitioned), context()).ok).toBe(true);
+  });
+
   it("refuses a record carrying no nonce, which is a record bound to no question", () => {
     // Without a nonce there is nothing tying the signature to something obsel
     // asked, which is the whole difference between evidence and a stored answer.

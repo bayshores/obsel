@@ -351,10 +351,27 @@ export function verifyAttestation(
 /**
  * What is missing or wrong about a parsed payload, or null if it is usable.
  *
- * Only the fields every later check reads unconditionally. This is not schema
- * validation and does not try to be: the point is that no check further down
- * can be handed something it will crash on, so each one gets to make its own
- * decision and report it.
+ * Every field the kernel reads to reach a verdict, not only the ones a later
+ * check would crash on. That wider scope is the correction a live run forced,
+ * and the reason is worth stating because the narrower version looked
+ * defensible: a record carrying `kind: "direct"` but no `result` and no
+ * `predicate` is signed, in scope, bound to a fresh challenge, and every check
+ * below passes it. It was accepted, written into an append-only ledger nothing
+ * can take it out of, and answered `accepted: true` — and then explained
+ * nothing, because `residueFromDirect` looks for `result === "absent"` and
+ * finds no direct attestation at all.
+ *
+ * The report that follows says "nobody has attested to it" while the
+ * attestation sits in the ledger. That is the one sentence this project cannot
+ * afford to be wrong about: an asset nobody spoke for and an asset somebody
+ * spoke for unusably are different findings with different next steps, and
+ * `documents.ts` already refuses to let a lagging index blur exactly that
+ * distinction. An attestor whose adapter emits the wrong shape must be told, on
+ * the submission, rather than discovering months later that its evidence never
+ * counted.
+ *
+ * Refusing is also the only reversible answer. A refused submission can be
+ * re-signed; a record in the ledger is there permanently.
  */
 function describeShapeProblem(record: SignedRecord): string | null {
   // Typed as a record by the parse above and deliberately re-examined as
@@ -373,7 +390,86 @@ function describeShapeProblem(record: SignedRecord): string | null {
   if (fields.kind !== "direct" && fields.kind !== "rebuild") {
     return `payload kind is ${String(fields.kind)}, expected direct or rebuild`;
   }
+  return fields.kind === "direct" ? directShapeProblem(fields) : rebuildShapeProblem(fields);
+}
+
+/** The fields `residueFromDirect` reads, checked before it is asked to. */
+function directShapeProblem(fields: Record<string, unknown>): string | null {
+  if (fields.result !== "absent" && fields.result !== "present") {
+    return `direct payload result is ${String(fields.result)}, expected absent or present`;
+  }
+
+  const predicate = fields.predicate;
+  if (typeof predicate !== "object" || predicate === null || Array.isArray(predicate)) {
+    return "direct payload has no predicate object";
+  }
+  // Recorded because obsel cannot ask the question itself: two attestors
+  // answering different questions are only detectable afterwards if both wrote
+  // down what they asked. A predicate that arrived as a bare string is the
+  // shape an adapter author guesses at, and it carries no columns and no
+  // identifiers, so it cannot be compared with anyone else's.
+  const asked = predicate as Record<string, unknown>;
+  if (!isStringArray(asked.identifiers) || (asked.identifiers as string[]).length === 0) {
+    return "direct payload predicate.identifiers must be a non-empty array of strings";
+  }
+  if (typeof asked.expression !== "string" || asked.expression === "") {
+    return "direct payload predicate.expression must be the predicate as executed";
+  }
+  if (!isStringArray(asked.columns)) {
+    return "direct payload predicate.columns must be an array of strings";
+  }
+
+  const scope = fields.scope;
+  if (typeof scope !== "object" || scope === null || Array.isArray(scope)) {
+    return "direct payload has no scope object";
+  }
+  const said = scope as Record<string, unknown>;
+  if (said.kind === "whole") return null;
+  if (said.kind !== "partitions") {
+    return `direct payload scope kind is ${String(said.kind)}, expected whole or partitions`;
+  }
+  if (!isStringArray(said.covered)) {
+    return "partition scope must name the partitions it covers, as an array of strings";
+  }
+  if (typeof said.total !== "number" || !Number.isFinite(said.total) || said.total <= 0) {
+    return "partition scope must give a positive total partition count";
+  }
   return null;
+}
+
+/** The fields `residueFromOneRebuild` reads, checked before it is asked to. */
+function rebuildShapeProblem(fields: Record<string, unknown>): string | null {
+  const kinds = ["full", "merge", "append", "partition"];
+  if (typeof fields.materialization !== "string" || !kinds.includes(fields.materialization)) {
+    return `rebuild payload materialization is ${String(fields.materialization)}, expected one of ${kinds.join(", ")}`;
+  }
+  // Absent must not read as false. A missing `soleProducer` defaulting to
+  // false would refuse the claim rather than accept it, which is safe, but it
+  // would refuse it with `not-sole-producer` — telling the attestor their run
+  // shared the write when what actually happened is that they never said.
+  if (typeof fields.soleProducer !== "boolean") {
+    return "rebuild payload must state soleProducer as a boolean";
+  }
+  if (!Array.isArray(fields.inputs)) {
+    return "rebuild payload inputs must be an array of {asset, version}";
+  }
+  for (const entry of fields.inputs) {
+    if (typeof entry !== "object" || entry === null || Array.isArray(entry)) {
+      return "rebuild payload inputs must each be an {asset, version} object";
+    }
+    const input = entry as Record<string, unknown>;
+    if (typeof input.asset !== "string" || input.asset === "") {
+      return "rebuild payload inputs must each name an asset URN";
+    }
+    if (typeof input.version !== "string" || input.version === "") {
+      return "rebuild payload inputs must each name the version consumed";
+    }
+  }
+  return null;
+}
+
+function isStringArray(value: unknown): boolean {
+  return Array.isArray(value) && value.every((entry) => typeof entry === "string");
 }
 
 /**

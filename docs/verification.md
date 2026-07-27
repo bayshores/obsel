@@ -1002,8 +1002,9 @@ Two defects were found by running this, neither reachable from the unit tests:
   search index sits anywhere in the path that decides coverage. Written up as
   `environment-findings.md` §13.4, along with the `relatedAssets` field-name 400 that preceded it.
 
-Counts: `pnpm verify` green with **373 unit tests across 17 files**; `pnpm test:live` green with
-**93 tests across 10 files in 256 s**; `pnpm e2e` green with 121 browser checks in 35 s.
+Counts at this point in the day, before the two sections below added to them: `pnpm verify` green
+with **373 unit tests across 17 files**; `pnpm test:live` green with **93 tests across 10 files in
+256 s**; `pnpm e2e` green with 121 browser checks in 35 s. The current figures are at the end.
 
 ### The door an agent joins the erasure board through (2026-07-26)
 
@@ -1056,13 +1057,65 @@ test alone with vitest's `-t` filter skipped the test that opens the request, so
 for a reason unrelated to the lock, including the run with the lock restored. A mutation whose
 control does not pass proves nothing. The result above is from running the whole file both ways.
 
-Final counts, all measured 2026-07-26 against DataHub v1.5.0.6: `pnpm verify` green with **373 unit
-tests across 17 files and 183 Python self-checks**; `pnpm test:live` green with **96 tests across 10
-files in 297 s**; `pnpm e2e` green with **121 browser checks in 35 s**.
+### Driving the running dashboard by hand, and the one gap it found (2026-07-26)
+
+Everything above was reached by tests. This was reached by starting `pnpm dev`, pointing a curl at
+it, and behaving like an attestor's adapter — which found something no test had, for the reason
+those tests all shared.
+
+The run, against the `showcase-ecommerce` catalog on DataHub v1.5.0.6, seeded from
+`snowflake … order_entry.customers`, four hops:
+
+- **23 assets reached across five platforms** — postgres, snowflake, dbt, looker, powerbi, tableau —
+  and every one came back `UNPROVEN` with `no-attestation`. That is the honest day-one board.
+- The same walk seeded from the **postgres** copy of the same table reaches **1 asset**, because
+  DataHub records no downstream edges from it. The report says `assetsReached: 1` rather than
+  implying a small estate, which is the assurance field earning its place.
+- One real Ed25519 keypair, one challenge, one signed direct attestation over
+  `snowflake … analytics.order_details`, submitted to `POST /api/erasure/proof`: **1 of 23 attested,
+  22 unattested**, `evidenceRecords` 1 → 3, and the sentence the board prints is
+  `order details is attested absent over version unknown by warehouse-adapter@obsel.local`.
+- With no `OBSEL_API_TOKEN` set, `POST /api/erasure` answered **503** and named the reason. That is
+  the fail-closed default observed on a real server rather than asserted in a unit test.
+
+**The gap.** The first attestation submitted carried a plausible-looking predicate an adapter author
+would guess at — `predicate` as a bare SQL string, `columnsSearched`, `observed: 0` — instead of the
+`predicate` / `scope` / `result` the kernel reads. It was **accepted**. It is signed by a registered
+key, in scope, bound to a fresh challenge, so every check below the shape guard passed it; the route
+answered `accepted: true` and wrote it into the append-only ledger permanently. Then it explained
+nothing, because `residueFromDirect` looks for `result === "absent"` and found no direct attestation
+at all. The report said **"nobody has attested to it"** while the attestation sat in the ledger.
+
+That is the exact confusion the whole of `documents.ts` exists to prevent from one direction — a
+lagging index making a real attestation invisible — arriving from the other. "Nobody attested" and
+"somebody attested unusably" are different findings with different next steps, and an adapter
+emitting the wrong shape has to be told on the submission, while a refusal still costs only a
+re-sign. A ledger record costs forever.
+
+No test caught it because every record in `tests/attestation.test.ts` is built by one `record()`
+helper that always fills in the variant fields — the same blind spot that let `{}` reach a field
+dereference and return a 500 earlier the same day, one field further in.
+
+`describeShapeProblem` now validates the variant-specific fields too. Mutation: replacing the
+variant dispatch with `return null` fails **"refuses a signed record whose kind promises fields it
+does not carry"** on the first of its nine shapes. A companion test asserts the three shapes the
+kernel can actually read still verify, because a guard that refused everything would pass the first
+test. Re-running the malformed submission against the live route now returns **422**, with
+`malformed-envelope: direct payload result is undefined, expected absent or present`.
+
+Final counts, all measured 2026-07-26 against DataHub v1.5.0.6, after the fix above: `pnpm verify`
+green with **375 unit tests across 17 files and 183 Python self-checks**; `pnpm test:live` green with
+**96 tests across 10 files in 266 s**; `pnpm e2e` green with **121 browser checks in 37 s**.
 
 **Still not built, and named rather than implied.** No demo agent yet drives the erasure board end to
 end on its own: the live run signs its attestation directly rather than routing work to an owner and
-waiting. There is no cockpit view for erasure, so the board a judge sees is still the staleness one.
+waiting. **There is no coverage board**, so the panels a judge sees are still the staleness ones —
+with one correction made after actually looking at the running dashboard on 2026-07-26: the "what
+obsel is doing" trace panel already carries erasure, because `erasure-engine.ts` emits into the same
+activity stream the coordinator does. Opening a request, issuing a challenge, accepting an
+attestation and refusing one all appear there live, the refusal in the same colour a stale mark
+uses. That is narration of the erasure path, not a view of coverage; the 23-asset board itself is
+still only reachable as JSON from `GET /api/erasure/<id>`.
 The demonstration script for the erasure path does not exist. Article 19 recipient notification is
 out of scope and stated as such. No cascade timing figure is claimed at scale; see the correction above for why the one previously printed here was withdrawn.
 

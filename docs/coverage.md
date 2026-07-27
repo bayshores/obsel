@@ -19,7 +19,7 @@ And a row names its evidence precisely enough to re-run it or look it up.
 | browser | Playwright against the built app                                       | `pnpm e2e`         |
 | run     | a dated, measured run recorded in [`verification.md`](verification.md) | see its entry      |
 
-Counts on 2026-07-26: 373 unit tests across 17 files, 183 python self-checks across 7 modules,
+Counts on 2026-07-26: 375 unit tests across 17 files, 183 python self-checks across 7 modules,
 96 live tests across 10 files, 121 browser checks across two viewports. Live runs are single
 observations unless their entry says otherwise.
 
@@ -86,6 +86,36 @@ These are not shapes or data. They are the ways a live swarm goes wrong, each ex
 | DataHub half down, traversal gone       | the real search container stopped 2026-07-24, `docs/verification.md`; the prerequisite check goes red and the board offers the fix                                                               | run                |
 | pointed at DataHub's frontend port      | `:9002` answering 200 to both probes, `tests/live/preflight.live.test.ts`                                                                                                                        | live               |
 | somebody's own agent part way through   | the four joining steps over seeded boards, `tests/cockpit-joining.test.ts`; painted and folded, `e2e/cockpit.spec.ts` "bring your own agent"; a real MCP session ticking all four, 2026-07-24    | unit, browser, run |
+
+## The erasure cases
+
+Every row in the specification's counterexample table, plus what the attestation layer refuses.
+The specification is [`erasure-coverage.md`](erasure-coverage.md) and it was written before the
+code, because two earlier drafts of the rule were unsound.
+
+| case                                            | proven by                                                                                                                                      | kind       |
+| ----------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| MERGE or incremental over the prior version     | `tests/erasure.test.ts`, residue `not-total`                                                                                                   | unit       |
+| partition overwrite, 3 of 730                   | `tests/erasure.test.ts`, residue `partitions-uncovered`                                                                                        | unit       |
+| SCD2 snapshot, out of scope and named           | `tests/erasure.test.ts`                                                                                                                        | unit       |
+| an asset with no producing job                  | `tests/erasure.test.ts`; bound to recorded dataset edges rather than a job, which is what Phase 0b measurement forced                          | unit       |
+| cyclic lineage A→B→A                            | `tests/erasure.test.ts`; least fixpoint, so neither is promoted on the other's word                                                            | unit       |
+| two writers, one clean run                      | `tests/erasure.test.ts`, residue `not-sole-producer`                                                                                           | unit       |
+| a write with an identical fingerprint reopens   | `tests/erasure.test.ts`; attestations bind to a version, never a content hash                                                                  | unit       |
+| a rebuild declaring less than the catalog knows | `tests/erasure.test.ts`, residue `closure-mismatch`                                                                                            | unit       |
+| an attestation saying the subject is present    | `tests/erasure.test.ts`, `CONTRADICTED`                                                                                                        | unit       |
+| an unsigned rebuild claim                       | `tests/erasure.test.ts`; found by a surviving mutation, not by design                                                                          | unit       |
+| tampering: payload edited, byte flipped         | `tests/attestation.test.ts` over real Ed25519 keys                                                                                             | unit       |
+| a re-serialised payload that parses the same    | `tests/attestation.test.ts`; verified over arriving bytes, never a re-encode                                                                   | unit       |
+| a challenge replayed, expired, or mismatched    | `tests/attestation.test.ts`; and two concurrent HTTP submissions of one nonce, `tests/live/erasure.live.test.ts`                               | unit, live |
+| a key retired, and a key reported compromised   | `tests/attestation.test.ts`; live, coverage reverts with no data touched, `tests/live/erasure.live.test.ts`                                    | unit, live |
+| a malformed payload that would crash a check    | `tests/attestation.test.ts`; found by curling `{}` at the real route, which returned a 500                                                     | unit, run  |
+| a signed record missing its variant's fields    | `tests/attestation.test.ts`; found by hand-driving the running dashboard — it was accepted and explained nothing, `verification.md` 2026-07-26 | unit, run  |
+| an unconfigured obsel asked to write            | `tests/http-auth.test.ts`; and 503 from the running server with no token set, `verification.md` 2026-07-26                                     | unit, run  |
+| no route or tool that marks an asset covered    | `tests/live/erasure.live.test.ts` and `tests/live/obsel-mcp.live.test.ts` assert the absence by name                                           | live       |
+| a real multi-platform walk from a PII table     | 23 assets over five platforms from `showcase-ecommerce`, one flipped to `ATTESTED` by a real signature, `verification.md` 2026-07-26           | run        |
+| column-level lineage riding the same edge       | `tests/live/lineage.live.test.ts`; 109 raw edges, 12 datasets and 97 `schemaField` URNs                                                        | live       |
+| a write aimed at a foreign entity               | `tests/live/lineage.live.test.ts`; refused before existence is checked, aspects asserted unchanged                                             | live       |
 
 ## Not covered
 
