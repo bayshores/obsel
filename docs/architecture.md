@@ -246,10 +246,22 @@ dataset --(INCOMING "Consumes")--> the tasks that READ it
 task    --(OUTGOING "Produces")--> the datasets it WROTE   --> repeat
 ```
 
-That alternation is why a task can be reached that never touched the original change. Both
-implementations do it: [`agents/graph.py`](../agents/graph.py) `downstream_of` (the version that
-proved it against a live instance, full cascade measured at 92 ms) and
-[`src/server/datahub/client.ts`](../src/server/datahub/client.ts) `relationships`.
+That alternation is why a task can be reached that never touched the original change.
+
+**Where it actually runs matters, and this section used to overstate it.**
+[`agents/graph.py`](../agents/graph.py) `downstream_of` walks it hop by hop against a live instance,
+and that is where the 92 ms full-cascade figure comes from. The TypeScript coordinator does not: it
+reads the flow's membership once through `relationships`, builds a snapshot, and alternates over
+that snapshot in memory in [`affectedBy`](../src/server/coordinator/staleness.ts). The edges are
+real and were read from DataHub. The traversal is one read followed by pure graph reasoning, which
+is what makes the whole of it testable without a network, and it is bounded by one DataFlow because
+the enumeration is.
+
+The erasure half genuinely does walk hop by hop:
+[`readLineageDownstream`](../src/server/datahub/client.ts) issues a `GET /relationships` per asset
+per hop, because it crosses platforms and flows no single membership read can enumerate. It also
+filters to datasets, since column-level lineage rides the same `DownstreamOf` edge type
+(`environment-findings.md` §13.3).
 
 Three other DataHub behaviours shape this module, all measured and all silent failure modes.
 `GET /entities/<urn>` fabricates a well-formed response for any syntactically valid URN, so it is

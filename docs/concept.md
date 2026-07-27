@@ -153,6 +153,30 @@ real rather than invented for a demo.
 
 The strongest anticipated judge question. The answer is the demo scenario, not an argument.
 
+## The second question the same graph answers
+
+Everything above is about agents invalidating each other's finished work. The same wires answer a
+question with far higher stakes, and it is the one this project now leads with.
+
+Someone exercises their right to erasure under Article 17. An organization deletes their rows in one
+system and reports it done. DataHub's own compliance writing puts the state of the art plainly:
+lineage does not perform the deletion, it makes the scope of deletion knowable and verifiable. It
+stops there. Ethyca verifies that deletion jobs ran against systems holding the subject key, not
+absence where the identifier link is severed.
+
+obsel occupies the layer after that sentence. It walks the recorded lineage from the tables known to
+hold the subject, holds every reachable asset unattested, and composes independently signed local
+claims into a global coverage picture no single attestor is positioned to assert. Composing signed
+local claims into a conclusion nobody could assert alone is what in-toto verification is; applying
+it to erasure accounting is what is new here.
+
+**It is not a proof of erasure and does not claim to be.** obsel holds no warehouse credentials and
+never reads warehouse data. What it adds to a trusted attestor's word is that the word is
+attributable, scoped, version-bound, freshness-bound and revocable, and that everything nobody said
+a word about is listed rather than omitted. The full rule, the ten counterexamples it survives, and
+the three classes of failure it provably does not catch are in
+[`erasure-coverage.md`](erasure-coverage.md).
+
 When the swarm's job is **building a data pipeline**, the things the agents produce are datasets, so
 the coordination graph and the data catalog are literally the same graph. Dependencies between
 agent tasks are dependencies between tables, which is what DataHub already models natively. A

@@ -33,6 +33,33 @@ something that moved. Nothing tells them. Their work sits there saying **complet
 It stays quiet otherwise. A re-run that produces the same table flags nothing at all, which is the
 whole reason anybody would trust it the day it does speak up.
 
+## The same wires, for erasure
+
+Somebody exercises their right to erasure. A team deletes their rows in one system and reports it
+done. Nobody can say what happened to the twenty other places that person's data flowed into.
+
+obsel walks the lineage DataHub already records, holds every asset it reaches as **unattested**, and
+turns green only where a **signed attestation** says the subject is absent from that exact version
+of that exact table. The list it leads with is the one nobody has spoken for.
+
+It does not read your data and holds no warehouse credentials, so it does not claim proof. What it
+does is compose independently signed local claims into a picture no single attestor is positioned to
+assert, and refuse to round any of it up:
+
+- An attestation binds to a **version**, never a content hash. A rewrite that produced identical
+  bytes reopens the asset, because nobody has attested to the new version.
+- A run that merged, appended or rewrote three of 730 partitions **cannot** account for what it left
+  behind, and is never accepted as a rebuild.
+- An attestor declares what it consumed, and obsel cross-checks that against DataHub's recorded
+  lineage, so leaving out an unclean upstream is detectable.
+- If the key that signed an attestation is later reported compromised, the asset goes back to
+  unattested. No data changed; what changed is who could have signed.
+- **No route, tool or argument marks an asset covered.** A live test asserts those endpoints do not
+  exist.
+
+`docs/erasure-coverage.md` is the rule and the ten counterexamples it was checked against, written
+before the code because two earlier drafts of it were unsound.
+
 ## When you should not use this
 
 If one orchestrator owns your pipeline, it can already do this and you should use it instead.

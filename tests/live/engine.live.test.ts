@@ -240,7 +240,19 @@ describe("a real change cascades through DataHub's own lineage", () => {
       finished("clean_orders", "clean_orders", "s1-changed", "c1", ["order_id", "order_total_usd"]),
     );
 
-    // One schema change, three tasks reached over real `GET /relationships` hops.
+    /*
+     * One schema change, three tasks reached.
+     *
+     * The hops are walked in memory over the snapshot `readSnapshot` built, NOT
+     * by a `GET /relationships` call per hop. The edges are real and were read
+     * from DataHub, and the membership enumeration that produced this snapshot
+     * is a genuine relationships call; the traversal itself then runs over that
+     * one read. This comment used to say the hops were live calls, which was a
+     * claim about the implementation that the implementation did not make.
+     *
+     * The erasure half does walk hop by hop, in `readLineageDownstream`, because
+     * it crosses platforms and flows this enumeration cannot see.
+     */
     expect(result.changedOutputs).toEqual([
       {
         dataset: datasetUrn("clean_orders"),
