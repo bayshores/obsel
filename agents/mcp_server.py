@@ -168,7 +168,9 @@ def build_server(obsel_url: str = OBSEL_URL) -> Any:
 
         Args:
             name: a code identifier for this task, e.g. "clean_orders_job".
-            reads: short names of the tables this task reads.
+                Lowercase letters, digits and underscores only.
+            reads: short names of the tables this task reads, same shape as
+                `name`, e.g. ["clean_orders"]. Never URNs.
             writes: short names of the tables this task writes.
             title: a short human name for the board (60 characters).
             description: this task's standing job in one sentence (300 characters).
@@ -181,6 +183,14 @@ def build_server(obsel_url: str = OBSEL_URL) -> Any:
                 "nothing downstream could ever depend on it. Register the table "
                 "you produce."
             )
+        # Shape, not just presence. obsel builds the URNs from these names and
+        # every reader recovers a name by splitting on commas and dots, so a name
+        # carrying either registers a real DataJob whose lineage points at an
+        # entity nobody can look up. The route checks the same thing, because
+        # this door and curl must agree on what obsel can be asked.
+        problem = mcp_core.registration_problem(name, reads, writes)
+        if problem is not None:
+            raise mcp_core.ToolInputError(problem)
 
         swarm = worker.read_swarm(obsel_url)
         tasks = mcp_core.required_list(swarm["snapshot"], "tasks", "a board read")

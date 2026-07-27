@@ -87,6 +87,72 @@ export function datasetUrn(name: string): string {
   return `urn:li:dataset:(urn:li:dataPlatform:${PLATFORM},${qualified},PROD)`;
 }
 
+/**
+ * The shape a name has to have for `datasetUrn` and `datasetName` to be inverses.
+ *
+ * `datasetName`, `shortName` in `src/features/cockpit/naming.ts` and
+ * `dataset_short_name` in `agents/mcp_core.py` all recover a name by splitting on
+ * commas and then on dots. So a comma or an extra dot inside the name is not
+ * cosmetic: `datasetUrn("a,b")` builds a URN whose second comma-separated segment
+ * is `a`, and every reader recovers `a` rather than `a,b`. The DataJob is created,
+ * the board draws a box with the truncated name, and the lineage points at a URN
+ * nobody can look up. Nothing downstream can detect it, so it has to be refused at
+ * the door.
+ *
+ * Lowercase because that is what every table in the demo and the scale swarm is,
+ * and a guard that admits `Clean_Orders` alongside `clean_orders` invites two boxes
+ * on the board for one table.
+ */
+export const NAME_PATTERN = /^[a-z0-9][a-z0-9_]*$/;
+
+/** Prose for the guard, so both doors and the docs say the same thing. */
+const SHAPE = "lowercase letters, digits and underscores, starting with a letter or digit";
+
+/**
+ * Why this task id cannot be used, or null if it can.
+ *
+ * Returns the reason rather than a boolean because the caller's job is to hand a
+ * model something it can act on, and "invalid name" is not actionable.
+ */
+export function taskNameProblem(name: string): string | null {
+  if (NAME_PATTERN.test(name)) return null;
+  return (
+    `task name ${JSON.stringify(name)} is not a code identifier. Use ${SHAPE}, ` +
+    `e.g. "build_revenue". The name is interpolated into this task's DataJob URN, ` +
+    "so anything else builds an entity that cannot be read back by name."
+  );
+}
+
+/**
+ * Why this dataset name cannot be used, or null if it can.
+ *
+ * One optional namespace segment is allowed — `obsel_taxi.clean_trips` — because
+ * the scale swarm registers under its own namespace and `datasetUrn` passes a
+ * qualified name through untouched. A second dot is refused: the readers take the
+ * LAST dot-separated segment, so `a.b.c` comes back as `c`.
+ *
+ * A full URN is refused too, and deliberately. `datasetUrn` passes one through for
+ * obsel's own internal callers, which is what lets erasure name a snowflake table;
+ * but the HTTP door takes short names, so a URN arriving here is a caller that has
+ * not read the asymmetry, and it would be qualified into
+ * `obsel_demo.urn:li:dataset:(…)` — a plausible entity that matches nothing.
+ */
+export function datasetNameProblem(name: string): string | null {
+  const segments = name.split(".");
+  if (segments.length <= 2 && segments.every((segment) => NAME_PATTERN.test(segment))) return null;
+  const isUrn = name.startsWith("urn:li:");
+  return (
+    `dataset name ${JSON.stringify(name)} is not a table name. Use ${SHAPE}, ` +
+    `e.g. "clean_orders", optionally with one namespace segment like ` +
+    `"obsel_taxi.clean_trips". ` +
+    (isUrn
+      ? "This route takes SHORT names and builds the URNs itself; a URN sent here " +
+        "would be qualified into obsel_demo.urn:li:dataset:(…), which is a different entity."
+      : "The name is interpolated into the dataset URN and recovered by splitting on " +
+        "commas and dots, so anything else names a table that cannot be looked up.")
+  );
+}
+
 /** Short name of a dataset URN, e.g. `clean_orders`. Inverse of `datasetUrn`. */
 export function datasetName(urn: string): string {
   const parts = urn.split(",");

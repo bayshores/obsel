@@ -1,28 +1,14 @@
 import { NextResponse } from "next/server";
-import { z } from "zod";
 
 import { registerTask } from "@/src/server/coordinator/engine";
+import { RegisterBody } from "@/src/server/http/register-body";
 
 export const dynamic = "force-dynamic";
-
-// Short table names, not URNs. The server builds URNs so that the naming convention
-// lives in exactly one place and an agent cannot invent a malformed one.
-const Body = z.object({
-  name: z.string().min(1),
-  reads: z.array(z.string().min(1)),
-  writes: z.array(z.string().min(1)),
-  // The task's standing job in one sentence, stored as the DataJob's own
-  // description. Bounded: this renders in the ledger and in DataHub's UI.
-  description: z.string().min(1).max(300).optional(),
-  // The short human name the board leads with. Tightly bounded because it is
-  // also what the graph reserves box width for.
-  title: z.string().min(1).max(60).optional(),
-});
 
 export async function POST(request: Request) {
   let parsed;
   try {
-    parsed = Body.parse(await request.json());
+    parsed = RegisterBody.parse(await request.json());
   } catch (error) {
     const message = error instanceof Error ? error.message : "invalid body";
     return NextResponse.json({ error: message }, { status: 400 });
