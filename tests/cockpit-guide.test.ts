@@ -689,6 +689,107 @@ describe("stage derivation", () => {
   });
 });
 
+describe("a board holding exactly one task", () => {
+  /*
+   * The count every stage was written without.
+   *
+   * obsel's own demonstrations register four tasks or forty, so a count of one
+   * never reached a stage until the board grew a form that registers one task at
+   * a time. "1 agents ready to run" was on a real screen. Zero, four and forty
+   * all pass a sentence written for the plural, which is why every stage that
+   * counts something is checked here at one, and not only the stage that broke.
+   */
+  const one = (overrides: Partial<TaskRecord> = {}) => [task("clean_orders", overrides)];
+
+  it("empty cannot be reached at one task, and its zero stays plural", () => {
+    // Listed for completeness: `empty` is the stage where the swarm holds
+    // nothing, so it has no count of one to get wrong. English wants the plural
+    // for zero, which is what it already says.
+    expect(guide(input({ tasks: [] })).headline).toBe("No agents yet");
+  });
+
+  it("registered says one agent, not one agents", () => {
+    const view = guide(input({ tasks: one({ status: "registered", finishedAt: null }) }));
+    expect(view.stage).toBe("registered");
+    expect(view.headline).toBe("1 agent ready to run");
+  });
+
+  it("registered still reads as a ratio once the one task has finished nothing left to run", () => {
+    // Two tasks, one finished: the branch that prints no noun at all. It is here
+    // so the singular fix cannot be "make every count-bearing headline singular".
+    const view = guide(
+      input({
+        tasks: [task("clean_orders"), task("build_revenue", { finishedAt: null })],
+      }),
+    );
+    expect(view.headline).toBe("1 of 2 finished");
+  });
+
+  it("settled words the whole-swarm claim rather than saying all of one", () => {
+    const view = guide(input({ tasks: one() }));
+    expect(view.stage).toBe("settled");
+    expect(view.headline).toBe("the one agent finished, nothing out of date");
+    expect(view.headline).not.toContain("all 1");
+  });
+
+  it("flagged agrees its noun with the finished count and its verb with the marked count", () => {
+    const view = guide(input({ tasks: one({ status: "stale", stale: mark() }) }));
+    expect(view.stage).toBe("flagged");
+    expect(view.headline).toBe("1 of 1 finished agent is out of date");
+  });
+
+  it("flagged keeps the plural noun when one of several finished agents is marked", () => {
+    // The half of the rule a single ternary keyed to the marked count gets wrong:
+    // the noun counts the finished work, so it stays plural here while the verb
+    // goes singular.
+    const view = guide(
+      input({
+        tasks: [
+          task("clean_orders"),
+          task("write_report"),
+          task("build_revenue", { status: "stale", stale: mark() }),
+        ],
+      }),
+    );
+    expect(view.headline).toBe("1 of 3 finished agents is out of date");
+  });
+
+  it("the re-run button points at one mark with a demonstrative, not with a bare 1", () => {
+    const view = guide(input({ tasks: one({ status: "stale", stale: mark() }) }));
+    const rerun = view.actions.find((action) => action.step === "rerun-same");
+    expect(rerun?.detail).toBe("Nothing new should go out of date, and this one should stay.");
+  });
+
+  it("working already named the single agent, and still does", () => {
+    // Not a fix, a guard. This stage takes the one-task path deliberately, and a
+    // sweep that replaced every count with a plural helper could undo it.
+    const view = guide(
+      input({ tasks: one({ status: "running", finishedAt: null, title: "Orders cleaner" }) }),
+    );
+    expect(view.stage).toBe("working");
+    expect(view.headline).toContain("Orders cleaner is working");
+    expect(view.headline).not.toContain("1 agent");
+  });
+
+  it("no stage puts a number next to a word that disagrees with it", () => {
+    /*
+     * The sweep the individual cases above cannot do. Any stage reachable with a
+     * single task gets its whole text scanned for `1 <plural noun>`, so a count
+     * added to a sentence later fails here rather than in a browser.
+     */
+    const boards: { name: string; tasks: TaskRecord[] }[] = [
+      { name: "registered", tasks: one({ status: "registered", finishedAt: null }) },
+      { name: "working", tasks: one({ status: "running", finishedAt: null }) },
+      { name: "settled", tasks: one() },
+      { name: "flagged", tasks: one({ status: "stale", stale: mark() }) },
+    ];
+    for (const { name, tasks } of boards) {
+      const text = allText(guide(input({ tasks })));
+      expect(text, name).not.toMatch(/\b1 [a-z]+s\b/);
+    }
+  });
+});
+
 describe("the running step and the failed step", () => {
   const running = { step: "run" as const, startedAt: AT };
 

@@ -256,6 +256,31 @@ describe("summaryLine — says what was observed, never 'all clear'", () => {
     expect(summaryLine(1, 1, 1)).toContain("1 of 1 finished agent is");
   });
 
+  it("agrees every branch with the count it is actually about, at a swarm of one", () => {
+    /*
+     * The live region is the only thing that reads this board to a screen reader,
+     * and every branch of it was written for the demo's four. A swarm of one was
+     * an impossible state until the board could register tasks one at a time.
+     */
+    expect(summaryLine(1, 0, 0)).toBe(
+      "1 agent is set up. None has finished, so nothing can be out of date yet.",
+    );
+    expect(summaryLine(1, 1, 0)).toBe(
+      "1 of 1 agent has finished, and none of the tables it read has changed since.",
+    );
+    expect(summaryLine(1, 1, 1)).toBe(
+      "1 of 1 finished agent is out of date, because a table it read changed afterwards.",
+    );
+  });
+
+  it("keeps the noun plural when one of several finished agents is out of date", () => {
+    // The noun counts the finished work; only the verb and the pronoun count the
+    // stale part. Keying all three to `stale` produced "1 of 3 finished agent is".
+    expect(summaryLine(4, 3, 1)).toBe(
+      "1 of 3 finished agents is out of date, because a table it read changed afterwards.",
+    );
+  });
+
   it("bounds the quiet claim with the last report, and only the quiet claim", () => {
     // "Nothing has changed" is really "nothing has changed that anyone
     // reported": a table rewritten by something that never reports is invisible

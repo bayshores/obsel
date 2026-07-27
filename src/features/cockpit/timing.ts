@@ -7,6 +7,7 @@
  * an em dash, because a viewer cannot tell it is invented.
  */
 
+import { agreeing } from "./naming";
 import type { StaleMark, TaskRecord } from "@/src/server/coordinator/types";
 
 export interface DetectionTiming {
@@ -267,11 +268,14 @@ export function summaryLine(
 ): string {
   if (total === 0) return "No agents set up yet.";
   if (finished === 0) {
-    return `${total} ${total === 1 ? "agent is" : "agents are"} set up. None has finished, so nothing can be out of date yet.`;
+    return `${total} ${agreeing(total, "agent is", "agents are")} set up. None has finished, so nothing can be out of date yet.`;
   }
   if (stale === 0) {
     const bound = asOf === null ? "" : `, as of the last report at ${clockTime(asOf)}`;
-    return `${finished} of ${total} ${total === 1 ? "agent has" : "agents have"} finished, and none of the tables they read has changed since${bound}.`;
+    return `${finished} of ${total} ${agreeing(total, "agent has", "agents have")} finished, and none of the tables ${agreeing(total, "it", "they")} read has changed since${bound}.`;
   }
-  return `${stale} of ${finished} finished ${stale === 1 ? "agent is" : "agents are"} out of date, because a table ${stale === 1 ? "it" : "they"} read changed afterwards.`;
+  // The noun counts the finished work and the verb counts the stale part of it.
+  // Keying both to `stale`, as this did, produced "1 of 3 finished agent is out
+  // of date" — the ratio's own denominator contradicted by the word after it.
+  return `${stale} of ${finished} finished ${agreeing(finished, "agent")} ${agreeing(stale, "is", "are")} out of date, because a table ${agreeing(stale, "it", "they")} read changed afterwards.`;
 }
