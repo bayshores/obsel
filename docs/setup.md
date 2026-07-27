@@ -176,8 +176,10 @@ reports. Here the totals came out identical, because a renamed input column does
 sums, and the flag came off through that redo. A totals task whose output moved would have
 cascaded onward instead. There is no tool that clears a flag, on purpose.
 
-Everything above is the same six tools the [Bring your own agent](../README.md#bring-your-own-agent)
-section lists, and the order is the one `skills/obsel-collaboration/SKILL.md` teaches. What obsel
+Everything above is the same six board tools the
+[Bring your own agent](../README.md#bring-your-own-agent) section lists first, and the order is the
+one `skills/obsel-collaboration/SKILL.md` teaches. The three erasure tools beside them are the
+subject of the next section. What obsel
 has been run against beyond this, shape by shape and change by change, is
 [`docs/coverage.md`](coverage.md).
 

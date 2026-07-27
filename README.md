@@ -175,6 +175,9 @@ from a terminal ticks it just the same.
 | `report_complete(taskUrn, outputs, inputs?, runner?, ms?)` | what I produced; obsel replies with what that broke, and with what it proved sound |
 | `abandon_task(taskUrn)`                                    | hand the announcement back if I failed                                             |
 | `read_board()`                                             | who else is in the swarm, and how they are doing                                   |
+| `erasure_board(request, scope?)`                           | what an erasure request still has nobody speaking for, as work to do               |
+| `request_challenge(request, asset)`                        | the one-time value my attestation must be signed over                              |
+| `submit_attestation(request, envelope)`                    | hand over a signed claim; obsel verifies it or refuses it with every reason        |
 
 Reporting a table is one line: `{"clean_orders": {"path": "data/clean_orders.json"}}`. obsel reads
 and hashes the file itself, so no rows travel through the tool call.
@@ -243,6 +246,12 @@ The full record of what has been measured, and what has not, is in
   a joined fifth agent in the unit suite. Nothing between or beyond those.
 - The submission video is not voiced or uploaded. A measured 157.9 s reference picture lock exists
   from a clean one-shot take, but it predates the joining panel and has to be shot again.
+- **The erasure half has no board.** One request has been run end to end against a real catalog on
+  2026-07-26 — 23 assets over five platforms, one turned attested by a real Ed25519 signature — but
+  the coverage picture is JSON from `GET /api/erasure/<id>`. The screen shows erasure only as
+  activity in the trace panel: requests opened, challenges issued, attestations accepted and
+  refused. No agent yet drives that board on its own; the attestation in that run was signed by the
+  operator, not routed to an owner and waited for.
 
 ---
 
@@ -258,8 +267,8 @@ pnpm e2e         # browser checks; builds and serves the app itself
 
 **`pnpm verify` is the one to run first.** It needs no Docker and no browser download.
 
-Checked 2026-07-26: `pnpm verify` passes end to end, with 373 tests and 183 Python self-checks
-across seven modules. `pnpm test:live` passes 96 tests across ten files in 297 s, two of
+Checked 2026-07-26: `pnpm verify` passes end to end, with 375 tests and 183 Python self-checks
+across seven modules. `pnpm test:live` passes 96 tests across ten files in 266 s, two of
 them real Codex sessions. `pnpm e2e` passes 121 browser checks across two viewports, with one
 skipped by design, half of them against a forty-task board recorded off a real run.
 

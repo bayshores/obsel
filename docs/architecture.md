@@ -330,9 +330,10 @@ finished the work. A timeout on a mutation is an unknown outcome, not a failure;
 what keeps the two distinct.
 
 **As a server**, so an agent that is not in this repository can join a swarm.
-[`agents/mcp_server.py`](../agents/mcp_server.py) serves six tools over stdio: `check_freshness`,
-`register_task`, `announce_start`, `report_complete`, `abandon_task`, `read_board`. Three properties
-of it are deliberate:
+[`agents/mcp_server.py`](../agents/mcp_server.py) serves nine tools over stdio. Six are the board:
+`check_freshness`, `register_task`, `announce_start`, `report_complete`, `abandon_task`,
+`read_board`. Three are erasure: `erasure_board`, `request_challenge`, `submit_attestation`. Three
+properties of it are deliberate:
 
 - **Every mutation goes through obsel's HTTP API** (section 11). The module imports no DataHub SDK
   and holds no credentials, so `staleness.ts` remains the only way anything is ever marked. There is

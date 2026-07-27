@@ -46,6 +46,9 @@ const TOOLS: readonly { name: string; what: string }[] = [
   },
   { name: "abandon_task", what: "hand the announcement back if I failed" },
   { name: "read_board", what: "who else is in the swarm, and how they are doing" },
+  { name: "erasure_board", what: "what an erasure request still has nobody speaking for" },
+  { name: "request_challenge", what: "the one-time value my attestation must be signed over" },
+  { name: "submit_attestation", what: "hand over a signed claim; obsel verifies it or refuses" },
 ];
 
 export function JoiningPanel({ view }: { view: JoinView }) {
@@ -102,7 +105,7 @@ export function JoiningPanel({ view }: { view: JoinView }) {
           <Steps view={view} />
 
           <details className={styles.tools}>
-            <summary className={styles.summary}>the six tools obsel gives it</summary>
+            <summary className={styles.summary}>the nine tools obsel gives it</summary>
             <ul className={styles.toolList}>
               {TOOLS.map((tool) => (
                 <li key={tool.name}>

@@ -64,7 +64,7 @@ were found.
 | `setup.py`        | One-time DataHub setup: creates obsel's tag and the demo DataFlow.                                                                                                                                                                        |
 | `run.py`          | The command line that drives the demo. 33 self-checks over the guards behind what it prints.                                                                                                                                              |
 | `mcp_core.py`     | Everything obsel's MCP server decides before it speaks: reply guards, output resolution, freshness verdicts, the completion body, tables handed over as file paths. Standard library only, so `pnpm verify` can check it. 39 self-checks. |
-| `mcp_server.py`   | obsel's own MCP server: the six tools any MCP-capable agent joins a swarm through. Wiring only; covered by `tests/live/obsel-mcp.live.test.ts`.                                                                                           |
+| `mcp_server.py`   | obsel's own MCP server: the nine tools any MCP-capable agent joins through, six for the board and three for erasure. Wiring only; covered by `tests/live/obsel-mcp.live.test.ts`.                                                         |
 
 ## Joining from your own agent
 
