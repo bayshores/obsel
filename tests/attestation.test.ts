@@ -223,6 +223,41 @@ describe("tampering", () => {
     expect(failureKinds(verifyAttestation(repackaged, context()))).toContain("bad-signature");
   });
 
+  it("refuses a payload that is not shaped like a record, instead of crashing on it", () => {
+    /*
+     * Found by feeding `{}` through the real HTTP route, not by any unit test
+     * here: every payload these tests build is well formed, so the first check
+     * that reached for a field the record did not have threw, and a malformed
+     * submission came back a 500 rather than a refusal. A crash in a
+     * verification path is the wrong failure twice over — the caller learns
+     * nothing about what was wrong, and unvalidated input has already travelled
+     * further into the check than it should.
+     */
+    for (const payload of ["{}", "[]", '"a string"', '{"kind":"direct"}', "42"]) {
+      const envelope: Envelope = {
+        payloadType: PAYLOAD_TYPE,
+        payload: Buffer.from(payload, "utf8").toString("base64"),
+        signatures: [{ keyid: "warehouse-2026-07", sig: "bm90LWEtc2ln" }],
+      };
+      const result = verifyAttestation(envelope, context());
+      expect(result.ok, `${payload} should be refused`).toBe(false);
+      expect(failureKinds(result), payload).toContain("malformed-envelope");
+    }
+  });
+
+  it("refuses a record carrying no nonce, which is a record bound to no question", () => {
+    // Without a nonce there is nothing tying the signature to something obsel
+    // asked, which is the whole difference between evidence and a stored answer.
+    const noNonce = { ...record() } as Partial<SignedRecord>;
+    delete noNonce.nonce;
+    const envelope: Envelope = {
+      payloadType: PAYLOAD_TYPE,
+      payload: Buffer.from(canonicalJson(noNonce), "utf8").toString("base64"),
+      signatures: [{ keyid: "warehouse-2026-07", sig: "bm90LWEtc2ln" }],
+    };
+    expect(failureKinds(verifyAttestation(envelope, context()))).toContain("malformed-envelope");
+  });
+
   it("rejects a signature made by a different key than the one claimed", () => {
     // The attacker holds their own key and names somebody else's id.
     const other = keypair();

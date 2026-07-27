@@ -749,3 +749,37 @@ not `…,analytics.order_details,PROD)`. A hand-typed URN of the shorter form re
 `/relationships` rather than an error, which reads exactly like an asset with no lineage. Section 1's
 rule about fabricated existence has a sibling here: **a wrong URN on a traversal endpoint returns an
 empty graph, not a 404.** Discover URNs from the graph; do not type them.
+
+### 13.4 Writing a `document`, and why the ledger is never searched for
+
+Two things about `document` entities that only running them revealed.
+
+**`relatedAssets` takes `asset`, not `destinationUrn`.** A first attempt using the name every other
+edge-shaped aspect uses returned a 400:
+
+```
+Failed to validate record with class com.linkedin.knowledge.DocumentInfo:
+ERROR :: /relatedAssets/0/asset :: field is required but not found and has no default value
+```
+
+The field list, from the pinned SDK's `DocumentInfoClass`, is `status`, `contents`, `created`,
+`lastModified`, `customProperties`, `title`, `source`, `relatedAssets`, `relatedDocuments`,
+`parentDocument`, and `RelatedAssetClass` carries exactly one field, `asset`. Introspect the SDK
+rather than pattern-matching from a neighbouring aspect.
+
+**`relatedAssets` produced no traversable edge on this instance.** A probe document written with a
+`relatedAssets` entry pointing at a real dataset returned nothing from `GET /relationships` in either
+direction, so a ledger cannot be enumerated by walking from the asset it is about.
+
+**Consequence: obsel's ledger is read by derived URN and never searched.** The first implementation
+read it back over GraphQL `searchAcrossEntities`, and it did not work. A record written a moment
+earlier was not yet indexed, so a freshly opened erasure request could not find its own opening
+record and every read after it answered 404. That is section 7's warning arriving in a new place, and
+it is worse here than in lineage: a coverage report that cannot see an attestation reports the asset
+as unattested, which is indistinguishable from a real finding.
+
+So `src/server/datahub/documents.ts` derives every URN from values the caller already holds —
+`obsel.request.<id>`, `obsel.challenge.<nonce>`, `obsel.attestation.<request>.<assetSlug>.<n>` — and
+enumerates attestations by counting up from one until a genuine 404. No search index sits anywhere in
+the path that decides coverage. The sequence number is what keeps the ledger append-only: a second
+attestation about one asset is a new record beside the first, never a write over it.

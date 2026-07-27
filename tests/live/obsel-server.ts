@@ -38,13 +38,25 @@ export interface ObselServer {
  * a suite testing an older build than its source would be worse than no suite. `pnpm
  * test:live` therefore runs `pnpm build` first, so what is served is what is checked out.
  */
-export async function startObsel(port: number, flowId: string): Promise<ObselServer> {
+export async function startObsel(
+  port: number,
+  flowId: string,
+  /**
+   * Extra environment for this server only.
+   *
+   * The erasure suite needs `OBSEL_API_TOKEN` and `OBSEL_ATTESTOR_KEYS`, and both are read
+   * at startup like `OBSEL_FLOW_ID`, so they cannot be set from inside a test any more than
+   * the flow could. Additive and optional: every existing caller passes nothing and gets
+   * exactly what it got before.
+   */
+  extraEnv: Record<string, string> = {},
+): Promise<ObselServer> {
   const url = `http://127.0.0.1:${port}`;
   const cwd = new URL("../../", import.meta.url).pathname;
 
   const child: ChildProcess = spawn("pnpm", ["exec", "next", "start", "--port", String(port)], {
     cwd,
-    env: { ...process.env, OBSEL_FLOW_ID: flowId, PORT: String(port) },
+    env: { ...process.env, OBSEL_FLOW_ID: flowId, PORT: String(port), ...extraEnv },
     stdio: ["ignore", "pipe", "pipe"],
     // Its own process group, so the whole tree can be signalled on the way out. `next`
     // forks a worker, and killing only the parent leaves the port held and the next run

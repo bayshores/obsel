@@ -948,10 +948,57 @@ and obsel's challenge was fresh, unexpired and never used before.
 
 Counts: `pnpm verify` green with **365 unit tests across 16 files**.
 
-**Not built yet, and named rather than implied.** There is still no `POST /api/erasure/proof` route
-and no authentication on any of obsel's HTTP routes. The verification logic above is complete and
-tested; what is missing is the transport that carries an envelope to it. Until that lands, the
-attestation layer is reachable only from tests, and no end-to-end erasure has been run.
+### One erasure, end to end, over real HTTP (2026-07-26)
+
+Four routes now exist: `POST /api/erasure` opens a request and walks the catalog,
+`POST /api/erasure/challenge` issues the one-time value an attestor binds into what it signs,
+`POST /api/erasure/proof` takes a signed envelope, and `GET /api/erasure/[id]` reports coverage.
+Mutating routes are behind a bearer token. `tests/live/erasure.live.test.ts` drives all of it
+against a real Next server, real Ed25519 keys, real DataHub `document` records and a real lineage
+walk across `showcase-ecommerce`: **9 tests, all passing.**
+
+What that run demonstrates, in order: a request opens and every reachable asset is `UNPROVEN`; the
+report does not echo the subject's identifiers back; an unsigned claim is refused with a 422; a
+genuinely signed attestation moves exactly one asset to `ATTESTED` and leaves everything downstream
+alone; the same envelope submitted twice is refused as a replay; a fresh `GET` recomputes the same
+answer from DataHub; and a key reported compromised takes the coverage back with no data having
+changed.
+
+- **The token is not the trust root, and the code says so.** An attestation counts because it is
+  signed by a key obsel was told out of band to trust, verified over canonical bytes, bound to a
+  challenge obsel issued. The bearer token stops an unauthenticated party opening requests and
+  burning challenges, which is denial of service rather than forgery. There is deliberately no route
+  that registers a key: an endpoint that adds keys is an endpoint that mints attestations.
+- **An unconfigured obsel refuses writes rather than allowing them.** With no `OBSEL_API_TOKEN`,
+  mutating routes answer 503. The opposite default is how tools ship wide open, and the failure is
+  silent because everything works.
+- **A live test asserts the absence of the endpoint that must never exist.** No route marks an asset
+  covered. Coverage is derived from the ledger on every read, so there is nothing to clear even in
+  principle, and the absence of that endpoint is exactly the kind of thing a later commit adds for
+  convenience.
+
+Two defects were found by running this, neither reachable from the unit tests:
+
+- **A malformed payload crashed the verifier instead of being refused.** Feeding `{}` through the
+  real route produced a 500: every payload the unit tests build is well formed, so the first check
+  that reached for a field the record did not have threw. A crash in a verification path is the
+  wrong failure twice — the caller learns nothing, and unvalidated input travelled further into the
+  check than it should. Shape validation now runs before the key is even looked up, and five
+  malformed payloads are a named test.
+- **The ledger could not be read back through search.** The first implementation enumerated it over
+  GraphQL `searchAcrossEntities`, and a record written a moment earlier was not yet indexed, so a
+  request could not find its own opening record. Every ledger URN is now derived from values the
+  caller already holds, and attestations are enumerated by counting up until a genuine 404. No
+  search index sits anywhere in the path that decides coverage. Written up as
+  `environment-findings.md` §13.4, along with the `relatedAssets` field-name 400 that preceded it.
+
+Counts: `pnpm verify` green with **373 unit tests across 17 files**; `pnpm test:live` green with
+**93 tests across 10 files in 256 s**; `pnpm e2e` green with 121 browser checks in 35 s.
+
+**Still not built, and named rather than implied.** No agent yet traverses the coverage board,
+selects an adapter, routes work to an owner, or explains a blocker: every attestation in the live run
+above is produced by the test signing one directly. The demonstration script and the cockpit's
+erasure view do not exist. Article 19 recipient notification is out of scope and stated as such.
 
 ## Not done
 

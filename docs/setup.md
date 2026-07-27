@@ -180,3 +180,83 @@ Everything above is the same six tools the [Bring your own agent](../README.md#b
 section lists, and the order is the one `skills/obsel-collaboration/SKILL.md` teaches. What obsel
 has been run against beyond this, shape by shape and change by change, is
 [`docs/coverage.md`](coverage.md).
+
+## Erasure coverage
+
+The erasure half of obsel is off unless you configure it, and it is off in the safe direction: with
+no token the mutating routes answer 503, and with no key registry nothing verifies and every asset
+stays unattested.
+
+**1. A token for the mutating routes.**
+
+```bash
+export OBSEL_API_TOKEN="$(openssl rand -hex 24)"
+```
+
+`POST /api/erasure`, `/api/erasure/challenge` and `/api/erasure/proof` all require
+`Authorization: Bearer $OBSEL_API_TOKEN`. `GET /api/erasure/<id>` does not: it returns a coverage
+report, and the report deliberately does not echo the subject's identifiers back.
+
+This token is not what makes an attestation trustworthy. That is the signature, the key registry and
+the challenge below. What the token stops is an unauthenticated party opening requests and burning
+challenges.
+
+**2. The attestor key registry.** A JSON array, inline or a path to a file. There is no route that
+registers a key, deliberately: an endpoint that adds keys is an endpoint that mints attestations.
+
+```bash
+export OBSEL_ATTESTOR_KEYS=/etc/obsel/attestors.json
+```
+
+```jsonc
+[
+  {
+    "keyId": "warehouse-2026-07",
+    "attestor": "warehouse-adapter@your-org",
+    "publicKeyPem": "-----BEGIN PUBLIC KEY-----\n...\n-----END PUBLIC KEY-----\n",
+    "notBefore": "2026-07-01T00:00:00.000Z",
+    "status": { "state": "active" },
+    // Exact URNs, or a prefix ending in `*`. A warehouse adapter has no business
+    // attesting about a dashboard it cannot see.
+    "scope": ["urn:li:dataset:(urn:li:dataPlatform:snowflake,*"],
+  },
+]
+```
+
+Ed25519 only. Generate a pair with:
+
+```bash
+openssl genpkey -algorithm ed25519 -out attestor.key && openssl pkey -in attestor.key -pubout
+```
+
+To retire a key, set `"status": {"state": "retired", "at": "<iso>"}`: its past signatures still
+stand. To report one compromised, set `"status": {"state": "compromised", "at": "<iso>"}`: every
+signature it ever made falls, and any asset it covered goes back to unattested on the next read.
+Both take effect when obsel restarts, because the registry is read at startup.
+
+**3. Open a request and read the board.**
+
+```bash
+curl -s -X POST localhost:3000/api/erasure -H "Authorization: Bearer $OBSEL_API_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"identifiers":["cust_88213"],"seeds":["<dataset urn holding the subject>"],"hops":3}'
+```
+
+Everything it reaches comes back `UNPROVEN`, which is the honest state of an asset nobody has
+spoken for and the most useful thing in the report on day one. `summary` counts covered against
+unattested; `assurance` says how far the walk went and how many evidence records the answer rests
+on, so a small estate cannot be mistaken for a covered one.
+
+**How an attestor answers.** Ask for a challenge, look in the asset, sign the record with the
+challenge bound into it, and submit. `signAttestation` in
+`src/server/coordinator/attestation.ts` produces the DSSE envelope, and shipping it rather than
+documenting the byte format is deliberate: "produce the canonical bytes yourself" is an invitation
+for one implementation to disagree with the verifier about a space.
+
+```bash
+curl -s -X POST localhost:3000/api/erasure/challenge -H "Authorization: Bearer $OBSEL_API_TOKEN" \
+  -H 'Content-Type: application/json' -d '{"request":"<id>","asset":"<urn>"}'
+```
+
+A challenge is single use and expires in fifteen minutes. That is what makes a signature evidence
+about now, rather than an answer prepared whenever it suited the signer.

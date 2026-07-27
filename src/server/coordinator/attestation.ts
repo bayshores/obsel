@@ -277,6 +277,22 @@ export function verifyAttestation(
     };
   }
 
+  /*
+   * The payload's shape is checked before any of its fields are used.
+   *
+   * Found by feeding an empty object through the real HTTP route: `{}` parses
+   * fine, and the first check that reached for a field it did not have threw,
+   * so a malformed submission came back a 500 instead of a refusal. A crash in
+   * a verification path is the wrong failure in two ways — the caller learns
+   * nothing about what was wrong, and unvalidated input has already travelled
+   * further into the check than it should. Anything that is not shaped like a
+   * record is refused here, before the key is even looked up.
+   */
+  const shapeProblem = describeShapeProblem(record);
+  if (shapeProblem) {
+    return { ok: false, failures: [{ kind: "malformed-envelope", detail: shapeProblem }] };
+  }
+
   const { keyid, sig } = envelope.signatures[0];
   const key = context.keys.find((entry) => entry.keyId === keyid);
   if (!key) {
@@ -330,6 +346,34 @@ export function verifyAttestation(
     keyId: key.keyId,
     attestation: { ...(attestation as Attestation), signatureVerified: true },
   };
+}
+
+/**
+ * What is missing or wrong about a parsed payload, or null if it is usable.
+ *
+ * Only the fields every later check reads unconditionally. This is not schema
+ * validation and does not try to be: the point is that no check further down
+ * can be handed something it will crash on, so each one gets to make its own
+ * decision and report it.
+ */
+function describeShapeProblem(record: SignedRecord): string | null {
+  // Typed as a record by the parse above and deliberately re-examined as
+  // unknown here, because what actually arrived is whatever the caller sent.
+  const fields = record as unknown as Record<string, unknown>;
+  if (typeof fields !== "object" || fields === null || Array.isArray(fields)) {
+    return "payload is not a JSON object";
+  }
+  const required = ["kind", "request", "asset", "version", "attestor", "at", "nonce"];
+  const missing = required.filter(
+    (field) => typeof fields[field] !== "string" || fields[field] === "",
+  );
+  if (missing.length > 0) {
+    return `payload is missing required string fields: ${missing.join(", ")}`;
+  }
+  if (fields.kind !== "direct" && fields.kind !== "rebuild") {
+    return `payload kind is ${String(fields.kind)}, expected direct or rebuild`;
+  }
+  return null;
 }
 
 /**
