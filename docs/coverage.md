@@ -19,8 +19,8 @@ And a row names its evidence precisely enough to re-run it or look it up.
 | browser | Playwright against the built app                                       | `pnpm e2e`         |
 | run     | a dated, measured run recorded in [`verification.md`](verification.md) | see its entry      |
 
-Counts on 2026-07-26: 375 unit tests across 17 files, 183 python self-checks across 7 modules,
-96 live tests across 10 files, 121 browser checks across two viewports. Live runs are single
+Counts on 2026-07-26: 394 unit tests across 18 files, 183 python self-checks across 7 modules,
+96 live tests across 10 files, 139 browser checks across two viewports. Live runs are single
 observations unless their entry says otherwise.
 
 Nothing in the unit or python columns uses a stand-in for a system boundary; that rule and its
@@ -29,16 +29,17 @@ snapshots and says which is which in each fixture's header.
 
 ## Pipeline shapes
 
-| shape                           | proven by                                                                                                                                                                                                  | kind         |
-| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------ |
-| chain, three hops deep          | `report_riders` marked at 3 hops through two intermediate tables, live runs of 2026-07-24                                                                                                                  | run, live    |
-| diamond (two paths, one target) | "reports a task reachable two ways once, at its shortest distance", `tests/staleness.test.ts`                                                                                                              | unit         |
-| fan-out                         | five borough marts off one table in `agents/scale.py`, walked by its own self-check against the derived descendant map                                                                                     | python, run  |
-| fan-in                          | the six-way city summary in `agents/scale.py`, same self-check; "handles several tables changing at once", `tests/staleness.test.ts`                                                                       | python, unit |
-| cycle                           | "terminates on a cycle instead of looping forever" and "terminates on a cycle of tasks that keep each other flagged", `tests/staleness.test.ts`; the layout's cycle case in `tests/cockpit-layout.test.ts` | unit         |
-| the four-task demo              | every file in `tests/live/`, plus seven recorded full sequences 2026-07-22 to 2026-07-24                                                                                                                   | live, run    |
-| forty tasks, concurrent         | the 2026-07-24 scale runs: 41 real Codex sessions, peak 8 at once, mid-run change, parallel repair                                                                                                         | run          |
-| an outside agent joining        | `tests/live/obsel-mcp.live.test.ts` registers, works and cascades through the MCP door; a joined fifth task lays out on the demo's shape in `tests/cockpit-layout.test.ts`                                 | live, unit   |
+| shape                                                       | proven by                                                                                                                                                                                                  | kind         |
+| ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------ |
+| chain, three hops deep                                      | `report_riders` marked at 3 hops through two intermediate tables, live runs of 2026-07-24                                                                                                                  | run, live    |
+| diamond (two paths, one target)                             | "reports a task reachable two ways once, at its shortest distance", `tests/staleness.test.ts`                                                                                                              | unit         |
+| fan-out                                                     | five borough marts off one table in `agents/scale.py`, walked by its own self-check against the derived descendant map                                                                                     | python, run  |
+| fan-in                                                      | the six-way city summary in `agents/scale.py`, same self-check; "handles several tables changing at once", `tests/staleness.test.ts`                                                                       | python, unit |
+| cycle                                                       | "terminates on a cycle instead of looping forever" and "terminates on a cycle of tasks that keep each other flagged", `tests/staleness.test.ts`; the layout's cycle case in `tests/cockpit-layout.test.ts` | unit         |
+| the four-task demo                                          | every file in `tests/live/`, plus seven recorded full sequences 2026-07-22 to 2026-07-24                                                                                                                   | live, run    |
+| forty tasks, concurrent                                     | the 2026-07-24 scale runs: 41 real Codex sessions, peak 8 at once, mid-run change, parallel repair                                                                                                         | run          |
+| an outside agent joining                                    | `tests/live/obsel-mcp.live.test.ts` registers, works and cascades through the MCP door; a joined fifth task lays out on the demo's shape in `tests/cockpit-layout.test.ts`                                 | live, unit   |
+| a two-task chain registered from the board, not by an agent | the run of 2026-07-26 below: `clean_expenses` then `monthly_totals` typed into the form against a real DataHub on an isolated flow, both read back off `/api/swarm` with their lineage, and drawn          | run, browser |
 
 ## Kinds of change
 
@@ -135,7 +136,18 @@ down so the table cannot imply them.
   header. The shape it invents was checked against a real MCP session on 2026-07-24, and that
   session found a defect the earlier fixture had hidden, so the fixture is now shaped like what the
   door genuinely emits. What is still missing is a capture: no visiting agent's `/api/swarm` has
-  been recorded to disk the way the forty-task board's two fixtures were.
+  been recorded to disk the way the forty-task board's two fixtures were. The 2026-07-26 form run
+  narrows this without closing it: two visiting tasks were registered against a real DataHub and
+  read back with their lineage, so the shape `visiting()` invents has now been produced by a real
+  server as well as by a real MCP session. It still was not written to disk as a fixture.
+- **A registration reaching DataHub, from a browser test.** `openCockpit` intercepts
+  `/api/tasks/register`, because unstubbed it would create real entities in whatever DataHub the
+  machine is pointed at. So no row in the browser column proves a registration lands; the run of
+  2026-07-26 in [`verification.md`](verification.md) is the evidence for that, and it is one
+  observation by hand rather than a test.
+- **Reporting your own file from the board.** Not built. The fingerprint is taken from rows in
+  `agents/fingerprint.py`, and a second implementation in the browser would be a second definition
+  of a change, so there is deliberately no route for it yet.
 - **Two swarms changing at once.** Every concurrent run is one swarm on one flow.
 - **Any machine other than one laptop, any DataHub other than quickstart `v1.5.0.6`.**
 

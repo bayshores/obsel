@@ -210,6 +210,12 @@ with every reply quoted from that run, is in [`docs/setup.md`](docs/setup.md). T
 shapes, changes and edge cases obsel has been run against is
 [`docs/coverage.md`](docs/coverage.md).
 
+**Declaring those tasks is a form on the board**, under the joining panel: a name, the tables it
+reads, the tables it writes. It posts to the same `/api/tasks/register` the MCP tool calls, so a
+task you add by hand and a task an agent registered itself are the same entity and appear in the
+same list. Reporting the work stays your agent's job, because obsel takes the fingerprint from the
+rows and an agent that could hand obsel a hash could hand it the previous one.
+
 ---
 
 ## Check the claims yourself
@@ -246,6 +252,10 @@ The full record of what has been measured, and what has not, is in
   a joined fifth agent in the unit suite. Nothing between or beyond those.
 - The submission video is not voiced or uploaded. A measured 157.9 s reference picture lock exists
   from a clean one-shot take, but it predates the joining panel and has to be shot again.
+- **Bringing your own data is half on the board.** Declaring tasks is a form, driven against a real
+  DataHub on 2026-07-26. Reporting a file is not: obsel takes the fingerprint from rows itself, and
+  doing that in the browser would be a second definition of what counts as a change, so the report
+  still comes from whatever runs your work.
 - **The erasure half has no board.** One request has been run end to end against a real catalog on
   2026-07-26 — 23 assets over five platforms, one turned attested by a real Ed25519 signature — but
   the coverage picture is JSON from `GET /api/erasure/<id>`. The screen shows erasure only as
@@ -267,9 +277,9 @@ pnpm e2e         # browser checks; builds and serves the app itself
 
 **`pnpm verify` is the one to run first.** It needs no Docker and no browser download.
 
-Checked 2026-07-26: `pnpm verify` passes end to end, with 375 tests and 183 Python self-checks
+Checked 2026-07-26: `pnpm verify` passes end to end, with 394 tests and 183 Python self-checks
 across seven modules. `pnpm test:live` passes 96 tests across ten files in 266 s, two of
-them real Codex sessions. `pnpm e2e` passes 121 browser checks across two viewports, with one
+them real Codex sessions. `pnpm e2e` passes 139 browser checks across two viewports, with one
 skipped by design, half of them against a forty-task board recorded off a real run.
 
 ---
@@ -277,7 +287,7 @@ skipped by design, half of them against a forty-task board recorded off a real r
 ## Where things live
 
 ```
-app/                     routing, and the nine HTTP routes
+app/                     routing, and the thirteen HTTP routes
 src/features/cockpit/    the board you look at
 src/server/coordinator/  the staleness rules, and the part that talks to DataHub
 src/server/datahub/      DataHub client, tag writes, id shapes

@@ -784,6 +784,215 @@ test.describe("bring your own agent", () => {
   });
 });
 
+/**
+ * The panel that registers somebody's own tables, which is the one place on the
+ * board that writes.
+ *
+ * What is checked here is the half `mine.ts`'s unit tests cannot see: that the
+ * form is findable, that the body reaching `/api/tasks/register` is the one the
+ * MCP door would have sent, and that a draft obsel would refuse never leaves the
+ * browser. Which drafts are refused, and why, is covered in
+ * `tests/cockpit-mine.test.ts` and is not repeated.
+ *
+ * `openCockpit` intercepts the register route; its header says what that costs.
+ * No browser test here proves a registration reaches DataHub.
+ */
+test.describe("bring your own data", () => {
+  const panel = (page: Page) => page.locator('[aria-label="Bring your own data"]');
+  const open = (page: Page) => panel(page).getByText("add a task").click();
+
+  test("is a panel with a heading, beside the door for an agent", async ({ page }) => {
+    await openCockpit(page, cascaded(), finishedStep());
+
+    await expect(panel(page).getByRole("heading", { name: "bring your own data" })).toBeVisible();
+
+    // Below the joining panel, which is the pair the README puts in this order.
+    // A reader who has just watched the cascade meets "bring your own agent" and
+    // then "bring your own data", under the graph and above the numbers.
+    const order = await page.evaluate(() => {
+      const labels = [...document.querySelectorAll("main section[aria-label]")].map((node) =>
+        node.getAttribute("aria-label"),
+      );
+      return {
+        agent: labels.indexOf("Bring your own agent"),
+        data: labels.indexOf("Bring your own data"),
+      };
+    });
+    expect(order.agent).toBeGreaterThanOrEqual(0);
+    expect(order.data).toBe(order.agent + 1);
+  });
+
+  test("keeps the form folded, and counts nothing, on obsel's own board", async ({ page }) => {
+    // The state the word ceiling measures and the state the board is in on
+    // camera. The heading is painted; the four fields are not, and there is no
+    // count, because a count of zero says nothing the empty list does not.
+    await openCockpit(page, cascaded(), finishedStep());
+
+    await expect(panel(page).getByText("add a task")).toBeVisible();
+    await expect(panel(page).locator("input").first()).toBeHidden();
+    await expect(panel(page).getByText(/of yours/)).toBeHidden();
+  });
+
+  test("lists your own tasks with the identifiers your agent has to use", async ({ page }) => {
+    await openCockpit(page, visiting(), finishedStep());
+    await open(page);
+
+    await expect(panel(page).getByText("2 of yours")).toBeVisible();
+
+    /*
+     * The identifiers, not the humanised names the rest of the board shows.
+     * `clean_expenses` is what the reader typed and what their agent passes to
+     * `report_complete`; a row reading "reads clean expenses" would be unusable
+     * for the one thing this list is for.
+     */
+    const rows = await panel(page).evaluate((node) =>
+      [...node.querySelectorAll("li[data-reported]")].map((li) => ({
+        reported: li.getAttribute("data-reported"),
+        text: (li as HTMLElement).innerText.replace(/\s+/g, " "),
+      })),
+    );
+    expect(rows).toHaveLength(2);
+    expect(rows[0].reported).toBe("true");
+    expect(rows[0].text).toContain("reads expenses_csv, writes clean_expenses");
+    // Registered and never reported. obsel has no fingerprint for it, so it has
+    // nothing to compare against next time, and the row says so rather than
+    // showing a tick that would mean obsel was watching it.
+    expect(rows[1].reported).toBe("false");
+    expect(rows[1].text).toContain("nothing reported yet");
+  });
+
+  test("sends obsel exactly the body the MCP door would have sent", async ({ page }) => {
+    const { registrations } = await openCockpit(page, cascaded(), finishedStep());
+    await open(page);
+
+    await panel(page).locator("input").nth(0).fill("clean_expenses");
+    await panel(page).locator("input").nth(1).fill("expenses_csv");
+    await panel(page).locator("input").nth(2).fill("clean_expenses");
+    await panel(page).locator("input").nth(3).fill("Expense cleaner");
+    await panel(page).getByRole("button", { name: "register it" }).click();
+
+    // Short names, not URNs. The route builds the URNs so the naming convention
+    // lives in one place, and this board is not entitled to a second opinion.
+    await expect
+      .poll(() => registrations)
+      .toEqual([
+        {
+          name: "clean_expenses",
+          reads: ["expenses_csv"],
+          writes: ["clean_expenses"],
+          title: "Expense cleaner",
+        },
+      ]);
+
+    // Cleared, and no row invented. The task appears when `/api/swarm` has it,
+    // which this fixture's snapshot does not, so the list stays empty: an
+    // optimistic row would be a claim obsel had not verified.
+    await expect(panel(page).locator("input").nth(0)).toHaveValue("");
+    await expect(panel(page).getByText(/of yours/)).toBeHidden();
+  });
+
+  test("splits a comma-separated list of tables into separate names", async ({ page }) => {
+    const { registrations } = await openCockpit(page, cascaded(), finishedStep());
+    await open(page);
+
+    await panel(page).locator("input").nth(0).fill("joined_report");
+    await panel(page).locator("input").nth(1).fill("clean_expenses, monthly_totals");
+    await panel(page).locator("input").nth(2).fill("joined_report");
+    await panel(page).getByRole("button", { name: "register it" }).click();
+
+    await expect
+      .poll(() => registrations.at(0)?.reads)
+      .toEqual(["clean_expenses", "monthly_totals"]);
+  });
+
+  test("a draft obsel would refuse never leaves the browser", async ({ page }) => {
+    const { registrations } = await openCockpit(page, cascaded(), finishedStep());
+    await open(page);
+
+    // A task that writes nothing. The HTTP route accepts this and then has
+    // nothing to say about it forever, so the form is the only thing that says so.
+    await panel(page).locator("input").nth(0).fill("watches_nothing");
+    await expect(panel(page).getByText(/Name the table this task writes/)).toBeVisible();
+    await expect(panel(page).getByRole("button", { name: "register it" })).toBeDisabled();
+
+    // A name that would build a URN nothing can parse back, for the same reason.
+    await panel(page).locator("input").nth(2).fill("out");
+    await panel(page).locator("input").nth(0).fill("clean,expenses");
+    await expect(panel(page).getByRole("button", { name: "register it" })).toBeDisabled();
+
+    await panel(page).locator("input").nth(0).fill("clean_expenses");
+    await expect(panel(page).getByRole("button", { name: "register it" })).toBeEnabled();
+
+    expect(registrations, "a refused draft was sent anyway").toEqual([]);
+  });
+
+  test("shows obsel's own refusal rather than claiming the task landed", async ({ page }) => {
+    const { refuseRegistration } = await openCockpit(page, cascaded(), finishedStep());
+    await open(page);
+
+    refuseRegistration(500, "DataHub is not reachable");
+
+    await panel(page).locator("input").nth(0).fill("clean_expenses");
+    await panel(page).locator("input").nth(2).fill("clean_expenses");
+    await panel(page).getByRole("button", { name: "register it" }).click();
+
+    await expect(panel(page).getByText(/DataHub is not reachable/)).toBeVisible();
+    // The draft survives a refusal. Clearing it would make the reader retype
+    // four fields to retry something obsel might accept a second later.
+    await expect(panel(page).locator("input").nth(0)).toHaveValue("clean_expenses");
+  });
+
+  test("stays open after a registration, rather than shutting on the reader", async ({ page }) => {
+    /*
+     * Found by registering a task in a real browser, not by reading the code.
+     *
+     * `mine.ts` paints the form only on an empty board, so the first successful
+     * registration flips that derivation to folded, and `chosen ?? expanded`
+     * does not save it: the reader's panel was already open when they found it,
+     * so their choice matched the derivation and nothing was recorded. The next
+     * poll then shut the panel, hiding the confirmation and the new row, under
+     * somebody about to register the second half of their pipeline.
+     */
+    const { serve } = await openCockpit(page, empty(), finishedStep());
+    const field = panel(page).locator("input").first();
+    // Painted, because there is nothing on this board at all.
+    await expect(field).toBeVisible();
+
+    await panel(page).locator("input").nth(0).fill("clean_expenses");
+    await panel(page).locator("input").nth(2).fill("clean_expenses");
+    await panel(page).getByRole("button", { name: "register it" }).click();
+    await expect(panel(page).getByText(/Registered\./)).toBeVisible();
+
+    // The board is no longer empty, which is what used to close it.
+    serve(visiting());
+    await expect(panel(page).getByText("2 of yours")).toBeVisible();
+    await expect(field, "the panel shut itself after a registration").toBeVisible();
+    await expect(panel(page).getByText(/Registered\./)).toBeVisible();
+
+    // Closing it by hand still hands control back to the derivation.
+    await panel(page).getByText("hide this").click();
+    await expect(field).toBeHidden();
+  });
+
+  test("a reader who opens it is not overruled by the next poll", async ({ page }) => {
+    // The same toggle rule the joining panel keeps, and it has to be kept
+    // separately: this panel holds a half-typed form, so a fold that took the
+    // derived value back every second would discard what somebody was writing.
+    const { serve } = await openCockpit(page, cascaded(), finishedStep());
+    const field = panel(page).locator("input").first();
+    await expect(field).toBeHidden();
+
+    await open(page);
+    await field.fill("half_typed");
+
+    serve(calm());
+    serve(cascaded());
+    await page.waitForTimeout(2500);
+    await expect(field).toBeVisible();
+    await expect(field).toHaveValue("half_typed");
+  });
+});
+
 test.describe("guide", () => {
   test("an empty swarm offers register, and the click launches the real step", async ({ page }) => {
     const { launches } = await openCockpit(page, empty());
@@ -1167,8 +1376,8 @@ test.describe("how much the board says", () => {
     /*
      * Measured on this commit at the recording viewport: 90 words of step log (182
      * held, so 92 are scrolled out), 43 of graph labels over nine boxes, 16 in the
-     * live region, and **155 words of prose**. The laptop shows more words of log in
-     * its shorter panel and the same 155 of prose, which is the point of splitting
+     * live region, and **162 words of prose**. The laptop shows more words of log in
+     * its shorter panel and the same 162 of prose, which is the point of splitting
      * the two: prose does not depend on panel height.
      *
      * **Was 147 on the commit before the joining panel, and 154 before that.** The
@@ -1180,8 +1389,8 @@ test.describe("how much the board says", () => {
      * it. Nine nodes made it look like rounding; eighty-two made it a paragraph.
      *
      * **Prose is up from 126, and every word of the rise was bought deliberately.**
-     * Two purchases, +36 between them, less the 7 the measurement fix above took
-     * back off the total: 126 + 36 - 7 = 155.
+     * Three purchases, +43 between them, less the 7 the measurement fix above took
+     * back off the total: 126 + 43 - 7 = 162.
      *
      * - **+24** the repair button, label and line. The flagged board asks a question —
      *   three agents are out of date, now what — and until this button the only
@@ -1195,6 +1404,21 @@ test.describe("how much the board says", () => {
      *   know it was on the page. Everything behind the fold, the command and the
      *   four steps and the tool list, still costs nothing until opened, and
      *   `joining.ts` keeps it folded on exactly the board this test measures.
+     * - **+7** the bring-your-own-data panel: 4 words of heading and 3 inviting the
+     *   click. It buys the answer to the question a judge asks straight after
+     *   watching the cascade, which is how to see it happen to their own tables.
+     *   Until it existed the only route was the MCP walkthrough in `docs/setup.md`,
+     *   five steps of hand-written JSON before anything appears on screen, and
+     *   nothing on the board mentioned that the route existed at all.
+     *
+     *   Cheaper shapes were available and each cost something worse. Nesting it as
+     *   a second fold inside the joining panel costs 3 rather than 7, and buries a
+     *   door two levels deep, which is precisely the failure `joining-panel.tsx`
+     *   was written to fix. Dropping the panel's `meta` slot saved 4 more, and that
+     *   one was taken: it renders only once a task of yours exists, because a count
+     *   of zero says nothing the empty list behind the fold does not. The form
+     *   itself, its four fields, its hint and its two paragraphs, still costs
+     *   nothing until opened, and `mine.ts` opens it on no board this test measures.
      *
      * The history of this ceiling, kept because it is the argument for having one: it
      * was introduced when the board was 604 words in two stacked panels of paragraphs,
@@ -1227,7 +1451,7 @@ test.describe("how much the board says", () => {
      * match this one.
      */
     const where = describeWords(counts);
-    expect(counts.prose, where).toBeLessThan(160);
+    expect(counts.prose, where).toBeLessThan(168);
     expect(counts.prose + counts.log, where).toBeLessThan(263);
   });
 });

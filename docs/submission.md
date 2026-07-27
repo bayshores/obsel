@@ -59,7 +59,10 @@ board and three for erasure; every mutation goes through obsel's HTTP API and th
 DataHub credentials). The
 bring-your-own-data walkthrough in `docs/setup.md` was executed for real: a five-row expenses CSV,
 a renamed column, the downstream task flagged at one hop in 3,934 ms, the flag cleared by the
-redo.
+redo. Declaring your own tasks does not need an agent at all: a form on the board posts to the same
+registration route the MCP tool calls, driven against a real DataHub on 2026-07-26. Reporting the
+work still comes from whatever runs it, because obsel takes the fingerprint from the rows itself and
+a second implementation of that would be a second definition of what counts as a change.
 
 ### Built with
 

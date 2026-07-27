@@ -161,8 +161,9 @@ and type-checks, not a plan.
 | The restoration rule: which flags an identical redo provably clears            | `restoredBy` in `src/server/coordinator/staleness.ts`                    |
 | The repair loop: flagged work redone in order, restored work skipped           | `cmd_repair` in `agents/run.py`, the guide's leading flagged action      |
 | The joining panel and its four derived steps                                   | `joining.ts`, `joining-panel.tsx`, `joinCommand` on `/api/demo/activity` |
+| Registering your own task from the board, wired into DataHub                   | `mine.ts`, `mine-panel.tsx`, over the agents' own `/api/tasks/register`  |
 | The two animated captures and the script that takes them                       | `docs/images/*.gif`, `record.mjs`                                        |
-| HTTP API, eight routes including launch and activity                           | `app/api/`, see [`docs/architecture.md`](architecture.md) section 11     |
+| HTTP API, thirteen routes in three groups                                      | `app/api/`, see [`docs/architecture.md`](architecture.md) section 11     |
 
 **Added 2026-07-23, the reader-side cross-check.** obsel's trigger is an agent reporting, so a
 process that rewrites a shared table and never reports was invisible, and the silence read as "all
@@ -1119,6 +1120,67 @@ still only reachable as JSON from `GET /api/erasure/<id>`.
 The demonstration script for the erasure path does not exist. Article 19 recipient notification is
 out of scope and stated as such. No cascade timing figure is claimed at scale; see the correction above for why the one previously printed here was withdrawn.
 
+### Registering your own tasks from the board, and the bug driving it found (2026-07-26)
+
+The bring-your-own-data panel: a form for the one half of "point obsel at my own files" that is pure
+declaration. Until it existed the only route was the MCP walkthrough in
+[`setup.md`](setup.md#bring-your-own-data), which is five steps of hand-written JSON before anything
+appears on screen, and nothing on the board said the route existed at all.
+
+**What it is not.** It does not report work, and there is deliberately no route by which the browser
+could. A fingerprint is taken from rows by `agents/fingerprint.py` through
+`worker.canonicalise_numbers`, and a second implementation of that in TypeScript would be a second
+definition of what counts as a change — which breaks the first correctness rule in
+[`CLAUDE.md`](../CLAUDE.md), that an identical re-run must mark nothing, in the one way no test would
+notice until the two disagreed by a byte. The panel POSTs to the agents' own
+`POST /api/tasks/register` rather than a route of its own, so a task typed into the form and a task
+an MCP client registered are the same entity.
+
+**Driven by hand against a real DataHub**, on `OBSEL_FLOW_ID=obsel_ui_check` so the run could not
+touch the operator's board, serving the production build:
+
+- `clean_expenses` (reads `expenses_csv`, writes `clean_expenses`) typed into the form and
+  registered. Read back off `GET /api/swarm`: a real `DataJob` on `obsel_ui_check` with both lineage
+  edges as full URNs, drawn on the graph as `Expense cleaner` / `waiting` between the two tables, and
+  the joining panel's own first step ticked to **1 of 4** off the same snapshot.
+- `monthly_totals` (reads `clean_expenses`, writes `monthly_totals`) registered the same way, giving
+  the two-task chain the walkthrough uses. Both read back with their lineage intact.
+- No console errors, no page errors, no horizontal overflow. The panel measured 1251 x 433 px with
+  four 485 x 26 px fields.
+
+**The bug it found, which no test had.** After the first successful registration the panel **shut
+itself**, taking the confirmation line and the new row with it. `mine.ts` paints the form only on a
+board with nothing on it, so the first registration flips that derivation to folded — and the
+`chosen ?? expanded` idiom borrowed from `joining-panel.tsx` does not save it, because at the moment
+the reader opened the panel it was already open. Their choice matched the derivation, so nothing was
+recorded, and one poll later the panel closed under somebody who was about to register the second
+half of their pipeline.
+
+That is the same toggle rule from the other direction: the joining panel's version was written
+against a panel that _refused to close_, and it is exactly right there. What it cannot express is
+intent, and a form is a place where the reader has intent. The fix records the fold on a successful
+registration, which is an action the reader took rather than a state obsel inferred; closing it by
+hand still hands control back to the derivation. Pinned by
+**"stays open after a registration, rather than shutting on the reader"** in `e2e/cockpit.spec.ts`,
+which fails on the code as first written.
+
+**The word ceiling moved, 160 to 168, and it was argued rather than raised.** The panel costs 7 words
+always painted: 4 of heading and 3 inviting the click. Two cheaper shapes were rejected and one was
+taken, all recorded at the assertion in `e2e/cockpit.spec.ts`. Nothing was excluded from the
+bare-identifier or em-dash guards to make this fit: both passed unchanged, which was checked rather
+than assumed.
+
+Counts after this work, measured 2026-07-26: `pnpm verify` green with **394 unit tests across 18
+files and 183 Python self-checks**; `pnpm e2e` green with **139 browser checks across two viewports
+in 41 s**, one skipped by design. `pnpm test:live` was not re-run for this change and its 96 tests
+are unaffected by it; no live test covers the form, and the run above is a single observation on one
+machine rather than a suite.
+
+**Still not built.** Reporting a file from the board, which is the other half and the one that would
+let somebody watch a cascade on their own CSV without an agent. It needs one definition of how a CSV
+becomes rows, shared with the agents rather than private to the UI, and that is a decision about what
+obsel considers a table.
+
 ## Not done
 
 - **Every scale figure above is one observation.** One registered board, one concurrent run, one
@@ -1188,9 +1250,11 @@ out of scope and stated as such. No cascade timing figure is claimed at scale; s
   steps, and it does not survive a restart. Anything it says is corroborated by the marks in DataHub
   or it is not corroborated at all.
 - **The word ceiling is a guard, not a design proof.** `e2e/cockpit.spec.ts` fails the build if the
-  flagged board goes past 160 words of prose, or 263 of prose and visible step log together, which
+  flagged board goes past 168 words of prose, or 263 of prose and visible step log together, which
   stops the density that prompted this rebuild from creeping back. It cannot tell whether what
-  remains is the right 147 words, and no test can.
+  remains is the right 162 words, and no test can. The ceiling has been raised three times, each
+  time with the purchase written down word by word at the assertion; that ledger is the only thing
+  standing between "bought deliberately" and "crept up".
 - **The graph is laid out for two pipeline shapes now, not one.** The unit suite exercises a
   six-task fan-out and a cycle, and the browser suite covers the four-task demo and the forty-task
   taxi board in both states at both viewports. Nothing has been checked between or beyond those:
@@ -1198,8 +1262,11 @@ out of scope and stated as such. No cascade timing figure is claimed at scale; s
 - The submission video is not voiced or uploaded. A reference picture lock exists (157.9 s,
   ffprobe, from a clean one-shot take), and the shoot, the voiceover, the cut approval and
   the upload are the owner's.
-- **That lock predates the joining panel and no longer matches the board.** It was taken before
-  the panel went in under the graph, so every wide shot in it is missing a section the live board
-  now has, and the page is taller than it was. `video.mjs` drives buttons rather than pixels so it
-  needs no change, but the take does: the reference has to be shot again before anything is cut
-  from it. Nothing has been re-recorded yet.
+- **That lock predates two panels now and no longer matches the board.** It was taken before the
+  joining panel went in under the graph, and the bring-your-own-data panel went in beside it on
+  2026-07-26, so every wide shot in it is missing two sections the live board has and the page is
+  taller again. This also lengthens the scroll the demo script calls a deliberate camera move: the
+  ribbon is now two folded panels below the graph rather than one, and
+  [`demo-script.md`](demo-script.md) says to practise that move. `video.mjs` drives buttons rather
+  than pixels so it needs no change, but the take does: the reference has to be shot again before
+  anything is cut from it. Nothing has been re-recorded yet.

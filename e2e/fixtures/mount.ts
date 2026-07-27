@@ -14,6 +14,13 @@
  * This suite verifies **the cockpit's rendering of a snapshot**, not that obsel
  * produces the right snapshot. The pure rules are covered by `tests/`, and the
  * live path has been driven by hand — see `docs/verification.md`.
+ *
+ * Five routes are intercepted: `/api/swarm`, `/api/demo/activity`, `/api/trace`,
+ * `/api/demo/launch`, and `/api/tasks/register`. The last is the only one the
+ * board can call that *writes*, and leaving it unstubbed would have this suite
+ * create real entities in whatever DataHub the machine is pointed at. What that
+ * costs is the same as the rest: no browser test here proves a registration
+ * lands. `tests/live/` covers that against a real DataHub.
  */
 
 import type { Page } from "@playwright/test";
@@ -40,6 +47,14 @@ export interface Faults {
  * about the fallback font that are stable, plausible, and about the wrong
  * thing.
  */
+/** A body `POST /api/tasks/register` was asked to create, as the board sent it. */
+export interface SeenRegistration {
+  name: string;
+  reads: string[];
+  writes: string[];
+  title?: string;
+}
+
 export async function openCockpit(
   page: Page,
   body: SwarmResponse,
@@ -52,11 +67,17 @@ export async function openCockpit(
   serveTrace: (next: TraceEvent[] | "fail") => void;
   /** Every step the cockpit asked the launcher to start, in order. */
   launches: DemoStep[];
+  /** Every task the board asked obsel to register, in order. */
+  registrations: SeenRegistration[];
+  /** Make the next registration fail, the way a real refusal arrives. */
+  refuseRegistration: (status: number, error: string) => void;
 }> {
   let current: SwarmResponse | "fail" = body;
   let currentActivity: DemoActivity = activity;
   let currentTrace: TraceEvent[] | "fail" = trace;
   const launches: DemoStep[] = [];
+  const registrations: SeenRegistration[] = [];
+  let refusal: { status: number; error: string } | null = null;
 
   const faults: Faults = { consoleErrors: [], pageErrors: [], failedRequests: [] };
   page.on("console", (message) => {
@@ -121,6 +142,33 @@ export async function openCockpit(
     });
   });
 
+  /*
+   * The one route on the board that writes, intercepted for the same reason as
+   * the launcher: unstubbed it creates a real DataJob with real lineage edges in
+   * whatever DataHub this machine is pointed at, so the browser suite would
+   * mutate the operator's board and depend on a stack being up.
+   *
+   * The reply is deliberately thin. The panel does not read it on success: it
+   * clears the form and waits for the task to appear from `/api/swarm`, because
+   * DataHub's graph store lags its aspect store. So there is no invented
+   * `TaskRecord` here, and a test that wants the task on the board serves a
+   * snapshot containing it rather than trusting this response.
+   */
+  await page.route("**/api/tasks/register", async (route) => {
+    registrations.push(route.request().postDataJSON() as SeenRegistration);
+    if (refusal !== null) {
+      const { status, error } = refusal;
+      refusal = null;
+      await route.fulfill({
+        status,
+        contentType: "application/json",
+        body: JSON.stringify({ error }),
+      });
+      return;
+    }
+    await route.fulfill({ status: 200, contentType: "application/json", body: "{}" });
+  });
+
   await page.goto("/");
   await page.evaluate(async () => {
     await document.fonts.ready;
@@ -134,5 +182,7 @@ export async function openCockpit(
     serveActivity: (next) => (currentActivity = next),
     serveTrace: (next) => (currentTrace = next),
     launches,
+    registrations,
+    refuseRegistration: (status, error) => (refusal = { status, error }),
   };
 }

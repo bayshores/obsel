@@ -124,6 +124,18 @@ either path identically, because the guide derives everything from what DataHub 
 
 ## Bring your own data
 
+**Declaring the tasks is a form on the board**, in the "bring your own data" panel under the graph.
+Type a name, the tables it reads and the tables it writes, and it becomes a real DataJob with its
+lineage edges. It posts to the same `/api/tasks/register` the MCP tool calls, so nothing about the
+task is different for having been typed. Executed on 2026-07-26 against a real DataHub: the two-task
+chain below, registered from the form, read back off `GET /api/swarm` with its lineage and drawn on
+the graph. See [`verification.md`](verification.md) for that run and the bug it found.
+
+What the form does not do is report work. obsel takes the fingerprint from the rows itself, in
+`agents/fingerprint.py`, and a second implementation of that in the browser would be a second
+definition of what counts as a change. So reporting stays with whatever runs your work, which is
+what the rest of this section covers.
+
 The MCP door works for your own files, and this walkthrough was executed for real on 2026-07-24;
 every reply quoted below is from that run, against a dedicated flow, over the real
 `agents.mcp_server` on stdio. Times are that run's, on one machine, and will vary.

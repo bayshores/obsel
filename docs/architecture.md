@@ -695,11 +695,31 @@ What has been verified directly, and what has not.
 
 ## 11. The HTTP API
 
-Eight routes. All of them are `force-dynamic`; nothing here is cached. Six carry obsel's own
-protocol; the last two (`/api/demo/launch` and `/api/demo/activity`) belong to the demo runner.
+Thirteen routes. All of them are `force-dynamic`; nothing here is cached. They fall into three
+groups.
+
+**obsel's own protocol, six routes.** `GET /api/swarm`, `GET /api/trace`, and the four under
+`/api/tasks/`: `register`, `start`, `complete`, `abandon`. This is the whole of what an agent
+integrating with obsel calls, and every one of obsel's nine MCP tools is a wrapper over one of them.
+
+**The erasure ledger, four routes.** `POST /api/erasure`, `/api/erasure/challenge` and
+`/api/erasure/proof`, each gated on `OBSEL_API_TOKEN` by `authorizeMutation` in
+`src/server/http/auth.ts`, plus `GET /api/erasure/<id>`, which is deliberately ungated and strips
+the subject's identifiers out of the report before answering. With no token configured the three
+mutating routes answer 503 rather than running unauthenticated, which is the closed direction.
+
+**The demo runner, three routes.** `/api/demo/launch`, `/api/demo/activity` and `/api/demo/reset`.
 They execute and report the demo's own CLI steps on the machine obsel runs on, exist so the
 cockpit's guide can drive the demo without a terminal, and are not part of what an agent
 integrating with obsel would ever call.
+
+**Two of these are reachable from the board itself.** The guide's buttons POST to
+`/api/demo/launch`, and the bring-your-own-data panel POSTs to `/api/tasks/register`. The second is
+the only write the browser performs, and it performs it through the agents' own route rather than a
+route of its own: a form and an MCP client that registered the same task have to produce the same
+entity, and two routes would eventually be two answers about what a registration is. Nothing on the
+board can reach `/api/tasks/complete`, because a fingerprint is taken from rows by
+`agents/fingerprint.py` and there is no second implementation of it.
 
 **One asymmetry to know before you call anything:** `POST /api/tasks/register` takes **short dataset
 names** like `clean_orders`, not a URN. Every other route, and every field in every response, uses full

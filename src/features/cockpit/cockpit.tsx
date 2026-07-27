@@ -24,6 +24,8 @@ import { DataInspector, Inspector } from "./inspector";
 import { joining } from "./joining";
 import { JoiningPanel } from "./joining-panel";
 import { Lineage } from "./lineage";
+import { mine } from "./mine";
+import { MinePanel } from "./mine-panel";
 import { Panel, PulseDot, StatCell, StatRibbon, Wordmark } from "./mmux";
 import { TracePanel } from "./trace-panel";
 import { useActivity } from "./use-activity";
@@ -100,6 +102,8 @@ export function Cockpit() {
     tasks,
     command: activity?.joinCommand ?? null,
   });
+
+  const mineView = mine({ trusted, tasks });
 
   return (
     <main
@@ -343,6 +347,16 @@ export function Cockpit() {
         had any way to help somebody connect.
       */}
       <JoiningPanel view={joinView} />
+
+      {/*
+        And the same door for somebody's own tables, immediately after it.
+
+        The README nests this under "bring your own agent" and this board does
+        not, deliberately: `mine-panel.tsx` records why a fold inside a fold
+        would repeat the mistake the joining panel exists to have fixed. The two
+        read as a pair here, in the order the README puts them.
+      */}
+      <MinePanel view={mineView} tasks={tasks} />
 
       {/*
         Two figures, down from five.
