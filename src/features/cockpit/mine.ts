@@ -35,22 +35,38 @@ import type { TaskRecord } from "@/src/server/coordinator/types";
 export const TITLE_MAX = 60;
 
 /**
- * The shape a table name has to have, checked here because a bad one does not
- * fail loudly anywhere else.
+ * One segment of a name: what a task is called, and what each dotted part of a
+ * table name has to be.
  *
- * `datasetUrn` in `src/server/datahub/urns.ts` interpolates this straight into
- * `urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_demo.<name>,PROD)`, and both
- * `shortName` here and its Python twin recover the name by splitting on commas
- * and dots. A name containing either produces a URN that parses back as
- * something else entirely, and nothing in the stack rejects it: the entity is
- * created, the board shows a table with a truncated name, and lineage points at
- * a URN nobody can look up.
+ * **Duplicated from `NAME_PATTERN` in `src/server/datahub/urns.ts`, on purpose,
+ * and `tests/cockpit-mine.test.ts` asserts the two are identical.** This module
+ * renders in the browser and obsel's architecture forbids browser code importing
+ * server modules, which is a rule about dependency direction rather than about
+ * how expensive the import would be. `naming.ts` duplicates `shortName` from
+ * `staleness.ts` for the same reason, and `joining.ts` duplicates the taxi
+ * namespace out of `agents/scale.py`; in both cases a test holds them together.
  *
- * The route does not enforce this today, so this is a convenience and not a
- * boundary. It is deliberately narrower than what DataHub would tolerate,
- * because every table obsel has ever handled is spelled this way.
+ * The route is the boundary, not this. `datasetNameProblem` and `taskNameProblem`
+ * in `urns.ts` refuse the same names, and `agents/mcp_core.py` refuses them at
+ * the MCP door, so a name that gets past the form still meets the real guard.
+ * What this buys is being told by the field instead of by a 400.
  */
-const TABLE_NAME = /^[a-z0-9][a-z0-9_]*$/;
+const NAME_SEGMENT = /^[a-z0-9][a-z0-9_]*$/;
+
+/**
+ * Whether a table name is usable: one segment, or two separated by a dot.
+ *
+ * The namespace half matters and was missed on the first pass. `datasetUrn`
+ * qualifies an unnamespaced name under `obsel_demo`, and obsel's own scale swarm
+ * registers `obsel_taxi.clean_trips` already qualified, so the route accepts one
+ * namespace segment. A form that refused a dot outright would refuse a name obsel
+ * itself uses, and a client stricter than the server is a client that blocks
+ * legitimate work while looking like a validation bug.
+ */
+function tableNameOk(name: string): boolean {
+  const segments = name.split(".");
+  return segments.length <= 2 && segments.every((segment) => NAME_SEGMENT.test(segment));
+}
 
 /** A row of the form, exactly as typed. Strings, because inputs hold strings. */
 export interface MineDraft {
@@ -97,7 +113,10 @@ export function parseNames(text: string): string[] {
 export function draftProblem(draft: MineDraft, existing: readonly TaskRecord[]): string | null {
   const name = draft.name.trim();
   if (name === "") return "Give the task a name, the way you would name a script.";
-  if (!TABLE_NAME.test(name)) {
+  // A task name carries no namespace: `taskNameProblem` in `urns.ts` tests the
+  // single segment, because this is interpolated into a DataJob URN rather than a
+  // dataset one and there is nothing to qualify it under.
+  if (!NAME_SEGMENT.test(name)) {
     return "A name can hold lowercase letters, digits and underscores, and starts with a letter or digit.";
   }
   if (existing.some((task) => task.name === name)) {
@@ -115,8 +134,8 @@ export function draftProblem(draft: MineDraft, existing: readonly TaskRecord[]):
 
   const reads = parseNames(draft.reads);
   for (const table of [...reads, ...writes]) {
-    if (!TABLE_NAME.test(table)) {
-      return `${table} will not work as a table name. Lowercase letters, digits and underscores.`;
+    if (!tableNameOk(table)) {
+      return `${table} will not work as a table name. Lowercase letters, digits and underscores, with at most one dotted namespace.`;
     }
   }
   /*

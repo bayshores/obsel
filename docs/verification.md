@@ -1181,6 +1181,35 @@ let somebody watch a cascade on their own CSV without an agent. It needs one def
 becomes rows, shared with the agents rather than private to the UI, and that is a decision about what
 obsel considers a table.
 
+**A name that builds an unreadable URN is now refused at both doors**, landed the same day in a
+separate worktree. The route checked names for being non-empty and nothing else, so `clean,orders` or
+`a.b.c` created a real DataJob whose lineage pointed at a URN no reader could recover the name from:
+`datasetUrn` interpolates the name, and `datasetName`, `shortName` in the cockpit and
+`dataset_short_name` in Python all split back on commas and dots. The board drew a box with a
+truncated name and nothing downstream could tell. `NAME_PATTERN` in `urns.ts` is now applied by
+`register-body.ts`, mirrored in `agents/mcp_core.py`, and `tests/register-body.test.ts` reads the
+pattern out of the real Python module and asserts it identical, the way `tests/urns.test.ts` does for
+the two URN builders.
+
+The board's form keeps its own copy, because browser code here does not import server modules, and
+`tests/cockpit-mine.test.ts` holds the two together by comparing the form's verdict against
+`taskNameProblem` and `datasetNameProblem` over a shared list of names. **That comparison
+immediately found the form was too strict**: it refused any dot, while the route allows one namespace
+segment, so it would have refused `obsel_taxi.clean_trips`, a name obsel's own scale swarm registers.
+A client narrower than its server blocks legitimate work while looking like a bug in the field. It
+also surfaced a non-divergence worth writing down: a comma in the reads or writes field is the
+field's separator, so `parseNames` turns `clean,expenses` into two names and the route can never
+receive one, which is a property of the field rather than of the guard.
+
+**One infrastructure fix, unrelated to obsel's behaviour.** `pnpm verify` failed with 504 lint errors
+in generated JavaScript, because a git worktree under `.claude/worktrees/` had been built and
+eslint's `.next/**` ignore anchors at the repository root. Working in worktrees is ordinary now, so
+the ignores gained `**/.next/**` and `.claude/**`. A gate that breaks whenever a worktree exists is a
+gate that cries wolf.
+
+Counts after the merge, measured 2026-07-26: `pnpm verify` green with **410 unit tests across 19
+files**; `pnpm e2e` green with **139 browser checks**, one skipped by design.
+
 ## Not done
 
 - **Every scale figure above is one observation.** One registered board, one concurrent run, one

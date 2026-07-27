@@ -19,7 +19,7 @@ And a row names its evidence precisely enough to re-run it or look it up.
 | browser | Playwright against the built app                                       | `pnpm e2e`         |
 | run     | a dated, measured run recorded in [`verification.md`](verification.md) | see its entry      |
 
-Counts on 2026-07-26: 394 unit tests across 18 files, 183 python self-checks across 7 modules,
+Counts on 2026-07-26: 410 unit tests across 19 files, 183 python self-checks across 7 modules,
 96 live tests across 10 files, 139 browser checks across two viewports. Live runs are single
 observations unless their entry says otherwise.
 
@@ -59,18 +59,19 @@ snapshots and says which is which in each fixture's header.
 
 ## Data edge cases
 
-| case                             | proven by                                                                                                                                                                             | kind        |
-| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
-| the same number written two ways | "217 and 217.0 reach the same fingerprint", `agents/worker.py` self-check, from a live incident                                                                                       | python      |
-| integer ids staying integers     | "an integer id column stays an integer", `agents/worker.py`                                                                                                                           | python      |
-| row order                        | "row order ignored: reversed rows hash identically", `agents/fingerprint.py`                                                                                                          | python      |
-| dict key order                   | "dict insertion order ignored", `agents/fingerprint.py`                                                                                                                               | python      |
-| a table with columns and no rows | accepted as a real result, `agents/mcp_core.py`; the no-rows-at-all guard refused a genuinely empty Staten Island mart live, which reshaped the taxi pipeline (see `agents/scale.py`) | python, run |
-| a table that is not a table      | "a file that is not a table is rejected rather than half-read", `agents/worker.py`; same by shape at the MCP door, `agents/mcp_core.py`                                               | python      |
-| an undeclared output             | refused, naming what was declared, `agents/mcp_core.py`                                                                                                                               | python      |
-| a missing input file             | "an agent that cannot read its input never tells obsel it began", `tests/live/run-task.live.test.ts`                                                                                  | live        |
-| real public data at scale        | one week of NYC yellow-taxi trips, 2,100 rows pinned by sha256, provenance in `agents/seeds/PROVENANCE.md`                                                                            | run         |
-| stability across processes       | "stable across processes, PYTHONHASHSEED=12345", `agents/fingerprint.py`                                                                                                              | python      |
+| case                                                 | proven by                                                                                                                                                                                                                                                        | kind        |
+| ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
+| the same number written two ways                     | "217 and 217.0 reach the same fingerprint", `agents/worker.py` self-check, from a live incident                                                                                                                                                                  | python      |
+| integer ids staying integers                         | "an integer id column stays an integer", `agents/worker.py`                                                                                                                                                                                                      | python      |
+| row order                                            | "row order ignored: reversed rows hash identically", `agents/fingerprint.py`                                                                                                                                                                                     | python      |
+| dict key order                                       | "dict insertion order ignored", `agents/fingerprint.py`                                                                                                                                                                                                          | python      |
+| a table with columns and no rows                     | accepted as a real result, `agents/mcp_core.py`; the no-rows-at-all guard refused a genuinely empty Staten Island mart live, which reshaped the taxi pipeline (see `agents/scale.py`)                                                                            | python, run |
+| a table that is not a table                          | "a file that is not a table is rejected rather than half-read", `agents/worker.py`; same by shape at the MCP door, `agents/mcp_core.py`                                                                                                                          | python      |
+| an undeclared output                                 | refused, naming what was declared, `agents/mcp_core.py`                                                                                                                                                                                                          | python      |
+| a missing input file                                 | "an agent that cannot read its input never tells obsel it began", `tests/live/run-task.live.test.ts`                                                                                                                                                             | live        |
+| real public data at scale                            | one week of NYC yellow-taxi trips, 2,100 rows pinned by sha256, provenance in `agents/seeds/PROVENANCE.md`                                                                                                                                                       | run         |
+| stability across processes                           | "stable across processes, PYTHONHASHSEED=12345", `agents/fingerprint.py`                                                                                                                                                                                         | python      |
+| a name that would build a URN nobody could read back | `clean,orders` and `a.b.c` refused at both doors: `tests/register-body.test.ts`, which reads the pattern out of `agents/mcp_core.py` and asserts it identical, and the browser form's own copy held against `datasetNameProblem` in `tests/cockpit-mine.test.ts` | unit        |
 
 ## The operational cases
 

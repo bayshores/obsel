@@ -23,6 +23,7 @@ import {
   registration,
 } from "@/src/features/cockpit/mine";
 import type { MineDraft } from "@/src/features/cockpit/mine";
+import { datasetNameProblem, taskNameProblem } from "@/src/server/datahub/urns";
 import type { TaskRecord } from "@/src/server/coordinator/types";
 
 function ds(namespace: string, name: string): string {
@@ -92,8 +93,21 @@ describe("what the form will not send", () => {
   });
 
   it("refuses a bad table name in reads or writes, not only in the task name", () => {
-    expect(draftProblem(draft({ reads: "expenses.csv" }), [])).toContain("expenses.csv");
+    expect(draftProblem(draft({ reads: "a.b.c" }), [])).toContain("a.b.c");
     expect(draftProblem(draft({ writes: "clean expenses" }), [])).toContain("clean expenses");
+    expect(draftProblem(draft({ reads: "Clean.Expenses" }), [])).toContain("Clean.Expenses");
+  });
+
+  it("allows a table name carrying one namespace, which obsel's own swarm uses", () => {
+    /*
+     * The form must not be stricter than the route. `agents/scale.py` registers
+     * `obsel_taxi.clean_trips` already qualified, and `datasetNameProblem` accepts
+     * one namespace segment for exactly that reason. A form refusing a dot would
+     * refuse a name obsel itself uses, and read as a validation bug.
+     */
+    expect(
+      draftProblem(draft({ reads: "obsel_taxi.raw_trips", writes: "obsel_taxi.marts" }), []),
+    ).toBeNull();
   });
 
   it("refuses a task that reads what it writes, which is its own upstream", () => {
@@ -115,6 +129,80 @@ describe("what the form will not send", () => {
 
   it("says something about an empty draft rather than nothing", () => {
     expect(draftProblem(EMPTY_DRAFT, [])).not.toBeNull();
+  });
+});
+
+describe("the form and the route agree about what a name is", () => {
+  /*
+   * The form's copy of the rule, held against the real one.
+   *
+   * `mine.ts` cannot import `urns.ts`: it renders in the browser and obsel forbids
+   * browser code importing server modules, which is about dependency direction
+   * rather than cost. So the pattern is duplicated, the same way `naming.ts`
+   * duplicates `shortName` and `joining.ts` duplicates the taxi namespace, and the
+   * duplication is held together here rather than hoped about.
+   *
+   * Drift in the strict direction is the one that bites in silence: a form
+   * narrower than the route refuses work obsel would have accepted, and looks like
+   * a bug in the field rather than a disagreement between two rules.
+   */
+  it("refuses exactly the task names taskNameProblem refuses", () => {
+    for (const name of [
+      "clean_expenses",
+      "a",
+      "x9",
+      "obsel_taxi.clean_trips",
+      "Clean_Expenses",
+      "_leading",
+      "has space",
+      "clean,expenses",
+      "clean.expenses",
+      "",
+      "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_demo.x,PROD)",
+    ]) {
+      const routeRefuses = taskNameProblem(name) !== null;
+      const formRefuses = draftProblem(draft({ name, writes: "out" }), []) !== null;
+      expect(formRefuses, `task name ${JSON.stringify(name)}`).toBe(routeRefuses);
+    }
+  });
+
+  it("refuses exactly the table names datasetNameProblem refuses", () => {
+    /*
+     * No comma in this list, and its absence is the point. A comma is the field's
+     * separator, so `parseNames` turns `clean,expenses` into two names and the
+     * route can never receive one. That is checked directly below rather than
+     * folded in here, where it looked like a disagreement between the two rules
+     * and was in fact a difference between a field and a name.
+     */
+    for (const table of [
+      "clean_expenses",
+      "obsel_taxi.clean_trips",
+      "expenses.csv",
+      "a.b.c",
+      "Clean.Expenses",
+      "clean expenses",
+      ".leading",
+      "trailing.",
+      "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_demo.x,PROD)",
+    ]) {
+      const routeRefuses = datasetNameProblem(table) !== null;
+      // Through `writes`, so an empty-writes refusal cannot be mistaken for a
+      // name refusal.
+      const formRefuses = draftProblem(draft({ name: "some_task", writes: table }), []) !== null;
+      expect(formRefuses, `table name ${JSON.stringify(table)}`).toBe(routeRefuses);
+    }
+  });
+
+  it("never sends a name with a comma in it, because the comma is the separator", () => {
+    // Belt and braces on the case above: whatever the field holds, every name the
+    // form would actually POST is one the route accepts.
+    const sent = registration(
+      draft({ name: "some_task", writes: "clean,expenses", reads: "a, b" }),
+    );
+    for (const table of [...sent.reads, ...sent.writes]) {
+      expect(datasetNameProblem(table), `the form would have sent ${table}`).toBeNull();
+    }
+    expect(sent.writes).toEqual(["clean", "expenses"]);
   });
 });
 
