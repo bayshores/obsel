@@ -19,10 +19,14 @@ And a row names its evidence precisely enough to re-run it or look it up.
 | browser | Playwright against the built app                                       | `pnpm e2e`         |
 | run     | a dated, measured run recorded in [`verification.md`](verification.md) | see its entry      |
 
-Counts on 2026-07-27: 475 unit tests across 21 files, 183 python self-checks across 7 modules,
-98 live tests across 10 files, 167 browser checks across two viewports with one skipped. The live
-figure is from 2026-07-26 plus the two added to `preflight.live.test.ts` on 2026-07-27, which is the
-only live file re-run since. Live runs are single observations unless their entry says otherwise.
+Counts on 2026-07-28, after the board was rebuilt: 513 unit tests across 24 files, 183 python
+self-checks across 7 modules, 104 live tests across 11 files, 233 browser checks across two
+viewports with one skipped. The unit figure gained the erasure vocabulary and count-up suites; the
+browser figure gained `e2e/dock.spec.ts` and `e2e/erasure.spec.ts` and the new cascade and count-up
+assertions in `e2e/cockpit.spec.ts`. The live figure is from 2026-07-26 plus the two added to
+`preflight.live.test.ts` on 2026-07-27 and the six in `removed.live.test.ts` on 2026-07-28; those two
+files are the only live ones re-run since, and nothing in the rebuild crosses a process boundary, so
+none of it needed re-running. Live runs are single observations unless their entry says otherwise.
 
 Nothing in the unit or python columns uses a stand-in for a system boundary; that rule and its
 origin are in [`CLAUDE.md`](../CLAUDE.md). The browser suite replays recorded or invented
@@ -96,6 +100,49 @@ These are not shapes or data. They are the ways a live swarm goes wrong, each ex
 | a swarm that is neither obsel pipeline  | no pipeline-specific button offered when registered, settled or flagged, `tests/cockpit-guide.test.ts`; the same board reached for real at the bench, 2026-07-27                                                                                                                                                                                    | unit, run          |
 | uv missing, the quietest prerequisite   | a PATH that genuinely lacks the binary, `tests/live/preflight.live.test.ts`; the board held on the checklist rather than let through, `tests/cockpit-guide.test.ts`                                                                                                                                                                                 | live, unit         |
 | the server stopped, both reads failing  | one fault and one report rather than two sentences that disagree, `e2e/cockpit.spec.ts`; the demo read failing alone still says the board is current, same file; found on a real stopped server 2026-07-27 in `verification.md`                                                                                                                     | browser, run       |
+| obsel restarted on a walked board       | reset still offered with an empty launcher history and with no activity read at all, and still withheld from a board that only ran, `tests/cockpit-guide.test.ts`; the same two boards in `e2e/cockpit.spec.ts`; the signal checked against the recorded repaired forty-task board, which carries it on 3 of 40                                     | unit, browser, run |
+| an identical re-run after a walk        | the key present with equal hashes does not read as a change, `tests/cockpit-guide.test.ts`; the four `previousFingerprints` cases in `tests/cockpit-joining.test.ts` unchanged across the move                                                                                                                                                      | unit               |
+| a task DataHub was told is gone         | the real `status` aspect written to the real GMS and undone again, `tests/live/removed.live.test.ts`, which also measures that the flow's edge still lists it and `batchGet` still returns it; the rogue `clean_trips` removed from the demo board this way on 2026-07-28                                                                           | live, run          |
+| which board is on screen                | the header names the flow, and its disclosure names `OBSEL_FLOW_ID` as the way to open a different one, `e2e/cockpit.spec.ts`                                                                                                                                                                                                                       | browser            |
+| one action asked for, several offered   | at most one accent per stage across every stage, `tests/cockpit-guide.test.ts`; every action label the same computed size with exactly one colour occurring once, `e2e/cockpit.spec.ts`                                                                                                                                                             | unit, browser      |
+
+## The board a reader arranges
+
+Added 2026-07-28, when the graph became the page and everything else became one dock beside it.
+Every row ran at both viewports, `recording-1920x990` and `laptop-1280x800`.
+
+| condition                                       | proven by                                                                                                                                                                           | kind          |
+| ----------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- |
+| neither axis of the page ever scrolls           | `e2e/cockpit.spec.ts` "fit" at both viewports; `e2e/scale.spec.ts` on the 82-node board; re-asserted after every rearrangement in `e2e/dock.spec.ts`                                | browser       |
+| the activity feed gets a real height            | `e2e/scale.spec.ts`: the taxi board's scroller is at least 280 px and at least as tall as the demo board's, which is the comparison that was inverted before                        | browser       |
+| the dock lands on the edge it was carried to    | `e2e/dock.spec.ts`: a real pointer drag by the grip, an outline showing the landing zone before release, and the side surviving a reload                                            | browser       |
+| its width is a reader's choice, and is kept     | `e2e/dock.spec.ts`: dragging the inner edge narrows it, the graph takes the difference, and the width survives a reload                                                             | browser       |
+| collapsed, it still reports what is out of date | `e2e/dock.spec.ts`: the rail carries the stale count, the graph takes the room, and the panel comes back                                                                            | browser       |
+| a tabbed panel is reachable without a mouse     | `e2e/dock.spec.ts` moves the dock by its named buttons; `dock/tabs.tsx` is a real `tablist` with roving focus and arrow keys                                                        | browser       |
+| the change spreads outward one hop at a time    | `e2e/cockpit.spec.ts`: each lit edge's animation delay is ordered by the hop count obsel recorded, and hop 2 starts after hop 1                                                     | browser       |
+| the ripple never replaces the mark it covers    | `e2e/cockpit.spec.ts`: the three marked tasks are amber from `nodeTone` alone, each carries a flare, and no unmarked task carries one                                               | browser       |
+| the measured number arrives once and holds      | `tests/cockpit-count-up.test.ts` pins the ends of the curve; `e2e/cockpit.spec.ts` samples the cell twelve times over three seconds and it never leaves the measured value          | unit, browser |
+| reduced motion shows the finished picture       | `e2e/cockpit.spec.ts`: the lit path stays drawn with no animations attached, and the detection figure is the measured one on the first frame                                        | browser       |
+| the tour marks the region it is talking about   | `e2e/cockpit.spec.ts`: across all four chapter-one steps, nothing is painted outside the lit region's box, the ring is inset, and no part of the region falls outside what clips it | browser       |
+| the tour window opens clear of the dock         | `e2e/cockpit.spec.ts`: the window's box does not intersect the dock's, with the dock on either side                                                                                 | browser       |
+
+## Erasure coverage on the board
+
+Added 2026-07-28. The kernel's own rules are covered by `tests/erasure.test.ts`; these are about
+what a reader sees, and most of them are about what the board is not allowed to say.
+
+| condition                                    | proven by                                                                                                                                                               | kind          |
+| -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- |
+| no request named                             | `e2e/erasure.spec.ts`: the tab says so and offers the command that opens one, rather than rendering an empty coverage list                                              | browser       |
+| an id obsel does not hold                    | `e2e/erasure.spec.ts`: obsel's own 404 sentence, and no coverage list                                                                                                   | browser       |
+| the ledger unreadable                        | `e2e/erasure.spec.ts`: the report is withheld rather than held over, the same rule the board's numbers keep                                                             | browser       |
+| a report with every state in it              | `e2e/erasure.spec.ts` over `e2e/fixtures/erasure.ts`: six assets, the summary line, each kernel explanation verbatim, and the residue reasons past the first            | browser       |
+| a day-one request                            | `e2e/erasure.spec.ts`: every asset unattested, which is the default the kernel computes as a least fixpoint                                                             | browser       |
+| an attestation dropped for a compromised key | `e2e/erasure.spec.ts`: reported at the top of the list, since it is the only way coverage is lost without anybody touching data                                         | browser       |
+| the forbidden vocabulary                     | `tests/cockpit-erasure-view.test.ts` over every state and all ten residue kinds; `e2e/erasure.spec.ts` re-checks the rendered page for the words and the enum spellings | unit, browser |
+| no way to mark an asset covered              | `e2e/erasure.spec.ts` reads every control in the tab and refuses a label that reads as closing a gap; there is no route either                                          | browser       |
+| the graph coloured by coverage               | `e2e/erasure.spec.ts`: tables carry their state, agents carry none, an unreached table says so, and no amber appears anywhere on that board                             | browser       |
+| switching it off                             | `e2e/erasure.spec.ts`: the staleness board returns, origin outline and lit edges included                                                                               | browser       |
 
 ## The launcher
 
@@ -113,6 +160,8 @@ condition; the two rows nobody has produced are in `verification.md` under Not d
 | started from the wrong directory             | the wrapper run from another cwd, reporting the folder it lives in, `tests/start-script.test.ts`                                                                      | unit |
 | the shell macOS will actually use            | both files parsed by this machine's `/bin/bash`, which is 3.2, `tests/start-script.test.ts`                                                                           | unit |
 | a quarantined download                       | the real `com.apple.quarantine` attribute set, 2026-07-27: `bash scripts/start.sh` runs unaffected. The Finder block itself was not reproduced, see `verification.md` | run  |
+| DataHub started from nothing                 | 2026-07-28, backed up and stopped with port 8080 confirmed dead: 450 s to the board, every image pulled, all five flows intact, version unchanged                     | run  |
+| the DataHub version a judge gets             | 2026-07-28: `--version v1.5.0.6` alone is refused non-interactively, `--accept-version-default` pins it, and the printed plan and fetched compose file both name it   | run  |
 
 ## The erasure cases
 

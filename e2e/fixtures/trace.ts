@@ -111,3 +111,48 @@ export function manyDecisions(): TraceEvent[] {
   const offset = quiet.length;
   return [...quiet, ...cascadeSteps().map((event) => ({ ...event, seq: event.seq + offset }))];
 }
+
+/**
+ * A run of any length: `passes` quiet decisions, then one cascade.
+ *
+ * It exists for the guard that the board does not grow with how much obsel
+ * narrated. That guard used to compare a short trace against a long one, which
+ * worked while the feed was a 172px strip whose scroller was full at eight
+ * steps. The feed is the height of the frame now, so a short trace no longer
+ * fills it and the comparison was measuring how empty the panel was rather than
+ * whether it has a ceiling. Two runs that both overflow it is what actually
+ * tests the ceiling.
+ */
+export function longRun(passes: number): TraceEvent[] {
+  const quiet = Array.from({ length: passes }, (_unused, pass) => pass).flatMap(
+    (pass): Omit<TraceEvent, "seq">[] => {
+      // Minutes and seconds derived from the pass, so a hundred passes still
+      // produce well-formed timestamps rather than `08:5100:00`.
+      const at = (ms: number): string => {
+        const minute = String(8 + Math.floor(pass / 60)).padStart(2, "0");
+        const second = String(pass % 60).padStart(2, "0");
+        return `2026-07-22T08:${minute}:${second}.${String(ms).padStart(3, "0")}Z`;
+      };
+      const who = ["Orders cleaner", "Daily revenue", "Revenue report", "Table docs"][pass % 4];
+      return [
+        {
+          at: at(0),
+          phase: "read",
+          message: `${who} finished`,
+          outcome: "read 4 tasks from DataHub",
+        },
+        {
+          at: at(100),
+          phase: "compare",
+          message: "compared its output",
+          outcome: "identical, nothing to do",
+        },
+        { at: at(200), phase: "done", message: "nothing marked", outcome: "84 ms end to end" },
+      ];
+    },
+  );
+
+  const numbered = quiet.map((event, index) => ({ ...event, seq: index + 1 }));
+  const offset = numbered.length;
+  return [...numbered, ...cascadeSteps().map((event) => ({ ...event, seq: event.seq + offset }))];
+}

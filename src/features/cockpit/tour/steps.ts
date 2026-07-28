@@ -27,6 +27,7 @@
  * that is a fact about the reader rather than about the board.
  */
 
+import { boardSawAChange } from "../fingerprints";
 import { performedSteps } from "../guide";
 import type { GuideInput } from "../guide";
 import type { DemoStep } from "@/src/server/runner/types";
@@ -39,6 +40,7 @@ export type TourTarget =
   | "trace"
   | "numbers"
   | "joining"
+  | "erasure"
   /** A control in the guide panel, named by the demo steps it might launch. */
   | "action";
 
@@ -196,6 +198,10 @@ export const TOUR: readonly TourStep[] = [
      */
     done: (input) => {
       if (input.tasks.some((task) => task.stale !== null)) return true;
+      // Marks are the loud evidence and they are gone once the repair lands, so
+      // this act would read not-done again on a repaired board after a restart
+      // took the launcher's record with it. The recorded change survives both.
+      if (boardSawAChange(input.tasks)) return true;
       const performed = performedSteps(input.activity);
       return (
         performed.has("change") ||
@@ -222,22 +228,26 @@ export const TOUR: readonly TourStep[] = [
     title: "the only way a mark comes off",
     body: "The agents redo the work. A mark clears when the work behind it is genuinely done again, or when a redo comes out identical and proves the work below it was fine. There is no button anywhere that just dismisses one.",
     /*
-     * The one act the board cannot answer on its own, and the only place in this
-     * file the step record is consulted.
-     *
      * A repaired board is clean and finished. So is a board that merely ran and
-     * was never changed. They are the same picture, and the difference between
-     * them is entirely in what was actually done here, which is what the record
-     * is. `performedSteps` reads only what ran since the last reset, so pressing
-     * reset genuinely puts this act back to not-done along with the board.
+     * was never changed. They are the same picture, and what tells them apart is
+     * that something was redone.
      *
-     * Known limit, the same one the rail before this recorded: a repair driven
-     * from a terminal never reaches this server's launcher, so it will not tick
-     * here. `docs/demo-script.md` requires every step in the judged run to be a
-     * button for exactly this reason.
+     * This consulted only the step record until 2026-07-27, and that record does
+     * not survive a server restart while the board does, so restarting obsel
+     * walked this act backwards on a board that had genuinely been repaired.
+     * DataHub's own record of an output moving answers it and survives, and
+     * `resetSwarm` nulls it, so pressing reset still puts this act back to
+     * not-done along with the board. See `../fingerprints.ts`.
+     *
+     * The step record stays as the second route: it is the stronger evidence
+     * where it exists, because it says the repair itself ran. It also carries
+     * the known limit both halves of this act had before, that a repair driven
+     * from a terminal never reaches this server's launcher; the board half now
+     * covers that case, since a terminal repair still moves an output.
      */
     done: (input) => {
       if (!allFinished(input) || input.tasks.some((task) => task.stale !== null)) return false;
+      if (boardSawAChange(input.tasks)) return true;
       const performed = performedSteps(input.activity);
       return performed.has("repair") || performed.has("scale-repair");
     },
@@ -252,7 +262,31 @@ export const TOUR: readonly TourStep[] = [
     kind: "read",
     target: "joining",
     title: "now with your own agents",
-    body: "That is the whole loop. This panel has the one command that connects your own agents to obsel, and the panel under it takes a table by hand if you would rather not wire anything up yet.",
+    body: "That is the whole loop. This tab has the one command that connects your own agents to obsel, and the tab beside it takes a table by hand if you would rather not wire anything up yet.",
+  },
+  /*
+   * The second question, and the last thing the tour shows.
+   *
+   * Last because it is a different obligation from the one the previous ten
+   * steps walked through, and because it needs the graph the reader has by now
+   * learned to read: the same lineage walk, the same boxes, a different question
+   * asked of them.
+   *
+   * A `read` step. Every act in this tour waits on the board genuinely changing,
+   * and opening an erasure request is an operator action that writes to the
+   * ledger with a token the browser does not hold. An act that could never
+   * complete would strand a reader at the end of the tour.
+   *
+   * The wording is held to the same rule as the panel itself: what somebody
+   * attested, never what is true.
+   */
+  {
+    id: "erasure",
+    chapter: 2,
+    kind: "read",
+    target: "erasure",
+    title: "the same graph, asked a different question",
+    body: "obsel walks this graph for a second reason. When somebody asks to have their data erased, it starts from the tables known to hold them and holds every asset it reaches as unattested until a signed attestation says otherwise. This tab reports what each one is, and which ones nobody has spoken for.",
   },
 ];
 

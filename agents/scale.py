@@ -3,8 +3,15 @@
 Data only, like `pipeline.py`: importing this module reads nothing, writes
 nothing, and calls no model. The runner in `run.py` executes it, the same way it
 executes the four-agent demo, and both swarms hang off the same DataFlow, so the
-board shows whichever one is registered. Reset, then register the other, to
-switch.
+board shows whichever one is registered.
+
+This said "Reset, then register the other, to switch" until 2026-07-28, and that
+was wrong in a way worth recording: `reset` puts every task back to registered
+and removes its tags, and deletes nothing. Nothing in obsel deletes a DataJob.
+So registering the other swarm onto a board that already holds one gives a board
+holding both, and the way to a board with only this swarm on it is a different
+DataFlow: set `OBSEL_FLOW_ID` and start obsel again. The board's own header says
+so, under the flow name.
 
 The shape, by layer:
 

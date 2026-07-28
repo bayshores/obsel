@@ -15,8 +15,15 @@
  * last, so it reads top to bottom like the sequence it is.
  */
 
-import { Fragment, useEffect, useRef } from "react";
+/*
+ * `m` with no `LazyMotion` of its own: this panel is rendered inside the dock,
+ * which provides one with `domMax`. A second root nested in the first would load
+ * a second feature bundle to animate the same elements.
+ */
+import { m, useReducedMotion } from "motion/react";
+import { Fragment, useEffect, useRef, useState } from "react";
 
+import { EASE } from "./motion-tokens";
 import { Panel } from "./mmux";
 import { passSummary, passesOf } from "./passes";
 import { clockTime } from "./timing";
@@ -68,6 +75,12 @@ const TONE: Record<TracePhase, string> = {
   done: GREEN,
 };
 
+/** A step arriving. Short, because several can land in one poll. */
+const STEP = {
+  hidden: { opacity: 0, y: 5 },
+  shown: { opacity: 1, y: 0, transition: { duration: 0.22, ease: EASE } },
+};
+
 export function TracePanel({
   events,
   error,
@@ -88,6 +101,21 @@ export function TracePanel({
 }) {
   const passes = passesOf(events);
   const list = useRef<HTMLOListElement>(null);
+  const still = useReducedMotion() === true;
+
+  /*
+   * The highest sequence number that was already here when this panel mounted.
+   *
+   * Only steps above it animate in. Everything at or below it is history the
+   * reader arrived to find, and history should be on screen rather than dealt
+   * out: a panel that animated eighty-six existing steps on load would be putting
+   * on a performance of work that finished before anybody was watching.
+   *
+   * State with a lazy initialiser, so it is computed from the first render's own
+   * events and never again. A ref would do the same job and cannot be read during
+   * render, which is exactly when the first list of rows needs it.
+   */
+  const [mountedAt] = useState(() => events.reduce((high, event) => Math.max(high, event.seq), 0));
   /*
    * Whether the newest step should be scrolled into view.
    *
@@ -196,10 +224,22 @@ export function TracePanel({
                 </li>
               )}
               {pass.events.map((event) => (
-                <li
+                /*
+                 * Steps that arrive while somebody is watching rise into place;
+                 * steps that were already here do not.
+                 *
+                 * The key is the sequence number, so a poll that re-serves the
+                 * same step re-renders this row without remounting it, and the
+                 * entrance does not replay once a second. That is the same rule
+                 * the guide's own entrance keeps, for the same reason.
+                 */
+                <m.li
                   key={event.seq}
                   className={styles.row}
                   style={{ borderLeftColor: TONE[event.phase] }}
+                  {...(still || event.seq <= mountedAt
+                    ? {}
+                    : { variants: STEP, initial: "hidden", animate: "shown" })}
                 >
                   <span className={styles.clock}>{clockTime(event.at)}</span>
                   <span className={styles.text} style={{ color: TONE[event.phase] }}>
@@ -211,7 +251,7 @@ export function TracePanel({
                   {event.outcome !== null && (
                     <span className={styles.outcome}>{event.outcome}</span>
                   )}
-                </li>
+                </m.li>
               ))}
             </Fragment>
           ))

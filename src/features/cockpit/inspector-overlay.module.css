@@ -1,0 +1,55 @@
+/*
+ * Where the details panel sits now that the board is a canvas.
+ *
+ * It used to be a column of the strip beneath the graph, sharing that strip's
+ * width with the activity feed. Two panels splitting a 172px row meant the feed
+ * lost half its already-insufficient width the moment anybody clicked a node,
+ * and the details panel itself got a third of the height it wanted.
+ *
+ * A card over the canvas answers both. It takes nothing from the feed, which is
+ * now in the dock, and it takes nothing from the graph either: the e2e suite
+ * asserts that opening details moves no node and changes no graph dimension, and
+ * an absolutely positioned overlay satisfies that by construction rather than by
+ * careful arithmetic.
+ *
+ * Bottom-right, which is the one corner of the canvas nothing else claims. The
+ * caption owns the top-left, React Flow's zoom controls the top-right, and the
+ * colour key the bottom-left.
+ */
+.slot {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  z-index: 6;
+  width: min(380px, calc(100% - 24px));
+  /*
+   * A card, and capped so it stays one.
+   *
+   * `calc(100% - 24px)` alone was the whole canvas: at 1280 x 800 the details
+   * for one task ran floor to ceiling and hid the graph the reader had just
+   * clicked in. The point of opening a node is to compare what it says against
+   * where it sits, and a panel that covers the picture makes that impossible.
+   *
+   * 520 is roughly the taller half of a laptop canvas, and the contents scroll
+   * inside it. A fingerprint pair and a mark's verbatim reason can be long, and
+   * the reason is the one thing on this board that must never be summarised to
+   * fit, so this bounds the card and never the text.
+   */
+  max-height: min(520px, calc(100% - 24px));
+  display: flex;
+  flex-direction: column;
+  /*
+   * Opaque, layered rather than a lone surface token. The surface tokens are
+   * alphas meant to sit on the page background; this floats over a graph, and
+   * the first version let edges and node labels read straight through it.
+   */
+  background: var(--mm-bg-raised) linear-gradient(var(--mm-surface-2), var(--mm-surface-2));
+  box-shadow: var(--mm-shadow-md, 0 8px 32px rgba(0, 0, 0, 0.55));
+}
+
+/* On a short canvas the card gives up its own room rather than the graph's. */
+@media (max-height: 700px) {
+  .slot {
+    max-height: calc(100% - 16px);
+  }
+}

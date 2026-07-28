@@ -34,6 +34,7 @@
  * only guard on the copy was a word count and an identifier is short.
  */
 
+import { boardSawAChange } from "./fingerprints";
 import { agreeing, datasetTitle, taskTitle } from "./naming";
 import { formatDuration, inFlightMs } from "./progress";
 import type { DemoStep, DemoActivity, StepResult } from "@/src/server/runner/types";
@@ -108,6 +109,41 @@ export interface GuideAction {
   label: string;
   /** What genuinely happens when pressed, one sentence. */
   detail: string;
+  /**
+   * The one action this stage's own sentence is asking for.
+   *
+   * **At most one per stage**, and a stage whose sentence points somewhere other
+   * than a button carries none: the flagged board that holds neither obsel
+   * pipeline tells the reader to change one of their own tables, so accenting
+   * its reset would point at the one thing the sentence is not asking for.
+   *
+   * This is the bench's rule (`bench.module.css`, "spending the board's accent
+   * on the single irreversible action in the panel is the whole of the visual
+   * hierarchy here") applied to a panel where more than one button is
+   * legitimate. Every action rendered identically until 2026-07-27, so on a
+   * flagged board "Redo the work obsel flagged" and "Reset and start over" were
+   * the same object with different text, and the reader had to read both to find
+   * out which one the board was asking for.
+   *
+   * The accent is spent on colour and elevation, never on size. Both labels stay
+   * 13px and both details 12px: `docs/verification.md` records three guides that
+   * failed by adding what mattered at footnote size, and the secondary here gets
+   * MORE contrast than it had, not less.
+   */
+  primary?: true;
+}
+
+/**
+ * The same action with its accent given up, for a stage where something else
+ * earns it.
+ *
+ * Copy-then-delete rather than naming the fields to keep, so that a field added
+ * to `GuideAction` later travels through this instead of being silently dropped.
+ */
+function unaccented(action: GuideAction): GuideAction {
+  const copy = { ...action };
+  delete copy.primary;
+  return copy;
 }
 
 /**
@@ -244,15 +280,32 @@ function swarmKind(tasks: TaskRecord[]): "demo" | "taxi" | "other" {
 /**
  * The whole lens: which stage the board is in, and what to say about it.
  *
- * `walked` is the one thing a stage needs that the board alone cannot answer. A
- * settled board that has been all the way through the demonstration and one
- * nobody has touched are the same picture, and only the record of what ran here
- * tells them apart. A repair having run is that record: it is the last act of
- * the walk, so a board carrying one has been round.
+ * `walked` separates a settled board that has been all the way through the
+ * demonstration from one nobody has touched. They are the same picture, and the
+ * board offers "start over" only on the first.
+ *
+ * This asked the launcher's record of what ran here, and nothing else, until
+ * 2026-07-27. That record lives in `globalThis` and `runner/types.ts` says
+ * plainly that it does not survive a server restart. The board does: it is
+ * DataHub's, and DataHub was still running. So quitting obsel and starting it
+ * again took the reset button off an unchanged board, which is exactly the
+ * complaint that found this ("I boot obsel back on and there is no option to
+ * redo").
+ *
+ * The board can answer it after all. An output that moved is recorded on the
+ * task, survives the restart because DataHub holds it, and is nulled by
+ * `resetSwarm` so it reads false again afterwards. `fingerprints.ts` has the
+ * four facts that make it the right question to ask.
+ *
+ * The launcher's record stays as a second route rather than being replaced. It
+ * is the stronger evidence where it exists, because it says the repair step
+ * itself ran rather than that something moved, and keeping it costs one clause.
  */
 export function guide(input: GuideInput): GuideView {
   const performed = performedSteps(input.activity);
-  return stageOf(input, performed.has("repair") || performed.has("scale-repair"));
+  const walked =
+    boardSawAChange(input.tasks) || performed.has("repair") || performed.has("scale-repair");
+  return stageOf(input, walked);
 }
 
 function stageOf(input: GuideInput, walked: boolean): StageView {
@@ -360,6 +413,7 @@ function prepare(input: GuideInput, blockers: Blocker[]): StageView {
   // because that is what runs it.
   if (blockers.some((blocker) => blocker.name === "vocabulary") && venvOk(input)) {
     actions.push({
+      primary: true,
       step: "setup",
       label: "Add obsel's tag to DataHub",
       detail: "Runs once. obsel cannot create the tag later.",
@@ -403,6 +457,7 @@ function empty(attention: string | null): StageView {
         step: "register",
         label: "Set up the demo agents",
         detail: "Adds them to DataHub. Nothing runs yet.",
+        primary: true,
       },
       {
         step: "scale-register",
@@ -457,11 +512,13 @@ function registered(tasks: TaskRecord[], finished: number, attention: string | n
           label: "Start the taxi swarm",
           detail:
             "Forty real Codex sessions, running up to eight at once. Partway through, one requirement changes.",
+          primary: true,
         }
       : {
           step: "run",
           label: "Start the demo agents",
           detail: "Four real Codex sessions. Takes a few minutes.",
+          primary: true,
         },
   ];
   if (finished === 0) {
@@ -558,18 +615,34 @@ function settled(tasks: TaskRecord[], attention: string | null, walked: boolean)
           step: "scale-change",
           label: "Change one requirement",
           detail: "One agent renames a column. Only work built on that table should flag.",
+          primary: true,
         },
       ]
     : [
-        {
-          step: "rerun-same",
-          label: "Run the orders cleaner again, no changes",
-          detail: "It writes the same table, so nothing should go out of date.",
-        },
+        /*
+         * The change leads, and the identical re-run follows it.
+         *
+         * The order was the other way round until 2026-07-27, and the argument
+         * for turning it is symmetry rather than taste: the settled taxi board
+         * offers exactly one experiment and it is the change. With the demo
+         * board leading on the re-run, the same stage taught two different
+         * lessons depending on which swarm a reader happened to be looking at.
+         *
+         * The re-run is a control experiment, and a control only means anything
+         * to somebody who already expects the other result. It stays, second and
+         * unaccented, for the reader who has seen the cascade and wants to know
+         * whether obsel cries wolf.
+         */
         {
           step: "change",
           label: "Change one agent's instructions",
           detail: "It renames a column. Nobody downstream is told.",
+          primary: true,
+        },
+        {
+          step: "rerun-same",
+          label: "Run the orders cleaner again, no changes",
+          detail: "It writes the same table, so nothing should go out of date.",
         },
       ];
 
@@ -582,6 +655,10 @@ function settled(tasks: TaskRecord[], attention: string | null, walked: boolean)
           // different names for a reader learning their way around.
           label: "Reset and start over",
           detail: "Puts every agent back to up to date. They stay set up.",
+          // The subline above literally says "Reset to walk it again", so on a
+          // walked board this is the action the sentence is asking for, and the
+          // experiments hand their accent over below.
+          primary: true,
         },
       ]
     : [];
@@ -611,9 +688,17 @@ function settled(tasks: TaskRecord[], attention: string | null, walked: boolean)
         ? "Try changing one requirement and watch how far it reaches"
         : "Try one of these and watch what obsel does",
     checks: [],
-    // The restart first, when there is one: it is the answer to the sentence
-    // above it, and the two experiments below it have both already been run.
-    actions: [...restart, ...experiments],
+    /*
+     * The restart first, when there is one: it is the answer to the sentence
+     * above it, and the two experiments below it have both already been run.
+     *
+     * The experiments give up their accent to it rather than competing, because
+     * the rule on `GuideAction.primary` is at most one per stage and this is the
+     * only place two candidates meet. Written as a strip rather than as a
+     * condition inside each experiment so that adding a third experiment cannot
+     * quietly reintroduce a second accent.
+     */
+    actions: [...restart, ...(walked ? experiments.map(unaccented) : experiments)],
     attention,
   };
 }
@@ -737,6 +822,10 @@ function flagged(tasks: TaskRecord[], attention: string | null): StageView {
    */
   const actionsFor = (): GuideAction[] => {
     if (kind === "other") {
+      // No accent anywhere on this board, deliberately. Its own sentence sends
+      // the reader to the bench below to report the flagged table again, so the
+      // accent would be spent pointing at a reset the sentence is not asking
+      // for, and a reset is the one action here that throws work away.
       return [
         {
           step: "reset",
@@ -753,6 +842,7 @@ function flagged(tasks: TaskRecord[], attention: string | null): StageView {
           // the difference worth a word: independent redos run at the same
           // time, and a redo that proves other work sound takes its re-runs off
           // the plan entirely.
+          primary: true,
           step: "scale-repair",
           label: "Redo the work obsel flagged, in parallel",
           detail:
@@ -772,6 +862,7 @@ function flagged(tasks: TaskRecord[], attention: string | null): StageView {
         // There is no button that clears a flag directly, on purpose: the only
         // way a flag comes off is real redone work, this button's or obsel's
         // own proof that an identical redo made a re-run unnecessary.
+        primary: true,
         step: "repair",
         label: "Redo the work obsel flagged",
         detail:

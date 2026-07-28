@@ -31,33 +31,28 @@ import { useEffect, useRef, useState } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 
 import { PulseDot } from "../mmux";
+import { EASE, SPRING } from "../motion-tokens";
 import { STEP_NAME } from "../guide";
 import { TOUR } from "./steps";
-import type { ActStep, TourStep } from "./steps";
+import type { ActStep, TourStep, TourTarget } from "./steps";
 import type { TourState } from "./use-tour";
+import type { DockSide } from "../dock/use-dock";
 import type { GuideInput, GuideView } from "../guide";
 
 import styles from "./tour.module.css";
 
-/** mmux's curve, in the form motion takes it. Matches `guide-panel.tsx`. */
-const EASE = [0.2, 0.8, 0.2, 1] as const;
-
 /**
  * The window arriving and leaving.
  *
- * A spring rather than a duration, and this is the one place in obsel that uses
- * one. Everything else on the board is an instrument reading and moves on a
- * fixed curve; this is a physical object being put down on the screen and picked
- * back up, and the small overshoot is what makes it read that way.
+ * A spring rather than a duration. Everything else on the board is an instrument
+ * reading and moves on a fixed curve; this is a physical object being put down
+ * on the screen and picked back up, and the small overshoot is what makes it
+ * read that way. The dock is the other object of that kind and uses the same
+ * spring, which is why it lives in `motion-tokens.ts` rather than here.
  */
 const WINDOW = {
   hidden: { opacity: 0, y: 24, scale: 0.96 },
-  shown: {
-    opacity: 1,
-    y: 0,
-    scale: 1,
-    transition: { type: "spring" as const, stiffness: 420, damping: 32, mass: 0.9 },
-  },
+  shown: { opacity: 1, y: 0, scale: 1, transition: SPRING },
   gone: { opacity: 0, y: 12, scale: 0.98, transition: { duration: 0.16, ease: EASE } },
 };
 
@@ -69,7 +64,25 @@ const CARD = {
 };
 
 /** Where the window sits before anybody moves it: out of the board's way. */
-const HOME = { right: 24, bottom: 24 } as const;
+const HOME = { edge: 24, bottom: 24 } as const;
+
+/**
+ * The corner the window rests in: the one the dock is not using.
+ *
+ * It was always the bottom right, which was correct while the board was a
+ * column and every region ran the full width. With a dock down one side, the
+ * bottom right is a panel: the window opened on top of the dock and covered the
+ * two measured numbers pinned at its foot, which are the figures the whole
+ * demonstration exists to establish.
+ *
+ * A reader can still drag it anywhere. This only decides where it starts, and
+ * it starts out of the way.
+ */
+function homeCorner(dockSide: DockSide): { left?: number; right?: number; bottom: number } {
+  return dockSide === "right"
+    ? { left: HOME.edge, bottom: HOME.bottom }
+    : { right: HOME.edge, bottom: HOME.bottom };
+}
 
 /**
  * The board region a step points at, as a selector.
@@ -99,10 +112,30 @@ export function TourPanel({
   tour,
   view,
   input,
+  reveal,
+  dockSide,
 }: {
   tour: TourState;
   view: GuideView;
   input: GuideInput;
+  /**
+   * Ask the board to put a region on screen before it is pointed at.
+   *
+   * Three of the regions the tour names are tabs of one dock now, so at any
+   * moment two of them are not rendered at all. A highlight applied to nothing
+   * fails silently: the step would appear to have pointed somewhere, and the
+   * reader would be told to look at a panel that is not there. The tour asks,
+   * the cockpit opens the right tab, and this file goes back to knowing only
+   * about selectors.
+   */
+  reveal?: (target: TourTarget) => void;
+  /**
+   * Which edge the dock is on, so the window can rest against the other one.
+   *
+   * Passed rather than read from the store, because this file knows nothing
+   * about the dock and should not start: all it needs is which corner is free.
+   */
+  dockSide: DockSide;
 }) {
   const still = useReducedMotion() === true;
   const step = tour.step;
@@ -119,23 +152,53 @@ export function TourPanel({
    */
   useEffect(() => {
     if (!tour.open) return;
+    if (reveal) reveal(step.target);
     const selector = selectorFor(step, view);
     if (selector === null) return;
-    const target = document.querySelector(selector);
-    if (target === null) return;
-    target.classList.add(styles.lit);
+
     /*
-     * Only when it is genuinely off screen. Scrolling on every step yanks the
-     * page around under somebody who can already see the thing being described.
+     * Found now, or on one of the next few frames.
+     *
+     * A revealed tab mounts through `AnimatePresence`, so on the frame this
+     * effect runs the element it is looking for may not exist yet. A single
+     * `querySelector` would miss it and the step would light nothing. This
+     * retries for a handful of frames and then gives up, which is long enough
+     * for a mount and short enough that a genuinely absent target does not leave
+     * a timer running behind the reader.
      */
-    const box = target.getBoundingClientRect();
-    if (box.top < 0 || box.bottom > window.innerHeight) {
-      target.scrollIntoView({ behavior: still ? "auto" : "smooth", block: "center" });
-    }
-    return () => target.classList.remove(styles.lit);
-    // `view.actions` rather than `view`: the whole view is a new object every
-    // poll, and re-running this a second would restart the scroll.
-  }, [tour.open, step, view, still]);
+    let frame = 0;
+    let tries = 0;
+    let lit: Element | null = null;
+    const look = (): void => {
+      const target = document.querySelector(selector);
+      if (target === null) {
+        tries += 1;
+        if (tries < 10) frame = requestAnimationFrame(look);
+        return;
+      }
+      lit = target;
+      target.classList.add(styles.lit);
+      /*
+       * Only when it is genuinely off screen, and the scroll now happens inside
+       * whichever panel holds the target rather than on the page: the page does
+       * not scroll at all. `scrollIntoView` walks up to the nearest scrollable
+       * ancestor, which is the dock's own body, so this still works and moves
+       * nothing a reader was looking at.
+       */
+      const box = target.getBoundingClientRect();
+      if (box.top < 0 || box.bottom > window.innerHeight) {
+        target.scrollIntoView({ behavior: still ? "auto" : "smooth", block: "center" });
+      }
+    };
+    look();
+
+    return () => {
+      cancelAnimationFrame(frame);
+      if (lit !== null) lit.classList.remove(styles.lit);
+    };
+    // `view` is a new object every poll, and re-running this a second would
+    // restart the scroll; the step and the open flag are what genuinely change.
+  }, [tour.open, step, view, still, reveal]);
 
   // Esc closes, from anywhere. A window with no keyboard exit is a trap.
   useEffect(() => {
@@ -162,18 +225,29 @@ export function TourPanel({
       // it. Falls back only on the frame before the first measurement.
       const height = box?.height ?? 260;
       const width = box?.width ?? Math.min(400, window.innerWidth - 32);
-      setBounds({
-        left: -(window.innerWidth - width - HOME.right - 16),
-        right: 0,
-        top: -(window.innerHeight - height - HOME.bottom - 16),
-        bottom: 0,
-      });
+      /*
+       * The travel available from wherever it rests, in both directions.
+       *
+       * It used to rest against the right edge, so it could only ever be
+       * dragged left and up and the other two limits were zero. It now rests
+       * against whichever edge the dock is not on, so the room is on the other
+       * side and the constraint has to be worked out from where it actually is
+       * rather than assumed.
+       */
+      const spare = Math.max(0, window.innerWidth - width - HOME.edge - 16);
+      const up = -Math.max(0, window.innerHeight - height - HOME.bottom - 16);
+      setBounds(
+        dockSide === "right"
+          ? { left: 0, right: spare, top: up, bottom: 0 }
+          : { left: -spare, right: 0, top: up, bottom: 0 },
+      );
     };
     measure();
     window.addEventListener("resize", measure);
     return () => window.removeEventListener("resize", measure);
-    // Re-measured per step, because each card is a different height.
-  }, [tour.open, step]);
+    // Re-measured per step, because each card is a different height, and per
+    // dock side, because that decides which way the window has room to go.
+  }, [tour.open, step, dockSide]);
 
   const settled = step.kind === "act" && step.done(input);
 
@@ -184,7 +258,7 @@ export function TourPanel({
           <m.section
             ref={frame}
             className={styles.window}
-            style={{ right: HOME.right, bottom: HOME.bottom }}
+            style={homeCorner(dockSide)}
             aria-label="guide"
             /*
              * Dragged by the bar, not by the whole window.

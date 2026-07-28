@@ -38,6 +38,30 @@ function task(name: string, overrides: Partial<TaskRecord> = {}): TaskRecord {
   };
 }
 
+/**
+ * A finished task whose recorded output moved: what a change leaves in DataHub.
+ *
+ * The hashes differ, which is the whole point. `engine.ts` writes a previous
+ * entry only when the fingerprints genuinely moved, so this is the shape a real
+ * board carries after a change and after a repair, and it is not the shape an
+ * identical re-run produces. `identicalRerun` below is that one.
+ */
+function changed(name: string, overrides: Partial<TaskRecord> = {}): TaskRecord {
+  return task(name, {
+    fingerprints: { [ds(name)]: { schema: "s2", content: "c2" } },
+    previousFingerprints: { [ds(name)]: { schema: "s1", content: "c1" } },
+    ...overrides,
+  });
+}
+
+/** The key present and the hashes equal, which must not read as a change. */
+function identicalRerun(name: string): TaskRecord {
+  return task(name, {
+    fingerprints: { [ds(name)]: { schema: "s1", content: "c1" } },
+    previousFingerprints: { [ds(name)]: { schema: "s1", content: "c1" } },
+  });
+}
+
 function mark(overrides: Partial<StaleMark> = {}): StaleMark {
   return {
     causedBy: ds("clean_orders"),
@@ -656,7 +680,94 @@ describe("stage derivation", () => {
   it("settled offers the two experiments once everything finished clean", () => {
     const view = guide(input({ tasks: FOUR_COMPLETE }));
     expect(view.stage).toBe("settled");
-    expect(view.actions.map((action) => action.step)).toEqual(["rerun-same", "change"]);
+    /*
+     * The change leads, and it did not until 2026-07-27.
+     *
+     * The reason for the order is symmetry with the taxi board rather than
+     * taste: settled-taxi offers exactly one experiment and it is its change.
+     * With the demo leading on the identical re-run, one stage taught two
+     * different lessons depending on which swarm was on screen. The re-run is a
+     * control experiment, and a control only means something to a reader who
+     * already expects the other result, so it follows rather than leads.
+     */
+    expect(view.actions.map((action) => action.step)).toEqual(["change", "rerun-same"]);
+    expect(view.actions.filter((action) => action.primary === true)).toHaveLength(1);
+    expect(view.actions[0]?.primary).toBe(true);
+  });
+
+  /*
+   * The bug these were written for, in the reporter's words: "why does it seem
+   * like we always return to the same state when I boot obsel back on? there's
+   * no option to redo."
+   *
+   * The board is DataHub's and survives a restart. The launcher's record of what
+   * ran is this server's and does not. `walked` asked only the record, so
+   * restarting obsel took the reset button off a board that had genuinely been
+   * all the way round, with nothing about the board having changed.
+   */
+  describe("a walked board still reads as walked after a restart", () => {
+    const WALKED = [changed("clean_orders"), task("build_revenue"), task("write_docs")];
+
+    it("offers reset with an empty launcher history, which is what a restart leaves", () => {
+      const view = guide(input({ tasks: WALKED, activity: activity({ history: [] }) }));
+      expect(view.stage).toBe("settled");
+      expect(view.actions.map((action) => action.step)).toContain("reset");
+    });
+
+    it("offers reset with no activity read at all", () => {
+      // A server that has just started has not answered the activity poll yet.
+      const view = guide(input({ tasks: WALKED, activity: null }));
+      expect(view.actions.map((action) => action.step)).toContain("reset");
+    });
+
+    it("still withholds reset from a board that has only ever run", () => {
+      // The gate is not being dropped, only re-evidenced. A board nobody has
+      // changed is offered the experiments, not a button that undoes them.
+      const view = guide(input({ tasks: FOUR_COMPLETE, activity: activity({ history: [] }) }));
+      expect(view.stage).toBe("settled");
+      expect(view.actions.map((action) => action.step)).not.toContain("reset");
+    });
+
+    it("does not count an identical re-run as having been round", () => {
+      /*
+       * The one case obsel exists to stay quiet about, and the one a check for
+       * the key's presence rather than the hashes would get wrong. `engine.ts`
+       * does not write a previous entry for an unchanged output at all, so this
+       * board is stricter than a real one, which is the right direction.
+       */
+      const view = guide(
+        input({
+          tasks: [identicalRerun("clean_orders"), task("build_revenue")],
+          activity: activity({ history: [] }),
+        }),
+      );
+      expect(view.actions.map((action) => action.step)).not.toContain("reset");
+    });
+
+    it("forgets both routes after a reset", () => {
+      // `resetSwarm` nulls the recorded previous fingerprints, and `sinceReset`
+      // drops the history. If either half stopped clearing, the board would keep
+      // offering to start over on a board that already had.
+      const view = guide(
+        input({
+          tasks: FOUR_COMPLETE,
+          activity: activity({ history: ran("register", "run", "change", "repair", "reset") }),
+        }),
+      );
+      expect(view.actions.map((action) => action.step)).not.toContain("reset");
+    });
+
+    it("keeps the launcher's record as a second route, not a replacement", () => {
+      // A repair that ran here counts even with nothing on the board to show for
+      // it, which is the case a board-only signal would have lost.
+      const view = guide(
+        input({
+          tasks: FOUR_COMPLETE,
+          activity: activity({ history: ran("register", "run", "change", "repair") }),
+        }),
+      );
+      expect(view.actions.map((action) => action.step)).toContain("reset");
+    });
   });
 
   it("flagged counts the marks and calls out the transitive reach, without narrating the screen", () => {
@@ -1085,6 +1196,11 @@ describe("the tour", () => {
       "reached",
       "repair",
       "yours",
+      // The erasure tab, last, because it asks a different question of the same
+      // graph and needs the graph the previous ten steps taught the reader to
+      // read. A `read` step: opening a request writes to the ledger with a token
+      // the browser does not hold, so an act here could never complete.
+      "erasure",
     ]);
   });
 
@@ -1164,7 +1280,7 @@ describe("the tour", () => {
       tasks: FOUR_COMPLETE,
       activity: activity({ history: ran("register", "run", "change", "repair") }),
     });
-    expect(TOUR[settledIndex(TOUR.length - 1, walked)].id).toBe("yours");
+    expect(TOUR[settledIndex(TOUR.length - 1, walked)].id).toBe("erasure");
 
     // And the same board with nothing behind it is at the change, because that
     // is genuinely what has not happened on it.

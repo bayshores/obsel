@@ -145,6 +145,35 @@ export function calm(): SwarmResponse {
 }
 
 /**
+ * Four tasks finished and nothing marked, on a board that has been all the way
+ * round: changed, then repaired.
+ *
+ * The only difference from `calm()` is that `clean_orders` carries the previous
+ * version of its own output, with different hashes. That is what a real board
+ * holds after a change and a repair, and it is the one thing distinguishing this
+ * picture from `calm()`, which is the whole point — they are otherwise identical
+ * and the board must offer a way back to the start on this one only.
+ *
+ * The shape is not invented. `captures/scale-settled.json` is a recording of a
+ * real repaired forty-task board, and exactly three of its forty tasks carry a
+ * `previousFingerprints` entry differing from the current one.
+ */
+export function repaired(): SwarmResponse {
+  const base = calm();
+  return {
+    ...base,
+    snapshot: {
+      ...base.snapshot,
+      tasks: base.snapshot.tasks.map((entry) =>
+        entry.name === "clean_orders"
+          ? { ...entry, previousFingerprints: { [ds("clean_orders")]: print("9", "b") } }
+          : entry,
+      ),
+    },
+  };
+}
+
+/**
  * One schema-only change, three tasks out of date.
  *
  * `clean_orders`'s content fingerprint is identical to the calm fixture's and

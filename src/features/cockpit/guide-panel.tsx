@@ -15,6 +15,7 @@ import { Fragment, useState } from "react";
 import type { ReactNode } from "react";
 
 import { PulseDot } from "./mmux";
+import { EASE } from "./motion-tokens";
 import { formatDuration } from "./progress";
 import { STEP_NAME } from "./guide";
 import type { GuideView } from "./guide";
@@ -24,17 +25,6 @@ import styles from "./guide.module.css";
 
 /** How many of the step's own lines stay visible without opening the full log. */
 const TAIL_LINES = 8;
-
-/*
- * mmux's own curve and duration ladder, in the form motion takes them.
- *
- * `--mm-ease` is `cubic-bezier(0.2, 0.8, 0.2, 1)` and the durations are the
- * `--mm-dur-*` tokens in milliseconds. They are repeated here rather than read
- * from CSS because these animations are driven in JavaScript; a test asserts
- * nothing about them, so the comment is the only thing keeping them in step with
- * `globals.css`, and that is worth knowing when either changes.
- */
-const EASE = [0.2, 0.8, 0.2, 1] as const;
 
 /**
  * The entrance, as one parent conducting its children.
@@ -337,7 +327,11 @@ export function GuidePanel({
               <m.button
                 key={action.step}
                 type="button"
-                className={styles.action}
+                className={
+                  action.primary === true
+                    ? `${styles.action} ${styles.actionPrimary}`
+                    : styles.action
+                }
                 /*
                  * How the tour finds this control. It points at the button that
                  * performs the act it is asking for, and it reads the label off

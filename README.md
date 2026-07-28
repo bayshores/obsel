@@ -90,6 +90,13 @@ The full comparison, including where obsel is genuinely not novel, is in
 Both came out of one run on 2026-07-23, from commit `9bd695e`, against a live DataHub and a live
 Codex CLI. Not mockups, and not assembled from separate sessions.
 
+**These four images and the two below show the previous layout.** The board was rebuilt on
+2026-07-28: the lineage graph is now the whole page, and the guide, the activity feed and the two
+measured numbers sit in one panel beside it that a reader can move, resize or hide. Every number
+and every sentence in them is still what that run produced. They are due to be recaptured against
+the new board, and until they are, what they show is the same evidence in a different arrangement.
+See [docs/verification.md](docs/verification.md) for what the new layout is and how it was checked.
+
 | What happened                                       | Measured                                             |
 | --------------------------------------------------- | ---------------------------------------------------- |
 | Four agents did the work                            | 206.0 s of real Codex sessions                       |
@@ -169,7 +176,12 @@ After that, the whole demo is buttons.
 | Codex CLI, signed in | each agent is a real Codex session, so there is no offline mode and no API key path |
 
 The launcher installs `uv` if it is missing, and skips whatever is already done, so running it twice
-is safe. Docker, Node and the Codex sign-in need you, so it detects those and says what to do.
+is safe. Docker, Node and the Codex sign-in need you, so it detects those and says what to do. It
+installs DataHub `v1.5.0.6` by name, which is the version every measured number here was taken
+against.
+
+obsel shows one board at a time. The board's header carries its name, and opening that name explains
+how to start obsel on a different one. See [`docs/setup.md`](docs/setup.md).
 
 Every step written out in full, with a way to tell each one worked, is in
 **[`docs/setup.md`](docs/setup.md)**.
@@ -197,7 +209,7 @@ of its own, so any MCP-capable agent can join a swarm.
 claude mcp add obsel -- "$PWD/agents/.venv/bin/python" -m agents.mcp_server
 ```
 
-The board carries this too, under the graph, with your machine's own copy of that command and a
+The board carries this too, in the panel beside the graph, with your machine's own copy of that command and a
 four step checklist that ticks itself off as obsel sees your agent declare itself, announce, report,
 and get its first answer. It is derived from the swarm rather than stored, so driving your agent
 from a terminal ticks it just the same.

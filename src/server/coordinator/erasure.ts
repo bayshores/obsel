@@ -228,7 +228,7 @@ function key(asset: string, version: Version): string {
 }
 
 /** Last dotted segment of a dataset URN, for a sentence a person reads. */
-function assetLabel(urn: string): string {
+export function assetLabel(urn: string): string {
   const parts = urn.split(",");
   const path = parts.length > 1 ? parts[1] : urn;
   const segments = path.split(".");
@@ -563,7 +563,18 @@ function explain(
   return `${table} at version ${version} is unattested: ${reasonSentence(first, table)}${rest}`;
 }
 
-function reasonSentence(reason: ResidueReason | undefined, table: string): string {
+/**
+ * One residue reason as a sentence, exported so the cockpit says it in these
+ * words rather than in its own.
+ *
+ * `explain` above puts only the FIRST reason in the leading sentence and counts
+ * the rest, which is right for a one-line summary and leaves a reader who opens
+ * the asset with "and 3 more" and no way to see them. The erasure tab lists
+ * every reason, and it calls this rather than writing a second vocabulary for
+ * the same ten cases. Exporting a formatter changes no decision: `coverageFor`
+ * settles what is covered, and this only says why in English.
+ */
+export function reasonSentence(reason: ResidueReason | undefined, table: string): string {
   if (!reason) return "nothing explains it";
   switch (reason.kind) {
     case "no-attestation":

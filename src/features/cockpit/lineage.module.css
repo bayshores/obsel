@@ -108,9 +108,45 @@
  * change had travelled. Slowed from React Flow's default, which reads as urgent
  * traffic rather than as one change spreading.
  */
+/*
+ * Two animations on one path: the change arriving, then the change standing.
+ *
+ * `obsel-reach` runs once, delayed by this edge's own hop count, so the lit path
+ * is drawn outward from the table that moved rather than appearing all at once.
+ * `obsel-dash` starts when it finishes and never stops, which is the property the
+ * comment above is about: a viewer who arrives after the cascade, or who is
+ * looking at a screenshot, still sees a path with something travelling along it.
+ *
+ * The one-shot needs no restart machinery. An edge is `animated` exactly while
+ * it is lit, so a new cascade lights edges that were not lit before and the
+ * browser starts both animations on them at that moment, for free. An edge that
+ * was already lit and stays lit does not replay, which is correct: nothing
+ * reached it, it was already reached.
+ */
 .canvas :global(.react-flow__edge.animated path.react-flow__edge-path) {
-  animation: obsel-dash 1.4s linear infinite;
+  animation:
+    obsel-reach 420ms var(--mm-ease) calc((var(--hop, 1) - 1) * 300ms) both,
+    obsel-dash 1.4s linear calc((var(--hop, 1) - 1) * 300ms + 420ms) infinite;
   stroke-dasharray: 6 4;
+}
+
+/*
+ * The dashes rushing into place along the edge, once.
+ *
+ * An offset rather than a `stroke-dasharray` sweep, so the pattern is the same
+ * pattern the march below uses and the two hand over without the line changing
+ * shape. `tone.ts` names `stroke-dashoffset` as one of the two things the cascade
+ * animation is allowed to write, and this stays inside that.
+ */
+@keyframes obsel-reach {
+  from {
+    opacity: 0;
+    stroke-dashoffset: 44;
+  }
+  to {
+    opacity: 1;
+    stroke-dashoffset: 0;
+  }
 }
 
 @keyframes obsel-dash {
@@ -130,5 +166,14 @@
 @media (prefers-reduced-motion: reduce) {
   .canvas :global(.react-flow__edge.animated path.react-flow__edge-path) {
     animation: none;
+    /*
+     * Written out by hand, because `animation: none` leaves an element wherever
+     * its declarations put it and `obsel-reach` starts at `opacity: 0` with the
+     * dashes pushed off the end of the line. Without these two the whole lit path
+     * would be invisible under a preference for less motion, which is the one
+     * outcome this block exists to prevent.
+     */
+    opacity: 1;
+    stroke-dashoffset: 0;
   }
 }

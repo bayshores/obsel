@@ -36,7 +36,71 @@
    */
   transition:
     background-color 120ms ease,
-    box-shadow 120ms ease;
+    box-shadow 120ms ease,
+    /*
+     * The status colours, so a task changing state glides rather than snaps.
+     *
+     * These three are exactly the properties `nodeTone` sets, and the transition
+     * changes only how the browser gets from one of its answers to the next. The
+     * answer itself is never interpolated: at any instant the colour is either
+     * the old claim or the new one or a step between two claims obsel has both
+     * made, and 240ms after a poll it is the current one.
+     */
+    border-left-color 240ms var(--mm-ease),
+    border-top-color 240ms var(--mm-ease),
+    outline-color 240ms var(--mm-ease),
+    color 240ms var(--mm-ease);
+}
+
+/*
+ * The ripple: one flare over a box the change has just reached.
+ *
+ * Its own element, absolutely positioned over the box and inert to the pointer,
+ * for the reason `nodes.tsx` states at the point it is rendered: the box's colour
+ * is a claim, and nothing about an animation may be able to alter a claim. This
+ * draws outside the border so it cannot move the layout by a pixel either, which
+ * is the same trick the tour's highlight uses.
+ *
+ * The delay is the hop count obsel recorded, so a three-hop cascade flares three
+ * times outward in the order it actually walked.
+ */
+.flare {
+  position: absolute;
+  inset: -3px;
+  pointer-events: none;
+  border: 1px solid var(--obsel-stale);
+  opacity: 0;
+  animation: obsel-flare 620ms var(--mm-ease) calc((var(--hop, 1) - 1) * 300ms) both;
+}
+
+@keyframes obsel-flare {
+  0% {
+    opacity: 0;
+    transform: scale(1.06);
+    box-shadow: 0 0 0 0 var(--obsel-stale-line);
+  }
+  35% {
+    opacity: 1;
+    transform: scale(1);
+    box-shadow: 0 0 18px 3px var(--obsel-stale-line);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1);
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+/*
+ * Motion is a preference, and the flare is the one thing here that is purely
+ * motion: it says nothing the amber bar does not already say permanently. So it
+ * simply does not run, and ends where it would have ended, which is invisible.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .flare {
+    animation: none;
+    opacity: 0;
+  }
 }
 
 /*
@@ -51,6 +115,8 @@
  */
 .task {
   cursor: pointer;
+  /* The positioning context the flare is drawn against. */
+  position: relative;
 }
 
 .task:hover {
@@ -132,6 +198,24 @@
   color: var(--mm-cream-dim);
   font-size: var(--mm-text-md);
   line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/*
+ * The coverage state a table is in, when the board is being read as an erasure
+ * report rather than as a staleness board.
+ *
+ * Same slot the column diff uses, because the two are never on screen together:
+ * one board answers whether finished work is still current, the other whether
+ * anybody has accounted for a subject's data, and mixing their vocabularies in
+ * one box would leave a reader unsure which question a colour was answering.
+ */
+.coverage {
+  font-size: var(--mm-text-md);
+  line-height: 1.2;
+  letter-spacing: var(--mm-track);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

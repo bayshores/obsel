@@ -27,7 +27,8 @@
  * not there.
  */
 
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
+import { useReducedMotion } from "motion/react";
 import {
   Background,
   BackgroundVariant,
@@ -44,10 +45,12 @@ import type { Edge, Node } from "@xyflow/react";
 
 import { cascadeEdges } from "./graph/cascade";
 import { dataNodeId, layoutPositions, taskNodeId } from "./graph/positions";
+import { CAMERA_MS, FLY_MS } from "./motion-tokens";
 import { DataNode, TaskNode } from "./nodes";
 import type { DataNodeData, TaskNodeData } from "./nodes";
 import { currentChange } from "./timing";
 import { STALE } from "./tone";
+import type { ErasureState } from "@/src/server/coordinator/erasure";
 import type { StaleMark, TaskRecord } from "@/src/server/coordinator/types";
 
 import "@xyflow/react/dist/style.css";
@@ -68,10 +71,14 @@ const NODE_TYPES = { task: TaskNode, data: DataNode };
  *
  * So the reading moves are on and the editing moves stay off:
  *
- * - **Drag pans, pinch zooms.** The scroll wheel deliberately does NOT zoom:
- *   the tall board is on a page that scrolls, and a wheel that zooms wherever
- *   the graph happens to be under the cursor makes the page unscrollable over
- *   its largest region.
+ * - **Drag pans, the wheel zooms, pinch zooms.** The wheel used to be excluded
+ *   deliberately, and the reason it was has gone: the board was a column on a
+ *   page that scrolled, and a wheel that zoomed would have made that page
+ *   unscrollable over its largest region. The page does not scroll any more —
+ *   the canvas IS the page — so the wheel has nothing else to do, and it is the
+ *   move a reader reaches for first. It also answers what the dock costs: the
+ *   demo's layout is width-pinned, so a reader on a laptop who wants design-size
+ *   labels now has the obvious gesture for them.
  * - **The zoom buttons and the fit button** (React Flow's own controls, drawn
  *   in obsel's tokens) are the mouse path to the same moves, and the fit
  *   button is the recovery: the old lock existed because a stranded graph had
@@ -86,10 +93,16 @@ const READING = {
   elementsSelectable: false,
   panOnDrag: true,
   panOnScroll: false,
-  zoomOnScroll: false,
+  zoomOnScroll: true,
   zoomOnPinch: true,
   zoomOnDoubleClick: false,
-  preventScrolling: false,
+  /*
+   * The wheel belongs to the graph now, so the page is told to keep its hands
+   * off it. With the page pinned to the viewport there is nothing behind the
+   * canvas for a wheel event to scroll anyway; this stops the browser's
+   * overscroll behaviours from firing on top of the zoom.
+   */
+  preventScrolling: true,
 } as const;
 
 /**
@@ -143,7 +156,11 @@ const FIT = {
  * absent from the nodes: the graph shows status, hops and the column diff, and
  * nothing that ticks.
  */
-function graphSignature(tasks: TaskRecord[], origin: StaleMark | null): string {
+function graphSignature(
+  tasks: TaskRecord[],
+  origin: StaleMark | null,
+  coverage: CoverageMode,
+): string {
   return JSON.stringify([
     tasks.map((task) => [
       task.urn,
@@ -154,13 +171,28 @@ function graphSignature(tasks: TaskRecord[], origin: StaleMark | null): string {
       task.stale && [task.stale.causedBy, task.stale.hops],
     ]),
     origin && [origin.causedBy, origin.causedByTask, origin.columns],
+    // Sorted, so a report re-read every five seconds with the same answers
+    // produces the same string and the graph is not rebuilt for nothing.
+    coverage === null ? null : [...coverage.entries()].sort((a, b) => a[0].localeCompare(b[0])),
   ]);
 }
+
+/**
+ * How the board is being read.
+ *
+ * `null` is the staleness board: amber where finished work went out of date.
+ * A map is the erasure board: the same graph, the same positions, coloured by
+ * what an erasure report says about each table. A table absent from the map was
+ * not reached by that report, which the nodes render as its own state rather
+ * than as an absence of colour.
+ */
+export type CoverageMode = ReadonlyMap<string, ErasureState> | null;
 
 /** Pure: the swarm in, React Flow's nodes, edges and layout bounds out. */
 function buildGraph(
   tasks: TaskRecord[],
   origin: StaleMark | null,
+  coverage: CoverageMode,
 ): { nodes: Node[]; edges: Edge[]; width: number; height: number } {
   const originDataset = origin?.causedBy ?? null;
   const causeTaskUrn = origin?.causedByTask ?? null;
@@ -178,6 +210,18 @@ function buildGraph(
 
   const byUrn = new Map(tasks.map((task) => [taskNodeId(task.urn), task]));
 
+  /*
+   * One string naming the cascade currently standing, or nothing.
+   *
+   * It is a React `key` and nothing else. The nodes use it to remount their
+   * flare, which is what restarts a one-shot CSS animation on an element the
+   * browser is otherwise reusing. `since` is on it as well as the dataset,
+   * because the same table changing twice is two cascades and should flare
+   * twice; a graph rebuilt for any other reason carries the same string and
+   * flares not at all.
+   */
+  const ripple = origin === null ? null : `${origin.causedBy}|${origin.since}`;
+
   const nodes: Node[] = placed.nodes.map((node) => {
     /*
      * Position from dagre; size left for React Flow to measure.
@@ -193,7 +237,14 @@ function buildGraph(
     const box = { position: { x: node.x, y: node.y }, draggable: false };
     if (node.kind === "task") {
       const task = byUrn.get(node.id);
-      const data: TaskNodeData = { task: task as TaskRecord, isCause: causeTaskUrn === task?.urn };
+      const data: TaskNodeData = {
+        task: task as TaskRecord,
+        isCause: causeTaskUrn === task?.urn,
+        ripple,
+        // No colour and no status word on the erasure board. `nodes.tsx` records
+        // why an agent carries neither there.
+        neutral: coverage !== null,
+      };
       return { id: node.id, type: "task", data, ...box };
     }
     const urn = node.id.slice(2);
@@ -202,6 +253,9 @@ function buildGraph(
       isOrigin: originDataset === urn,
       columns: originDataset === urn ? (origin?.columns ?? null) : null,
       external: !writers.has(urn),
+      // `undefined` off the erasure board, `null` on it for a table the report
+      // did not reach. `nodes.tsx` records why those must stay distinguishable.
+      coverage: coverage === null ? undefined : (coverage.get(urn) ?? null),
     };
     return { id: node.id, type: "data", data, ...box };
   });
@@ -217,7 +271,25 @@ function buildGraph(
       type: "smoothstep",
       // The moving dash, for as long as the marks stand.
       animated: isLit,
-      style: { stroke: isLit ? STALE : "var(--mm-rose-line)", strokeWidth: isLit ? 2 : 1 },
+      style: {
+        stroke: isLit ? STALE : "var(--mm-rose-line)",
+        strokeWidth: isLit ? 2 : 1,
+        /*
+         * How far along the walk this edge is, as a custom property the
+         * stylesheet turns into a delay.
+         *
+         * The hop count comes from `cascadeEdges`, which reads it off the marks
+         * obsel wrote rather than re-deriving it from the shape of the graph.
+         * That is the same rule the lighting itself keeps, and it matters as
+         * much here: a stagger computed from topology would animate a path
+         * through work obsel never marked, which is a claim the picture would be
+         * making on its own.
+         *
+         * Set on every edge, lit or not, so the property always resolves. An
+         * unlit edge runs no animation for it to affect.
+         */
+        ["--hop" as string]: isLit ? lit[edge.id] : 0,
+      },
       markerEnd: {
         type: MarkerType.ArrowClosed,
         width: 14,
@@ -230,28 +302,21 @@ function buildGraph(
   return { nodes, edges, width: placed.width, height: placed.height };
 }
 
-/**
- * The panel height this layout needs to be shown WITHOUT clipping, at the zoom
- * the panel's width already decides.
+/*
+ * `panelHeightFor` used to live here, and its removal is the redesign in one
+ * function.
  *
- * The demo's layout is wide and short, so its zoom is pinned by width and 320px
- * of panel has always been enough. The forty-task swarm is also TALL — ten
- * rows of boxes — and a fixed 320px panel forced `fitView` below its zoom
- * floor, where it clamps and centres: the graph rendered cut off at the top
- * and bottom, which is strictly worse than small. The fix direction is more
- * panel, never more shrinking: this computes the height the layout occupies at
- * the width-decided zoom, and the cockpit grows the panel (and lets the page
- * scroll) to honour it.
+ * It computed the panel height a layout needed at the width-decided zoom, and
+ * the cockpit grew the graph panel to that number and let the whole PAGE scroll
+ * to honour it. That was the right answer to the forty-task board clipping
+ * inside a 320px panel, given a board that was a column of stacked rows.
+ *
+ * The canvas is the page now. It is already as tall as the frame, so there is no
+ * height to negotiate and nothing for a report to tell the cockpit: a layout too
+ * tall for the frame is panned and zoomed rather than scrolled to, which is what
+ * the graph's own controls are for. The height report, the `graphHeight` state
+ * it fed, and the `.cockpitTall` mode that state switched on all went together.
  */
-export function panelHeightFor(
-  layout: { width: number; height: number },
-  panelWidth: number,
-): number {
-  if (layout.width <= 0 || layout.height <= 0 || panelWidth <= 0) return 0;
-  const usable = panelWidth * (1 - 2 * FIT.padding);
-  const zoom = Math.min(FIT.maxZoom, usable / layout.width);
-  return Math.ceil((layout.height * zoom) / (1 - 2 * FIT.padding));
-}
 
 interface LineageProps {
   tasks: TaskRecord[];
@@ -261,11 +326,17 @@ interface LineageProps {
    */
   onSelect?: (urn: string) => void;
   /**
-   * The panel height the current layout needs at the current panel width, from
-   * `panelHeightFor`. Reported whenever the graph or the panel width changes,
-   * so the cockpit can grow the panel instead of letting `fitView` clip.
+   * The URN whose details are open, so the graph can bring it into view.
+   *
+   * Not the same thing as the click that opened it. A reader can open a node,
+   * pan away, zoom in, and still have its details on screen; and on the
+   * forty-task board a node near the bottom-right is opened straight underneath
+   * the card describing it. In both the card is talking about a box the reader
+   * cannot see.
    */
-  onNeededHeight?: (px: number) => void;
+  focus?: string | null;
+  /** How the board is being read. See `CoverageMode`. */
+  coverage?: CoverageMode;
 }
 
 /**
@@ -283,8 +354,18 @@ export function Lineage(props: LineageProps) {
   );
 }
 
-function LineageCanvas({ tasks, onSelect, onNeededHeight }: LineageProps) {
-  const origin = currentChange(tasks);
+function LineageCanvas({ tasks, onSelect, focus, coverage = null }: LineageProps) {
+  /*
+   * No cascade on the erasure board.
+   *
+   * The lit path, the marching dash and the flares all say one thing: a change
+   * travelled and put finished work out of date. That is a true statement about
+   * the swarm and says nothing at all about whether anybody has accounted for a
+   * subject's data, so on the erasure board there is no origin, no lit edge and
+   * no amber anywhere. Two answers on one picture would leave a reader unsure
+   * which question a colour was answering.
+   */
+  const origin = coverage === null ? currentChange(tasks) : null;
 
   /*
    * React Flow owns the nodes and edges, and they are replaced only when the
@@ -306,23 +387,15 @@ function LineageCanvas({ tasks, onSelect, onNeededHeight }: LineageProps) {
   // Read and written only inside the effect below. Reading a ref during render is
   // what `react-hooks/refs` forbids, and this deliberately does not.
   const lastSignature = useRef<string | null>(null);
-  const signature = graphSignature(tasks, origin);
-
-  // The layout's bounds, kept beside the nodes so the height report can be
-  // recomputed on a plain resize without rebuilding the graph.
-  const bounds = useRef<{ width: number; height: number } | null>(null);
+  const signature = graphSignature(tasks, origin, coverage);
 
   useEffect(() => {
     if (lastSignature.current === signature) return;
     lastSignature.current = signature;
-    const built = buildGraph(tasks, origin);
-    bounds.current = { width: built.width, height: built.height };
+    const built = buildGraph(tasks, origin, coverage);
     setNodes(built.nodes);
     setEdges(built.edges);
-    if (onNeededHeight && canvas.current) {
-      onNeededHeight(panelHeightFor(bounds.current, canvas.current.clientWidth));
-    }
-  }, [signature, tasks, origin, setNodes, setEdges, onNeededHeight]);
+  }, [signature, tasks, origin, coverage, setNodes, setEdges]);
 
   /*
    * Re-frame the graph. The `fitView` prop below does this exactly once, on
@@ -330,49 +403,101 @@ function LineageCanvas({ tasks, onSelect, onNeededHeight }: LineageProps) {
    *
    * Three things move the picture out of its frame after that one fit:
    *
-   * - **The panel resizes.** It is 320px tall with a 220px floor, so a short
-   *   viewport shrinks it, and the guide panel above changes height as the demo
-   *   moves between stages.
+   * - **The canvas resizes.** It is whatever the frame has left after the dock,
+   *   so moving the dock, dragging its edge, collapsing it or resizing the
+   *   window all change the width the graph is fitted to.
    * - **The graph's own content grows.** The changed table's node goes from 56px
    *   to 84px when the column diff appears, so dagre lays the whole thing out
    *   taller and the bounds obsel fitted are no longer the bounds it is drawing.
    * - **Hot reload**, which is how this was found: React Flow kept a transform
    *   computed against a 648px panel while the panel became 266px.
    *
-   * The failure is total rather than cosmetic. The panel clips its overflow and
-   * `LOCKED` turns off pan and zoom, so a stranded graph cannot be dragged back:
-   * it is nine boxes and eight edges present in the DOM, correct in every
-   * respect, and entirely below the visible area. A lineage graph showing
-   * nothing.
+   * The failure is total rather than cosmetic: the region clips its overflow, so
+   * a stranded graph is nine boxes and eight edges present in the DOM, correct
+   * in every respect, and entirely outside the visible area. A lineage graph
+   * showing nothing.
    *
    * `useNodesInitialized` is the wait that matters. Fitting before React Flow has
    * measured the new node sizes frames the previous layout, which is the same
    * class of mistake with a smaller error.
    */
-  const { fitView } = useReactFlow();
+  const { fitView, getNode, getZoom, setCenter, flowToScreenPosition } = useReactFlow();
   const measured = useNodesInitialized();
   const canvas = useRef<HTMLDivElement | null>(null);
+  /*
+   * The first fit is a cut and every one after it is a move.
+   *
+   * Travelling the opening fit would mean the board's first appearance is an
+   * animation of the graph settling into frame, which is a performance rather
+   * than a reading. After that, a re-fit that jumped would leave a reader
+   * wondering whether they are looking at the same board reframed or a different
+   * board; the travel is what answers that without a caption.
+   */
+  const fitted = useRef(false);
+  const still = useReducedMotion() === true;
+  const framing = useCallback(
+    () => (fitted.current && !still ? { ...FIT, duration: CAMERA_MS } : FIT),
+    [still],
+  );
 
   useEffect(() => {
     if (!measured) return;
-    void fitView(FIT);
-  }, [measured, signature, fitView]);
+    void fitView(framing());
+    fitted.current = true;
+  }, [measured, signature, fitView, framing]);
 
   useEffect(() => {
     const element = canvas.current;
     if (element === null) return;
     const observer = new ResizeObserver(() => {
-      // Width first, fit second: a narrower panel changes the zoom, the zoom
-      // changes the height the layout needs, and fitting before the panel has
-      // grown to that height is exactly the clipped frame this exists to end.
-      if (onNeededHeight && bounds.current) {
-        onNeededHeight(panelHeightFor(bounds.current, element.clientWidth));
-      }
-      void fitView(FIT);
+      void fitView(framing());
     });
     observer.observe(element);
     return () => observer.disconnect();
-  }, [fitView, onNeededHeight]);
+  }, [fitView, framing]);
+
+  /*
+   * Bring the open node into view, and only when it is not already there.
+   *
+   * The condition is the whole of it. Flying on every selection would yank the
+   * picture out from under a reader who clicked a box they were already looking
+   * at, which is nearly every click on the four-task board. This moves for the
+   * two cases where the card genuinely describes something the reader cannot
+   * see: a node outside the visible canvas, and a node underneath the details
+   * card itself, which on the forty-task board is where a click near the
+   * bottom-right corner lands.
+   *
+   * The zoom is left exactly as the reader set it. Framing is obsel's business;
+   * how close to look is theirs.
+   */
+  useEffect(() => {
+    if (!focus) return;
+    const element = canvas.current;
+    if (element === null) return;
+    const node = getNode(taskNodeId(focus)) ?? getNode(dataNodeId(focus));
+    if (node === undefined) return;
+
+    const centre = {
+      x: node.position.x + (node.measured?.width ?? 0) / 2,
+      y: node.position.y + (node.measured?.height ?? 0) / 2,
+    };
+    const at = flowToScreenPosition(centre);
+    const pane = element.getBoundingClientRect();
+    // A margin, so a node hard against an edge counts as needing the move.
+    const inside =
+      at.x > pane.left + 48 &&
+      at.x < pane.right - 48 &&
+      at.y > pane.top + 48 &&
+      at.y < pane.bottom - 48;
+    // The corner the details card occupies; see `inspector-overlay.module.css`.
+    const behindCard = at.x > pane.right - 400 && at.y > pane.bottom - 545;
+    if (inside && !behindCard) return;
+
+    void setCenter(centre.x, centre.y, {
+      zoom: getZoom(),
+      ...(still ? {} : { duration: FLY_MS }),
+    });
+  }, [focus, getNode, flowToScreenPosition, setCenter, getZoom, still]);
 
   return (
     <div className={styles.canvas} ref={canvas}>

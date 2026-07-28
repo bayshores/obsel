@@ -166,6 +166,8 @@ and type-checks, not a plan.
 | The joining panel and its four derived steps                                   | `joining.ts`, `joining-panel.tsx`, `joinCommand` on `/api/demo/activity` |
 | Registering your own task from the board, wired into DataHub                   | `mine.ts`, `mine-panel.tsx`, over the agents' own `/api/tasks/register`  |
 | The two animated captures and the script that takes them                       | `docs/images/*.gif`, `record.mjs`                                        |
+| The mark in the header and the browser tab icon                                | `src/features/cockpit/mark.tsx`, `mark-geometry.ts`, `app/icon.svg`      |
+| The header lockup, and the name it reveals on hover                            | `src/features/cockpit/brand.tsx`, `brand.module.css`                     |
 | HTTP API, thirteen routes in three groups                                      | `app/api/`, see [`docs/architecture.md`](architecture.md) section 11     |
 
 **Added 2026-07-23, the reader-side cross-check.** obsel's trigger is an agent reporting, so a
@@ -1705,13 +1707,369 @@ shell both ways, because that block is enforced by Finder on a GUI launch, which
 here. What the README tells a judge to do about it is therefore documented macOS behavior, not a
 tested instruction. No Linux machine has run the script.
 
+### obsel has a mark, and the browser tab has an icon (2026-07-27)
+
+Until now the product was set entirely in type: the header ran a `Wordmark`, and the tab carried
+whatever glyph the browser puts on a page with no icon. The mark is a bold lowercase "o" whose
+trailing edge breaks into squares that scatter and shrink.
+
+It arrived as a raster image, traced to vectors in Inkscape by the owner. Three things were done to
+the trace before it went in, each for a reason that would have shown on screen:
+
+- **One filled layer of the two.** The trace emitted an outer grey (`#5d5d5d`) and an inner black
+  (`#181818`) overlapping closely enough to read as one shape. Both are baked colours no token
+  controls, and the cockpit's background is `--mm-ink`, `#0b0a0e`. Dropped straight in, the mark
+  would have been a near-black shape on a near-black panel. Only the inner contour set is kept, so
+  the mark is one fill and takes `currentColor`.
+- **Cropped to the drawing.** Inkscape wrote an A4 page, `210mm x 297mm`, with the mark sitting in a
+  corner of it. The geometry is shifted to begin at 0,0 in a box of `105.84 x 100.11`.
+- **Split into 43 contours.** Inkscape emitted all of them as one `d` attribute. They are now a bowl
+  (outer contour plus its counter, which must stay together or the nonzero fill rule leaves no hole
+  in the "o") and 41 separate fragments ordered left to right. A single path can only be animated as
+  a single thing; separated and ordered, the fragments can be staggered outward from the letter.
+  Nothing animates them today.
+
+**The tab icon is `app/icon.svg`**, a Next.js file convention, so the `<link rel="icon">` is
+generated rather than hand-written. Confirmed on the running dev server: the tag resolves to
+`/icon.svg`, and the request returns **200, `image/svg+xml`, 10742 bytes**, matching the file.
+
+**The red is there to be seen against a tab strip obsel does not control**, which is the one thing
+this asset has to do beyond looking like the product. The tile is `--mm-red` `#ef476f` and the mark
+on it is `--mm-ink` `#0b0a0e`, so both colours are the cockpit's own. It is full bleed with no
+corner radius, because a rounded tile shows the browser's own colour at the corners. Measured:
+the mark on the tile is **5.45:1**, clearing WCAG AA; the tile against a white tab bar is
+**3.62:1** and against Chrome's dark `#202124` is **4.45:1**.
+
+**The mark was cream on a deeper red first, and the pairing moved together when that changed.** The
+first version was `#f5eef0` on `#c1123f`, chosen because on that deep red a cream mark measures
+5.36:1 while a black one measures **2.90:1**. The owner asked for a black mark. Black on the deep
+red is the 2.90:1 case, and rendered at 16 px it is the failure the number predicts: the counter of
+the "o" closes up and the fragments disappear into the background. Lightening the tile to `--mm-red`
+is what makes a black mark legible, at 5.45:1. Three combinations were rendered at 16 px and
+composited onto both a white and a dark tab strip before this one was kept.
+
+Neither the deep red nor the brighter `#d81e3f` survived the change: black measures 2.90:1 and
+3.53:1 on them. `#ef476f` is also the token the cockpit uses for a failed state, which is a
+collision in meaning and not in code, since the icon is a static file holding a literal and would
+not follow the token if it were retuned.
+
+**Honest limit: the fragments do not survive 16 px.** At tab size they blur into a soft edge on the
+right of the letter. The "o" and the red tile still read, which is what a favicon has to do, but the
+part of the mark that carries the meaning is legible only at the header's size and above. No
+separate simplified small-size icon was drawn.
+
+**The gap in the header lockup is measured against the fragments, not the letter.** At the 4 px it
+started on, the fragments ran into the "o" of the wordmark and the two read as one collided shape;
+this was visible in the browser and fixed to 12 px, then re-checked at the same magnification.
+
+### The header shows the mark, and reveals the name on hover (2026-07-28)
+
+The header carried the mark and the word "obsel" side by side, permanently, which says the same
+thing twice in a bar whose other job is to report the pipeline and whether the board is live. The
+resting header is now the mark alone at 26 px, and the name ghosts in under a pointer: opacity,
+a 4 px blur clearing to none, and 6 px of travel, over 0.26 s. The fragments disperse at the same
+time, each one further than the one before it, because `mark-geometry.ts` orders them by distance
+from the letter. Built on `motion`, the package already in this repository, rather than on a second
+animation library.
+
+**Nothing else in the header moves, which is the requirement and not a nicety.** The name sits
+immediately left of `orders_pipeline · prod`. It is in the layout at full width in every state and
+is only ever made transparent; opacity, blur and `x` are non-layout properties or transforms, so
+none of them can reflow the line. Measured in the browser across rest, hover and back: the flow
+name's x, the tour button's x, the lockup's width and the header's height are identical to three
+decimal places in all three states. Pinned by `e2e/cockpit.spec.ts` "revealing the name moves
+nothing else in the header", which compares four bounding boxes at rest and on a settled reveal.
+
+**The bar is 10 px taller**, 38 px to 48.3 px, from the larger mark and from padding above the row
+as well as below it, which it did not have. Every pixel comes out of the graph, since `.cockpit` is
+a fixed-height column where the graph is the only child that absorbs slack. Checked at 1280x800,
+the laptop case: the page scrolls by 21 px where it already scrolled by 11 px before this change,
+and the whole graph still ends at y=374 in an 800 px viewport, far above the fold.
+
+**Three things were got wrong here, and two of them looked like bugs that were not.**
+
+- **A mount entrance was written and then removed.** The fragments were to fly out of a `gathered`
+  state on load. In the only browser available here the mark rendered at `gathered`, opacity 0, and
+  stayed there, which reads as a logo that is permanently invisible. The cause was not the code:
+  that browser reports `visibilityState: "hidden"` and serves **0 animation frames in 500 ms**, and
+  motion is driven by `requestAnimationFrame`, so any animation renders its first values and stops.
+  The entrance is gone for want of evidence rather than because it failed, and `mark.tsx` still
+  defines the state it would use.
+- **`whileHover` was replaced with React state, then put back.** It was diagnosed as not firing on
+  the same frozen-frame evidence, and the diagnosis was wrong: the element was in the document's
+  `:hover` chain the whole time and the animation simply could not advance. `whileHover` is what
+  ships. An empty `variants` map added to the parent on the same false theory was also removed after
+  testing that propagation works without it.
+- **`useReducedMotion` was the one real defect, and `memo` is what exposed it.** The hook returns
+  `null` until it has detected and reports the answer on a LATER render. `guide-panel.tsx` and
+  `tour-panel.tsx` never see this because they re-render on every poll. This lockup is memoised on
+  purpose, so 43 motion components do not reconcile once a second, and therefore renders once and
+  held that first `null` for the life of the page: with the preference set at the browser context
+  the media query reported `reduce` and the animated lockup rendered anyway, for a reader who had
+  asked for no animation. Both preferences are now read from `matchMedia` directly, which is also
+  reactive where the hook is not.
+
+**Pinned by three browser tests over two viewports, six checks.** They are in the browser suite
+rather than in `tests/` for a reason the frozen-frame problem makes concrete: these assertions are
+about where an animation ARRIVES, and only a real browser runs the frames that get it there. They
+cover the name hidden at rest and opaque on hover and hidden again when the pointer leaves, the four
+bounding boxes above, and reduced motion rendering the finished lockup with zero animations in
+flight. The reduced-motion case must set the preference through `contextOptions`, not
+`page.emulateMedia`, which arrives after the page exists.
+
+**One existing test failed and the failure was in its selector.** "the alert takes its own row
+rather than covering the board" located the graph as `main svg`, whichever `<svg>` came first in the
+document, which was the graph only while the graph was the only drawing on the board. A mark in the
+header made it resolve to the logo, so the test compared the alert against something above it and
+reported the board covered. It names `.react-flow` now. The layout was never wrong.
+
+**Pinned by `tests/cockpit-mark.test.ts`, seven tests.** The icon and the geometry module hold
+duplicate copies of the same 43 contours, because a static file convention cannot import a module,
+and a wrong favicon is silent: 16 pixels wide, cached hard, in a strip nobody watches. The tests
+assert the icon's paths equal the module's exactly and in order, that it has no path the module does
+not define, that the bowl keeps both its contours, that the background is un-rounded and fills the
+viewBox, and that the mark clears 4.5:1 against it. Each was confirmed to fail on the mutation it
+exists to catch: an altered fragment, an appended path, an added `rx`, and a low-contrast fill.
+
+### The cold start, and three things a restart exposed (2026-07-28)
+
+**The launcher started DataHub from nothing, which it had never done.** Every earlier run of it found
+DataHub already up, so the branch a judge's first run depends on was unexecuted. With the stack
+backed up (`datahub docker quickstart --backup`, 12 MB) and stopped, and port 8080 confirmed dead:
+
+| measured                                                  |                                                  |
+| --------------------------------------------------------- | ------------------------------------------------ |
+| launcher start to obsel answering on `:3000`              | **450 s (7 m 30 s)**, including every image pull |
+| DataHub version before and after                          | `v1.5.0.6` both times, unchanged                 |
+| `orders_pipeline` / `obsel_scale_v2` / `obsel_join_check` | 5 / 40 / 2 tasks, all intact                     |
+
+The upgrade risk that made the backup necessary did not materialise, and the reason is worth
+recording rather than being relieved about: with no version asked for, the 1.6.0.15 CLI planned
+`composefile_git_ref='v1.5.0.6' docker_tag='v1.5.0.6'`, because its version map's `default` key
+points there. `stable` points at `v1.6.0`. So "latest stable" was never what an unpinned quickstart
+installs.
+
+**The launcher now asks for that version by name.** Not because the float caused harm here, but
+because the map is fetched over the network at run time, so the same command installs different
+stacks on different days and obsel would be running against a DataHub nobody has checked it on. That
+is the failure shape `MCP_SERVER_DATAHUB_VERSION` is already pinned for. Two traps, both found by
+running the command rather than reading its help: `--version v1.5.0.6` alone exits with "requires
+confirmation in a non-interactive environment", because the map has no `v1.5.0` key, and a
+double-clicked launcher is never interactive; `--accept-version-default` is what permits it, and the
+flag does not do what its name says, it accepts the exact unlisted version given. Verified by the
+plan line it printed and the compose file it then fetched, both naming `v1.5.0.6`.
+
+**Reset vanished on restart, and that is the whole of "it always comes back the same".** Reported by
+the owner in those words. The board is DataHub's and survives a restart; the launcher's record of
+which steps ran is this server's and `runner/types.ts` says plainly that it does not. `walked` asked
+only that record, so quitting obsel and starting it again took "Reset and start over" off a board
+that had genuinely been all the way round, with nothing about the board having changed.
+
+It is board-derived now: an output whose recorded previous fingerprint differs from its current one.
+Checked against real boards rather than argued — the live demo board, which has only ever run,
+carries it on zero of five tasks, and `e2e/fixtures/captures/scale-settled.json`, a recording of a
+real repaired forty-task board, carries it on exactly three (`daily_trips`, `docs_marts`,
+`report_city`). It reads false again after a reset only because `resetSwarm` nulls the property,
+which makes that one line in the reset list load-bearing for a button three files away; the comment
+in `fingerprints.ts` says so. The launcher's record stays as a second route, since it is the stronger
+evidence where it exists. `tour/steps.ts` had the same bug in two steps and got the same fix.
+
+**Both fixes read off a live board, 2026-07-28.** The demo board could not be used for it, and why is
+worth writing down: `orders_pipeline` carries a fifth DataJob, `clean_trips`, that a launcher bug
+registered on 2026-07-24 and that nothing has removed, so `finished` never equals `tasks.length` and
+that board cannot reach the settled stage at all. It sits on "4 of 5 agents finished" whatever is
+done to it. Deleting that entity is the owner's, and until it happens the reset button is unreachable
+on the demo board for a reason that has nothing to do with this fix.
+
+So the state was built on an isolated flow instead, `obsel_walk_check`, on a second server started
+with `OBSEL_FLOW_ID`, using the report route rather than Codex: two tasks registered, both reported,
+then the upstream reported again with a renamed column, which flagged the downstream, then the
+downstream reported again, which cleared it. A genuine walk with real fingerprints, real marks and a
+real clear.
+
+That server's launcher history is `[]`, which is exactly what a restarted server has, and the board
+offered **Reset and start over**, accented, above the two unaccented experiments. Before this change
+the same board offered the two experiments and no way back. The header read `obsel_walk_check · prod`,
+which is also the first time the board has said which board it is.
+
+The full demo was still walked end to end on `orders_pipeline` first, with real Codex sessions, and it
+turned up two things worth recording. A backgrounded step was killed mid-run and left `build_revenue`
+announced; `POST /api/tasks/abandon` handed it back, which is the path `docs/coverage.md` already
+claims and this exercised again. And one redo failed on the tag write with
+`MCP error -32001: Request timed out`, minutes after the stack came up from cold. The run stopped
+rather than continuing, said which task was still announced and where its state file was, and the
+re-run resumed and finished with "every flag is off, and every one came off through a redo".
+
+**A soft delete DataHub accepted and obsel ignored (2026-07-28).** The rogue `clean_trips` above was
+soft-deleted with `datahub delete --soft`, which succeeded: `status: {removed: true}` landed on the
+entity and DataHub hid it in its own UI. The board went on drawing it and counting it, so it still
+read "4 of 5 agents finished" and still could not settle.
+
+The reason is that a soft delete writes one aspect and nothing else. The `IsPartOf` edge stays, so
+`GET /relationships` still lists the task, `batchGet` still returns it, and nothing about the swarm
+read fails. obsel was reporting a swarm DataHub no longer agreed it had, which is the same class of
+wrong answer as the search container that stayed green: not an error, a confident wrong picture.
+
+`readSnapshot` now drops entities marked removed, and the filter sits after the existing check that
+raises when the graph lists a task the aspect store did not return. Order is load-bearing both ways:
+a soft-deleted entity IS returned, so filtering earlier would make that guard report a disagreement
+about an entity the two stores agree on perfectly, and that guard must keep meaning only "a task is
+genuinely missing". One filter covers three callers, so a removed task stops being drawn, stops being
+traversed for staleness, and stops being reset, together; reporting a completion for one now fails
+with "not in the swarm". `removed` is compared to `true` rather than read for presence, because
+DataHub also writes `removed: false` and a presence check would call a restored task deleted forever.
+
+`tests/live/removed.live.test.ts` covers it against the real DataHub, writing the same `status` aspect
+the CLI writes and undoing it afterwards, so the suite leaves its flow as it found it. It also measures
+the two facts that made this invisible: with the task removed, the flow's edge still lists it and
+`batchGet` still returns it.
+
+**The demo board settles for the first time.** With that one entity removed, `orders_pipeline` reads
+four tasks, all complete, three carrying a recorded change, on a server whose launcher history is
+empty. The board shows "all 4 finished, nothing out of date", "Every act has run. Reset to walk it
+again.", and three buttons with the reset accented and the two experiments quiet. Both of the day's
+board fixes, on the operator's own board, with no fixture involved.
+
+**What the signal is loose about, observed rather than predicted.** Running the four demo agents on
+2026-07-28 over a board that had last run on 2026-07-24, without a reset in between, left
+`write_docs` and `write_report` carrying a recorded change and `clean_orders` and `build_revenue` not.
+That is correct and it is not a walk: those two agents write prose, and a live Codex session does not
+produce the same paragraph twice, so their outputs genuinely moved while the two deterministic
+transforms did not. The board therefore offers "start over" after a second plain run.
+
+That is the accepted looseness of asking the board rather than the launcher, and it is one-directional:
+the offer is to reset a board where something did move, which is a legitimate thing to be offered,
+rather than a claim that work is sound. The judged run is unaffected, because `docs/demo-script.md`
+resets before the take, and a first completion after a reset records no previous version at all.
+
+While fixing it, a docstring on the same derivation in `joining.ts` was found asserting the opposite
+of the code: that `previousFingerprints` is written "including a re-run that produced exactly the same
+bytes". `engine.ts` guards that write on `compareFingerprints(current, next) !== null`, which is null
+for an identical re-run, and its own comment explains why. The docstring was wrong, not the code, and
+a unit test now pins the distinction the wrong reading would have lost.
+
+**The dataset choice was reachable exactly once.** `Set up the taxi swarm instead` is offered only on
+an empty board, and obsel deletes no task, so after the first registration it was unreachable
+forever. The owner chose one pipeline per board, made visible, over mixing both onto one: the header
+name is now a disclosure saying that the board is one DataFlow named by `OBSEL_FLOW_ID`, that a new
+board opens empty, and that nothing here is deleted. No control switches boards, and the sentence does
+not imply one: obsel reads the flow once at startup and the demo agents read the same variable
+independently, so a button would move the board and leave the agents pointed at the old one.
+`agents/scale.py`'s header claimed "Reset, then register the other, to switch", which is false for the
+same reason, and now says what actually happens.
+
+**Every button in a stage looked identical.** One `.action` class, 13px, so on a flagged board "Redo
+the work obsel flagged" and "Reset and start over" were the same object with different text. The
+bench's own rule, written in `bench.module.css`, is applied to the guide: at most one accented action
+per stage, the one the stage's sentence is asking for, and a stage whose sentence points at the bench
+accents nothing. Spent on colour and elevation, never on size — both labels stay 13px and both details
+12px, because `docs/verification.md` already records three guides that failed by adding what mattered
+at footnote size, and the secondary form gets more contrast than it had, its label moving from
+`--mm-rose` to `--mm-cream`. On the settled demo board the change now leads and takes the accent,
+ahead of the identical re-run, because the settled taxi board offers exactly one experiment and it is
+its change; leading on the re-run made one stage teach two different lessons.
+
+`pnpm test:live` was not re-run for the board work and does not need to be: nothing in it crosses a
+process boundary. The derivation reads a field `client.ts` already parses and the live suite already
+covers, and the four existing `previousFingerprints` cases in `tests/cockpit-joining.test.ts` passing
+unchanged is the regression guard on moving it into `fingerprints.ts`.
+
+### The board became a canvas, and the feed stopped being a residual (2026-07-28)
+
+**What was wrong.** The board was a column of stacked regions: a header, the guide, a graph panel
+fixed at 320 px, a strip beneath it, two fold-out panels and the stat ribbon. Only the strip
+absorbed slack, so after every content-sized region took its share of a 990 px column the strip
+landed on its 172 px floor with a 105 px scroller inside it. Measured on the taxi board: three of
+eighty-six steps visible, the top one cut through its own text. Nothing about that was tunable,
+because the strip was the residual of a stack. A forty-task board escaped by growing the graph panel
+and letting the whole page scroll, which put the two measured numbers below the fold.
+
+**What it is now.** The lineage canvas is the page. One dock beside it holds the guide, a tab strip
+(activity, your agent, your data, erasure) and the two measured numbers pinned at its foot. The dock
+can be carried to either edge, resized by its inner edge, or collapsed to a rail; all three are
+remembered in `localStorage` under `obsel.dock.v1`. Neither viewport scrolls, in either direction,
+and `overflow: hidden` on the stage states that rather than hoping for it.
+
+**Measured, at 1920 x 990 and 1280 x 800, with the fixtures the browser suite serves:**
+
+|                                             | before                | after             |
+| ------------------------------------------- | --------------------- | ----------------- |
+| activity feed panel, taxi board, 1280 x 800 | 172 px                | 299 px            |
+| its scroller                                | 105 px                | 294 px            |
+| page scroll height, taxi board              | taller than the frame | exactly the frame |
+
+`e2e/scale.spec.ts` asserts the scroller is at least 280 px and at least as tall on the taxi board
+as on the demo board, which is the property that was inverted before: the board with more to say
+got less room to say it.
+
+**What was checked and how.** 229 browser tests pass at both viewports (`pnpm e2e`), including three
+new files: `e2e/dock.spec.ts` (seven tests: default side, snap preview during a drag, landing side,
+persistence across a reload, resize, collapse, keyboard move; every one of them re-asserts that no
+node is clipped and neither axis scrolls), `e2e/erasure.spec.ts` (thirteen), and the new assertions
+in `e2e/cockpit.spec.ts` for the ripple's hop ordering and the count-up. `pnpm verify` is green.
+
+**The animation, and what is deliberately not animated.** The cascade ripple is a flare drawn in its
+own element over each marked box, delayed by the hop count obsel recorded, plus a one-shot draw-in on
+each lit edge with the same stagger. The colour underneath is unchanged: `nodeTone` paints it from
+the record on its own, so a dropped frame cannot alter what the board claims, which is the rule
+`tone.ts` keeps. `tone.ts`'s allowance sentence was widened to name the flare, and the widening is
+written next to it. The detection number counts up over 600 ms, keyed on which change is being
+timed rather than on the value, so a board re-read once a second does not restart it; the last frame
+renders the measured integer exactly. Reduced motion follows the repo pattern everywhere: the
+animation props are not passed at all, so the first frame is the finished picture.
+
+**Erasure is on the board for the first time.** A tab reads `GET /api/erasure/{id}` for a request id
+a reader pastes in, at five seconds. There is no list endpoint and the tab does not pretend there is
+one: `documents.ts` derives every URN and never searches, so obsel cannot enumerate its requests, and
+the empty state says so and hands over the command that opens one. A toggle recolours the dataset
+nodes by coverage state. `tests/cockpit-erasure-view.test.ts` (25 assertions) pins the vocabulary,
+and `e2e/erasure.spec.ts` re-checks it against the rendered page: no "proven clean", "proof",
+"complete" or percentage anywhere, no enum spelling in any sentence, no control whose label reads as
+a way to close a gap, and no amber on the erasure board at all.
+
+**Not measured.** Frame rate during the ripple on the 82-node board has not been instrumented, so no
+number is claimed for it. The board was watched at both viewports and nothing dropped visibly, which
+is an observation and not a measurement.
+
+**Two bugs the rebuild introduced, found by driving the tour and fixed the same day.**
+
+The first: the tour marked no region. Its highlight was an `outline` at a 4px offset plus a glow at
+`inset: -5px`, both drawn outside the target's box, which was correct while the board was a column
+of panels with gaps between them. Every region a step points at now sits flush inside a container
+that clips its overflow, so all of it was cut away. Walking the tour on the rebuilt board and
+measuring each step: five of the six highlights a reader passes were clipped, and four rendered
+nothing at all. The tour spent four consecutive steps telling somebody to look at a region while
+marking no region. Fixed by drawing the ring as an inset shadow inside the target's own box, which
+an ancestor cannot clip and which still moves nothing on the board, since `box-shadow` never affects
+layout.
+
+The second: the tour window opened on top of the dock. Its home corner was the bottom right
+unconditionally, a free corner on the old board and a panel on this one, so it covered the two
+measured numbers pinned at the dock's foot. It now opens against whichever edge the dock is not on
+and follows the dock when a reader moves it; the drag limits are worked out from where it actually
+rests rather than assuming it starts on the right.
+
+Both are pinned by new tests in `e2e/cockpit.spec.ts`: one asserts that nothing is painted outside
+the lit region's box, that the ring is inset, and that no part of the region falls outside what
+clips it, across all four chapter-one steps; the other asserts the window's box does not intersect
+the dock's, with the dock on either side. Neither bug was caught by the existing suite, which
+checked only which region was lit and never whether the mark was visible.
+
+**Not re-captured.** The four images and two GIFs in the README, and the reference video lock, all
+show the previous layout. Every number in them is still what its run produced; the arrangement
+around those numbers is not the arrangement a judge will see. Re-shooting them is the owner's, needs
+a live DataHub and a live Codex CLI, and has not been done.
+
 ## Not done
 
-- **The launcher has never started DataHub from cold.** Every run of it so far found DataHub already
-  up, so the branch that runs `datahub docker quickstart` and waits up to 180 s for the API is
-  unexecuted, and the 16 s figure is a run that skipped it. The `uvx --from acryl-datahub` form was
-  proven to resolve and to carry a real `docker quickstart` subcommand, which is not the same as
-  having started a stack with it.
+- **The cold start ran the `datahub` CLI branch, not the `uvx` one.** This machine has that CLI
+  installed, so the 450 s run took the branch that uses it. The `uvx` branch, which is what a judge
+  without the CLI gets, was then run on its own against a PATH built from a temporary directory that
+  genuinely lacked `datahub`: it planned the pinned version, fetched that tag's compose file and
+  brought DataHub up. What has still not happened is the two together, a cold stack started through
+  `uvx` in one launcher run, and that run printed one thing a full PATH would not have: "Error while
+  pulling images. Going to attempt to move on to docker compose up", because the stripped PATH was
+  missing what Docker needs to pull. It proceeded and succeeded, on images already local.
 - **The Gatekeeper block was not reproduced**, only the attribute that causes it. It is enforced by
   Finder at GUI launch, and no GUI session was available. The right-click-Open instruction in the
   README is documented macOS behavior rather than something observed here. The `bash scripts/start.sh`
@@ -1797,11 +2155,13 @@ tested instruction. No Linux machine has run the script.
 - The submission video is not voiced or uploaded. A reference picture lock exists (157.9 s,
   ffprobe, from a clean one-shot take), and the shoot, the voiceover, the cut approval and
   the upload are the owner's.
-- **That lock predates two panels now and no longer matches the board.** It was taken before the
-  joining panel went in under the graph, and the bring-your-own-data panel went in beside it on
-  2026-07-26, so every wide shot in it is missing two sections the live board has and the page is
-  taller again. This also lengthens the scroll the demo script calls a deliberate camera move: the
-  ribbon is now two folded panels below the graph rather than one, and
-  [`demo-script.md`](demo-script.md) says to practise that move. `video.mjs` drives buttons rather
-  than pixels so it needs no change, but the take does: the reference has to be shot again before
-  anything is cut from it. Nothing has been re-recorded yet.
+- **That lock is of a layout that no longer exists.** It was taken while the board was a scrolling
+  column, before the joining and bring-your-own-data panels went in under the graph, and the whole
+  arrangement was replaced on 2026-07-28: the graph is the page, the panels are tabs of a dock, and
+  the two measured numbers are pinned in frame rather than reached by scrolling. Every wide shot in
+  the lock is therefore wrong, and one instruction it was built around is now obsolete rather than
+  merely longer, since there is no page scroll to perform. `video.mjs` drives buttons rather than
+  pixels so it needs no change, but the take does: the reference has to be shot again from the top
+  before anything is cut from it. Nothing has been re-recorded yet.
+- **The README's images and GIFs are of that same previous layout**, and are flagged as such in the
+  README itself rather than quietly left to misdescribe the board.

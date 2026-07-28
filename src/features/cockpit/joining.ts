@@ -26,6 +26,7 @@
  * guard for exactly that reason.
  */
 
+import { outputChanged } from "./fingerprints";
 import { taskTitle } from "./naming";
 import type { TaskRecord } from "@/src/server/coordinator/types";
 
@@ -158,31 +159,13 @@ function firstWhere(
   return visitors.find(holds) ?? null;
 }
 
-/**
- * Whether obsel has a record of one of this task's outputs actually changing.
- *
- * Not "it completed twice". `previousFingerprints` is written whenever a
- * completion replaces a fingerprint, including a re-run that produced exactly
- * the same bytes, and that case is the opposite of what this step is about: an
- * identical re-run is obsel deciding *not* to flag. So the hashes are compared,
- * and only a genuine difference counts.
- */
-function sawAChange(task: TaskRecord): boolean {
-  const previous = task.previousFingerprints;
-  if (previous === undefined) return false;
-  return Object.entries(previous).some(([urn, before]) => {
-    const now = task.fingerprints[urn];
-    return now !== undefined && (now.schema !== before.schema || now.content !== before.content);
-  });
-}
-
 export function joining(input: JoinInput): JoinView {
   const visitors = input.trusted ? input.tasks.filter(isVisitor) : [];
 
   const registered = visitors[0] ?? null;
   const announced = firstWhere(visitors, (task) => task.startedAt !== null);
   const reported = firstWhere(visitors, (task) => task.finishedAt !== null);
-  const answered = firstWhere(visitors, (task) => task.stale !== null || sawAChange(task));
+  const answered = firstWhere(visitors, (task) => task.stale !== null || outputChanged(task));
 
   const steps: JoinStep[] = [
     {

@@ -337,6 +337,25 @@ interface DataJobEntity {
   dataJobInfo?: AspectEnvelope<DataJobInfoAspect>;
   dataJobInputOutput?: AspectEnvelope<DataJobInputOutputAspect>;
   globalTags?: AspectEnvelope<GlobalTagsAspect>;
+  /**
+   * DataHub's own soft-delete mark, absent entirely on a live entity.
+   *
+   * Verified against this instance on 2026-07-28: `batchGet` returns
+   * `status: {value: {removed: true}}` for a soft-deleted DataJob and omits the
+   * aspect for a live one.
+   */
+  status?: AspectEnvelope<{ removed?: boolean }>;
+}
+
+/**
+ * Whether DataHub has been told this entity is gone.
+ *
+ * Explicitly `=== true` rather than truthy: DataHub also writes
+ * `removed: false`, and a check that read the aspect's presence would treat an
+ * entity somebody restored as still deleted.
+ */
+function isRemoved(entity: DataJobEntity): boolean {
+  return entity.status?.value.removed === true;
 }
 
 function entityPath(urn: string): string {
@@ -698,7 +717,31 @@ export async function readSnapshot(): Promise<SwarmSnapshot> {
     );
   }
 
-  const tasks = entities.map(toTaskRecord);
+  /*
+   * Tasks DataHub has been told are gone are dropped here, after the check
+   * above and not before it.
+   *
+   * The order matters. A soft-deleted entity is still listed by `/relationships`
+   * and still returned by `batchGet`, so filtering earlier would leave its URN
+   * in `urns` with nothing matching it in `returned`, and the guard above would
+   * report the graph and the aspect store disagreeing about an entity they
+   * agree on perfectly. That check is for a genuinely missing task and must keep
+   * meaning only that.
+   *
+   * This is one filter and not three because `readSnapshot` is what the board
+   * draws, what `decideCompletion` traverses, and what `resetSwarm` walks. A
+   * removed task therefore stops being drawn, stops being flagged, and stops
+   * being reset, together. Reporting a completion for one now fails with "not in
+   * the swarm", which is the right refusal: DataHub has been told it is gone.
+   *
+   * Found on 2026-07-28. A `clean_trips` DataJob a launcher bug had registered
+   * onto the demo flow was soft-deleted, DataHub hid it in its own UI, and the
+   * board went on drawing it and counting it, so the board sat on "4 of 5 agents
+   * finished" and could never reach the settled stage. obsel was reporting a
+   * swarm DataHub no longer agreed it had. Undoing the delete puts the task back
+   * on the board, because nothing here is stored.
+   */
+  const tasks = entities.filter((entity) => !isRemoved(entity)).map(toTaskRecord);
   tasks.sort((a, b) => a.urn.localeCompare(b.urn));
   return { flow: FLOW_URN, tasks, at: new Date().toISOString() };
 }

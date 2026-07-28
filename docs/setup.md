@@ -34,6 +34,38 @@ What it does, in order:
 absent or shows only the Codex item. A measured fresh run is recorded in
 [`verification.md`](verification.md).
 
+**Which DataHub it installs.** `v1.5.0.6`, asked for by name rather than left to resolve. That is the
+version every number in [`verification.md`](verification.md) was measured against, and with no
+version asked for the CLI planned exactly it on 2026-07-28. It is written down because the unpinned
+form reads a version map fetched over the network at run time, so the same command gives different
+people different stacks on different days. Two traps, both found by running it: `--version v1.5.0.6`
+alone is refused, because the map has no `v1.5.0` key and an unlisted value needs
+`--accept-version-default`, a flag that despite its name accepts the exact version given; and
+`--version stable` is a different stack, `v1.6.0`. To move the pin, run the launcher with the new
+value, run `pnpm test:live`, then update `scripts/start.sh` and this paragraph together.
+
+## Which board obsel opens
+
+obsel shows one DataFlow at a time, named by `OBSEL_FLOW_ID` and read once when the server starts.
+The default is `orders_pipeline`. The board's header carries the name, and opening it shows the same
+explanation as this section.
+
+```bash
+OBSEL_FLOW_ID=my_board pnpm dev     # or set it in .env.local and use the launcher
+```
+
+**How to tell it worked:** the header reads `my_board · prod`, and the board is empty, which is the
+one state that offers the choice between the demo agents and the taxi swarm.
+
+Nothing is deleted or moved by this. Each board keeps its own tasks, and the tasks on the board you
+left are still there when you start obsel on it again. This is also why the demo and the taxi swarm
+cannot be swapped on one board: `reset` puts tasks back to registered and removes their tags, and
+obsel deletes no task, so registering the second swarm onto a board that already holds one gives a
+board holding both.
+
+The demo agents read the same variable independently, so run them with it set the same way. The
+launcher passes the environment it was started with straight through.
+
 Every step is safe to repeat: it skips DataHub if it is already answering, keeps an existing
 `.env.local`, keeps an existing virtual environment, and does not start a second server.
 

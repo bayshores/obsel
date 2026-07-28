@@ -16,8 +16,10 @@
 
 import { Handle, Position } from "@xyflow/react";
 
+import { coverageTone, stateWord } from "./erasure/coverage-view";
 import { datasetTitle, taskTitle } from "./naming";
-import { STALE, STATUS_WORD, nodeTone } from "./tone";
+import { MUTE, STALE, STATUS_WORD, nodeTone } from "./tone";
+import type { ErasureState } from "@/src/server/coordinator/erasure";
 import type { ColumnChange, TaskRecord } from "@/src/server/coordinator/types";
 
 import styles from "./nodes.module.css";
@@ -27,6 +29,30 @@ export interface TaskNodeData {
   task: TaskRecord;
   /** True for the task that produced the output that changed. */
   isCause: boolean;
+  /**
+   * Which cascade is standing, as one string, or nothing on a calm board.
+   *
+   * Used only as a React `key`, and that is the whole mechanism behind the
+   * ripple: a new cascade is a new key, a new key remounts the overlay element
+   * below, and a freshly mounted element runs its one-shot CSS animation from
+   * the beginning. Rebuilds that are not a new cascade carry the same string, so
+   * nothing remounts and nothing replays.
+   *
+   * It is never read for a colour or a state. `nodeTone` decides what this box
+   * claims, on its own, from the record.
+   */
+  ripple: string | null;
+  /**
+   * True when the board is being read as an erasure report.
+   *
+   * An agent then carries no colour and no status word, and that is a statement
+   * rather than a simplification: coverage is a property of an asset, obsel has
+   * nothing to say about an agent's own erasure state, and the amber that says
+   * "this finished work went out of date" is answering the other question
+   * entirely. Two answers painted on one picture leave a reader unable to tell
+   * which one a colour belongs to, so this board answers one.
+   */
+  neutral: boolean;
   [key: string]: unknown;
 }
 
@@ -39,6 +65,18 @@ export interface DataNodeData {
   columns: ColumnChange | null;
   /** No task in the swarm writes this, so obsel has no fingerprint for it. */
   external: boolean;
+  /**
+   * What an erasure report says about this table, when the board is being read
+   * that way, and `undefined` when it is not.
+   *
+   * `null` and `undefined` mean different things here and the difference is the
+   * point. `undefined` is "the board is not in erasure mode". `null` is "it is,
+   * and this table is not in the report" — the walk did not reach it. Rendering
+   * the second as a state would turn an asset nobody looked at into an asset
+   * somebody cleared, which is the exact substitution the whole erasure design
+   * exists to prevent.
+   */
+  coverage?: ErasureState | null;
   [key: string]: unknown;
 }
 
@@ -69,43 +107,108 @@ function Ports() {
 }
 
 export function TaskNode({ data }: { data: TaskNodeData }) {
-  const { task, isCause } = data;
+  const { task, isCause, ripple, neutral } = data;
   const tone = nodeTone(task.status, task.stale !== null);
   const hops = task.stale?.hops ?? null;
 
   return (
     <div
       className={styles.task}
-      style={{
-        // The status bar down the left edge. This is the amber.
-        borderLeftColor: tone.fill,
-        // An outline only when a mark is attached to work that is not itself
-        // stale, which is the re-run case tone.ts explains.
-        outline: tone.outline !== null ? `1px solid ${tone.outline}` : undefined,
-        borderTopColor: isCause ? tone.fill : undefined,
-      }}
+      style={
+        neutral
+          ? { borderLeftColor: MUTE }
+          : {
+              // The status bar down the left edge. This is the amber.
+              borderLeftColor: tone.fill,
+              // An outline only when a mark is attached to work that is not
+              // itself stale, which is the re-run case tone.ts explains.
+              outline: tone.outline !== null ? `1px solid ${tone.outline}` : undefined,
+              borderTopColor: isCause ? tone.fill : undefined,
+            }
+      }
     >
       <Ports />
+      {/*
+        The ripple: one flare, at the moment this box is reached.
+
+        It is a sibling element rather than an animation on the box, and that is
+        deliberate rather than tidy. The box's colour is `nodeTone`'s claim about
+        what is true, and `tone.ts` states the rule this obeys: a dropped frame or
+        an interrupted transition must not be able to change what the board says.
+        A separate element cannot. It flares and it is gone; the amber underneath
+        it was already correct before it started and stays correct if it never
+        runs at all.
+
+        The delay is the mark's own hop count, so the flare travels outward in the
+        order obsel actually walked. The hops are read off the mark rather than
+        re-derived from the graph, which is the same rule `cascade.ts` keeps for
+        deciding which path is lit at all.
+      */}
+      {!neutral && ripple !== null && task.stale !== null && (
+        <span
+          key={ripple}
+          className={styles.flare}
+          style={{ "--hop": hops ?? 1 } as React.CSSProperties}
+          aria-hidden="true"
+        />
+      )}
       <span className={styles.taskName}>{taskTitle(task)}</span>
-      <span className={styles.taskStatus} style={{ color: tone.fill }}>
-        {STATUS_WORD[task.status]}
-        {hops !== null && ` · ${hops} ${hops === 1 ? "hop" : "hops"}`}
-      </span>
+      {!neutral && (
+        <span className={styles.taskStatus} style={{ color: tone.fill }}>
+          {STATUS_WORD[task.status]}
+          {hops !== null && ` · ${hops} ${hops === 1 ? "hop" : "hops"}`}
+        </span>
+      )}
     </div>
   );
 }
 
 export function DataNode({ data }: { data: DataNodeData }) {
-  const { urn, isOrigin, columns, external } = data;
+  const { urn, isOrigin, columns, external, coverage } = data;
+  const reading = coverage !== undefined;
 
   return (
     <div
       className={styles.data}
-      style={{ borderColor: isOrigin ? STALE : undefined }}
-      data-origin={isOrigin ? "true" : undefined}
+      /*
+       * In erasure mode the box carries a coverage state and nothing else.
+       *
+       * The origin outline goes with it, deliberately. That outline is amber and
+       * amber on this board means exactly one thing: finished work went out of
+       * date. An erasure gap is not that, nothing is out of date, and putting
+       * obsel's one reserved signal on a second condition would break the rule
+       * `tone.ts` keeps on the other half of the same screen.
+       */
+      style={
+        reading
+          ? coverage === null
+            ? undefined
+            : { borderLeft: `3px solid ${coverageTone(coverage).fill}` }
+          : { borderColor: isOrigin ? STALE : undefined }
+      }
+      data-origin={!reading && isOrigin ? "true" : undefined}
+      data-coverage={reading ? (coverage ?? "not-reached") : undefined}
     >
       <Ports />
       <span className={styles.dataName}>{datasetTitle(urn)}</span>
+
+      {/*
+        What the report says about this table, in the report's own words.
+
+        A table the walk did not reach says so rather than showing nothing: an
+        absent claim and a clean one look identical on a board, and only one of
+        them is true here.
+      */}
+      {reading && (
+        <span
+          className={styles.coverage}
+          style={{
+            color: coverage === null ? "var(--mm-cream-mute)" : coverageTone(coverage).fill,
+          }}
+        >
+          {coverage === null ? "not reached" : stateWord(coverage)}
+        </span>
+      )}
 
       {/*
         The whole reason this rebuild happened.
@@ -121,7 +224,7 @@ export function DataNode({ data }: { data: DataNodeData }) {
         addition. The reader draws the obvious conclusion; obsel does not assert
         it. The fingerprints are still shown, labelled, when a node is opened.
       */}
-      {isOrigin && columns !== null ? (
+      {!reading && isOrigin && columns !== null ? (
         <span className={styles.diff}>
           {columns.removed.map((column) => (
             <span key={`out-${column}`} className={styles.columnOut}>
@@ -135,12 +238,12 @@ export function DataNode({ data }: { data: DataNodeData }) {
           ))}
         </span>
       ) : (
-        isOrigin && <span className={styles.changed}>changed</span>
+        !reading && isOrigin && <span className={styles.changed}>changed</span>
       )}
 
       {/* Only on a table nothing in the swarm writes. Silence elsewhere: the
           absence of a note is not a claim, but an empty label would be. */}
-      {external && !isOrigin && <span className={styles.external}>from outside</span>}
+      {!reading && external && !isOrigin && <span className={styles.external}>from outside</span>}
     </div>
   );
 }

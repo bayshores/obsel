@@ -393,24 +393,38 @@
  * Applied to a region of the board by `tour-panel.tsx`, imperatively, because
  * the targets are components that own their own inline styles.
  *
- * `outline` rather than `border` or `box-shadow`: it draws outside the box, so
- * nothing on the board moves by a pixel when a step points at it, and it is the
- * one visual property none of those components sets inline, so it cannot lose a
- * specificity argument with them. The `::after` carries the glow and is
- * `pointer-events: none`, so a highlighted panel is still fully usable.
+ * **Drawn inside the target's own box, and that is the fix for a real bug.**
+ * This was `outline: 2px solid` at `outline-offset: 4px`, with the glow on an
+ * `::after` at `inset: -5px`. Both draw OUTSIDE the element, which was right
+ * while the board was a column of panels with gaps between them and wrong the
+ * moment the board became a canvas with a dock beside it: every region a step
+ * points at now sits flush inside a container that clips its overflow, so all
+ * of it was cut off. Measured on the rebuilt board, five of the six highlights
+ * a reader passes through were clipped, and four of them rendered nothing at
+ * all. The tour was telling people to look at a region and marking no region.
+ *
+ * An inset shadow cannot be clipped by an ancestor, because it is painted within
+ * the element's own bounds. It also keeps the property the outline was chosen
+ * for: `box-shadow` never affects layout, so nothing on the board moves by a
+ * pixel when a step points at it.
+ *
+ * The `::after` is `pointer-events: none`, so a highlighted panel is still fully
+ * usable, and it sits above the panel's own contents so a graph or a scrolling
+ * feed cannot paint over the ring.
  */
 .lit {
   position: relative;
-  outline: 2px solid var(--mm-rose-hot);
-  outline-offset: 4px;
 }
 
 .lit::after {
   content: "";
   position: absolute;
-  inset: -5px;
+  inset: 0;
+  z-index: 4;
   pointer-events: none;
-  box-shadow: var(--mm-glow-md);
+  box-shadow:
+    inset 0 0 0 2px var(--mm-rose-hot),
+    inset 0 0 22px var(--mm-rose-glow);
   animation: tour-lit 2.6s var(--mm-ease) infinite;
 }
 

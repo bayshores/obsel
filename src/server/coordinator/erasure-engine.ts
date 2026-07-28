@@ -36,49 +36,25 @@ import {
   type RegisteredKey,
   type VerificationFailure,
 } from "./attestation";
-import { coverageFor, summarize, type Attestation, type Coverage } from "./erasure";
+import { coverageFor, summarize, type Attestation } from "./erasure";
+import type { ErasureReport, ErasureRequest } from "./erasure-report";
 import { emit } from "./trace";
+
+/**
+ * The report shapes are declared in `erasure-report.ts` and re-exported here.
+ *
+ * This file is `server-only`, and the cockpit has to name what the erasure
+ * route returns. Every existing importer still reads them from the engine, so
+ * the move is invisible to them; what it buys is that browser code can describe
+ * a report without importing a module that holds DataHub credentials.
+ */
+export type { ErasureReport, ErasureRequest, PublishedErasureReport } from "./erasure-report";
 
 /** How long an attestor has to answer a challenge before it stops counting. */
 const CHALLENGE_TTL_MS = 15 * 60 * 1000;
 
 /** How far downstream a request walks. Reported, never silently applied. */
 const DEFAULT_HOPS = 3;
-
-export interface ErasureRequest {
-  request: string;
-  /** The subject key values this request covers. */
-  identifiers: string[];
-  /** Where the walk started: the assets known to hold the subject directly. */
-  seeds: string[];
-  hops: number;
-  openedAt: string;
-}
-
-export interface ErasureReport {
-  request: ErasureRequest;
-  coverage: Coverage[];
-  summary: ReturnType<typeof summarize>;
-  /**
-   * Assets the walk did not reach and attestations that were dropped, stated so
-   * a reader can tell a covered estate from a small one.
-   */
-  assurance: {
-    hopsWalked: number;
-    assetsReached: number;
-    /**
-     * Ledger records this report was actually built from: the request record
-     * and every attestation read back.
-     *
-     * Not the size of the ledger. Challenges are not counted, because a
-     * challenge is a question obsel asked and no part of the answer, and
-     * inflating this with them would let a report look better evidenced than it
-     * is by the simple act of asking more often.
-     */
-    evidenceRecords: number;
-    attestationsDroppedForKeys: { asset: string; attestor: string; reason: string }[];
-  };
-}
 
 /**
  * The attestor key registry, from configuration and never from an HTTP route.

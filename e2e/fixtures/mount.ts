@@ -27,6 +27,7 @@ import type { Page } from "@playwright/test";
 
 import { idle } from "./activity";
 import { noSteps } from "./trace";
+import type { PublishedErasureReport } from "@/src/server/coordinator/erasure-report";
 import type { SwarmResponse } from "@/src/features/cockpit/use-swarm";
 import type { TraceEvent } from "@/src/server/coordinator/types";
 import type { DemoActivity, DemoStep } from "@/src/server/runner/types";
@@ -55,6 +56,38 @@ export interface SeenRegistration {
   title?: string;
 }
 
+/**
+ * Put one of the dock's tabs on screen.
+ *
+ * Three regions of the board are tabs of one column now: the activity feed and
+ * the two bring-your-own panels. At any moment two of them are genuinely not
+ * rendered, which is the point of the arrangement — stacking all three above and
+ * below the graph is what starved the feed of height in the first place.
+ *
+ * So a test about a tabbed panel opens its tab, the same way a reader does. It
+ * is one click and it is deliberately not hidden inside `openCockpit`: which
+ * panel a test is about should be visible in the test.
+ */
+export async function openTab(
+  page: Page,
+  tab: "activity" | "your agent" | "your data" | "erasure",
+) {
+  const control = page.getByRole("tab", { name: tab, exact: true });
+  await control.click();
+  /*
+   * Wait for THIS panel, by the id the tab controls, not for any tabpanel.
+   *
+   * The panes swap through `AnimatePresence` with `mode="wait"`, so for a few
+   * frames the outgoing pane is still in the document while the incoming one has
+   * not mounted. A wait on `[role="tabpanel"]` is satisfied by the pane on its
+   * way out, and the assertion that follows then runs against the tab the test
+   * just navigated away from. It passed alone and failed under a full parallel
+   * run, which is what a race looks like.
+   */
+  const panel = await control.getAttribute("aria-controls");
+  await page.locator(`#${panel}`).waitFor({ state: "visible" });
+}
+
 export async function openCockpit(
   page: Page,
   body: SwarmResponse,
@@ -76,6 +109,14 @@ export async function openCockpit(
   registrations: SeenRegistration[];
   /** Make the next registration fail, the way a real refusal arrives. */
   refuseRegistration: (status: number, error: string) => void;
+  /**
+   * What `GET /api/erasure/{id}` answers.
+   *
+   * `"missing"` is a 404, which is not a fault: it is obsel saying it holds no
+   * such request, and the tab reads differently for it than for a broken
+   * connection. `"fail"` is the broken connection.
+   */
+  serveErasure: (next: PublishedErasureReport | "missing" | "fail") => void;
 }> {
   let current: SwarmResponse | "fail" = body;
   let currentActivity: DemoActivity | "fail" = activity;
@@ -83,6 +124,7 @@ export async function openCockpit(
   const launches: DemoStep[] = [];
   const registrations: SeenRegistration[] = [];
   let refusal: { status: number; error: string } | null = null;
+  let currentErasure: PublishedErasureReport | "missing" | "fail" = "missing";
 
   const faults: Faults = { consoleErrors: [], pageErrors: [], failedRequests: [] };
   page.on("console", (message) => {
@@ -178,6 +220,39 @@ export async function openCockpit(
     await route.fulfill({ status: 200, contentType: "application/json", body: "{}" });
   });
 
+  /*
+   * The erasure read, intercepted like the rest.
+   *
+   * The real route derives coverage from the ledger on every read, which means a
+   * lineage walk and one aspect read per reachable asset against a DataHub this
+   * suite does not have. What that costs is the same as everywhere else here: no
+   * browser test proves obsel computes coverage correctly. `tests/erasure.test.ts`
+   * covers the rule, against the kernel that decides it.
+   */
+  await page.route("**/api/erasure/**", async (route) => {
+    if (currentErasure === "fail") {
+      await route.fulfill({
+        status: 500,
+        contentType: "application/json",
+        body: JSON.stringify({ error: "the ledger could not be read" }),
+      });
+      return;
+    }
+    if (currentErasure === "missing") {
+      await route.fulfill({
+        status: 404,
+        contentType: "application/json",
+        body: JSON.stringify({ error: "no erasure request dsr-nope in the ledger" }),
+      });
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(currentErasure),
+    });
+  });
+
   await page.goto("/");
   await page.evaluate(async () => {
     await document.fonts.ready;
@@ -193,5 +268,6 @@ export async function openCockpit(
     launches,
     registrations,
     refuseRegistration: (status, error) => (refusal = { status, error }),
+    serveErasure: (next) => (currentErasure = next),
   };
 }

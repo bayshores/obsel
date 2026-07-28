@@ -16,11 +16,12 @@ import {
   justOne,
   leftOverTag,
   midWrite,
+  repaired,
   visiting,
   withoutTagInfo,
 } from "./fixtures/swarm";
-import { openCockpit } from "./fixtures/mount";
-import { cascadeSteps, manyDecisions } from "./fixtures/trace";
+import { openCockpit, openTab } from "./fixtures/mount";
+import { cascadeSteps, longRun, manyDecisions } from "./fixtures/trace";
 
 /**
  * Everything here needs a real browser.
@@ -184,6 +185,101 @@ test.describe("typography", () => {
     await page.setViewportSize({ width: size?.width ?? 1280, height: size?.height ?? 800 });
     await page.waitForTimeout(500);
     expect((await framing())?.outside).toBe(0);
+  });
+});
+
+/**
+ * The header lockup, which needs a real browser for a reason the other blocks
+ * do not.
+ *
+ * `tests/cockpit-mark.test.ts` covers the mark's geometry without one, and
+ * stops there deliberately: everything below is animation, and animation is
+ * driven by `requestAnimationFrame`. The dev preview available while this was
+ * built reports `visibilityState: "hidden"` and serves zero frames a second, so
+ * a hover there renders at its starting values and stays, which reads exactly
+ * like a reveal that never fired. These assertions wait for the settled value
+ * rather than sampling once, so they are about where the animation ARRIVES.
+ */
+test.describe("the mark, and the name it reveals", () => {
+  const lockup = (page: Page) => page.locator('[data-brand="lockup"]');
+  const name = (page: Page) => page.locator('[data-brand="name"]');
+  const opacityOf = (page: Page) =>
+    name(page).evaluate((el) => Number(getComputedStyle(el).opacity));
+
+  test("the name is hidden until the mark is hovered, and comes back when it is not", async ({
+    page,
+  }) => {
+    await openCockpit(page, cascaded());
+
+    // The mark itself is never hidden; only the word beside it is.
+    await expect(page.locator('[data-brand="lockup"] svg')).toBeVisible();
+    expect(await opacityOf(page)).toBe(0);
+
+    await lockup(page).hover();
+    await expect.poll(() => opacityOf(page)).toBe(1);
+
+    // Away from the header entirely, not merely to a neighbouring element.
+    await page.mouse.move(0, 400);
+    await expect.poll(() => opacityOf(page)).toBe(0);
+  });
+
+  test("revealing the name moves nothing else in the header", async ({ page }) => {
+    await openCockpit(page, cascaded());
+
+    const flow = page.getByText("orders_pipeline", { exact: false }).first();
+    const guide = page.getByRole("button", { name: /guide/i }).first();
+    const box = async () => ({
+      flow: await flow.boundingBox(),
+      guide: await guide.boundingBox(),
+      lockup: await lockup(page).boundingBox(),
+      // `main > header`, not `header`: every panel on the board has one too.
+      header: await page.locator("main > header").boundingBox(),
+    });
+
+    const atRest = await box();
+    await lockup(page).hover();
+    await expect.poll(() => opacityOf(page)).toBe(1);
+    const revealed = await box();
+
+    /*
+     * The whole point of the feature, asserted on the settled reveal rather
+     * than mid-transition: the name is laid out at full width in both states
+     * and only ever made transparent, so every neighbour keeps its exact box.
+     * An implementation that inserted the name on hover, or grew it from zero
+     * width, passes every other assertion here and fails this one.
+     */
+    expect(revealed.flow).toEqual(atRest.flow);
+    expect(revealed.guide).toEqual(atRest.guide);
+    expect(revealed.lockup).toEqual(atRest.lockup);
+    expect(revealed.header).toEqual(atRest.header);
+  });
+
+  test.describe("with motion turned down", () => {
+    /*
+     * Through `contextOptions`, like the tour's own reduced-motion block, and
+     * NOT through `page.emulateMedia`. That distinction cost a debugging pass
+     * and is the whole reason this comment exists: `emulateMedia` sets the
+     * preference on a page that already exists, and motion's `useReducedMotion`
+     * reads the query once and holds the answer, so the hook had already
+     * decided before the emulation landed. The media query reported `reduce`
+     * and the animated lockup rendered anyway.
+     */
+    test.use({ contextOptions: { reducedMotion: "reduce" } });
+
+    test("the name is simply there, with no hover needed", async ({ page }) => {
+      await openCockpit(page, cascaded());
+
+      // Not a faster reveal: the finished lockup, which is the rule
+      // `guide-panel.tsx` follows for the same preference.
+      expect(await opacityOf(page)).toBe(1);
+      await expect(page.locator('[data-brand="lockup"] svg')).toBeVisible();
+
+      // The still branch renders plain paths, so nothing is mid-animation.
+      const inFlight = await page
+        .locator('[data-brand="lockup"]')
+        .evaluate((el) => el.getAnimations({ subtree: true }).length);
+      expect(inFlight).toBe(0);
+    });
   });
 });
 
@@ -467,6 +563,60 @@ test.describe("honesty", () => {
     await expect(obselAlert(page)).toBeVisible();
   });
 
+  /*
+   * The detection figure runs up to itself, and stops there.
+   *
+   * The count exists because this number used to appear fully formed between two
+   * polls, which is the same as not appearing at all to anybody who blinked. What
+   * must not follow from that is the number moving when nothing has happened:
+   * the board is re-read once a second and re-serves the same figure for as long
+   * as the marks stand, so a counter keyed on the value rather than on the change
+   * would run from zero every second, forever.
+   *
+   * The value itself is a measurement, so the last frame must be the measured
+   * number exactly rather than a rounded approach to it.
+   */
+  test("the measured number arrives once, and then holds still", async ({ page }) => {
+    const detection = () =>
+      page.evaluate(() => {
+        const ribbon = document.querySelector('[aria-label="Detection"]');
+        const span = [...(ribbon?.querySelectorAll("span") ?? [])].find(
+          (node) => node.textContent === "detection time",
+        );
+        return span?.closest("div")?.querySelectorAll("span")[1]?.textContent ?? "MISSING";
+      });
+
+    await openCockpit(page, cascaded());
+    await expect.poll(detection).toBe("118ms");
+
+    // Three seconds is three polls. A counter that restarts on a re-served
+    // figure would be caught mid-run by at least one of these samples.
+    const samples: string[] = [];
+    for (let i = 0; i < 12; i += 1) {
+      samples.push(await detection());
+      await page.waitForTimeout(250);
+    }
+    expect(new Set(samples), `the number moved after it arrived: ${samples.join(", ")}`).toEqual(
+      new Set(["118ms"]),
+    );
+  });
+
+  test("reduced motion shows the measured number without counting to it", async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await openCockpit(page, cascaded());
+
+    // The finished picture on the first frame, which is this board's rule for
+    // reduced motion everywhere: not a faster animation, no animation.
+    const first = await page.evaluate(() => {
+      const ribbon = document.querySelector('[aria-label="Detection"]');
+      const span = [...(ribbon?.querySelectorAll("span") ?? [])].find(
+        (node) => node.textContent === "detection time",
+      );
+      return span?.closest("div")?.querySelectorAll("span")[1]?.textContent ?? "MISSING";
+    });
+    expect(first).toBe("118ms");
+  });
+
   test("the alert takes its own row rather than covering the board", async ({ page }) => {
     const { serve } = await openCockpit(page, cascaded());
     serve("fail");
@@ -476,18 +626,83 @@ test.describe("honesty", () => {
     // rather than two absolute positions: the alert must END above where the
     // graph BEGINS. A banner covering the board it warns about is worse than
     // no banner.
+    //
+    // `.react-flow` names the graph. This was `main svg`, meaning whichever
+    // `<svg>` came first in the document, which was the graph only for as long
+    // as the graph was the only drawing on the board. Putting a mark in the
+    // header made that selector resolve to the logo, and the test then compared
+    // the alert against something ABOVE it and reported the board covered. The
+    // failure was in the selector, not the layout.
     await expect
       .poll(
         () =>
           page.evaluate(() => {
             const a = document.querySelector('main [role="alert"]')?.getBoundingClientRect();
-            const svg = document.querySelector("main svg")?.getBoundingClientRect();
-            if (a === undefined || svg === undefined) return "not both present";
-            return a.bottom <= svg.top ? "clear" : "overlapping";
+            const graph = document.querySelector(".react-flow")?.getBoundingClientRect();
+            if (a === undefined || graph === undefined) return "not both present";
+            return a.bottom <= graph.top ? "clear" : "overlapping";
           }),
         { timeout: 8_000 },
       )
       .toBe("clear");
+  });
+
+  test("a walked board offers the way back with no launcher history behind it", async ({
+    page,
+  }) => {
+    /*
+     * The restart case, in a browser. `idle()` reports an empty history, which is
+     * exactly what a server that has just started reports, and the board is a
+     * repaired one. Before this, restarting obsel took the reset button off a
+     * board that had genuinely been all the way round.
+     */
+    await openCockpit(page, repaired(), idle());
+    await expect(page.getByRole("button", { name: "Reset and start over" })).toBeVisible();
+  });
+
+  test("a board that has only run is not offered the way back", async ({ page }) => {
+    // The other half: the gate still exists, so a first-run board is not offered
+    // a button that throws away the run it just waited for.
+    await openCockpit(page, calm(), idle());
+    await expect(page.getByRole("button", { name: "Reset and start over" })).toBeHidden();
+  });
+
+  test("one action carries the accent, and every action is the same size", async ({ page }) => {
+    await openCockpit(page, cascaded(), idle());
+    const seen = await page
+      .locator("main button[data-tour-action] span:first-child")
+      .evaluateAll((nodes) =>
+        nodes.map((node) => {
+          const style = getComputedStyle(node);
+          return { color: style.color, size: style.fontSize };
+        }),
+      );
+
+    expect(seen.length).toBeGreaterThan(1);
+    // Hierarchy is spent on colour, never on size: three guides failed by putting
+    // what mattered at footnote size, and `docs/verification.md` measured it.
+    expect(new Set(seen.map((entry) => entry.size)).size).toBe(1);
+    // And exactly one colour occurs once. Asserted as singular rather than as a
+    // hex value, so retuning the palette does not fail this.
+    const colours = seen.map((entry) => entry.color);
+    const once = colours.filter(
+      (colour) => colours.filter((other) => other === colour).length === 1,
+    );
+    expect(once).toHaveLength(1);
+  });
+
+  test("the board says which board it is, and how to open a different one", async ({ page }) => {
+    await openCockpit(page, calm(), idle());
+    const name = page.locator("main header summary");
+    await expect(name).toHaveText("orders_pipeline · prod");
+
+    // Closed by default: the header is one line, and this is needed once.
+    await expect(page.getByText("one DataFlow in DataHub", { exact: false })).toBeHidden();
+    await name.click();
+    await expect(page.getByText("one DataFlow in DataHub", { exact: false })).toBeVisible();
+    // A command, not a bare variable name. The sweep below enforces the rule;
+    // this pins that the reader is given the thing they have to run.
+    await expect(page.getByText("OBSEL_FLOW_ID=my_board pnpm dev")).toBeVisible();
   });
 
   test("a stopped server is one fault, not two statements that disagree", async ({ page }) => {
@@ -642,14 +857,24 @@ test.describe("paint", () => {
       ];
       return paths.map((p) => {
         const anims = p.getAnimations();
-        const iterations = anims[0]?.effect?.getTiming().iterations;
+        /*
+         * Across ALL of a path's animations, not just the first.
+         *
+         * A lit edge carries two: `obsel-reach` draws the change arriving, once,
+         * delayed by that edge's hop count, and `obsel-dash` marches for as long
+         * as the mark stands. Reading `anims[0]` would read whichever the browser
+         * happened to list first, and the one-shot is bounded by design.
+         */
+        const forever = anims.some((anim) => {
+          const iterations = anim.effect?.getTiming().iterations;
+          return typeof iterations === "number" ? !Number.isFinite(iterations) : false;
+        });
         return {
           count: anims.length,
-          // Resolved to a boolean in the page rather than shipped as a number.
-          // An unbounded animation reports `Infinity`, which does not survive
-          // JSON serialisation across the bridge intact.
-          bounded: typeof iterations === "number" ? Number.isFinite(iterations) : true,
-          playState: anims[0]?.playState ?? "none",
+          forever,
+          // Every animation on the path is either running or has finished its one
+          // pass; none may be stuck waiting for something that will not happen.
+          idle: anims.filter((anim) => anim.playState === "idle").length,
         };
       });
     });
@@ -657,10 +882,93 @@ test.describe("paint", () => {
     expect(state.length, "the cascade should light some edges").toBeGreaterThan(0);
     for (const edge of state) {
       expect(edge.count, "a lit edge must carry a running animation").toBeGreaterThan(0);
-      // A bounded iteration count is the one-shot bug returning: it would play
-      // through once and then hold still for the rest of the session.
-      expect(edge.bounded, "the dash must repeat forever").toBe(false);
-      expect(edge.playState).toBe("running");
+      // A cascade with no unbounded animation is the one-shot bug returning: it
+      // would play through once and hold still for the rest of the session.
+      expect(edge.forever, "the dash must repeat forever").toBe(true);
+      expect(edge.idle).toBe(0);
+    }
+  });
+
+  /*
+   * The ripple, which is the moment the whole product is about.
+   *
+   * What is asserted is the ORDER, not the look: an edge two hops from the change
+   * starts later than an edge one hop from it. The hop counts come off the marks
+   * obsel wrote, so this is also a check that the picture is animating the walk
+   * obsel actually performed rather than a path re-derived from the graph's shape.
+   */
+  test("the change spreads outward, one hop at a time", async ({ page }) => {
+    await openCockpit(page, cascaded());
+    await page.waitForSelector(".react-flow__edge.animated", { state: "attached" });
+
+    const delays = await page.evaluate(() =>
+      [
+        ...document.querySelectorAll<SVGPathElement>(
+          ".react-flow__edge.animated path.react-flow__edge-path",
+        ),
+      ].map((path) => {
+        const style = getComputedStyle(path);
+        return {
+          hop: Number(style.getPropertyValue("--hop").trim()),
+          // The first of the two delays is the one-shot's, which is the stagger.
+          delay: Number.parseFloat(style.animationDelay.split(",")[0]),
+        };
+      }),
+    );
+
+    expect(delays.length).toBeGreaterThan(0);
+    const byHop = new Map<number, number>();
+    for (const edge of delays) {
+      expect(edge.hop, "every lit edge carries the hop obsel recorded").toBeGreaterThan(0);
+      byHop.set(edge.hop, edge.delay);
+    }
+    // The demo cascade reaches two hops, so there are two distances to compare.
+    expect(byHop.size, "the demo board reaches more than one hop").toBeGreaterThan(1);
+    const hops = [...byHop.keys()].sort((a, b) => a - b);
+    for (let i = 1; i < hops.length; i += 1) {
+      expect(
+        byHop.get(hops[i])!,
+        `hop ${hops[i]} must start after hop ${hops[i - 1]}`,
+      ).toBeGreaterThan(byHop.get(hops[i - 1])!);
+    }
+  });
+
+  /*
+   * The board's colour is a claim, and the flare is not.
+   *
+   * `tone.ts` states the rule: amber fill if and only if a task is out of date,
+   * decided by one function from the record and from nothing else. The ripple is
+   * drawn by a separate element for that reason, so this asserts the separation
+   * rather than the animation: remove every flare and the board still says
+   * exactly the same thing.
+   */
+  test("the ripple is drawn over the marks, never instead of them", async ({ page }) => {
+    await openCockpit(page, cascaded());
+    await page.waitForSelector(".react-flow__node-task", { state: "attached" });
+
+    const marked = await page.evaluate(() => {
+      const amber = "rgb(255, 176, 32)";
+      return [...document.querySelectorAll(".react-flow__node-task")].map((node) => {
+        const box = node.firstElementChild as HTMLElement | null;
+        const flare = node.querySelector<HTMLElement>("span[style*='--hop']");
+        return {
+          stale: (node.textContent ?? "").includes("out of date"),
+          bar: box === null ? "" : getComputedStyle(box).borderLeftColor,
+          hasFlare: flare !== null,
+          amber,
+        };
+      });
+    });
+
+    const stale = marked.filter((node) => node.stale);
+    expect(stale.length, "the demo cascade marks three tasks").toBe(3);
+    for (const node of stale) {
+      // The claim, painted by `nodeTone`, present whether or not anything ran.
+      expect(node.bar, "an out-of-date task is amber on its own").toBe(node.amber);
+      expect(node.hasFlare, "and carries a flare over it").toBe(true);
+    }
+    for (const node of marked.filter((entry) => !entry.stale)) {
+      expect(node.hasFlare, "work that is not out of date never flares").toBe(false);
     }
   });
 
@@ -725,8 +1033,26 @@ test.describe("paint", () => {
 test.describe("bring your own agent", () => {
   const panel = (page: Page) => page.locator('[aria-label="Bring your own agent"]');
 
+  /**
+   * Open the board and then this panel's tab, which is how a reader reaches it.
+   *
+   * The panel is one of the dock's three tabs now rather than a row under the
+   * graph. That does not weaken what this file is about: every test below is
+   * about the panel being findable rather than a 17px line nobody noticed, and a
+   * permanently visible 13px tab label is the answer to that, where a collapsed
+   * disclosure was not.
+   */
+  const arrive = async (
+    page: Page,
+    ...args: Parameters<typeof openCockpit> extends [Page, ...infer R] ? R : never
+  ) => {
+    const handle = await openCockpit(page, ...args);
+    await openTab(page, "your agent");
+    return handle;
+  };
+
   test("is a panel with a heading, not a line somebody has to notice", async ({ page }) => {
-    await openCockpit(page, cascaded(), finishedStep());
+    await arrive(page, cascaded(), finishedStep());
 
     const heading = panel(page).getByRole("heading", { name: "bring your own agent" });
     await expect(heading).toBeVisible();
@@ -747,7 +1073,7 @@ test.describe("bring your own agent", () => {
   }) => {
     // The state the board is in on camera. The heading is visible; the four
     // steps are not painted.
-    await openCockpit(page, cascaded(), finishedStep());
+    await arrive(page, cascaded(), finishedStep());
 
     await expect(panel(page).getByText("nobody has joined yet")).toBeVisible();
     await expect(panel(page).getByText("how an agent joins")).toBeVisible();
@@ -759,7 +1085,7 @@ test.describe("bring your own agent", () => {
   test("opens itself, and counts the steps, once somebody's agent is on the board", async ({
     page,
   }) => {
-    await openCockpit(page, visiting(), finishedStep());
+    await arrive(page, visiting(), finishedStep());
 
     // Three of four: registered, announced and reported have happened for the
     // visitor's own tasks, and no change has landed on their data yet.
@@ -776,13 +1102,13 @@ test.describe("bring your own agent", () => {
     // The whole four-task demo, finished and flagged. None of it is the reader's
     // agent, so none of it is their progress, and a panel that ticked here would
     // be congratulating them on work they did not do.
-    await openCockpit(page, cascaded(), finishedStep());
+    await arrive(page, cascaded(), finishedStep());
     await expect(panel(page).getByText("nobody has joined yet")).toBeVisible();
     await expect(panel(page).getByText(/\d of 4/)).toBeHidden();
   });
 
   test("hands over this machine's real command, not a placeholder path", async ({ page }) => {
-    await openCockpit(page, visiting(), finishedStep());
+    await arrive(page, visiting(), finishedStep());
 
     // `idle()` and friends carry the command the activity route builds from this
     // machine's own paths. A fixture path would be a command that fails.
@@ -795,7 +1121,7 @@ test.describe("bring your own agent", () => {
     // The other half of the toggle fix. The board re-renders every second, and
     // the derivation says folded on this board, so a panel that took the derived
     // value back would shut under somebody a second after they opened it.
-    const { serve } = await openCockpit(page, cascaded(), finishedStep());
+    const { serve } = await arrive(page, cascaded(), finishedStep());
     const steps = panel(page).locator("li[data-done]").first();
     await expect(steps).toBeHidden();
 
@@ -816,7 +1142,7 @@ test.describe("bring your own agent", () => {
      * somebody's agent, and "3 of 4" beside a broken connection is the same
      * false all-clear the rest of the board refuses to give.
      */
-    const { serve } = await openCockpit(page, visiting(), finishedStep());
+    const { serve } = await arrive(page, visiting(), finishedStep());
     await expect(panel(page).getByText("3 of 4")).toBeVisible();
 
     serve("fail");
@@ -843,32 +1169,45 @@ test.describe("bring your own data", () => {
   const panel = (page: Page) => page.locator('[aria-label="Bring your own data"]');
   const open = (page: Page) => panel(page).getByText("add a task").click();
 
+  /** Open the board and then this panel's tab. See the sibling describe above. */
+  const arrive = async (
+    page: Page,
+    ...args: Parameters<typeof openCockpit> extends [Page, ...infer R] ? R : never
+  ) => {
+    const handle = await openCockpit(page, ...args);
+    await openTab(page, "your data");
+    return handle;
+  };
+
   test("is a panel with a heading, beside the door for an agent", async ({ page }) => {
-    await openCockpit(page, cascaded(), finishedStep());
+    await arrive(page, cascaded(), finishedStep());
 
     await expect(panel(page).getByRole("heading", { name: "bring your own data" })).toBeVisible();
 
-    // Below the joining panel, which is the pair the README puts in this order.
-    // A reader who has just watched the cascade meets "bring your own agent" and
-    // then "bring your own data", under the graph and above the numbers.
-    const order = await page.evaluate(() => {
-      const labels = [...document.querySelectorAll("main section[aria-label]")].map((node) =>
-        node.getAttribute("aria-label"),
-      );
-      return {
-        agent: labels.indexOf("Bring your own agent"),
-        data: labels.indexOf("Bring your own data"),
-      };
-    });
-    expect(order.agent).toBeGreaterThanOrEqual(0);
-    expect(order.data).toBe(order.agent + 1);
+    /*
+     * Next to the door for an agent, which is the pair the README puts in this
+     * order.
+     *
+     * This used to read the two panels' positions among the board's sections,
+     * because they were consecutive rows under the graph. They are two tabs of
+     * one dock now, so at most one of them is rendered at a time and an ordering
+     * of sections cannot express the pairing. The tab strip is where the
+     * adjacency lives, so that is what is asserted: same order, same claim, read
+     * off the control that now carries it.
+     */
+    const tabs = await page.evaluate(() =>
+      [...document.querySelectorAll('[role="tab"]')].map((node) => node.textContent?.trim() ?? ""),
+    );
+    const agent = tabs.indexOf("your agent");
+    expect(agent).toBeGreaterThanOrEqual(0);
+    expect(tabs.indexOf("your data")).toBe(agent + 1);
   });
 
   test("keeps the form folded, and counts nothing, on obsel's own board", async ({ page }) => {
     // The state the board is in on camera. The heading is painted; the four
     // fields are not, and there is no count, because a count of zero says
     // nothing the empty list does not.
-    await openCockpit(page, cascaded(), finishedStep());
+    await arrive(page, cascaded(), finishedStep());
 
     await expect(panel(page).getByText("add a task")).toBeVisible();
     await expect(panel(page).locator("input").first()).toBeHidden();
@@ -876,7 +1215,7 @@ test.describe("bring your own data", () => {
   });
 
   test("lists your own tasks with the identifiers your agent has to use", async ({ page }) => {
-    await openCockpit(page, visiting(), finishedStep());
+    await arrive(page, visiting(), finishedStep());
     await open(page);
 
     await expect(panel(page).getByText("2 of yours")).toBeVisible();
@@ -904,7 +1243,7 @@ test.describe("bring your own data", () => {
   });
 
   test("sends obsel exactly the body the MCP door would have sent", async ({ page }) => {
-    const { registrations } = await openCockpit(page, cascaded(), finishedStep());
+    const { registrations } = await arrive(page, cascaded(), finishedStep());
     await open(page);
 
     await panel(page).locator("input").nth(0).fill("clean_expenses");
@@ -934,7 +1273,7 @@ test.describe("bring your own data", () => {
   });
 
   test("splits a comma-separated list of tables into separate names", async ({ page }) => {
-    const { registrations } = await openCockpit(page, cascaded(), finishedStep());
+    const { registrations } = await arrive(page, cascaded(), finishedStep());
     await open(page);
 
     await panel(page).locator("input").nth(0).fill("joined_report");
@@ -948,7 +1287,7 @@ test.describe("bring your own data", () => {
   });
 
   test("a draft obsel would refuse never leaves the browser", async ({ page }) => {
-    const { registrations } = await openCockpit(page, cascaded(), finishedStep());
+    const { registrations } = await arrive(page, cascaded(), finishedStep());
     await open(page);
 
     // A task that writes nothing. The HTTP route accepts this and then has
@@ -969,7 +1308,7 @@ test.describe("bring your own data", () => {
   });
 
   test("shows obsel's own refusal rather than claiming the task landed", async ({ page }) => {
-    const { refuseRegistration } = await openCockpit(page, cascaded(), finishedStep());
+    const { refuseRegistration } = await arrive(page, cascaded(), finishedStep());
     await open(page);
 
     refuseRegistration(500, "DataHub is not reachable");
@@ -995,7 +1334,7 @@ test.describe("bring your own data", () => {
      * poll then shut the panel, hiding the confirmation and the new row, under
      * somebody about to register the second half of their pipeline.
      */
-    const { serve } = await openCockpit(page, empty(), finishedStep());
+    const { serve } = await arrive(page, empty(), finishedStep());
     const field = panel(page).locator("input").first();
     // Painted, because there is nothing on this board at all.
     await expect(field).toBeVisible();
@@ -1020,7 +1359,7 @@ test.describe("bring your own data", () => {
     // The same toggle rule the joining panel keeps, and it has to be kept
     // separately: this panel holds a half-typed form, so a fold that took the
     // derived value back every second would discard what somebody was writing.
-    const { serve } = await openCockpit(page, cascaded(), finishedStep());
+    const { serve } = await arrive(page, cascaded(), finishedStep());
     const field = panel(page).locator("input").first();
     await expect(field).toBeHidden();
 
@@ -1218,6 +1557,123 @@ test.describe("guide", () => {
   });
 
   /*
+   * The highlight has to be drawn INSIDE the region it points at.
+   *
+   * This is a regression test for a bug that shipped. The glow was an `outline`
+   * at a 4px offset with a shadow at `inset: -5px`, both drawn outside the box,
+   * which was right while the board was a column of panels with gaps between
+   * them. The canvas-and-dock layout put every region flush inside a container
+   * that clips its overflow, so all of it was cut away: measured on the rebuilt
+   * board, four of the six highlights a reader passes rendered nothing at all,
+   * and the tour spent four steps telling somebody to look at a region it was
+   * not marking.
+   *
+   * What is asserted is the property rather than the pixels: nothing outside the
+   * target's own box, because outside the box is where the clipping is.
+   */
+  test("it marks the region from inside, where nothing can clip it", async ({ page }) => {
+    await openCockpit(page, cascaded(), finishedStep());
+    await openTour(page);
+
+    for (const heading of [
+      "what this screen is",
+      "the agents and their tables",
+      "what obsel is doing",
+      "the two measurements",
+    ] as const) {
+      await expect(win(page).getByRole("heading", { name: heading })).toBeVisible();
+
+      const ring = await page.evaluate(() => {
+        const node = document.querySelector('[class*="lit"]');
+        if (node === null) return null;
+        const own = getComputedStyle(node);
+        const after = getComputedStyle(node, "::after");
+        const box = node.getBoundingClientRect();
+
+        // The nearest ancestor that clips, and whether the target is inside it.
+        let clip: DOMRect | null = null;
+        let up = node.parentElement;
+        while (up !== null && up !== document.documentElement) {
+          const style = getComputedStyle(up);
+          if (`${style.overflow}${style.overflowX}${style.overflowY}`.includes("hidden")) {
+            clip = up.getBoundingClientRect();
+            break;
+          }
+          up = up.parentElement;
+        }
+
+        return {
+          /*
+           * The style, not the width. A browser reports `outline-width` as its
+           * own `medium` default (3px) even when nothing is painted, so the
+           * width says nothing about whether a ring is being drawn outside the
+           * box; the style is what decides that.
+           */
+          outline: own.outlineStyle,
+          shadow: after.boxShadow,
+          // The ring is at the target's own edges, so it is visible exactly when
+          // the target is: no part of the box may fall outside what clips it.
+          boxVisible:
+            clip === null ||
+            (box.left >= clip.left - 1 &&
+              box.right <= clip.right + 1 &&
+              box.top >= clip.top - 1 &&
+              box.bottom <= clip.bottom + 1),
+          onScreen: box.width > 0 && box.height > 0,
+        };
+      });
+
+      expect(ring, heading).not.toBeNull();
+      expect(ring!.onScreen, `${heading}: the lit region has a size`).toBe(true);
+      // An outline is the treatment that broke. Anything painted there is that
+      // bug on its way back.
+      expect(ring!.outline, `${heading}: nothing is drawn outside the box`).toBe("none");
+      expect(ring!.shadow, `${heading}: the ring is drawn inside the box`).toContain("inset");
+      expect(ring!.boxVisible, `${heading}: the lit region is not clipped away`).toBe(true);
+
+      await win(page).getByRole("button", { name: "next", exact: true }).click();
+    }
+  });
+
+  /*
+   * The window opens in the corner the dock is not using.
+   *
+   * It used to open bottom-right unconditionally, which was a free corner while
+   * the board was a column and is a panel now: on the rebuilt board it landed on
+   * top of the dock and covered the two measured numbers pinned at its foot,
+   * which are the figures the demonstration exists to establish.
+   */
+  test("the window opens clear of the panel, on whichever side that is", async ({ page }) => {
+    await openCockpit(page, cascaded(), finishedStep());
+    await openTour(page);
+
+    const overlap = async () =>
+      page.evaluate(() => {
+        const card = document.querySelectorAll('section[aria-label="guide"]');
+        const window_ = card[card.length - 1]?.getBoundingClientRect();
+        const dock = document.querySelector("[data-dock]")?.getBoundingClientRect();
+        if (window_ === undefined || dock === undefined) return null;
+        const wide = Math.min(window_.right, dock.right) - Math.max(window_.left, dock.left);
+        const tall = Math.min(window_.bottom, dock.bottom) - Math.max(window_.top, dock.top);
+        return {
+          area: Math.max(0, wide) * Math.max(0, tall),
+          side: document.querySelector("[data-dock]")?.getAttribute("data-dock"),
+        };
+      });
+
+    const right = await overlap();
+    expect(right?.side).toBe("right");
+    expect(right?.area, "the window must not cover the panel").toBe(0);
+
+    // And it follows the panel when a reader moves it to the other edge.
+    await page.getByRole("button", { name: /move the panel to the left/i }).click();
+    await page.waitForTimeout(500);
+    const left = await overlap();
+    expect(left?.side).toBe("left");
+    expect(left?.area, "still clear once the panel has moved").toBe(0);
+  });
+
+  /*
    * The rule the whole tour rests on, and the only one worth a browser test on
    * its own: an action step has no way to be skipped. A tour that could be paged
    * past an action would sooner or later be describing a board that does not
@@ -1302,7 +1758,9 @@ test.describe("guide", () => {
 
     await openCockpit(page, calm(), walked());
     await openTour(page);
-    expect(await toTheEnd()).toBe("now with your own agents");
+    // The erasure tab, which is where the tour ends: the same graph, asked the
+    // second question obsel answers with it.
+    expect(await toTheEnd()).toBe("the same graph, asked a different question");
 
     /*
      * The same board with nothing behind it stops at the change, because on
@@ -1324,11 +1782,21 @@ test.describe("guide", () => {
     const grab = await bar.boundingBox();
     if (before === null || grab === null) throw new Error("the window did not render");
 
+    /*
+     * Carried towards the middle of the frame, whichever edge it started at.
+     *
+     * It used to be dragged left unconditionally, because it always opened in
+     * the bottom-right corner and left was the only direction with room. It now
+     * opens on the side the dock is not using, so the room is on the other side
+     * and a fixed direction would be dragging it into a wall: the constraint
+     * would hold it still and the test would read that as the drag being broken.
+     */
+    const inwards = before.x < page.viewportSize()!.width / 2 ? 120 : -120;
     await page.mouse.move(grab.x + grab.width / 2, grab.y + grab.height / 2);
     await page.mouse.down();
     // In steps: motion begins a drag on movement, and one jump can be delivered
     // as a single event it treats as a click.
-    await page.mouse.move(grab.x + grab.width / 2 - 120, grab.y + grab.height / 2 - 200, {
+    await page.mouse.move(grab.x + grab.width / 2 + inwards, grab.y + grab.height / 2 - 200, {
       steps: 12,
     });
     await page.mouse.up();
@@ -1336,7 +1804,7 @@ test.describe("guide", () => {
 
     const after = await win(page).boundingBox();
     if (after === null) throw new Error("the window vanished mid-drag");
-    expect(Math.round(before.x - after.x), "it moved left").toBeGreaterThan(80);
+    expect(Math.round(Math.abs(after.x - before.x)), "it moved sideways").toBeGreaterThan(80);
     expect(Math.round(before.y - after.y), "it moved up").toBeGreaterThan(150);
   });
 
@@ -1497,15 +1965,20 @@ test.describe("guide", () => {
       const bar = frame.locator("div").first();
       const grab = await bar.boundingBox();
       if (before === null || grab === null) throw new Error("the window did not render");
+      // Towards the middle, whichever edge it opened against. See the sibling
+      // drag test: which way it has room depends on where the dock is.
+      const inwards = before.x < page.viewportSize()!.width / 2 ? 140 : -140;
       await page.mouse.move(grab.x + grab.width / 2, grab.y + grab.height / 2);
       await page.mouse.down();
-      await page.mouse.move(grab.x + grab.width / 2 - 140, grab.y + grab.height / 2, { steps: 12 });
+      await page.mouse.move(grab.x + grab.width / 2 + inwards, grab.y + grab.height / 2, {
+        steps: 12,
+      });
       await page.mouse.up();
       await page.waitForTimeout(200);
 
       const after = await frame.boundingBox();
       if (after === null) throw new Error("the window vanished mid-drag");
-      expect(Math.round(before.x - after.x), "still draggable").toBeGreaterThan(100);
+      expect(Math.round(Math.abs(after.x - before.x)), "still draggable").toBeGreaterThan(100);
     });
   });
 });
@@ -1620,32 +2093,58 @@ test.describe("what obsel is doing", () => {
         const list = document.querySelector('[aria-label="What obsel is doing"] ol');
         if (list === null) return 0;
         const box = list.getBoundingClientRect();
-        return [...list.querySelectorAll("li")]
-          .filter((li) => {
-            const b = li.getBoundingClientRect();
-            return b.bottom > box.top + 1 && b.top < box.bottom - 1;
-          })
-          .reduce(
-            (n, li) => n + (li.textContent ?? "").trim().split(/\s+/).filter(Boolean).length,
-            0,
-          );
+        const visible = [...list.querySelectorAll("li")].filter((li) => {
+          const b = li.getBoundingClientRect();
+          return b.bottom > box.top + 1 && b.top < box.bottom - 1;
+        });
+
+        /*
+         * One row per position, because the pass headings are `position: sticky`
+         * siblings and every heading a reader has scrolled past parks at the same
+         * top edge, painted over by the next one.
+         *
+         * Counting them all would count text nobody can read: fifty passes stack
+         * fifty headings into one heading's worth of pixels, and the reader sees
+         * the last one. Fifty is also what made this worth stating. The feed used
+         * to be a 172px strip that could only ever hold a few passes, so the pile
+         * was two or three elements deep and the arithmetic barely noticed; at the
+         * height of the frame it is deep enough to treble the count on its own.
+         */
+        const byTop = new Map<number, string>();
+        for (const li of visible) {
+          byTop.set(Math.round(li.getBoundingClientRect().top), (li.textContent ?? "").trim());
+        }
+        return [...byTop.values()].reduce(
+          (n, text) => n + text.split(/\s+/).filter(Boolean).length,
+          0,
+        );
       });
 
-    await openCockpit(page, cascaded(), idle(), cascadeSteps());
+    /*
+     * Both runs overflow the scroller, and that is the whole design of this
+     * comparison.
+     *
+     * It used to be eight steps against twenty-four, which was a fair test while
+     * the feed was a 172px strip: eight steps already filled it. The feed is the
+     * height of the frame now, so eight steps do not fill it, and comparing
+     * against them would measure how much empty panel there is rather than
+     * whether the panel has a ceiling. Ten passes and fifty passes both overflow,
+     * so any difference between them is the ceiling failing.
+     */
+    await openCockpit(page, cascaded(), idle(), longRun(10));
     await page.waitForSelector('[aria-label="What obsel is doing"] ol li', { state: "attached" });
-    const short = await onScreen();
+    const full = await onScreen();
 
-    await openCockpit(page, cascaded(), idle(), manyDecisions());
+    await openCockpit(page, cascaded(), idle(), longRun(50));
     await page.waitForSelector('[aria-label="What obsel is doing"] ol li', { state: "attached" });
-    const long = await onScreen();
+    const fuller = await onScreen();
 
-    // Three times the trace, and the visible text is bounded by the panel rather than
-    // by the trace. Allow a modest band: which rows land inside the box depends on
-    // where the boundaries fall, not on how many steps are held.
-    expect(long).toBeGreaterThan(0);
-    expect(long, `${short} visible on a short trace, ${long} on a long one`).toBeLessThan(
-      short * 2,
-    );
+    // Five times the trace, and the visible text is bounded by the panel rather
+    // than by the trace. Allow a modest band: which rows land inside the box
+    // depends on where the boundaries fall, not on how many steps are held.
+    expect(full).toBeGreaterThan(0);
+    expect(fuller).toBeGreaterThan(0);
+    expect(fuller, `${full} visible at ten passes, ${fuller} at fifty`).toBeLessThan(full * 1.5);
   });
 
   test("a failed trace read empties the panel and leaves the board alone", async ({ page }) => {

@@ -1,0 +1,431 @@
+/*
+ * The dock: everything on the board that is not the picture.
+ *
+ * One column, fixed in width and never in height. That is the inversion this
+ * redesign turns on. The old board stacked the guide, the activity feed, two
+ * fold-out panels and the stat ribbon as rows above and below the graph, so
+ * every one of them competed with the graph for vertical space and the feed lost
+ * every time. Here they are tabs in a column whose height is the whole frame, so
+ * the feed's scroller is roughly seven times the 105px it used to get and none
+ * of them costs the graph a single pixel of height.
+ *
+ * The order down the column is the order a reader needs it: what happened and
+ * what to do about it at the top, the evidence in the middle, the two measured
+ * numbers pinned at the bottom where they cannot be scrolled away from.
+ */
+.dock {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  /* The positioning context the resize edge hangs off. */
+  position: relative;
+  background: var(--mm-bg);
+  border-left: 1px solid var(--mm-border);
+  border-top: 1px solid var(--mm-rose-line);
+}
+
+/* On the left it is the same column with its hairline on the other edge. */
+.dockLeft {
+  border-left: none;
+  border-right: 1px solid var(--mm-border);
+}
+
+/*
+ * The bar the dock is picked up by, and the only thing above the guide.
+ *
+ * It is deliberately a real bar rather than an invisible drag region on the
+ * panel's edge. A window you can move should look like one, and the alternative
+ * is a reader discovering the behaviour by accident or never.
+ */
+.grip {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--mm-space-sm);
+  /* Slim on purpose. Everything this bar takes comes out of the feed below it,
+     and at 800px the whole column has 570px to divide between the guide and the
+     feed once the tab strip and the two numbers have taken theirs. */
+  padding: 3px var(--mm-space-sm) 3px var(--mm-space-md);
+  border-bottom: 1px solid var(--mm-border);
+  background: var(--mm-surface);
+  /* Grab, not move: the pointer says "you may pick this up", which is true
+     before the drag starts and is what a reader needs to know. */
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.gripping {
+  cursor: grabbing;
+}
+
+/*
+ * The dock while it is being carried.
+ *
+ * Lifted off the board rather than dimmed: it keeps its contents legible, gains
+ * a shadow so it reads as being above the canvas, and stops taking pointer
+ * events so the ghost underneath is never fighting it for the cursor.
+ */
+.carrying {
+  z-index: 25;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
+  cursor: grabbing;
+}
+
+/*
+ * The landing zone, drawn before the reader commits.
+ *
+ * Fixed to the viewport rather than placed in the deck, because it describes
+ * where the dock will be after the layout changes, and the layout has not
+ * changed yet. Anchored under the header so it outlines the region the dock
+ * actually occupies rather than the whole window.
+ */
+.ghost {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  z-index: 20;
+  pointer-events: none;
+  border: 1px dashed var(--mm-border-strong);
+  background: var(--mm-rose-soft);
+}
+
+/*
+ * The edge the dock is resized by.
+ *
+ * Six pixels, on the inner edge, and it is its own element rather than a
+ * `resize` property because the dock is a flex item whose width is state: the
+ * browser's own resizer would change a computed size that the next render would
+ * overwrite.
+ */
+.resizer {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  z-index: 8;
+  cursor: col-resize;
+  touch-action: none;
+  background: transparent;
+  border: none;
+  padding: 0;
+}
+
+.resizerRight {
+  left: -3px;
+}
+
+.resizerLeft {
+  right: -3px;
+}
+
+.resizer:hover,
+.resizer:focus-visible {
+  background: var(--mm-rose-line);
+}
+
+/* Three hairlines. A texture that reads as a handle without a caption. */
+.gripLines {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 18px;
+  flex: none;
+}
+
+.gripLines span {
+  height: 1px;
+  background: var(--mm-border-strong);
+}
+
+.gripLabel {
+  flex: 1;
+  color: var(--obsel-text-quiet);
+  font-family: var(--mm-font-mono);
+  font-size: var(--mm-text-cap);
+  letter-spacing: var(--mm-track-label);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gripButtons {
+  display: flex;
+  align-items: center;
+  gap: var(--mm-space-2xs);
+  flex: none;
+}
+
+.gripButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 20px;
+  padding: 0 var(--mm-space-xs);
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--obsel-text-quiet);
+  font-family: var(--mm-font-mono);
+  font-size: var(--mm-text-cap);
+  cursor: pointer;
+  transition:
+    color var(--mm-dur-short) var(--mm-ease),
+    border-color var(--mm-dur-short) var(--mm-ease);
+}
+
+.gripButton:hover {
+  color: var(--mm-cream);
+  border-color: var(--mm-border-strong);
+}
+
+/*
+ * The guide, at the top and allowed to scroll rather than to squeeze.
+ *
+ * `prepare` is the tall stage: it lists every prerequisite with the shell
+ * command that fixes it, and on an 800px frame that block alone can be half the
+ * column. Capping it here is what keeps the promise the whole layout is built
+ * on: the page never scrolls, panels do. Without the cap this stage would push
+ * the tabs and the two numbers off the bottom of the frame, which is the exact
+ * failure the old stacked column had.
+ */
+.guide {
+  flex: 0 1 auto;
+  min-height: 0;
+  /*
+   * 42%, which is a measurement rather than a preference.
+   *
+   * The column's fixed chrome is the grip, the tab strip and the two numbers,
+   * and the feed's own panel spends another 61px on its header and footnote. At
+   * 1280 x 800 that leaves about 570px to divide between this and the feed. The
+   * feed needs roughly 290 of it to show a session rather than a fragment, which
+   * is what `scale.spec.ts` asserts and what the whole redesign was for, so this
+   * takes the rest and scrolls when its stage has more to say.
+   */
+  max-height: 42%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border-bottom: 1px solid var(--mm-border);
+  /*
+   * A shadow at whichever edge has content beyond it, and none when everything
+   * fits.
+   *
+   * On a 1280 x 800 frame a flagged demo board offers three actions and the
+   * third is below the fold of this region. It scrolls, which is the design, but
+   * a button cut off by a tab strip with no other sign reads as a broken layout
+   * rather than as more to see.
+   *
+   * The two `local` gradients scroll with the content and mask the two `scroll`
+   * ones, which are fixed to the box. So the shadow appears exactly when the
+   * content is scrolled away from that edge, with no measuring and no script.
+   */
+  background:
+    linear-gradient(var(--mm-bg) 30%, transparent) top / 100% 14px no-repeat local,
+    linear-gradient(transparent, var(--mm-bg) 70%) bottom / 100% 14px no-repeat local,
+    radial-gradient(farthest-side at 50% 0, rgba(0, 0, 0, 0.55), transparent) top / 100% 7px
+      no-repeat,
+    radial-gradient(farthest-side at 50% 100%, rgba(0, 0, 0, 0.55), transparent) bottom / 100% 7px
+      no-repeat;
+  /*
+   * The measure the guide's headline sizes itself against.
+   *
+   * The dock's width is a reader's choice, so the sentence that leads the board
+   * has to scale with it. A viewport unit cannot express that: on a 1920 frame
+   * `2.1vw` is the same 30px whether the dock is 340px or 620px wide.
+   */
+  container-type: inline-size;
+}
+
+/*
+ * The tab strip. Real buttons in a real tablist, because they are.
+ */
+.tabs {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  border-bottom: 1px solid var(--mm-border);
+  background: var(--mm-surface);
+  /* Four tabs at 420px is tight but fits; below that they scroll sideways
+     rather than wrapping into a second row that would eat the feed's height. */
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.tab {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 7px var(--mm-space-sm);
+  background: transparent;
+  border: none;
+  color: var(--obsel-text-quiet);
+  font-family: var(--mm-font-mono);
+  /*
+   * 13px, which is obsel's type floor rather than a tab-sized 11.
+   *
+   * The medium is a compressed screen recording watched at half size, and these
+   * four words are how a viewer knows what they are being shown. Nothing
+   * load-bearing on this board sits below 13px.
+   */
+  font-size: var(--mm-text-lg);
+  letter-spacing: var(--mm-track-label);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color var(--mm-dur-short) var(--mm-ease);
+}
+
+.tab:hover {
+  color: var(--mm-cream-dim);
+}
+
+.tab[aria-selected="true"] {
+  color: var(--mm-cream);
+}
+
+/*
+ * The underline that travels between tabs.
+ *
+ * One element shared by every tab through motion's `layoutId`, rather than a
+ * border that appears on one and disappears from another. The travel is what
+ * says the two tabs are two views of one column; a border blinking on and off
+ * says they are two unrelated things.
+ */
+.tabUnderline {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 2px;
+  background: var(--mm-rose);
+}
+
+/*
+ * The tab body: everything left, and the only region on this board besides the
+ * canvas that grows with the frame.
+ */
+.body {
+  /*
+   * `1 1 0`, not `1 1 auto`. The basis is zero on purpose, and getting this
+   * wrong crushed the guide.
+   *
+   * With an `auto` basis this region starts from its own content height, which
+   * for the activity feed is the entire trace: hundreds of pixels. The column is
+   * then over-subscribed before anything has been laid out, flex shrinks the
+   * guide and this together, and the guide loses its action buttons off the
+   * bottom while the feed keeps a scroller it did not need. From a zero basis the
+   * guide takes its content first and this takes exactly what is left, which is
+   * what "the feed gets the rest of the frame" is supposed to mean.
+   */
+  flex: 1 1 0;
+  /*
+   * A floor rather than the usual `min-height: 0`, and it is the guarantee this
+   * whole redesign exists to make.
+   *
+   * The feed used to be the residual of a column: it got whatever was left after
+   * five content-sized regions took theirs, which on a tall board was its 172px
+   * floor with a 105px scroller in it. A residual cannot be relied on, so this
+   * is not one. The guide above shrinks and scrolls before the feed gives up a
+   * pixel, which is the opposite of the old arrangement in exactly the way that
+   * matters.
+   */
+  min-height: 50%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Each tab's own panel fills the body and scrolls inside itself. */
+.pane {
+  /* Zero basis for the same reason as `.body` above. */
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* The panels that are documents rather than feeds scroll as documents. */
+.paneScrolls {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--mm-space-md);
+}
+
+/* The two measured numbers, pinned under everything and never scrolled away. */
+.hud {
+  flex: 0 0 auto;
+  border-top: 1px solid var(--mm-border);
+}
+
+/*
+ * Collapsed: a rail the width of its own button.
+ *
+ * The dock does not disappear, because a control that vanishes leaves a reader
+ * with no way back. It becomes the one button that brings it back, and the
+ * graph gets the rest of the frame. This is the answer to the cost recorded in
+ * `cockpit.module.css`: on a 1280 laptop the demo's graph is width-pinned, and
+ * this is how a reader buys that width back.
+ */
+.rail {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--mm-space-sm);
+  padding: var(--mm-space-sm) var(--mm-space-2xs);
+  background: var(--mm-surface);
+  border-left: 1px solid var(--mm-border);
+  border-top: 1px solid var(--mm-rose-line);
+}
+
+.railLeft {
+  border-left: none;
+  border-right: 1px solid var(--mm-border);
+}
+
+.railButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  background: transparent;
+  border: 1px solid var(--mm-border-strong);
+  color: var(--mm-cream-dim);
+  font-family: var(--mm-font-mono);
+  font-size: var(--mm-text-lg);
+  cursor: pointer;
+  transition:
+    color var(--mm-dur-short) var(--mm-ease),
+    border-color var(--mm-dur-short) var(--mm-ease);
+}
+
+.railButton:hover {
+  color: var(--mm-cream);
+  border-color: var(--mm-rose);
+}
+
+/*
+ * The collapsed rail still reports the board's state, sideways.
+ *
+ * A reader who collapsed the dock to see the graph has given up the guide, and
+ * the one thing they must not give up with it is whether anything is out of
+ * date. This is that sentence, rotated into the rail.
+ */
+.railNote {
+  writing-mode: vertical-rl;
+  color: var(--obsel-text-quiet);
+  font-family: var(--mm-font-mono);
+  font-size: var(--mm-text-cap);
+  letter-spacing: var(--mm-track-label);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

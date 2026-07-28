@@ -228,13 +228,25 @@ test.describe("the graph at forty tasks", () => {
     const paint = await controls.evaluate((el) => getComputedStyle(el).backgroundColor);
     expect(paint).not.toBe("rgb(255, 255, 255)");
 
-    // Zoom in until the labels reach the size they were designed at. The
-    // instance range is what makes this possible: fitView options alone are
-    // clamped by the viewport's own floor and ceiling.
+    /*
+     * Zoom in until the labels reach the size they were designed at. The
+     * instance range is what makes this possible: fitView options alone are
+     * clamped by the viewport's own floor and ceiling.
+     *
+     * Clicked until it arrives rather than a fixed six times. The number of
+     * clicks was never the property; being able to get there was. It is also no
+     * longer a constant: the canvas is the frame minus the dock, so how far
+     * below design size a board starts depends on how wide the reader has left
+     * the dock, and six clicks reached 0.89 at 1280 with the dock at its default.
+     * The bound is what keeps this a test rather than a loop.
+     */
     const zoomIn = page.getByRole("button", { name: /zoom in/i });
-    for (let i = 0; i < 6; i += 1) await zoomIn.click();
-    const close = await zoomOf();
-    expect(close, "six clicks should reach design size").toBeGreaterThan(0.95);
+    let close = await zoomOf();
+    for (let i = 0; i < 12 && close <= 0.95; i += 1) {
+      await zoomIn.click();
+      close = await zoomOf();
+    }
+    expect(close, "the zoom button should reach design size").toBeGreaterThan(0.95);
 
     // Now strand the picture on purpose: pan hard while zoomed in.
     const pane = page.locator(".react-flow__pane");

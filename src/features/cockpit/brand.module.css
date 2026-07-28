@@ -1,0 +1,50 @@
+/*
+ * The header lockup: the mark, and the name it reveals on hover.
+ *
+ * Everything here exists to keep one promise, which is that the rest of the
+ * header line holds still. `orders_pipeline · prod` sits directly to the right
+ * of `.name`, so any property that could change this box's size would move it
+ * on every pointer crossing.
+ */
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  /*
+   * Measured against the fragments, not the letter.
+   *
+   * The mark does not end at a clean edge: its right side is scattering squares
+   * that thin out toward the viewBox edge, and the hover state pushes them
+   * further right still. At the 4px this started on they ran into the "o" of
+   * the wordmark and the two read as one collided shape.
+   */
+  gap: var(--mm-space-md);
+  color: var(--mm-text);
+}
+
+/*
+ * The reserved box.
+ *
+ * The name is ALWAYS here at full width and is only ever made transparent. It
+ * is not `display: none`, not `width: 0`, not `visibility: collapse`, and it is
+ * not inserted on hover: every one of those changes the line's length, and the
+ * flow name beside it would jump. The cost is a permanent gap in the resting
+ * header, which is the intended trade and not an oversight.
+ *
+ * Nothing sets `opacity` here. The three states are motion's, so a value in
+ * this file would be an inline style's silent loser under animation and a
+ * confusing second source of truth when read. Under `prefers-reduced-motion`
+ * `brand.tsx` renders no motion component at all, and the name is simply
+ * opaque, which is why this rule has no reduced-motion block.
+ */
+.name {
+  display: inline-flex;
+  align-items: center;
+  /* The blur in the hidden state paints outside the box; it must not be
+     clipped, and it must not extend the box either. */
+  overflow: visible;
+  /* Nothing in this lockup is a text selection target, and dragging across a
+     logo to select an invisible word is the one interaction hovering it can
+     otherwise produce. */
+  user-select: none;
+}

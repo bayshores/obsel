@@ -29,6 +29,40 @@ GMS_URL="http://localhost:8080"
 APP_URL="http://localhost:3000"
 DATAHUB_PIN="acryl-datahub==1.6.0.15"
 
+# The DataHub stack a judge gets, pinned rather than left to resolve.
+#
+# Measured on 2026-07-28: with no version asked for, the 1.6.0.15 CLI planned
+# `composefile_git_ref='v1.5.0.6' docker_tag='v1.5.0.6'`, which is the version
+# every number in docs/verification.md was measured against. So this pin is what
+# already happens, written down.
+#
+# It is written down because the unpinned form does not read that mapping from
+# the CLI: it fetches a version mapping over the network at run time, so the same
+# command gives judges different stacks on different days, and obsel would be
+# running against a DataHub nobody has checked it on. That is the same failure
+# shape as MCP_SERVER_DATAHUB_VERSION in .env.example, where resolving to
+# @latest silently disabled every write while still reporting success.
+#
+# Two traps, both found by running it on 2026-07-28 rather than by reading:
+#
+# `--version v1.5.0.6` alone is REFUSED. The CLI keeps a version map with only a
+# handful of keys (default, head, quickstart, stable, and a few old releases),
+# there is no v1.5.0 key in it, and an unlisted value exits with "requires
+# confirmation in a non-interactive environment" -- which in a double-clicked
+# launcher is every time. `--accept-version-default` is what allows it, and the
+# flag is misleadingly named: it does not fall back to the default, it accepts
+# the exact unlisted version given. Measured, it planned
+# `composefile_git_ref='v1.5.0.6' docker_tag='v1.5.0.6'` and fetched that tag's
+# compose file, so both halves are genuinely pinned.
+#
+# `--version stable` is NOT this version. That key maps to v1.6.0, which nothing
+# here has been measured against, so asking for "stable" would be asking for the
+# one thing this pin exists to avoid.
+#
+# To move it: run the launcher with the new value, then `pnpm test:live`, then
+# update this line and the version named in docs/setup.md together.
+DATAHUB_STACK_VERSION="v1.5.0.6"
+
 # How long to wait for DataHub to answer after its own start command returns, and
 # for the app to compile. Both are ceilings on a wait that normally ends early.
 DATAHUB_WAIT_S=180
@@ -327,10 +361,10 @@ else
   info "take five to ten minutes. DataHub's own progress appears below."
   say ""
   if have datahub; then
-    datahub docker quickstart
+    datahub docker quickstart --version "$DATAHUB_STACK_VERSION" --accept-version-default
     quickstart_status=$?
   else
-    uvx --from "$DATAHUB_PIN" datahub docker quickstart
+    uvx --from "$DATAHUB_PIN" datahub docker quickstart --version "$DATAHUB_STACK_VERSION" --accept-version-default
     quickstart_status=$?
   fi
   say ""
