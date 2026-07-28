@@ -26,9 +26,27 @@ const OutputShape = z.object({
  * `ms` is the agent's measurement of its own run, taken in one process. obsel
  * does not recompute it from timestamps, which would cross two clocks.
  */
+/**
+ * `outputs` is required; `runner` and `ms` are not.
+ *
+ * All three were required, and that cost more than it looked. A caller with no
+ * stopwatch — the cockpit bench, where a person types the table and there is no
+ * run to time — had to omit the whole object, which threw away `outputs` too.
+ * That is not display material: `columnChange` in `engine.ts` diffs these
+ * column lists to say which columns moved, so dropping them turned "clean
+ * expenses lost amount" into "the columns in clean expenses changed".
+ *
+ * Inventing a duration to keep the object whole was the other way out, and it
+ * is the one obsel is not allowed to take: a number on the board that nobody
+ * measured is the thing this repository refuses everywhere else.
+ */
 const Run = z.object({
-  runner: z.string().min(1),
-  ms: z.number().nonnegative(),
+  // `.default(null)`, so an absent key and an explicit null arrive at the
+  // engine as the same thing: not told. Leaving them merely optional would hand
+  // `undefined` down to code whose whole job is distinguishing a value from the
+  // absence of one, with two spellings for the absence.
+  runner: z.string().min(1).nullable().default(null),
+  ms: z.number().nonnegative().nullable().default(null),
   outputs: z.record(z.string(), OutputShape),
 });
 

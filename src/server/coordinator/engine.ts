@@ -661,8 +661,12 @@ async function recordCompletion(finishing: TaskRecord, report: CompletionReport)
     [PROP.fingerprints]: JSON.stringify(fingerprints),
     [PROP.previousFingerprints]: Object.keys(previous).length > 0 ? JSON.stringify(previous) : null,
     [PROP.observed]: Object.keys(observed).length > 0 ? JSON.stringify(observed) : null,
-    [PROP.runRunner]: run ? run.runner : null,
-    [PROP.runMs]: run ? String(Math.round(run.ms)) : null,
+    // Each field independently, not gated on the object. A report can carry the
+    // shape and no duration — a person at the bench typed the table, so there is
+    // no run to time — and writing "0" or the runner's name in its place would
+    // record a measurement nobody took.
+    [PROP.runRunner]: run?.runner ?? null,
+    [PROP.runMs]: run?.ms == null ? null : String(Math.round(run.ms)),
     [PROP.runOutputs]: run ? JSON.stringify(run.outputs) : null,
     [PROP.staleCausedBy]: null,
     [PROP.staleCausedByTask]: null,

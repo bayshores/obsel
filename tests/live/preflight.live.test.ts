@@ -31,9 +31,9 @@
  * `docs/verification.md` records that run with its date and the exact commands.
  */
 
-import { afterEach, beforeAll, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
-import { requireDataHub, GMS } from "./reachable";
+import { requireDataHub, requireUvx, GMS } from "./reachable";
 
 const { preflight } = await import("@/src/server/runner/preflight");
 
@@ -128,5 +128,65 @@ describe("the DataHub prerequisite is decided by the call the board depends on",
     const bad = await datahubCheckAt(DEAD);
     expect(good.ok).toBe(true);
     expect(bad.ok).toBe(false);
+  });
+});
+
+/**
+ * The quietest prerequisite in the list.
+ *
+ * Without `uvx` the staleness engine still reaches the right answer and still finds
+ * every downstream task; the tag that records it is the only thing that fails. So the
+ * board looks correct, and DataHub is never told. `engine.live.test.ts` proves that
+ * failure end to end; this proves the checklist says so before it happens.
+ *
+ * The missing tool is real, the same way it is real there: a PATH that genuinely does
+ * not contain `uvx`, so `execFile` fails to find it exactly as `mcp.ts`'s spawn would.
+ */
+describe("the uv prerequisite is decided by looking for the binary", () => {
+  const REAL_PATH = process.env.PATH;
+
+  /**
+   * Forget every cached verdict, the way starting the server again would.
+   *
+   * `vi.resetModules()` is not enough and the first version of this file used it alone,
+   * which made the second test pass while proving nothing: `preflight.ts` hangs its
+   * cache on `globalThis` on purpose, so it survives a dev-server module reload, and a
+   * freshly imported copy answered from the previous test's verdict. The ten-second
+   * entry is keyed by the check's name, not by PATH, because PATH does not change under
+   * a running server — only the GMS address does, which is why only that key names its
+   * subject. So the cache has to be dropped rather than worked around.
+   */
+  function forgetCachedVerdicts(): void {
+    delete (globalThis as { __obselPreflight?: unknown }).__obselPreflight;
+  }
+
+  beforeAll(() => {
+    // The passing case has to be genuinely passing, or its assertion is empty.
+    requireUvx();
+  });
+
+  afterEach(() => {
+    process.env.PATH = REAL_PATH;
+    forgetCachedVerdicts();
+    vi.resetModules();
+  });
+
+  it("passes on a machine that has uv", async () => {
+    forgetCachedVerdicts();
+    const { uvx } = await preflight();
+    expect(uvx.ok).toBe(true);
+    expect(uvx.fix).toBeNull();
+  });
+
+  it("fails, with the install command, on a PATH that genuinely lacks it", async () => {
+    // Real, not simulated: `mcp.ts` spawns the tag server as bare `uvx` resolved
+    // through PATH, so a PATH without it is genuinely an unreachable tag writer.
+    forgetCachedVerdicts();
+    process.env.PATH = "/nonexistent-so-uvx-cannot-be-found";
+
+    const { uvx } = await preflight();
+    expect(uvx.ok).toBe(false);
+    expect(uvx.detail).toContain("cannot record it");
+    expect(uvx.fix).toBe("brew install uv");
   });
 });

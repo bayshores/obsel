@@ -63,7 +63,12 @@ export async function openCockpit(
 ): Promise<{
   faults: Faults;
   serve: (next: SwarmResponse | "fail") => void;
-  serveActivity: (next: DemoActivity) => void;
+  /**
+   * `"fail"` because both reads going down together is one real state, not two:
+   * a stopped server fails this route and `/api/swarm` in the same poll, and the
+   * board used to describe that state with two sentences that contradicted.
+   */
+  serveActivity: (next: DemoActivity | "fail") => void;
   serveTrace: (next: TraceEvent[] | "fail") => void;
   /** Every step the cockpit asked the launcher to start, in order. */
   launches: DemoStep[];
@@ -73,7 +78,7 @@ export async function openCockpit(
   refuseRegistration: (status: number, error: string) => void;
 }> {
   let current: SwarmResponse | "fail" = body;
-  let currentActivity: DemoActivity = activity;
+  let currentActivity: DemoActivity | "fail" = activity;
   let currentTrace: TraceEvent[] | "fail" = trace;
   const launches: DemoStep[] = [];
   const registrations: SeenRegistration[] = [];
@@ -108,6 +113,10 @@ export async function openCockpit(
   // handler would spawn a real agent run. Both are exercised live instead
   // (see `docs/verification.md`), never from this suite.
   await page.route("**/api/demo/activity", async (route) => {
+    if (currentActivity === "fail") {
+      await route.fulfill({ status: 500, contentType: "application/json", body: "{}" });
+      return;
+    }
     await route.fulfill({
       status: 200,
       contentType: "application/json",

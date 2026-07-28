@@ -23,6 +23,8 @@
  * reject, so the reader is told by the form rather than by a 400.
  */
 
+import { recordedShape } from "./bench";
+import type { RecordedShape } from "./bench";
 import { isVisitor } from "./joining";
 import { shortName, taskTitle } from "./naming";
 import type { TaskRecord } from "@/src/server/coordinator/types";
@@ -163,16 +165,34 @@ export function registration(draft: MineDraft): MineRegistration {
   };
 }
 
+/**
+ * One table this task writes, as the bench needs it.
+ *
+ * The short name and the URN both, because they answer different questions and
+ * neither derives the other here. `/api/tasks/report` is keyed by short name,
+ * exactly as `report_complete` is at the MCP door, because that is what the
+ * person typed. The URN is what obsel files a fingerprint under, so it is the
+ * key `recorded` had to be looked up by.
+ */
+export interface MineOutput {
+  name: string;
+  urn: string;
+  /** The shape obsel recorded last time, or null when it holds none. */
+  recorded: RecordedShape | null;
+}
+
 /** One of your tasks, as the panel needs it. */
 export interface MineTask {
   urn: string;
-  /** The identifier, which is what `agents.run report --task` takes. */
+  /** The identifier, which is what an agent passes as its task name. */
   name: string;
   /** The human name, from what was registered or humanised from the identifier. */
   title: string;
   /** Short names, because a URN is not what a reader typed or would type. */
   reads: string[];
   writes: string[];
+  /** The tables this task writes, each with what obsel holds for it. */
+  outputs: MineOutput[];
   /** obsel has a fingerprint for at least one output of this task. */
   reported: boolean;
 }
@@ -205,6 +225,11 @@ export function mine(input: MineInput): MineView {
       title: taskTitle(task),
       reads: task.reads.map(shortName),
       writes: task.writes.map(shortName),
+      outputs: task.writes.map((urn) => ({
+        name: shortName(urn),
+        urn,
+        recorded: recordedShape(task.run, urn),
+      })),
       /*
        * A recorded fingerprint, not `finishedAt`. A task can carry a finish
        * time from a run that reported no outputs at all, and this flag is asked
@@ -219,8 +244,8 @@ export function mine(input: MineInput): MineView {
      * That is the one reader who has nowhere else to go, and it is also the
      * only state where the extra prose is free. Every other state is folded,
      * including a board holding obsel's own demonstration, which is the state
-     * the word ceiling in `e2e/cockpit.spec.ts` measures and the state the
-     * board is in on camera. `joining.ts` explains the budget at more length.
+     * the board is in on camera. `joining.ts` explains the reasoning at more
+     * length.
      *
      * The heading and the count stay painted either way. The fold is about how
      * much prose is on screen, never about whether the door can be found.

@@ -71,10 +71,19 @@ const TONE: Record<TracePhase, string> = {
 export function TracePanel({
   events,
   error,
+  boardTrusted,
   style,
 }: {
   events: TraceEvent[];
   error: string | null;
+  /**
+   * Whether the swarm read behind the board is currently working.
+   *
+   * Same reason as `GuidePanel`'s: this panel's own read failing says nothing
+   * about the board, and saying so is useful. Both failing is one stopped server,
+   * and "the board is unaffected" is then false.
+   */
+  boardTrusted: boolean;
   style?: React.CSSProperties;
 }) {
   const passes = passesOf(events);
@@ -123,6 +132,7 @@ export function TracePanel({
       // Counts decisions, and promises nothing the scroller cannot reach. Every
       // step it counts is in the DOM and scrolling up gets to the first of them.
       meta={passSummary(passes)}
+      tour="trace"
       padded={false}
       style={style}
       bodyStyle={{
@@ -145,7 +155,9 @@ export function TracePanel({
           <li className={styles.quiet}>
             {error === null
               ? "nothing yet. Every step obsel takes appears here as it happens."
-              : `could not be read (${error}). The board is unaffected.`}
+              : boardTrusted
+                ? `could not be read (${error}). The board is unaffected.`
+                : `could not be read (${error}).`}
           </li>
         ) : (
           /*

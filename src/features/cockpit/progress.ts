@@ -105,7 +105,21 @@ export function activityNote(task: TaskRecord, snapshotAt: string | null): strin
 
   if (task.run === null) return null;
 
-  const parts = [`${task.run.runner} · ${formatDuration(task.run.ms)}`];
+  /*
+   * The runner and the duration are each carried only when they were reported,
+   * and neither is stood in for.
+   *
+   * A completion can now arrive with the output shape and no duration: the
+   * cockpit bench reports a table a person typed, and there is no run to time.
+   * `formatDuration(0)` would put "0 ms" on the board, which reads as a
+   * measurement — the one thing obsel must never print about a figure nobody
+   * took. The row falls back to the rows and columns, which were reported.
+   */
+  const parts: string[] = [];
+  const stamp = [task.run.runner, task.run.ms === null ? null : formatDuration(task.run.ms)].filter(
+    (part): part is string => part !== null && part !== "",
+  );
+  if (stamp.length > 0) parts.push(stamp.join(" · "));
 
   const rows = rowsWritten(task);
   if (rows !== null) parts.push(`${rows} ${rows === 1 ? "row" : "rows"}`);
@@ -113,7 +127,9 @@ export function activityNote(task: TaskRecord, snapshotAt: string | null): strin
   const columns = columnsOf(task);
   if (columns.length > 0) parts.push(columns.join(", "));
 
-  return parts.join(" · ");
+  // A run object carrying nothing worth printing renders as no line, the same
+  // as having no run object at all.
+  return parts.length === 0 ? null : parts.join(" · ");
 }
 
 /**

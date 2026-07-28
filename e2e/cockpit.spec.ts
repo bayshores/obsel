@@ -7,6 +7,7 @@ import {
   idle,
   nothingInstalled,
   runningStep,
+  walked,
 } from "./fixtures/activity";
 import {
   calm,
@@ -20,7 +21,6 @@ import {
 } from "./fixtures/swarm";
 import { openCockpit } from "./fixtures/mount";
 import { cascadeSteps, manyDecisions } from "./fixtures/trace";
-import { boardWords, describeWords } from "./fixtures/words";
 
 /**
  * Everything here needs a real browser.
@@ -215,7 +215,7 @@ test.describe("fit", () => {
       // A laptop may scroll, but what orients a newcomer, the headline and the
       // whole graph, must be above the fold rather than something they discover.
       const tops = await page.evaluate(() => {
-        const guide = document.querySelector('[aria-label="What just happened"]');
+        const guide = document.querySelector('[aria-label="guide"]');
         const graph = document.querySelector(".react-flow");
         return {
           guideBottom: guide?.getBoundingClientRect().bottom ?? Number.NaN,
@@ -490,6 +490,47 @@ test.describe("honesty", () => {
       .toBe("clear");
   });
 
+  test("a stopped server is one fault, not two statements that disagree", async ({ page }) => {
+    /*
+     * Both of the board's reads fail together when the server stops, which is the
+     * ordinary way a judge meets this screen. Each read had its own reporter and
+     * neither knew about the other, so the board printed "The board below is
+     * unaffected" from one and "Everything below is from the last read that
+     * worked ... and may already be wrong" from the other, one paragraph apart.
+     * Both cannot be true, and the first is the false one.
+     *
+     * Seen on a real stopped dev server on 2026-07-27, then pinned here.
+     */
+    const { serve, serveActivity } = await openCockpit(page, cascaded());
+    serve("fail");
+    serveActivity("fail");
+
+    await expect(obselAlert(page)).toBeVisible();
+    await expect(page.getByText("may already be wrong")).toBeVisible();
+    await expect(page.getByText("The board below is unaffected")).toBeHidden();
+
+    // The trace panel has its own copy of the same claim, and it was missed by the
+    // first pass at this fix: the panel said "could not be read (...). The board is
+    // unaffected." three panels below the alert saying the opposite.
+    await expect(page.getByText("The board is unaffected")).toBeHidden();
+
+    // And the guide still leads with a sentence. Asserted because nothing did:
+    // reading this state back on a real stopped server, the guide block appeared
+    // blank, and with no test on it there was no way to tell a real fault from an
+    // artifact of how the screenshot was taken.
+    await expect(page.getByText("The board lost its connection")).toBeVisible();
+  });
+
+  test("the demo read failing on its own still says the board is fine", async ({ page }) => {
+    // The other half of the same condition, and the reason the sentence exists:
+    // with the swarm read working, the graph below really is current.
+    const { serveActivity } = await openCockpit(page, cascaded());
+    serveActivity("fail");
+
+    await expect(page.getByText("The board below is unaffected")).toBeVisible();
+    await expect(obselAlert(page)).toBeHidden();
+  });
+
   test("an empty swarm does not claim to be connected after a read fails", async ({ page }) => {
     const { serve } = await openCockpit(page, empty());
     await expect(page.getByText("obsel is connected")).toBeVisible();
@@ -704,8 +745,8 @@ test.describe("bring your own agent", () => {
   test("says nobody has joined, and keeps the steps folded, on obsel's own board", async ({
     page,
   }) => {
-    // The state the board is in on camera, and the state the word ceiling
-    // measures. The heading is visible; the four steps are not painted.
+    // The state the board is in on camera. The heading is visible; the four
+    // steps are not painted.
     await openCockpit(page, cascaded(), finishedStep());
 
     await expect(panel(page).getByText("nobody has joined yet")).toBeVisible();
@@ -824,9 +865,9 @@ test.describe("bring your own data", () => {
   });
 
   test("keeps the form folded, and counts nothing, on obsel's own board", async ({ page }) => {
-    // The state the word ceiling measures and the state the board is in on
-    // camera. The heading is painted; the four fields are not, and there is no
-    // count, because a count of zero says nothing the empty list does not.
+    // The state the board is in on camera. The heading is painted; the four
+    // fields are not, and there is no count, because a count of zero says
+    // nothing the empty list does not.
     await openCockpit(page, cascaded(), finishedStep());
 
     await expect(panel(page).getByText("add a task")).toBeVisible();
@@ -1112,6 +1153,361 @@ test.describe("guide", () => {
     await expect(page.getByText("rerun-same: started")).toBeVisible();
     await expect(page.getByRole("button", { name: /Run the orders cleaner again/ })).toHaveCount(0);
   });
+
+  /*
+   * The tour: the window that replaced the rail, the sentence and the rings.
+   *
+   * `tests/cockpit-guide.test.ts` decides which step a given board lands on,
+   * exhaustively. What only a browser shows is that the window is there, that
+   * it points at the right region of the page, that it can be picked up and
+   * moved, and above all that an action step **cannot be skipped**: there is no
+   * control on it that advances past something the board has not done.
+   */
+  const win = (page: Page) => page.locator('section[aria-label="guide"]').last();
+  const openTour = async (page: Page) => {
+    await page.getByRole("button", { name: "start the guide" }).click();
+    await expect(win(page).getByRole("heading")).toBeVisible();
+  };
+  /** Which region of the board is currently lit, by its own tour handle. */
+  const lit = (page: Page) =>
+    page.evaluate(() => {
+      const node = document.querySelector('[class*="lit"]');
+      if (node === null) return null;
+      return node.getAttribute("data-tour") ?? node.getAttribute("data-tour-action") ?? "unknown";
+    });
+
+  test("the way in is obvious on a first visit and quiet afterwards", async ({ page }) => {
+    // A guide nobody finds is how the three attempts before this one failed, so
+    // the opener is lit and says what it is. It asks once: saying not now writes
+    // the same record opening it does, and the emphasis never comes back.
+    await openCockpit(page, empty(), idle());
+
+    const opener = page.getByRole("button", { name: "start the guide" });
+    await expect(opener).toBeVisible();
+    await expect(opener).toHaveAttribute("data-fresh", "true");
+    await expect(page.getByText("new here?")).toBeVisible();
+
+    await page.getByRole("button", { name: "not now" }).click();
+    await expect(opener).toHaveAttribute("data-fresh", "false");
+    await expect(page.getByText("new here?")).toHaveCount(0);
+
+    // And it survives a reload, because it is a fact about the person rather
+    // than about the board.
+    await page.reload();
+    await expect(page.getByRole("button", { name: "start the guide" })).toHaveAttribute(
+      "data-fresh",
+      "false",
+    );
+  });
+
+  test("it teaches the screen one region at a time, and lights each one", async ({ page }) => {
+    await openCockpit(page, cascaded(), finishedStep());
+    await openTour(page);
+
+    // Chapter one, in order, with the glow following the explanation.
+    for (const [heading, region] of [
+      ["what this screen is", "guide"],
+      ["the agents and their tables", "graph"],
+      ["what obsel is doing", "trace"],
+      ["the two measurements", "numbers"],
+    ] as const) {
+      await expect(win(page).getByRole("heading", { name: heading })).toBeVisible();
+      expect(await lit(page), heading).toBe(region);
+      await win(page).getByRole("button", { name: "next", exact: true }).click();
+    }
+  });
+
+  /*
+   * The rule the whole tour rests on, and the only one worth a browser test on
+   * its own: an action step has no way to be skipped. A tour that could be paged
+   * past an action would sooner or later be describing a board that does not
+   * exist, which is the one thing this repository refuses everywhere.
+   */
+  test("an action step offers no way past it until the board has done it", async ({ page }) => {
+    const { serve } = await openCockpit(page, empty(), idle());
+    await openTour(page);
+
+    // Straight to the first action.
+    for (let i = 0; i < 4; i += 1) {
+      await win(page).getByRole("button", { name: "next", exact: true }).click();
+    }
+    await expect(
+      win(page).getByRole("heading", { name: "put the agents on the board" }),
+    ).toBeVisible();
+
+    // It quotes the real control by the label the board is painting on it, and
+    // there is no next.
+    await expect(win(page).getByText("Set up the demo agents")).toBeVisible();
+    await expect(win(page).getByText("press this, glowing on the board")).toBeVisible();
+    await expect(win(page).getByText("waiting for you")).toBeVisible();
+    await expect(win(page).getByRole("button", { name: "next", exact: true })).toHaveCount(0);
+
+    // And the board doing the thing is what moves it on. Nobody presses anything
+    // in the window: the next poll finds tasks registered and it advances itself.
+    serve(calm());
+    await expect(
+      win(page).getByRole("heading", { name: /let them work|now change something/ }),
+    ).toBeVisible({
+      timeout: 8_000,
+    });
+  });
+
+  test("a board already past a step opens the tour where the board actually is", async ({
+    page,
+  }) => {
+    // Nothing about chapter two is stored, so somebody arriving at a flagged
+    // board is put at the act that genuinely comes next rather than at step one
+    // of the run.
+    await openCockpit(page, cascaded(), finishedStep());
+    await openTour(page);
+    for (let i = 0; i < 4; i += 1) {
+      await win(page).getByRole("button", { name: "next", exact: true }).click();
+    }
+    await expect(win(page).getByRole("heading", { name: "look at what it reached" })).toBeVisible();
+  });
+
+  /*
+   * The case that would have ruined the demonstration on camera.
+   *
+   * A repaired board is clean and finished, which is exactly what a board that
+   * only ever ran looks like, so "has anything been changed" reads false again
+   * the moment the repair lands. Without the step record behind the repair act,
+   * a judge who had just finished the whole walk would be dragged back to "now
+   * change something upstream" on a board where they already had.
+   */
+  test("a finished walk stays finished rather than asking for the change again", async ({
+    page,
+  }) => {
+    /*
+     * Pressed until it stops offering a way forward, which is also the check
+     * that the tour terminates rather than looping.
+     *
+     * The settle is not padding. Cards swap through `AnimatePresence` with
+     * `mode="wait"`, so for about a sixth of a second between steps the outgoing
+     * card has gone and the incoming one has not arrived: a bare count taken in
+     * that window reads zero and this loop stops halfway, reporting whichever
+     * step it happened to be on. The first version of this did exactly that, and
+     * passed until it did not.
+     */
+    const toTheEnd = async (): Promise<string> => {
+      const next = () => win(page).getByRole("button", { name: "next", exact: true });
+      for (let i = 0; i < 15; i += 1) {
+        await expect(win(page).getByRole("heading").first()).toBeVisible();
+        if ((await next().count()) === 0) break;
+        await next().click();
+        await page.waitForTimeout(450);
+      }
+      return (await win(page).getByRole("heading").first().textContent()) ?? "";
+    };
+
+    await openCockpit(page, calm(), walked());
+    await openTour(page);
+    expect(await toTheEnd()).toBe("now with your own agents");
+
+    /*
+     * The same board with nothing behind it stops at the change, because on
+     * that one the change genuinely has not happened. Stopping is the point: an
+     * action step offers no way past itself, so this is where a reader waits
+     * until they press the real button.
+     */
+    await openCockpit(page, calm(), idle());
+    await openTour(page);
+    expect(await toTheEnd()).toBe("now change something upstream");
+  });
+
+  test("the window can be picked up and put somewhere else", async ({ page }) => {
+    await openCockpit(page, cascaded(), finishedStep());
+    await openTour(page);
+
+    const before = await win(page).boundingBox();
+    const bar = win(page).locator("div").first();
+    const grab = await bar.boundingBox();
+    if (before === null || grab === null) throw new Error("the window did not render");
+
+    await page.mouse.move(grab.x + grab.width / 2, grab.y + grab.height / 2);
+    await page.mouse.down();
+    // In steps: motion begins a drag on movement, and one jump can be delivered
+    // as a single event it treats as a click.
+    await page.mouse.move(grab.x + grab.width / 2 - 120, grab.y + grab.height / 2 - 200, {
+      steps: 12,
+    });
+    await page.mouse.up();
+    await page.waitForTimeout(300);
+
+    const after = await win(page).boundingBox();
+    if (after === null) throw new Error("the window vanished mid-drag");
+    expect(Math.round(before.x - after.x), "it moved left").toBeGreaterThan(80);
+    expect(Math.round(before.y - after.y), "it moved up").toBeGreaterThan(150);
+  });
+
+  test("escape closes it, and the opener brings it back where it was left", async ({ page }) => {
+    await openCockpit(page, cascaded(), finishedStep());
+    await openTour(page);
+    await win(page).getByRole("button", { name: "next", exact: true }).click();
+    await expect(
+      win(page).getByRole("heading", { name: "the agents and their tables" }),
+    ).toBeVisible();
+
+    await page.keyboard.press("Escape");
+    await expect(page.locator('section[aria-label="guide"]')).toHaveCount(1);
+    // And nothing is left lit on the board behind it.
+    expect(await lit(page)).toBeNull();
+
+    await page.getByRole("button", { name: "start the guide" }).click();
+    await expect(
+      win(page).getByRole("heading", { name: "the agents and their tables" }),
+    ).toBeVisible();
+  });
+
+  test("the reveal runs once on arrival, and not again on every poll", async ({ page }) => {
+    /*
+     * The board re-reads once a second and the guide is recomputed from each
+     * snapshot, so an entrance driven by render would replay every second: a
+     * flicker under the largest text on screen, forever. `guide-panel.tsx` keys
+     * the block on the stage, which is what confines the entrance to a real
+     * transition.
+     *
+     * **Sampled every frame, and it has to be.** Two earlier versions of this
+     * test measured the wrong thing. `expect.poll` widened its interval and
+     * missed a half-second entrance between two samples; then an
+     * `animationstart` counter worked while the entrance was CSS keyframes and
+     * would silently count zero now that `motion` drives it through the Web
+     * Animations API instead. A `requestAnimationFrame` loop recording every
+     * distinct animation object under the guide sees both kinds, and nothing
+     * lasting more than a frame can hide from it.
+     */
+    await page.addInitScript(() => {
+      const seen = new WeakSet<Animation>();
+      const state = { count: 0 };
+      (window as unknown as { obselReveals: { count: number } }).obselReveals = state;
+      const tick = (): void => {
+        const guide = document.querySelector('[aria-label="guide"]');
+        if (guide !== null) {
+          for (const animation of guide.getAnimations({ subtree: true })) {
+            if (!seen.has(animation)) {
+              seen.add(animation);
+              state.count += 1;
+            }
+          }
+        }
+        requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    });
+
+    const reveals = () =>
+      page.evaluate(
+        () => (window as unknown as { obselReveals: { count: number } }).obselReveals.count,
+      );
+
+    const { serve } = await openCockpit(page, calm(), finishedStep());
+
+    // It runs on arrival. Without this the two assertions below would pass just
+    // as well for a reveal that never runs at all.
+    await expect.poll(reveals).toBeGreaterThan(0);
+
+    /*
+     * One entrance is several animations — the headline, the line under it, and
+     * a button each — spread over about half a second by the stagger. Counting
+     * before they have all begun compares the tail of this entrance against
+     * itself, which is what an earlier version of this did.
+     */
+    await page.waitForTimeout(1_500);
+    const onArrival = await reveals();
+
+    // Three polls later, with the stage unchanged, it has not run again.
+    await page.waitForTimeout(3_000);
+    expect(await reveals()).toBe(onArrival);
+
+    // And a genuine change of stage does start it again.
+    serve(cascaded());
+    await expect.poll(reveals, { timeout: 8_000 }).toBeGreaterThan(onArrival);
+  });
+
+  test.describe("with motion turned down", () => {
+    // Through `contextOptions`, which is where this version's types put it.
+    test.use({ contextOptions: { reducedMotion: "reduce" } });
+
+    test("the guide is a finished picture rather than a hurried animation", async ({ page }) => {
+      /*
+       * Arriving finished is not the same as arriving quickly, and both the CSS
+       * and the JavaScript halves have got this wrong at some point.
+       * `globals.css` shortens every duration to 0.01ms, which still leaves an
+       * element whose end state lives inside a keyframe having to run to reach
+       * it; motion's own reduced-motion handling keeps opacity transitions,
+       * which is still an entrance. `guide-panel.tsx` passes no animation props
+       * at all under the preference, so the end state is the only state these
+       * elements are ever given, and this checks that it did.
+       */
+      await openCockpit(page, cascaded(), finishedStep());
+
+      const headline = page.getByRole("heading", {
+        name: "3 of 4 finished agents are out of date",
+      });
+      await expect(headline).toBeVisible();
+      const settled = await headline.evaluate((node) => {
+        const style = getComputedStyle(node);
+        return {
+          opacity: style.opacity,
+          transform: style.transform,
+          animation: style.animationName,
+          // Nothing may be in flight, whichever engine would have driven it.
+          animating: node.getAnimations().length,
+        };
+      });
+      expect(settled).toEqual({
+        opacity: "1",
+        transform: "none",
+        animation: "none",
+        animating: 0,
+      });
+    });
+
+    test("the tour window arrives finished, and can still be dragged", async ({ page }) => {
+      /*
+       * Two halves, and only one of them is decoration. The window's entrance,
+       * its card transitions and the glow are animation and must be gone: the
+       * end state has to be the only state they are ever given, because
+       * `globals.css` cuts durations to 0.01 ms and a keyframe reached only by
+       * running is not reached at all.
+       *
+       * Dragging is not decoration. It is how somebody moves a window off the
+       * thing they are trying to read, and turning it off under this preference
+       * would take away an ability rather than a flourish.
+       */
+      await openCockpit(page, cascaded(), finishedStep());
+      await page.getByRole("button", { name: "start the guide" }).click();
+
+      const frame = page.locator('section[aria-label="guide"]').last();
+      await expect(frame.getByRole("heading")).toBeVisible();
+
+      const state = await frame.evaluate((node) => ({
+        opacity: getComputedStyle(node).opacity,
+        transform: getComputedStyle(node).transform,
+        animating: node.getAnimations({ subtree: true }).length,
+        glowAnimating:
+          document.querySelector('[class*="lit"]')?.getAnimations({ subtree: true }).length ?? -1,
+      }));
+      expect(state.opacity).toBe("1");
+      expect(state.transform).toBe("none");
+      expect(state.animating, "nothing in flight in the window").toBe(0);
+      expect(state.glowAnimating, "the glow is lit, not breathing").toBe(0);
+
+      const before = await frame.boundingBox();
+      const bar = frame.locator("div").first();
+      const grab = await bar.boundingBox();
+      if (before === null || grab === null) throw new Error("the window did not render");
+      await page.mouse.move(grab.x + grab.width / 2, grab.y + grab.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(grab.x + grab.width / 2 - 140, grab.y + grab.height / 2, { steps: 12 });
+      await page.mouse.up();
+      await page.waitForTimeout(200);
+
+      const after = await frame.boundingBox();
+      if (after === null) throw new Error("the window vanished mid-drag");
+      expect(Math.round(before.x - after.x), "still draggable").toBeGreaterThan(100);
+    });
+  });
 });
 
 test.describe("what obsel is doing", () => {
@@ -1216,7 +1612,7 @@ test.describe("what obsel is doing", () => {
      * The panel renders the whole trace now, so the DOM grows with the length of a
      * run. What must not grow is what a viewer is confronted with: the scroller is a
      * fixed height and shows about a dozen steps whatever it holds. Without this, the
-     * board's word ceiling would measure how much obsel narrated rather than how
+     * board would grow with how much obsel narrated rather than with how
      * dense the board is, and the way to pass it would be to narrate less.
      */
     const onScreen = async () =>
@@ -1337,12 +1733,13 @@ test.describe("how much the board says", () => {
   /**
    * No internal name reaches the board.
    *
-   * The word ceiling below cannot catch this and never could. `venv: the agents'
-   * Python environment (agents/.venv) does not exist yet` is nine words and
-   * completely opaque, so a board full of identifiers scores BETTER on a word
-   * count than a longer one a stranger can actually read. Two rounds of
-   * hand-edited plain-language passes came and went with only that ceiling behind
-   * them, and the identifiers grew straight back.
+   * The word ceiling this board used to carry could not catch this and never
+   * could, which is part of why it is gone. `venv: the agents' Python
+   * environment (agents/.venv) does not exist yet` is nine words and completely
+   * opaque, so a board full of identifiers scored BETTER on a word count than a
+   * longer one a stranger can actually read. Two rounds of hand-edited
+   * plain-language passes came and went with only that ceiling behind them, and
+   * the identifiers grew straight back.
    *
    * This is the objective half of "written for someone who already knows": the
    * half a machine can check. Internal names are the ones the reader has no way to
@@ -1421,97 +1818,37 @@ test.describe("how much the board says", () => {
     expect(bareCode, "a bare identifier was rendered as code").toEqual([]);
   });
 
-  test("the flagged board stays under its word ceiling", async ({ page }) => {
-    // The heaviest honest state, not the lightest: a finished step behind it and a
-    // full session in the trace. Calibrating against `idle()` and a five-step trace
-    // put the ceiling 18 words of prose below the live board, so it guarded a screen
-    // nobody sees.
-    await openCockpit(page, cascaded(), finishedStep(), manyDecisions());
-    await page.waitForSelector(".react-flow__edge", { state: "attached" });
-
-    // Measured by `e2e/fixtures/words.ts`, which explains the split and is shared
-    // with the scale suite so the two boards are measured identically.
-    const counts = await boardWords(page);
-
-    /*
-     * Measured on this commit at the recording viewport: 90 words of step log (182
-     * held, so 92 are scrolled out), 43 of graph labels over nine boxes, 16 in the
-     * live region, and **162 words of prose**. The laptop shows more words of log in
-     * its shorter panel and the same 162 of prose, which is the point of splitting
-     * the two: prose does not depend on panel height.
-     *
-     * **Was 147 on the commit before the joining panel, and 154 before that.** The
-     * step from 154 to 147 was a measurement fix rather than a copy change: `prose`
-     * is a subtraction, and the
-     * graph was being counted with `textContent` while the body it was subtracted
-     * from used `innerText`, so each node ran its title into its status word and gave
-     * prose one word per node that was not prose. `e2e/fixtures/words.ts` explains
-     * it. Nine nodes made it look like rounding; eighty-two made it a paragraph.
-     *
-     * **Prose is up from 126, and every word of the rise was bought deliberately.**
-     * Three purchases, +43 between them, less the 7 the measurement fix above took
-     * back off the total: 126 + 43 - 7 = 162.
-     *
-     * - **+24** the repair button, label and line. The flagged board asks a question —
-     *   three agents are out of date, now what — and until this button the only
-     *   answers on screen were re-running the cause and wiping the take. Its line
-     *   carries the one rule that makes it different from a dismiss button: flags
-     *   come off through redone work, and an identical redo is itself proof.
-     * - **+12** the joining panel, which is 4 words of heading, 4 of state
-     *   ("nobody has joined yet") and 4 inviting the click. It replaced a closed
-     *   17px disclosure that cost 4, and the extra 8 are the entire fix: the
-     *   owner of this repository, who wrote that disclosure's contents, did not
-     *   know it was on the page. Everything behind the fold, the command and the
-     *   four steps and the tool list, still costs nothing until opened, and
-     *   `joining.ts` keeps it folded on exactly the board this test measures.
-     * - **+7** the bring-your-own-data panel: 4 words of heading and 3 inviting the
-     *   click. It buys the answer to the question a judge asks straight after
-     *   watching the cascade, which is how to see it happen to their own tables.
-     *   Until it existed the only route was the MCP walkthrough in `docs/setup.md`,
-     *   five steps of hand-written JSON before anything appears on screen, and
-     *   nothing on the board mentioned that the route existed at all.
-     *
-     *   Cheaper shapes were available and each cost something worse. Nesting it as
-     *   a second fold inside the joining panel costs 3 rather than 7, and buries a
-     *   door two levels deep, which is precisely the failure `joining-panel.tsx`
-     *   was written to fix. Dropping the panel's `meta` slot saved 4 more, and that
-     *   one was taken: it renders only once a task of yours exists, because a count
-     *   of zero says nothing the empty list behind the fold does not. The form
-     *   itself, its four fields, its hint and its two paragraphs, still costs
-     *   nothing until opened, and `mine.ts` opens it on no board this test measures.
-     *
-     * The history of this ceiling, kept because it is the argument for having one: it
-     * was introduced when the board was 604 words in two stacked panels of paragraphs,
-     * and an earlier raise (104 → 126) paid for the graph heading, the button lines,
-     * the subline and the key each being rewritten for a stranger — because a word
-     * count scores `venv: the agents' Python environment does not exist yet` better
-     * than a sentence that explains itself, and the owner's complaint was never that
-     * the board said too much, but that what it said was written for somebody who
-     * already knew.
-     *
-     * The ceiling stays six words above the measurement, exactly as before. What it
-     * guards against is unchanged: two stacked panels of prose, which is what putting
-     * the ledger back would cost (205 words on its own). What it is no longer allowed
-     * to do is push the board back toward saying things in code. `no internal
-     * identifier reaches the board` above is the guard for that half, and the two have
-     * to be read together: one caps how much is said, the other requires it be
-     * readable. A failure here is not proof of a bug, but it is always a decision
-     * worth a second look.
-     *
-     * **The graph is no longer inside the total, and that is a correction rather
-     * than a relaxation.** It was, at 36 words for four tasks and nine boxes. A
-     * forty-task pipeline draws eighty-two boxes and about 230 words of label, so
-     * the old combined ceiling failed on a board whose copy had not changed by one
-     * word: it was measuring the size of the user's pipeline. Labels are scanned,
-     * there is one per box, and the number of boxes is not obsel's to budget. What
-     * is obsel's is how wordy each label is, which `scale.spec.ts` caps per node,
-     * and how much prose is on the board, which is the number below and holds at
-     * any size. That claim is asserted rather than assumed: the scale suite
-     * measures the same figures on the forty-task board and requires the prose to
-     * match this one.
-     */
-    const where = describeWords(counts);
-    expect(counts.prose, where).toBeLessThan(168);
-    expect(counts.prose + counts.log, where).toBeLessThan(263);
-  });
+  /*
+   * The board's total word ceiling was here, and it is gone deliberately.
+   *
+   * It asserted `prose < 176` and `prose + log < 269` on the flagged board, and
+   * it did real work once: the screen it was written against was 604 words in
+   * two stacked panels of paragraphs, and the number is what forced that down.
+   *
+   * What it became was a toll booth. Every genuine improvement to the copy
+   * arrived as a failing build and a paragraph of argument written at the
+   * assertion, and the ceiling moved anyway each time — 160, 168, 176 — so it
+   * was never actually refusing anything. It measured the one property of prose
+   * that has no relationship to whether prose is any good. The five-act rail was
+   * nearly shipped as unlabelled ticks to stay under it, which produced a
+   * position meter nobody could read; the labels went on and the number moved.
+   *
+   * The owner removed it: "i dont want word-salad in my UI, but i dont think
+   * having a hard word-ceiling is helpful either."
+   *
+   * What is left in its place guards the same thing without a number to game:
+   *
+   * - **"more narration does not put more words on screen"** above — the log
+   *   panel is fixed height, so a longer session cannot grow the board.
+   * - **`scale.spec.ts`** — the forty-task board and the four-task board must
+   *   say the same amount, so density stays a property of the board rather than
+   *   of the pipeline somebody points it at.
+   * - **The per-node label cap in `scale.spec.ts`** — a box label may not grow
+   *   into a sentence. That is the actual word-salad failure, and it is a cap on
+   *   one label rather than on the screen.
+   * - **The em dash and internal-name guards** above, which are about how the
+   *   board says things rather than how much.
+   *
+   * `e2e/fixtures/words.ts` stays: the scale comparison still measures with it.
+   */
 });

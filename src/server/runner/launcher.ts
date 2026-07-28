@@ -28,14 +28,28 @@ interface LauncherState {
   running: RunningStep | null;
   lastResult: StepResult | null;
   log: string[];
+  history: StepResult[];
 }
+
+/**
+ * How many finished steps are kept.
+ *
+ * The journey rail reads the slice after the last reset, which is at most five
+ * steps for the demo and three for the taxi swarm. Fifty is room for several
+ * walks in one session and a bound on a list that would otherwise grow for as
+ * long as the server is up.
+ */
+const HISTORY_MAX = 50;
 
 // Survives Next's dev-server module reloads: a recompile must not forget a
 // child process that is still doing real work against DataHub.
 const globalRef = globalThis as typeof globalThis & { __obselLauncher?: LauncherState };
 
 function state(): LauncherState {
-  globalRef.__obselLauncher ??= { running: null, lastResult: null, log: [] };
+  globalRef.__obselLauncher ??= { running: null, lastResult: null, log: [], history: [] };
+  // A server that was already up before `history` existed has the old shape in
+  // its module-global, and Next's dev reload preserves it.
+  globalRef.__obselLauncher.history ??= [];
   return globalRef.__obselLauncher;
 }
 
@@ -112,7 +126,7 @@ export function launchStep(
     const tail = [restOut, restErr].filter((line) => line !== "");
     current.log = appendBounded(current.log, tail, LOG_MAX_LINES);
     const finishedAtMs = Date.now();
-    current.lastResult = {
+    const result: StepResult = {
       step,
       exitCode,
       signal,
@@ -122,6 +136,17 @@ export function launchStep(
       // a timestamp from the child.
       durationMs: finishedAtMs - startedAtMs,
     };
+    current.lastResult = result;
+    /*
+     * Appended whatever the exit code was.
+     *
+     * This is a record of what ran on this machine, not a list of successes:
+     * `journey()` in `guide.ts` decides for itself which steps count, and it
+     * only counts the ones that exited 0. A history that silently dropped
+     * failures would make a step that failed indistinguishable from one nobody
+     * pressed, and those are different situations for a reader to be in.
+     */
+    current.history = [...current.history, result].slice(-HISTORY_MAX);
     current.running = null;
   };
 
@@ -134,12 +159,18 @@ export function launchStep(
   return { running };
 }
 
-/** What is running, how the last step ended, and the step's own output tail. */
+/** What is running, how the last step ended, the output tail, and what ran before. */
 export function activity(): {
   running: RunningStep | null;
   lastResult: StepResult | null;
   log: string[];
+  history: StepResult[];
 } {
   const current = state();
-  return { running: current.running, lastResult: current.lastResult, log: current.log };
+  return {
+    running: current.running,
+    lastResult: current.lastResult,
+    log: current.log,
+    history: current.history,
+  };
 }

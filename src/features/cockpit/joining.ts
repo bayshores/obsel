@@ -126,10 +126,9 @@ export interface JoinView {
    * nothing on it, and somebody whose own agent is part way through. Folded
    * once all four are done, because a finished checklist is furniture, and
    * folded while obsel's own demonstration is the only thing registered, which
-   * is the state the board is in on camera and the state the word ceiling in
-   * `e2e/cockpit.spec.ts` measures. The heading and the count stay visible
-   * either way: the fold is about how much prose is on screen, never about
-   * whether a reader can find the door.
+   * is the state the board is in on camera. The heading and the count stay
+   * visible either way: the fold is about how much prose is on screen, never
+   * about whether a reader can find the door.
    */
   expanded: boolean;
   /** This machine's real command, or null while the runner has not said. */

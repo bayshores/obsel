@@ -15,6 +15,7 @@ the one judgement call is written out in full rather than summarised.
 | Next.js, React               | MIT               | The cockpit                                        |
 | `@xyflow/react` 12.11.2      | MIT               | The lineage graph on the board                     |
 | `@dagrejs/dagre` 3.0.0       | MIT               | Laying that graph out left to right                |
+| `motion` 12.42.2             | MIT               | The guide's entrance and its moving rail cursor    |
 | `geist` (Vercel)             | SIL OFL-1.1 / MIT | Geist and Geist Mono, self-hosted                  |
 | Codex CLI (`openai/codex`)   | Apache-2.0        | Running each demo agent, see the note below        |
 
@@ -45,6 +46,15 @@ does not compel that; removing it is what xyflow asks Pro subscribers to pay for
 the honest position for a public hackathon entry. It is toned down in
 `src/features/cockpit/lineage.module.css` so it does not compete with the data, and it is not
 hidden.
+
+**The animation library is one feature's worth, and it replaced hand-written keyframes.** The
+guide's rail marks which act of the walk the board is at, and the mark travels from one act to the
+next when it advances. Doing that by hand means measuring both ticks on every poll and driving the
+distance between them; `motion` does it declaratively with `layoutId`, and the same import took over
+the guide's entrance, which was three `@keyframes` blocks, a `calc()` stagger driven by an inline
+custom property, an element whose only job was to mask the headline, and a `prefers-reduced-motion`
+block restating every end state by hand. It is imported through `LazyMotion` with `strict`, so the
+full component API throws and only the feature bundle this uses is shipped.
 
 **The Model Context Protocol SDKs, both ends, MIT.** `@modelcontextprotocol/sdk` (TypeScript) is how
 obsel talks to DataHub's MCP server to write the stale tag, and how the live suite drives obsel's own

@@ -422,8 +422,7 @@ test.describe("the taxi board's own buttons", () => {
 
   test("ten times the pipeline says no more to a reader", async ({ page }) => {
     /*
-     * What the word ceiling in `cockpit.spec.ts` was always trying to say, and
-     * could not while the graph was inside its total.
+     * What the board-wide word ceiling was always trying to say, and could not.
      *
      * The board's density has to be a property of the board, not of the pipeline
      * somebody points it at. Ten times the tasks, ten times the tables, and the
@@ -449,16 +448,26 @@ test.describe("the taxi board's own buttons", () => {
     const where = `four: ${describeWords(four)} | forty: ${describeWords(forty)}`;
 
     /*
-     * Measured on this commit at the recording viewport: the four-task board is
-     * 147 words of prose and the forty-task board is **135**. Ten times the
-     * pipeline, twelve words fewer, because the flagged taxi stage offers two
-     * actions where the demo offers three and every other sentence on the board
-     * is the same sentence with different nouns in it.
+     * A comparison, and no absolute number any more.
+     *
+     * There was an `expect(forty.prose).toBeLessThan(160)` here, matching the
+     * board-wide ceiling in `cockpit.spec.ts`. Both are gone, and the comment
+     * where that one stood records why: a number on the total measured the one
+     * property of prose that says nothing about whether the prose is any good,
+     * and it moved every time it was in the way.
+     *
+     * This assertion never needed it. What it is actually about is that the
+     * board's density is a property of the board rather than of the pipeline
+     * somebody points it at: ten times the tasks, ten times the tables, and the
+     * same amount to read, because every sentence is derived from the snapshot
+     * instead of written per pipeline. A board that doubled its copy would fail
+     * this whether or not anybody had agreed a ceiling first, because the two
+     * boards are measured in the same session at the same viewport and only the
+     * swarm differs.
+     *
+     * A band rather than an equality because a few words legitimately differ:
+     * two-digit counts in the headline, and each stage's own button lines.
      */
-    expect(forty.prose, where).toBeLessThan(160);
-    // Both directions. A band rather than an equality because a few words
-    // legitimately differ: two-digit counts in the headline, and each stage's
-    // own button lines.
     expect(Math.abs(forty.prose - four.prose), where).toBeLessThan(25);
 
     /*

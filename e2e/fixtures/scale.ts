@@ -11,7 +11,7 @@
  * to check. Whatever shape somebody typed out is the shape it would pass on.
  *
  * And forty tasks is where the board's guards stop being about copy and start
- * being about scale. A word ceiling calibrated on an invented graph measures the
+ * being about scale. A word comparison calibrated on an invented graph measures the
  * author's patience for typing node names.
  *
  * So these two files are `GET /api/swarm` verbatim, captured from the live

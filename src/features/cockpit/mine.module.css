@@ -162,10 +162,49 @@
   color: var(--mm-rose);
 }
 
+/* A grid rather than the default block flow, so the bench below a task lines up
+   with that task's own two lines instead of with the tick beside them. */
+.taskBody {
+  display: grid;
+  gap: var(--mm-space-xs);
+  justify-items: start;
+  /* The row is a flex container, so this has to claim the space rather than
+     shrink to its widest line — without it the bench collapses to the width of
+     one cell and the table scrolls when it did not need to. */
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
 .taskName {
   display: block;
   font-family: var(--mm-font-mono);
   color: var(--mm-cream-dim);
+}
+
+/* The control that opens the bench. A quiet link rather than a button face:
+   the accent in this panel belongs to `register it`, and the one inside the
+   bench belongs to `report it`, which is the only other thing here that
+   writes. */
+.reveal {
+  font-family: var(--mm-font-mono);
+  font-size: var(--mm-text-md);
+  color: var(--obsel-text-quiet);
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--mm-border);
+  border-radius: var(--mm-radius-none);
+  padding: 0 0 var(--mm-space-2xs);
+  cursor: pointer;
+}
+
+.reveal:hover {
+  color: var(--mm-cream-dim);
+  border-bottom-color: var(--mm-border-strong);
+}
+
+.reveal:focus-visible {
+  outline: 2px solid var(--obsel-focus);
+  outline-offset: 1px;
 }
 
 .taskFlow {

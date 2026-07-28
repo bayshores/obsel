@@ -111,6 +111,7 @@ export function Panel({
   title,
   meta,
   label,
+  tour,
   children,
   padded = true,
   style,
@@ -128,6 +129,14 @@ export function Panel({
    * the visible title is reworded.
    */
   label?: string;
+  /**
+   * A handle the tour can point at, rendered as `data-tour`.
+   *
+   * Not the accessible name, deliberately. `label` is copy and gets reworded,
+   * and a highlight that silently stops appearing when somebody improves a
+   * heading is worse than one that was never there.
+   */
+  tour?: string;
   children?: ReactNode;
   padded?: boolean;
   style?: CSSProperties;
@@ -145,6 +154,7 @@ export function Panel({
   return (
     <section
       aria-label={label}
+      data-tour={tour}
       style={{
         border: "1px solid var(--mm-border)",
         borderRadius: "var(--mm-radius-none)",
@@ -261,13 +271,23 @@ export function StatCell({
   );
 }
 
-export function StatRibbon({ children, label }: { children: ReactNode[]; label?: string }) {
+export function StatRibbon({
+  children,
+  label,
+  tour,
+}: {
+  children: ReactNode[];
+  label?: string;
+  /** A handle for the tour to point at. See `Panel`. */
+  tour?: string;
+}) {
   return (
     <div
       // A named group. Without it the five readings are five loose numbers in
       // the accessibility tree with no statement of what they belong to.
       role="group"
       aria-label={label}
+      data-tour={tour}
       style={{
         display: "grid",
         gridAutoFlow: "column",

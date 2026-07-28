@@ -64,11 +64,17 @@ export interface PreflightCheck {
  *
  * `vocabulary` is whether `agents.run setup` has registered obsel's tag in
  * DataHub — without it staleness is detected and silently not recorded.
+ *
+ * `uvx` is the same failure one step later: obsel writes its tag through
+ * DataHub's own MCP server, which is started with `uvx`, so without it the
+ * staleness engine still decides correctly and the recording of what it decided
+ * is what fails.
  */
 export interface Preflight {
   datahub: PreflightCheck;
   vocabulary: PreflightCheck;
   venv: PreflightCheck;
+  uvx: PreflightCheck;
   codex: PreflightCheck;
 }
 
@@ -76,6 +82,22 @@ export interface Preflight {
 export interface DemoActivity {
   running: RunningStep | null;
   lastResult: StepResult | null;
+  /**
+   * Every step this server has finished, oldest first, bounded.
+   *
+   * The journey rail is derived from it: which acts of the walk have actually
+   * been performed on this machine is a fact about what ran, and nothing else
+   * on the board records it. `lastResult` cannot answer it — it holds one step,
+   * so a board that has run the change would have forgotten the identical
+   * re-run before it.
+   *
+   * It is a record, never a position. Nothing here says which act is current;
+   * `journey()` in `src/features/cockpit/guide.ts` derives that from this plus
+   * the board, and it re-derives on every poll like everything else the guide
+   * shows. It does not survive a server restart, and the acts that board state
+   * alone can see survive it anyway.
+   */
+  history: StepResult[];
   /**
    * Bounded tail of the running (or last) step's own stdout and stderr — the
    * same assertions the CLI prints, so the cockpit shows the step's own

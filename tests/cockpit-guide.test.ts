@@ -9,10 +9,11 @@
 
 import { describe, expect, it } from "vitest";
 
-import { guide } from "@/src/features/cockpit/guide";
+import { STEP_NAME, guide, sinceReset } from "@/src/features/cockpit/guide";
+import { TOUR, settledIndex } from "@/src/features/cockpit/tour/steps";
 import type { GuideInput } from "@/src/features/cockpit/guide";
 import type { StaleMark, TaskRecord, TaskStatus } from "@/src/server/coordinator/types";
-import type { DemoActivity, StepResult } from "@/src/server/runner/types";
+import type { DemoActivity, DemoStep, StepResult } from "@/src/server/runner/types";
 
 const AT = "2026-07-22T09:00:10.000Z";
 
@@ -59,10 +60,28 @@ function activity(overrides: Partial<DemoActivity> = {}): DemoActivity {
     running: null,
     lastResult: null,
     log: [],
-    preflight: { datahub: ok(), vocabulary: ok(), venv: ok(), codex: ok() },
+    history: [],
+    preflight: { datahub: ok(), vocabulary: ok(), venv: ok(), uvx: ok(), codex: ok() },
     joinCommand: "claude mcp add obsel -- /tmp/x/agents/.venv/bin/python -m agents.mcp_server",
     ...overrides,
   };
+}
+
+/** Steps that ran and passed, in order, as the launcher would have recorded them. */
+function ran(...steps: DemoStep[]): StepResult[] {
+  return steps.map((step) => ({
+    step,
+    exitCode: 0,
+    signal: null,
+    startedAt: AT,
+    finishedAt: AT,
+    durationMs: 1000,
+  }));
+}
+
+/** One step that ran and failed, which must never tick its act. */
+function failed(step: DemoStep): StepResult {
+  return { step, exitCode: 3, signal: null, startedAt: AT, finishedAt: AT, durationMs: 1000 };
 }
 
 function input(overrides: Partial<GuideInput> = {}): GuideInput {
@@ -140,6 +159,7 @@ describe("no em dash reaches the screen", () => {
                 },
                 vocabulary: ok(),
                 venv: ok(),
+                uvx: ok(),
                 codex: ok(),
               },
             }),
@@ -155,6 +175,7 @@ describe("no em dash reaches the screen", () => {
                 datahub: ok(),
                 vocabulary: { ok: false, detail: "the tag is missing", fix: null },
                 venv: ok(),
+                uvx: ok(),
                 codex: { ok: false, detail: "not installed", fix: "brew install codex" },
               },
             }),
@@ -412,6 +433,7 @@ describe("stage derivation", () => {
             },
             vocabulary: { ok: false, detail: "cannot be checked until DataHub answers", fix: null },
             venv: ok(),
+            uvx: ok(),
             codex: ok(),
           },
         }),
@@ -430,6 +452,7 @@ describe("stage derivation", () => {
             datahub: ok(),
             vocabulary: ok(),
             venv: ok(),
+            uvx: ok(),
             codex: { ok: false, detail: "the Codex CLI is not signed in", fix: "codex login" },
           },
         }),
@@ -437,6 +460,35 @@ describe("stage derivation", () => {
     );
     expect(view.stage).toBe("prepare");
     expect(allText(view)).toContain("codex login");
+  });
+
+  it("holds the board on prepare when uv is missing, which nothing else would report", () => {
+    // The quietest prerequisite: with uv absent the engine still finds every
+    // affected task and the tag write is the only thing that fails, so a board
+    // that let this through would look correct and record nothing.
+    const view = guide(
+      input({
+        tasks: FOUR_COMPLETE,
+        activity: activity({
+          preflight: {
+            datahub: ok(),
+            vocabulary: ok(),
+            venv: ok(),
+            uvx: {
+              ok: false,
+              detail: "obsel writes its tag through DataHub's own MCP server",
+              fix: "brew install uv",
+            },
+            codex: ok(),
+          },
+        }),
+      }),
+    );
+    expect(view.stage).toBe("prepare");
+    expect(view.checks.map((check) => check.name)).toContain(
+      "uv, which obsel writes that tag through",
+    );
+    expect(allText(view)).toContain("brew install uv");
   });
 
   it("prepare offers setup as a button only when the venv can actually launch it", () => {
@@ -448,6 +500,7 @@ describe("stage derivation", () => {
         fix: "agents/.venv/bin/python -m agents.run setup",
       },
       venv: ok(),
+      uvx: ok(),
       codex: ok(),
     };
     const withVenv = guide(input({ activity: activity({ preflight: missingVocabulary }) }));
@@ -714,15 +767,17 @@ describe("a board holding exactly one task", () => {
     expect(view.headline).toBe("1 agent ready to run");
   });
 
-  it("registered still reads as a ratio once the one task has finished nothing left to run", () => {
-    // Two tasks, one finished: the branch that prints no noun at all. It is here
-    // so the singular fix cannot be "make every count-bearing headline singular".
+  it("registered reads as a ratio, and agrees its noun with the swarm", () => {
+    // Two tasks, one finished. This branch printed no noun at all — "1 of 2
+    // finished", one of two what — while the flagged headline two acts later
+    // said "finished agents". The noun agrees with the swarm rather than with
+    // the count, which is what the sentence is about.
     const view = guide(
       input({
         tasks: [task("clean_orders"), task("build_revenue", { finishedAt: null })],
       }),
     );
-    expect(view.headline).toBe("1 of 2 finished");
+    expect(view.headline).toBe("1 of 2 agents finished");
   });
 
   it("settled words the whole-swarm claim rather than saying all of one", () => {
@@ -755,7 +810,22 @@ describe("a board holding exactly one task", () => {
   });
 
   it("the re-run button points at one mark with a demonstrative, not with a bare 1", () => {
-    const view = guide(input({ tasks: one({ status: "stale", stale: mark() }) }));
+    /*
+     * Two tasks, not `one()`, and the difference is not incidental. The button
+     * under test is the demo's own re-run, and `swarmKind` only recognises the
+     * demo by seeing both `clean_orders` and `build_revenue` — a lone
+     * `clean_orders` is an unknown swarm and correctly gets no pipeline
+     * buttons at all.
+     *
+     * The wording this test is about keys off the MARKED count rather than the
+     * task count, so one mark on a two-task board exercises exactly the branch
+     * it always did.
+     */
+    const view = guide(
+      input({
+        tasks: [task("clean_orders"), task("build_revenue", { status: "stale", stale: mark() })],
+      }),
+    );
     const rerun = view.actions.find((action) => action.step === "rerun-same");
     expect(rerun?.detail).toBe("Nothing new should go out of date, and this one should stay.");
   });
@@ -922,9 +992,258 @@ describe("the taxi swarm gets its own buttons, recognised by its own task names"
       }),
     );
     expect(view.stage).toBe("flagged");
-    // The demo actions still appear for now — the demo pipeline is the
-    // fallback — which is honest only while its labels name their own scope.
-    // What must never appear is a taxi button driving tables this board lacks.
-    expect(view.actions.map((action) => action.step)).not.toContain("scale-repair");
+    /*
+     * Reset alone, and this used to be the demo's three buttons.
+     *
+     * The old assertion only forbade the TAXI buttons here and recorded the
+     * demo's as a fallback that was "honest only while its labels name their
+     * own scope". They do not: "Run the orders cleaner again" on a board with
+     * no orders cleaner names a scope that is not on screen, and "Redo the work
+     * obsel flagged" would start the demo's agents against the demo's tables
+     * while pointing at somebody else's flag.
+     *
+     * Reset survives because `resetSwarm` puts every task on the flow back to
+     * registered, whoever registered it, so it means exactly what it says on
+     * any board. The redo this board needs is reporting the table again, which
+     * is what the bench under the graph is for.
+     */
+    expect(view.actions.map((action) => action.step)).toEqual(["reset"]);
+  });
+
+  it("a swarm that is neither pipeline is offered nothing to launch when it settles", () => {
+    const view = guide(input({ tasks: [task("their_ingest"), task("their_report")] }));
+    expect(view.stage).toBe("settled");
+    expect(view.actions).toEqual([]);
+    // And the line has to replace what the buttons were saying, or the board
+    // reaches its most interesting state with no idea what to do next.
+    expect(view.subline).toBe("Change a column in one of your tables below and report it again");
+  });
+
+  it("a swarm that is neither pipeline is offered nothing to launch before it runs", () => {
+    // The stage where the demo would otherwise offer "Start the demo agents" on
+    // a board holding none of them.
+    const view = guide(
+      input({
+        tasks: [
+          task("their_ingest", { status: "registered", finishedAt: null }),
+          task("their_report", { status: "registered", finishedAt: null }),
+        ],
+      }),
+    );
+    expect(view.stage).toBe("registered");
+    expect(view.actions).toEqual([]);
+    expect(view.headline).toBe("2 agents ready to run");
+  });
+});
+
+/**
+ * The tour, and the one property that makes it trustworthy: **it cannot get
+ * ahead of the board.**
+ *
+ * Three guides came before it, all of them status displays, and the reason this
+ * one is different is that its second chapter is not a script anybody can page
+ * through. An action step advances when the board itself shows the action
+ * happened, and never because somebody pressed next. These tests are that rule,
+ * one situation at a time.
+ *
+ * Everything here is `settledIndex`, which is the whole reconciliation: given
+ * where the reader's bookmark says they were, and the board as it actually is,
+ * which step should be on screen.
+ */
+describe("the tour", () => {
+  const REGISTERED = FOUR_COMPLETE.map((each) => ({
+    ...each,
+    status: "registered" as const,
+    finishedAt: null,
+  }));
+
+  const FLAGGED = [
+    task("clean_orders"),
+    task("build_revenue", { status: "stale", stale: mark() }),
+    task("write_report", { status: "stale", stale: mark({ hops: 2 }) }),
+  ];
+
+  /** The step a reader would be looking at, by id, from a given bookmark. */
+  function showing(from: number, over: Partial<GuideInput> = {}): string {
+    return TOUR[settledIndex(from, input(over))].id;
+  }
+
+  /** Where the run chapter starts, so the tests below name it once. */
+  const FIRST_ACT = TOUR.findIndex((step) => step.kind === "act");
+
+  it("teaches the screen first, and the run after", () => {
+    expect(TOUR.filter((step) => step.chapter === 1).map((step) => step.id)).toEqual([
+      "what",
+      "graph",
+      "trace",
+      "numbers",
+    ]);
+    expect(TOUR.filter((step) => step.chapter === 2).map((step) => step.id)).toEqual([
+      "register",
+      "run",
+      "change",
+      "reached",
+      "repair",
+      "yours",
+    ]);
+  });
+
+  /*
+   * The explanations are the reader's, entirely. Nothing about the board may
+   * move them along or hold them back: somebody reading about the graph on a
+   * fully flagged board stays on that card until they press next.
+   */
+  it("never moves a reader off an explanation", () => {
+    for (const at of [0, 1, 2, 3]) {
+      expect(showing(at, { tasks: FLAGGED })).toBe(TOUR[at].id);
+      expect(showing(at, { tasks: [] })).toBe(TOUR[at].id);
+    }
+  });
+
+  it("waits on the first action until something is actually registered", () => {
+    expect(showing(FIRST_ACT, { tasks: [] })).toBe("register");
+    // And the moment tasks exist it moves on by itself, with nobody pressing
+    // anything: the board is the only thing that can advance an action step.
+    expect(showing(FIRST_ACT, { tasks: REGISTERED })).toBe("run");
+  });
+
+  it("waits through the run and moves on when every agent has finished", () => {
+    const halfway = [FOUR_COMPLETE[0], ...REGISTERED.slice(1)];
+    expect(showing(FIRST_ACT, { tasks: halfway })).toBe("run");
+    expect(showing(FIRST_ACT, { tasks: FOUR_COMPLETE })).toBe("change");
+  });
+
+  it("moves on from the change only once something is marked", () => {
+    expect(showing(FIRST_ACT, { tasks: FOUR_COMPLETE })).toBe("change");
+    // Stops at `reached`, which is an explanation: the reader is given a beat
+    // to look at what obsel marked before being asked to do anything else.
+    expect(showing(FIRST_ACT, { tasks: FLAGGED })).toBe("reached");
+  });
+
+  it("asks for the repair while anything is still marked", () => {
+    const at = TOUR.findIndex((step) => step.id === "repair");
+    expect(showing(at, { tasks: FLAGGED })).toBe("repair");
+  });
+
+  /*
+   * A reader who has read the explanation between the change and the repair is
+   * allowed to sit on the repair. Only the next *action* is a wall, because that
+   * is the thing the board has not done; the explanations in between are theirs.
+   */
+  it("lets a reader past the explanation that sits between two actions", () => {
+    const reached = TOUR.findIndex((step) => step.id === "reached");
+    expect(showing(reached, { tasks: FLAGGED })).toBe("reached");
+    expect(showing(reached + 1, { tasks: FLAGGED })).toBe("repair");
+  });
+
+  /*
+   * The reason chapter two stores nothing. A reader who ran the demonstration
+   * yesterday, drove it from a terminal, or reloaded halfway through opens the
+   * tour at the act that genuinely comes next, not at whichever card they last
+   * closed it on.
+   */
+  it("fast-forwards a bookmark that the board has already overtaken", () => {
+    expect(showing(FIRST_ACT, { tasks: FLAGGED })).toBe("reached");
+  });
+
+  it("never runs off either end, whatever the bookmark says", () => {
+    const board = input({ tasks: FOUR_COMPLETE });
+    expect(settledIndex(99, board)).toBeLessThanOrEqual(TOUR.length - 1);
+    expect(settledIndex(-4, board)).toBe(0);
+  });
+
+  /*
+   * The case that only shows up after a full walk, and the one that would have
+   * ruined the demonstration: a repaired board is clean and finished, which is
+   * exactly what a board that only ever ran looks like. Without the record, the
+   * change would read as undone again the moment the repair landed and the tour
+   * would drag a reader who had just finished back to "now change something".
+   */
+  it("stays at the end after a repair, rather than asking for the change again", () => {
+    const walked = input({
+      tasks: FOUR_COMPLETE,
+      activity: activity({ history: ran("register", "run", "change", "repair") }),
+    });
+    expect(TOUR[settledIndex(TOUR.length - 1, walked)].id).toBe("yours");
+
+    // And the same board with nothing behind it is at the change, because that
+    // is genuinely what has not happened on it.
+    expect(showing(TOUR.length - 1, { tasks: FOUR_COMPLETE })).toBe("change");
+  });
+
+  /*
+   * A reset really does put every task back to registered, so the tour has to
+   * walk back with it. It does, without being told, because nothing about
+   * where it had got to was written down.
+   */
+  it("walks back to the run when the board is reset", () => {
+    const after = TOUR.findIndex((step) => step.id === "repair");
+    expect(showing(after, { tasks: REGISTERED })).toBe("run");
+  });
+
+  it("does not count a step that failed", () => {
+    // The board is what counts, and a step that fell over left nothing on it.
+    // The step record cannot advance the tour at all, which is why a failed run
+    // and a run nobody started are the same situation here.
+    const failedRun = input({
+      tasks: [],
+      activity: activity({ history: [...ran("register"), failed("run")] }),
+    });
+    expect(TOUR[settledIndex(FIRST_ACT, failedRun)].id).toBe("register");
+  });
+
+  /*
+   * The boundary everything about repeatability rests on. `performedSteps` is
+   * built on this, and it is the reason pressing reset genuinely puts the repair
+   * act back to not-done rather than leaving a record of one from a walk that
+   * has since been undone.
+   */
+  it("counts only what ran since the last reset, including the reset itself", () => {
+    const history = [...ran("register", "run", "change", "repair", "reset", "run")];
+    expect(sinceReset(history).map((result) => result.step)).toEqual(["reset", "run"]);
+
+    // A reset that failed did not reset anything, so it does not begin a walk.
+    const broken = [...ran("register", "run"), failed("reset"), ...ran("change")];
+    expect(sinceReset(broken).map((result) => result.step)).toEqual([
+      "register",
+      "run",
+      "reset",
+      "change",
+    ]);
+  });
+
+  it("reads the taxi swarm's board the same way", () => {
+    // Different pipeline, different button names, same four questions: is
+    // anything registered, has it all finished, is anything marked, is it clean
+    // again. The card quotes whichever button the guide is offering.
+    const taxi = [task("daily_trips"), task("clean_trips", { status: "stale", stale: mark() })];
+    expect(showing(FIRST_ACT, { tasks: taxi })).toBe("reached");
+  });
+
+  it("every step says something, in plain words", () => {
+    for (const step of TOUR) {
+      expect(step.title.length, step.id).toBeGreaterThan(0);
+      expect(step.body.length, step.id).toBeGreaterThan(0);
+      // The vocabulary rule this repository keeps everywhere else. These are the
+      // words a newcomer has no way to look up, and the guide is the one place
+      // on the board where reaching for them is most tempting.
+      for (const jargon of ["cascade", "lineage", "urn", "fingerprint", "downstream"]) {
+        expect(step.body.toLowerCase(), `${step.id} says "${jargon}"`).not.toContain(jargon);
+        expect(step.title.toLowerCase(), `${step.id} says "${jargon}"`).not.toContain(jargon);
+      }
+    }
+  });
+
+  it("every action step names at least one real demo step", () => {
+    // The card reads its label off the guide's live action list by matching
+    // these. A step naming one the launcher does not have would render an action
+    // card with no button behind it and no way to advance.
+    for (const step of TOUR) {
+      if (step.kind !== "act") continue;
+      expect(step.launches.length, step.id).toBeGreaterThan(0);
+      for (const launch of step.launches) {
+        expect(Object.keys(STEP_NAME), step.id).toContain(launch);
+      }
+    }
   });
 });

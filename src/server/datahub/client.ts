@@ -446,20 +446,27 @@ function parseFingerprints(
 /**
  * Read back what the last run said about itself, when it said anything.
  *
- * Returns null — never a partial object — unless the runner, the duration and
- * the output shapes are all present and usable. This is display-only material,
- * so a half-written record is dropped rather than raised: unlike a fingerprint
- * or a stale mark, nothing obsel decides depends on it, and failing a snapshot
- * read over a cosmetic property would take the whole cockpit down.
+ * This is display-only material with one exception, so a half-written record is
+ * dropped rather than raised: unlike a fingerprint or a stale mark, failing a
+ * snapshot read over a cosmetic property would take the whole cockpit down.
+ * Each of the three fields is judged on its own, and a missing one renders as
+ * nothing at all rather than as a zero — "took 0 ms" is a measurement and "we
+ * were not told" is not.
  *
- * A missing record renders as nothing at all, which is the honest outcome. It
- * never renders as a zero, because "took 0 ms" is a measurement and "we were
- * not told" is not.
+ * **The exception is `outputs`, and it is why this no longer demands all
+ * three.** Those column lists are what `columnChange` in `engine.ts` diffs to
+ * name the columns that moved, so they are the difference between a mark
+ * reading "clean expenses lost amount" and one reading "the columns in clean
+ * expenses changed". Requiring a runner and a duration alongside them meant a
+ * reporter with no stopwatch — the cockpit bench, where a person types the
+ * table and there is no run to time — lost the shape as collateral.
+ *
+ * Null only when nothing usable was recorded at all.
  */
 function parseRun(props: Record<string, string>): RunDetail | null {
-  const runner = props[PROP.runRunner];
-  const ms = Number.parseInt(props[PROP.runMs] ?? "", 10);
-  if (!runner || !Number.isFinite(ms) || ms < 0) return null;
+  const runner = props[PROP.runRunner] || null;
+  const parsedMs = Number.parseInt(props[PROP.runMs] ?? "", 10);
+  const ms = Number.isFinite(parsedMs) && parsedMs >= 0 ? parsedMs : null;
 
   const outputs: Record<string, OutputShape> = {};
   const raw = props[PROP.runOutputs];
@@ -487,6 +494,10 @@ function parseRun(props: Record<string, string>): RunDetail | null {
     }
   }
 
+  // Nothing usable at all reads as never having been told, which is what an
+  // absent record means and what the cockpit renders as no line rather than an
+  // empty one.
+  if (runner === null && ms === null && Object.keys(outputs).length === 0) return null;
   return { runner, ms, outputs };
 }
 

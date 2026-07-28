@@ -77,7 +77,7 @@ export function cascadeSteps(): TraceEvent[] {
  * preamble in which nothing happened, and those four are half of what makes the
  * fifth believable.
  *
- * And the board's word ceiling must not move when obsel narrates more. The panel
+ * And the board must not grow when obsel narrates more. The panel
  * renders the whole trace now rather than the last eight steps, so a ceiling counting
  * DOM text would grow with the length of the run, and the way to pass it would be to
  * narrate less. Roughly a dozen steps are on screen whatever is held.

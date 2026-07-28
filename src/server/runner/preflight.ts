@@ -27,6 +27,7 @@ import type { Preflight, PreflightCheck } from "./types";
 const CACHE_MS = 10_000;
 
 const CODEX_TIMEOUT_MS = 5_000;
+const UVX_TIMEOUT_MS = 5_000;
 const DATAHUB_TIMEOUT_MS = 3_000;
 
 interface Cached {
@@ -152,6 +153,34 @@ function checkVenv(): PreflightCheck {
       };
 }
 
+/**
+ * The tool obsel's own tag write runs through.
+ *
+ * `mcp.ts` spawns DataHub's MCP server as bare `uvx`, resolved through PATH at
+ * spawn time, so this asks the same question that spawn will: does the name
+ * resolve here. Its absence is the quietest failure in the checklist — the
+ * staleness engine still decides correctly and every downstream task is still
+ * found, and the tag that records any of it is the part that fails.
+ */
+function checkUvx(): Promise<PreflightCheck> {
+  return new Promise((resolve) => {
+    execFile("uvx", ["--version"], { timeout: UVX_TIMEOUT_MS }, (error) => {
+      if (error === null) {
+        resolve({ ok: true, detail: "uv is installed.", fix: null });
+        return;
+      }
+      const missing = (error as NodeJS.ErrnoException).code === "ENOENT";
+      resolve({
+        ok: false,
+        detail: missing
+          ? "obsel writes its tag through DataHub's own MCP server, which is started with uvx. Without it obsel finds out-of-date work and cannot record it."
+          : `uvx is installed but did not answer: ${error.message}`,
+        fix: "brew install uv",
+      });
+    });
+  });
+}
+
 function checkCodex(): Promise<PreflightCheck> {
   return new Promise((resolve) => {
     execFile("codex", ["login", "status"], { timeout: CODEX_TIMEOUT_MS }, (error) => {
@@ -185,10 +214,11 @@ export async function preflight(): Promise<Preflight> {
   // Keyed by the address, not by the bare word: the verdict is about one GMS,
   // and a cache key that does not name it hands the answer for the old address
   // to the new one.
-  const [datahub, codex] = await Promise.all([
+  const [datahub, codex, uvx] = await Promise.all([
     cached(`datahub:${gmsUrl()}`, checkDataHub),
     cached("codex", checkCodex),
+    cached("uvx", checkUvx),
   ]);
   const vocabulary = await cached(`vocabulary:${datahub.ok}`, () => checkVocabulary(datahub.ok));
-  return { datahub, vocabulary, venv: checkVenv(), codex };
+  return { datahub, vocabulary, venv: checkVenv(), uvx, codex };
 }

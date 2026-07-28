@@ -26,9 +26,10 @@
 
 import { useState } from "react";
 
+import { BenchPanel } from "./bench-panel";
 import { Panel } from "./mmux";
 import { EMPTY_DRAFT, draftProblem, registration } from "./mine";
-import type { MineDraft, MineView } from "./mine";
+import type { MineDraft, MineTask, MineView } from "./mine";
 import type { TaskRecord } from "@/src/server/coordinator/types";
 
 import styles from "./mine.module.css";
@@ -144,8 +145,8 @@ export function MinePanel({ view, tasks }: { view: MineView; tasks: TaskRecord[]
           setChosen(next === view.expanded ? null : next);
         }}
       >
-        {/* Three words, counted. The board has a prose budget measured in
-            `e2e/cockpit.spec.ts`, and this line is what it buys. */}
+        {/* Three words, and they are the whole of what this panel costs a
+            reader who does not open it. */}
         <summary className={styles.summary}>{open ? "hide this" : "add a task"}</summary>
 
         <div className={styles.body}>
@@ -261,20 +262,69 @@ function Yours({ view }: { view: MineView }) {
   return (
     <ul className={styles.tasks} aria-label="Your own tables">
       {view.mine.map((task) => (
-        <li key={task.urn} className={styles.task} data-reported={task.reported ? "true" : "false"}>
-          <span className={styles.tick} aria-hidden="true">
-            {task.reported ? "✓" : "○"}
-          </span>
-          <span>
-            <span className={styles.taskName}>
-              {task.title}
-              {task.reported ? ": reported" : ": nothing reported yet"}
-            </span>
-            <span className={styles.taskFlow}>{flow(task.reads, task.writes)}</span>
-          </span>
-        </li>
+        <Your key={task.urn} task={task} />
       ))}
     </ul>
+  );
+}
+
+/**
+ * One of your tasks, with the bench folded behind it.
+ *
+ * Closed by default, and that is a budget decision as much as a layout one. A
+ * board carrying several of your tasks would otherwise stack a grid of text
+ * inputs per task, and the reader who came here to register a second one would
+ * have to scroll past every bench to reach the form.
+ *
+ * Open state is per task and lives here rather than in `mine.ts`, because it is
+ * a preference somebody expressed by clicking, not a fact about the swarm.
+ * Everything derived from the board is recomputed every second in that module;
+ * this is the one thing on the panel that is genuinely the reader's.
+ */
+function Your({ task }: { task: MineTask }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <li className={styles.task} data-reported={task.reported ? "true" : "false"}>
+      <span className={styles.tick} aria-hidden="true">
+        {task.reported ? "✓" : "○"}
+      </span>
+      <span className={styles.taskBody}>
+        <span className={styles.taskName}>
+          {task.title}
+          {task.reported ? ": reported" : ": nothing reported yet"}
+        </span>
+        <span className={styles.taskFlow}>{flow(task.reads, task.writes)}</span>
+
+        {task.outputs.length > 0 && (
+          <>
+            <button
+              type="button"
+              className={styles.reveal}
+              aria-expanded={open}
+              onClick={() => setOpen(!open)}
+            >
+              {/*
+                Says what pressing it leads to, not what the panel is called.
+                "Write its table yourself" is the offer: you are standing in for
+                the agent, and the sentence has to make that plain before
+                somebody types a table wondering what obsel will do with it.
+              */}
+              {open ? "hide the table" : "write its table yourself"}
+            </button>
+            {open &&
+              task.outputs.map((output) => (
+                <BenchPanel
+                  key={output.urn}
+                  taskUrn={task.urn}
+                  tableName={output.name}
+                  recorded={output.recorded}
+                />
+              ))}
+          </>
+        )}
+      </span>
+    </li>
   );
 }
 

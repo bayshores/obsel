@@ -164,6 +164,20 @@
   flex-wrap: wrap;
 }
 
+/*
+ * The right end of the header: the way into the tour, then the connection light.
+ *
+ * One group rather than two children of the header, because the header is
+ * `space-between` and a third loose child would centre the tour button in the
+ * middle of the bar, which is neither of the two places anybody looks.
+ */
+.headerEnd {
+  display: flex;
+  align-items: center;
+  gap: var(--mm-space-lg);
+  flex-wrap: wrap;
+}
+
 .identity {
   display: flex;
   align-items: baseline;

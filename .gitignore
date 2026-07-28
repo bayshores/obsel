@@ -28,6 +28,7 @@ agents/.venv/
 
 # Internal dev docs, kept local but out of the judge-facing repo
 CLAUDE.md
+CLAUDE.local.md
 hackathon.md
 docs/demo-script.md
 

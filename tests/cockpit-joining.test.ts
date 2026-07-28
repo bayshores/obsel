@@ -247,8 +247,7 @@ describe("when the steps are painted rather than folded away", () => {
   });
 
   it("stays folded while obsel's own demonstration is the only thing registered", () => {
-    // The state the board is in on camera, and the state the word ceiling in
-    // e2e/cockpit.spec.ts measures. The heading still shows either way.
+    // The state the board is in on camera. The heading still shows either way.
     const demo = view([task("clean_orders", "obsel_demo", { finishedAt: AT })]);
     expect(demo.waiting).toBe(true);
     expect(demo.expanded).toBe(false);

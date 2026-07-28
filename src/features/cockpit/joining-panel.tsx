@@ -16,10 +16,9 @@
  * ones, because the house style here is to restyle what exists.
  *
  * **The heading is always painted; the steps fold.** `joining.ts` decides which,
- * and its comment on `expanded` says why. The short version is that the board
- * has a prose budget checked in `e2e/cockpit.spec.ts`, and four steps plus a
- * command is more prose than a board showing obsel's own demonstration can
- * afford. What that budget must never buy is invisibility, so the fold takes the
+ * and its comment on `expanded` says why. The short version is that four steps
+ * plus a command is more prose than a board showing obsel's own demonstration
+ * can afford. What folding must never buy is invisibility, so it takes the
  * sentences and leaves the heading and the count.
  *
  * Tool names are written out. This is the panel where that is correct: a
@@ -79,6 +78,7 @@ export function JoiningPanel({ view }: { view: JoinView }) {
       label="Bring your own agent"
       title="bring your own agent"
       meta={view.waiting ? "nobody has joined yet" : `${view.done} of ${view.steps.length}`}
+      tour="joining"
       style={{ marginTop: "var(--mm-space-md)" }}
       bodyStyle={{ padding: 0 }}
     >
@@ -90,8 +90,8 @@ export function JoiningPanel({ view }: { view: JoinView }) {
           setChosen(next === view.expanded ? null : next);
         }}
       >
-        {/* Four words, counted. The board has a prose budget and this panel's
-            heading is the part of it that must never be cut. */}
+        {/* Four words. Whatever else folds away, this heading is the part that
+            must never be cut: it is the only sign the door is here. */}
         <summary className={styles.summary}>{open ? "hide this" : "how an agent joins"}</summary>
 
         <div className={styles.body}>

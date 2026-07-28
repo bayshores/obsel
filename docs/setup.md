@@ -3,6 +3,43 @@
 [`README.md`](../README.md) has the three command version. This is the same setup written out in
 full, for when something fails or you would rather use the terminal.
 
+## The launcher
+
+`scripts/start.sh` does every step on this page, in an order this page leaves to the reader. On
+macOS it is reached by double-clicking `Start obsel.command`, which does nothing but find this
+folder and run it; on Linux, run `bash scripts/start.sh`.
+
+The ordering is why it exists rather than being a list of commands. Two steps only work once DataHub
+is answering: registering obsel's tag, which cannot be created at run time, and starting the app,
+whose first read of the board is a real read. Working down eight numbered steps gives no hint that
+the wait in step 1 is load-bearing.
+
+What it does, in order:
+
+1. Adds the usual install directories to `PATH`, and loads nvm if Node is not otherwise found. A
+   double-clicked file gets no `.zprofile`, so without this every check below reports "not
+   installed" on a machine that has the tool.
+2. Checks Docker is running, by asking the daemon rather than looking for the binary.
+3. Checks Node is 24, and uses corepack for pnpm if pnpm itself is absent.
+4. Checks Python 3 answers.
+5. Installs `uv` if missing, using the installer in step 5 below.
+6. Starts DataHub if nothing answers at `:8080`, then waits for the API, up to 180 seconds.
+7. Creates `.env.local` if absent, installs the Node packages, creates the agents' virtual
+   environment if absent, and installs their Python packages every run.
+8. Runs `agents.run setup` to register the tag and the demo flow.
+9. Reports whether the Codex CLI is signed in, without blocking on it, then starts the app, waits
+   for it to answer, and opens the browser.
+
+**How to tell it worked:** the browser opens on the board, and the board's own checklist is either
+absent or shows only the Codex item. A measured fresh run is recorded in
+[`verification.md`](verification.md).
+
+Every step is safe to repeat: it skips DataHub if it is already answering, keeps an existing
+`.env.local`, keeps an existing virtual environment, and does not start a second server.
+
+The three things it cannot do are Docker, Node and `codex login`. Each needs a human, so each is
+detected and named with the one thing to do next. `uv` is the only tool it installs.
+
 Each step has a way to tell whether it actually worked, because several of them fail quietly.
 
 The demo agents in `agents/` need their own Python environment. `pnpm install` does not create it,
@@ -15,7 +52,10 @@ and it is the step people skip.
 - Node 24.x and pnpm 11
 - Docker, for the local DataHub stack
 - Python 3, for the demo agents. They get their own virtual environment in step 4 below; the
-  `datahub` CLI used to start the stack is a separate, global install of `acryl-datahub`
+  `datahub` CLI used to start the stack is a separate, global install of `acryl-datahub`, either
+  `uv tool install acryl-datahub` or, without installing anything permanently,
+  `uvx --from 'acryl-datahub==1.6.0.15' datahub docker quickstart`, which is what the launcher uses
+  when the CLI is not already there
 - `uv`, for running the DataHub MCP server
 - **The Codex CLI, signed in.** `codex login status` should say so. Each demo agent is a real Codex
   session that reads the data and decides for itself what its own table should contain. There is no
@@ -53,6 +93,13 @@ one has a way to tell whether it worked, because several of them fail quietly. T
 ```bash
 datahub docker quickstart
 curl -s http://localhost:8080/config      # should print JSON with a version
+```
+
+Without the `datahub` CLI installed, the same command through `uvx`, which installs nothing
+permanently:
+
+```bash
+uvx --from 'acryl-datahub==1.6.0.15' datahub docker quickstart
 ```
 
 DataHub's UI is then at `http://localhost:9002`. Its API (GMS) is at `http://localhost:8080`. These
@@ -131,10 +178,20 @@ task is different for having been typed. Executed on 2026-07-26 against a real D
 chain below, registered from the form, read back off `GET /api/swarm` with its lineage and drawn on
 the graph. See [`verification.md`](verification.md) for that run and the bug it found.
 
-What the form does not do is report work. obsel takes the fingerprint from the rows itself, in
-`agents/fingerprint.py`, and a second implementation of that in the browser would be a second
-definition of what counts as a change. So reporting stays with whatever runs your work, which is
-what the rest of this section covers.
+**Reporting the work is also on the board, if you want to see the whole loop first.** Open a task
+you registered and it offers you its table: the columns are chips you can rename, drop or add, and
+the rows are cells you type into. Press report and obsel hashes what you handed it and answers.
+Report two tasks in a chain, rename a column upstream, report again, and the downstream task is
+flagged with the columns named — no Codex, no terminal, about fifteen seconds. Executed on
+2026-07-27 against a real DataHub; the run and the two bugs it exposed are in
+[`verification.md`](verification.md).
+
+The browser still hashes nothing. The button posts to `/api/tasks/report`, which runs
+`agents/report.py`, which calls the same `mcp_core.completion_body` the MCP door calls, which hashes
+through `agents/fingerprint.py`. A second implementation of that in the browser would be a second
+definition of what counts as a change. What the bench does not do is read a file: you type the rows,
+so there is no CSV to parse. For your real files, reporting stays with whatever runs your work,
+which is what the rest of this section covers.
 
 The MCP door works for your own files, and this walkthrough was executed for real on 2026-07-24;
 every reply quoted below is from that run, against a dedicated flow, over the real

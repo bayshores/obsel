@@ -515,8 +515,21 @@ def completion_body(
         "fingerprints": fingerprints,
         "finishedAt": finished_at,
     }
-    if runner and ms is not None:
-        body["run"] = {"runner": runner, "ms": round(float(ms)), "outputs": shapes}
+    # The shape always goes; the runner and the duration go only when they were
+    # given. They used to be required together, and that quietly cost the shape:
+    # a caller with no stopwatch had to drop the whole object, and `run.outputs`
+    # is what obsel's engine diffs to name the columns that moved. So a report
+    # without a measured duration now still produces "clean expenses lost
+    # amount" rather than "the columns in clean expenses changed".
+    #
+    # Nulls rather than absent keys, because the completion route reads them as
+    # "was not told" and obsel writes that through to the entity, where an
+    # invented `0` would read as a measurement.
+    body["run"] = {
+        "runner": runner if runner else None,
+        "ms": round(float(ms)) if ms is not None else None,
+        "outputs": shapes,
+    }
 
     if inputs:
         observations: dict[str, dict[str, Any]] = {}
@@ -996,9 +1009,14 @@ def _self_check() -> int:
         "the agent passed a short name and obsel is told a urn",
     )
     check(
-        "the run detail is omitted unless runner and ms both arrive",
-        "run" not in body,
-        "obsel's schema requires the whole object; half of one is refused at the route",
+        "the shape is sent even with no runner and no duration",
+        body["run"]["outputs"][dataset]["columns"] == ["order_id", "order_total"],
+        "obsel diffs these columns to name what moved; losing them coarsens every mark",
+    )
+    check(
+        "and the unmeasured halves are null rather than invented",
+        body["run"]["runner"] is None and body["run"]["ms"] is None,
+        "a person typing a table at the bench ran nothing there is a duration for",
     )
     with_run, _ = completion_body(clean_task, good, "2026-07-23T00:00:00Z", runner="claude-code", ms=1234.6)
     check(

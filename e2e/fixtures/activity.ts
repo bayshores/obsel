@@ -9,10 +9,34 @@
  * submission or quoted as a measurement.
  */
 
-import type { DemoActivity, DemoStep, PreflightCheck } from "@/src/server/runner/types";
+import type { DemoActivity, DemoStep, PreflightCheck, StepResult } from "@/src/server/runner/types";
 
 function ok(detail: string): PreflightCheck {
   return { ok: true, detail, fix: null };
+}
+
+/**
+ * A machine that has been all the way through the demonstration: every step
+ * performed, in order, each exiting 0.
+ *
+ * The board this goes with is a settled one, which is the state a completed run
+ * ends in — and the state an untouched one starts in. The tour's repair act is
+ * the one thing on the board that cannot tell those apart without this record,
+ * which is why it is the only act that consults it.
+ */
+export function walked(): DemoActivity {
+  const steps: DemoStep[] = ["register", "run", "rerun-same", "change", "repair"];
+  return {
+    ...idle(),
+    history: steps.map((step, index) => ({
+      step,
+      exitCode: 0,
+      signal: null,
+      startedAt: `2026-07-22T09:0${index}:00.000Z`,
+      finishedAt: `2026-07-22T09:0${index}:30.000Z`,
+      durationMs: 30_000,
+    })),
+  };
 }
 
 /** Machine ready, nothing running, nothing run yet — the default backdrop. */
@@ -21,10 +45,15 @@ export function idle(): DemoActivity {
     running: null,
     lastResult: null,
     log: [],
+    // Nothing has run on this machine, so the tour is carried entirely by what
+    // the board shows. The one fixture that wants a step read out of the record
+    // instead is `walked()`.
+    history: [],
     preflight: {
       datahub: ok("DataHub answered at http://localhost:8080"),
       vocabulary: ok("urn:li:tag:obsel-stale is registered"),
       venv: ok("agents/.venv exists"),
+      uvx: ok("uv is installed"),
       codex: ok("the Codex CLI is signed in"),
     },
     // A plausible absolute path, so the join panel renders the way it does on a
@@ -49,16 +78,21 @@ export function idle(): DemoActivity {
  * empty log could not catch it if it ever did.
  */
 export function finishedStep(step: DemoStep = "change"): DemoActivity {
+  const result: StepResult = {
+    step,
+    exitCode: 0,
+    signal: null,
+    startedAt: "2026-07-22T09:00:00.000Z",
+    finishedAt: "2026-07-22T09:01:11.400Z",
+    durationMs: 71_400,
+  };
   return {
     ...idle(),
-    lastResult: {
-      step,
-      exitCode: 0,
-      signal: null,
-      startedAt: "2026-07-22T09:00:00.000Z",
-      finishedAt: "2026-07-22T09:01:11.400Z",
-      durationMs: 71_400,
-    },
+    lastResult: result,
+    // The same step in the record it left behind. A board showing a finished
+    // step and a rail claiming that step never ran would be two halves of one
+    // panel disagreeing.
+    history: [result],
     log: [
       `$ agents/.venv/bin/python -m agents.run ${step}`,
       `${step}: started`,

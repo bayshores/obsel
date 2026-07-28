@@ -88,9 +88,12 @@ could not tell what it was.
   nothing on it set larger than 13 px, so there was no entry point and the only way in was to read
   all of it. It is 267 words now, one headline leads, and the graph carries the mechanism. Nothing
   was deleted from the system: every reason, fingerprint, timing and code identifier is one click
-  away on a node. Three checks in the suite hold the line, because ten rounds of hand-edited copy is
-  what produced the 604 in the first place: a word ceiling on the flagged board, an assertion that no
-  em dash reaches the screen in any state, and the identifier guard described next.
+  away on a node. Checks in the suite hold the line, because ten rounds of hand-edited copy is what
+  produced the 604 in the first place: the two boards must say the same amount whatever the size of
+  the pipeline, a longer run may not put more on screen, no box label may grow into a sentence, no
+  em dash may reach the screen in any state, and the identifier guard described next. A hard ceiling
+  on the board's total word count was among these and was removed on 2026-07-27; the dated section
+  below records why.
 - **What obsel wrote into DataHub is on the board, and counted.** obsel tags each marked job
   `urn:li:tag:obsel-stale` through the MCP server, which is the thing a person browsing DataHub sees
   without knowing obsel exists, and the board used to mention it in five grey words at the bottom of a
@@ -1176,10 +1179,11 @@ in 41 s**, one skipped by design. `pnpm test:live` was not re-run for this chang
 are unaffected by it; no live test covers the form, and the run above is a single observation on one
 machine rather than a suite.
 
-**Still not built.** Reporting a file from the board, which is the other half and the one that would
-let somebody watch a cascade on their own CSV without an agent. It needs one definition of how a CSV
-becomes rows, shared with the agents rather than private to the UI, and that is a decision about what
-obsel considers a table.
+**Still not built at the time of writing.** Reporting a file from the board, which is the other half
+and the one that would let somebody watch a cascade on their own CSV without an agent. It needs one
+definition of how a CSV becomes rows, shared with the agents rather than private to the UI, and that
+is a decision about what obsel considers a table. Half of this is now built and the half that is not
+is still the file: see **the bench**, below.
 
 **A name that builds an unreadable URN is now refused at both doors**, landed the same day in a
 separate worktree. The route checked names for being non-empty and nothing else, so `clean,orders` or
@@ -1237,8 +1241,483 @@ files and 183 Python self-checks**; `pnpm e2e` green with **145 browser checks a
 viewports**, one skipped by design. `pnpm test:live` was not re-run for any of this work; its 96
 tests are unaffected, and no live test covers the form.
 
+### Reporting a table from the board, and the two things driving it exposed (2026-07-27)
+
+The bench: the other half of the panel above. A task you registered opens an editable table — the
+columns are chips you can rename, drop or add, the rows are cells you type into — and one button
+hands it to obsel. That is the whole loop, register through flag, without Codex and without a
+terminal.
+
+**Why this was the gap.** Every path to watching obsel do the thing obsel is for went through
+something the reader might not have: four real Codex sessions and several minutes, or an MCP client
+wired up from a terminal. Somebody with neither could read the board and never make it move.
+
+**The browser still does not hash anything, and that constraint chose the design.** The button POSTs
+to `POST /api/tasks/report`, which spawns `agents/report.py`, which calls the same
+`mcp_core.completion_body` the MCP door calls, which canonicalises the numbers and hashes through
+`agents/fingerprint.py`. One implementation, reached by one more road. A TypeScript port would agree
+on the day it was written and drift on some later one, and the drift would be silent: the same table
+reported from the bench and from an agent would disagree, and obsel would announce a change nobody
+made. About 200 ms of process start is the price of there being one answer.
+
+**The file question is still open and is still the right question.** Nothing here decides how a CSV
+becomes rows, because nothing here reads a file: the reader types the rows, so there is no parsing
+decision to get wrong. What is built is the reporting path; what is not built is the file.
+
+**Why the columns are a control rather than a textarea.** The chips are the `columns` array that
+`schema_fingerprint` sorts and hashes, so dropping a chip genuinely drops a column. The reader is not
+pressing a button that pretends a change happened; they are editing the thing the hash is computed
+over. A "simulate a change" button would have been a stand-in for the one event this repository is
+about, in the one place a newcomer is looking.
+
+**Driven by hand against a real DataHub**, on `OBSEL_FLOW_ID=obsel_bench_check` so the run could not
+touch the operator's board:
+
+- `clean_expenses` (reads `expenses_csv`, writes `clean_expenses`) and `expense_report` (reads
+  `clean_expenses`, writes `expense_report`) registered through the form above.
+- Both reported from the bench with three columns and three rows. Read back off `GET /api/swarm`:
+  both `complete`, nothing flagged. The negative case, and the one that has to come first.
+- `amount` renamed to `amount_usd` in the upstream chip and reported again. `expense_report` came
+  back **`stale`**, `hops: 1`, reason `read clean expenses, and its columns changed after this
+finished`, and `columns: {"added":["amount_usd"],"removed":["amount"]}`.
+- The board followed: headline **"1 of 2 finished agents is out of date"**, subline naming the column
+  that left and the one that arrived, the graph amber along the path, the trace panel reporting
+  **6519 ms end to end**, and the joining panel's four-beat checklist at **4 of 4** — every beat
+  driven from the bench rather than from a terminal.
+
+**The first thing it exposed: a completion could not carry a shape without carrying a duration.** The
+`run` object required `runner`, `ms` and `outputs` together, so a reporter with no stopwatch had to
+omit all three. The bench has no stopwatch — a person typed the table, and there is no run to time —
+and inventing a millisecond count is the one thing obsel is not allowed to do. But `outputs` is not
+display material: `columnChange` in `engine.ts` diffs those column lists to say **which** columns
+moved, so dropping them degraded "clean expenses lost amount" into "the columns in clean expenses
+changed", quietly, on exactly the mark the whole board is built to make readable.
+
+`runner` and `ms` are now independently nullable, end to end: the zod schema defaults them to null
+rather than leaving them optional, `engine.ts` writes each property on its own rather than gating all
+three on the object, `parseRun` in `client.ts` no longer discards the shape when the other two are
+absent, and `activityNote` prints neither rather than printing `0 ms` — a figure nobody measured is
+the thing obsel refuses everywhere else. The self-check in `agents/mcp_core.py` that asserted the old
+all-or-nothing behaviour now asserts the shape survives and the unmeasured halves are null.
+
+**The second thing it exposed: the guide offered buttons that act on tables not on the board.**
+`swarmKind` in `guide.ts` has always documented that a swarm which is neither obsel's demo nor its
+taxi pipeline "gets the actions that are safe anywhere and no pipeline-specific ones", and the code
+never implemented it — an unrecognised swarm fell through to the demo's buttons. Before the bench
+there was almost no way to reach a flagged board made only of somebody else's tasks, so the gap went
+unnoticed; the existing test recorded it as a fallback that was "honest only while its labels name
+their own scope". They do not. **"Run the orders cleaner again" was on screen on a board with no
+orders cleaner**, beside "Redo the work obsel flagged", which would have started the demo's agents
+against the demo's tables while pointing at somebody else's flag.
+
+`registered`, `settled` and `flagged` now withhold every pipeline-specific action on an unrecognised
+swarm. `reset` survives, because `resetSwarm` puts every task on the flow back to registered whoever
+registered it, so it means exactly what it says on any board. The settled line points at the bench
+instead, which is the thing on that board that does what the withheld buttons would have done. Three
+tests in `tests/cockpit-guide.test.ts` pin it, and the test that documented the old fallback now
+asserts the new behaviour.
+
+**The word ceiling did not move.** The bench renders inside the fold `mine.ts` already keeps closed
+on every board the ceiling measures, so it costs nothing there; the per-task toggle that opens it
+renders only when a task of yours exists, which is no board the ceiling measures either. `pnpm e2e`
+passed unchanged, including the bare-identifier and em-dash guards, which was checked rather than
+assumed.
+
+Counts after this work, measured 2026-07-27: `pnpm verify` green with **454 unit tests across 20
+files**; `pnpm e2e` green with **145 browser checks across two viewports**, one skipped by design.
+`pnpm test:live` has **not** been re-run for this change, and the run above is a single observation
+on one machine rather than a suite: there is no live test covering the bench, and that is the next
+thing this section needs.
+
+### The guide has a name and a position now, 2026-07-27
+
+**The reported problem was not being able to find it.** The owner of this repository asked where the
+interactive guide was. Nothing on the board was called a guide: the region's panel title
+(`00 · guide — …`) had been removed for burying the headline, nothing replaced it, and the board gave
+no sign that its stages are a sequence rather than a set of unrelated sentences. On several stages
+the whole region is one sentence with nothing to click.
+
+**The first answer was a rail of board states, and it did not work.** It drew five unlabelled ticks
+with `guide 5/5` beside them, and put the stage names only in the rail's accessible description to
+keep the board's measured word count flat. What that gave a reader was a position in an unnamed
+sequence. The owner's response was that a judge would still be confused, which was correct twice
+over: a position with no destination is a meter rather than a guide, and the rail also ran
+**backwards**, because a repaired board goes from out of date back to settled, so the marker walked
+back a step and the reader had to work out that going backwards was the good outcome. Both faults are
+recorded at the top of `guide.ts` next to what replaced them.
+
+> **Superseded on 2026-07-27.** The rail this section records was removed along with the two guides
+> before it; the tour window described in the last dated section below replaced all three. What
+> follows is the record of the attempt, kept because the reasoning it contains is why the next one
+> was built the way it was.
+
+**What was on screen after this work was the walk, act by act, named.** The rail above the headline
+read
+`guide  set up  run  same again  change  repair` — the demonstration `docs/demo-script.md` describes,
+which is the one a judge is meant to see. Each act is something somebody presses, each proves one
+claim obsel makes, and they only ever go forwards. The taxi swarm gets its own three (`set up`,
+`run and change`, `repair`), because its run and its change are one step and forty agents make the
+unchanged-re-run argument on screen in the same moment. A swarm that is neither pipeline gets no rail
+at all: every act launches a step against obsel's own tables, and a walk drawn over somebody else's
+board would describe work that is not on screen.
+
+All mmux tokens and no new ones: the acts behind the board are `--mm-rose-muted` with quiet labels,
+the current act carries a `--mm-rose-hot` cursor with the `--mm-glow-sm` glow and a cream label, and
+the acts ahead are `--mm-cream-faint`. The last act while marks are standing is `--obsel-stale`
+amber, the colour this board gives every stale mark, so the state the whole tool exists to report
+never reads as the ordinary end of a run. The labels are 13px, not the 11px they started at, because
+obsel's type floor exists for a compressed recording watched at half size and these are the most
+load-bearing text in the region.
+
+The region's accessible name is `guide` too, matching what is painted; it was "What just happened",
+which named nothing a reader could see. Each act's claim — what pressing it demonstrates — is on the
+rail's accessible description rather than painted, since five of those is a paragraph and the graph
+underneath makes the same argument in a picture.
+
+**The block is a composition rather than a stack, and that was the second complaint.** It was five
+things flush left, each ending where its own content ran out: the rail at 46ch, the headline at
+whatever the sentence measured, the line under it at 82ch, and a row of buttons each sized to its own
+label. Four ragged right edges within 200px of each other, on a board where every other region is a
+hairline rectangle. It is now two measured columns under one rail — what happened on the left at a
+700px measure, what you can do about it on the right at 500px, the log under the sentence it belongs
+to — with a hairline closing the block at the bottom, which it had never had. The buttons are a
+column of equal controls instead of a row of unequal ones, and the width cap each one carried is
+gone: the column does that job, and does it for one button as well as for three. Below 1100px the
+grid becomes one column and the controls lay out in tracks, so a stage offering a single action never
+renders it as a banner.
+
+**The stages with nothing to press take the whole measure.** They are also the ones with the most to
+say: `prepare` lists every prerequisite with the command that fixes it, and at the narrow measure the
+`python3 -m venv agents/.venv && …` line wrapped across two while 800px sat empty beside it. The
+section carries `data-actions`, and with no actions the sentence column widens to 1240px. Measured at
+the recording viewport on the three-prerequisite board: every fix command on one line, and the block
+40px shorter than before.
+
+**Where the walk stands is derived on every poll, from two sources, and stored nowhere.** The board
+answers most of it: tasks existing is `set up`, every task having finished is `run`, marks standing
+is `change`. Two acts leave no trace on the board and only the step record can answer them, and both
+gaps are honest rather than lazy — an identical re-run leaves the board exactly as it was, which is
+the entire claim it makes, and a repair ends with a board that looks like one that was never changed.
+So `src/server/runner/launcher.ts` now keeps an append-only, bounded record of finished steps, and
+`journey()` reads the slice after the last successful reset. That slice is what makes the walk
+**repeatable**: pressing reset really does put every task back to registered, and the rail agrees
+with the board it is describing rather than staying complete forever after one run. A step that
+exited non-zero ticks nothing, because a step that failed did not demonstrate its claim.
+
+Two rules sit on top of first-undone, both because first-undone alone lies. Marks standing put the
+walk at its last act whatever was skipped, since what to do about the marks is the only thing that
+matters on that board. And a step that is running names its act outright, which is the strongest
+evidence there is about where the walk has got to: it is happening. One limit is written down in the
+code rather than papered over — a step driven from a terminal never reaches this server's launcher,
+so `same again` will not tick from one. Every other act is carried by board state, which is visible
+however it came about, and the demo script's own rule is that the judged demonstration is driven
+entirely from these buttons.
+
+**A completed walk says so and offers the way round again.** Settled with every act performed reads
+"Every act has run. Reset to walk it again." and puts the reset button first. Without it a completed
+walk is indistinguishable from one that never started: the same settled board, and a line underneath
+telling the reader to try the things they have just finished trying.
+
+**The animation is a library now, and that deleted more than it added.** `motion` (MIT, through
+`LazyMotion` with `strict`) replaced three `@keyframes` blocks, a `calc()` stagger driven by an
+inline `--i` custom property, a wrapper element whose only job was to mask the headline, and a
+`prefers-reduced-motion` block restating every end state by hand. What it buys that the hand-rolled
+version could not: the rail's cursor travels from one act's tick to the next by `layoutId`, which
+means measuring both elements on every poll if written by hand. `AnimatePresence` gives the outgoing
+sentence a real exit instead of a hard swap.
+
+**The entrance runs on a change of act and at no other time**, and the test that proves it had to be
+rewritten twice. The board is recomputed once a second, so an entrance driven by render would replay
+once a second forever. `e2e/cockpit.spec.ts` samples `getAnimations()` under the guide every frame
+through `requestAnimationFrame`, counting each distinct animation once: it asserts the entrance runs
+on arrival, does not run again across three polls with the stage unchanged, and runs again when the
+stage genuinely changes. The first two alone would pass for an entrance that never runs, which is why
+the third is there. The earlier versions measured the wrong thing — `expect.poll` widened its
+interval and missed a half-second entrance between samples, and an `animationstart` counter worked
+only while the entrance was CSS keyframes and would have silently counted zero now that motion drives
+it through the Web Animations API.
+
+**Reduced motion renders the finished picture rather than a hurried animation.** motion's own
+handling keeps opacity transitions, which is still an entrance; `useReducedMotion` decides whether
+the animation props are passed at all, so under the preference the end state is the only state these
+elements are ever given. The browser test asserts full opacity, no transform, no animation name, and
+nothing in flight on the headline.
+
+**The word ceiling moved, 168 to 176, and it was argued at the assertion.** The board measured 170
+words of prose, up from 162: the word `guide`, which gave the region a name it had not had since its
+panel title was deleted, and seven words naming the acts of the walk, less the `5/5` figure that came
+off when named acts made counting unnecessary. That ceiling has since been removed; see the section
+below.
+
+Counts after this work, measured 2026-07-27: `pnpm verify` green with **470 unit tests across 20
+files**; `pnpm e2e` green with **155 browser checks across two viewports**, one skipped by design.
+Fourteen of the new unit tests are the walk's derivation, including the ones that would otherwise be
+assumed: a step that failed, a board somebody else drove, the change pressed before the unchanged
+re-run, and the reset boundary rewinding.
+
+`pnpm test:live` has **not** been re-run, and there is one thing in this change it would cover that
+nothing else does: the step record is written by the real launcher, and every test above supplies it
+as a fixture. What the live suite would establish is that a real `agents.run` finishing appends what
+`journey()` expects. The board's own halves are covered without it, since board state is read from
+DataHub by the existing suites.
+
+### The guide points at the board, and the board's word ceiling is gone (2026-07-27)
+
+The complaint, in the owner's words: the guide "isnt interactive... this is literally just buttons
+and a small rail on the top left". That was accurate. Pressing `change` turned three boxes amber on
+the graph six inches below a sentence about the change, and nothing on the board connected the press
+to the boxes. The guide could describe the board's state and never point at it.
+
+> **Superseded on 2026-07-27.** The watch sentence and the rings this section records were removed
+> the same day, along with the rail above; the tour window in the section below replaced all three.
+> The measurement of _why_ they were too quiet is in that section, and it is the reason this one is
+> kept.
+
+**One derivation produced both halves.** `watchFor` in `src/features/cockpit/guide.ts` returned a
+`Watch` carrying one sentence and the URNs of the boxes that sentence is about. The sentence is
+painted in the guide's left column; the URNs go to `Lineage`, which rings exactly those boxes. They
+come from one object, so the line and the rings cannot end up about different boxes. Same house rule
+as everything else here: derived from the snapshot on every poll, no stored position, no diffing one
+poll against the last, and a board somebody else drove to the same state gets the same line.
+
+What each stage points at, and what it deliberately does not:
+
+| board state                        | painted                                                              | ringed                                    |
+| ---------------------------------- | -------------------------------------------------------------------- | ----------------------------------------- |
+| registered                         | Each agent below is wired to the tables it reads and writes.         | nothing: the boxes appearing is the event |
+| working                            | The ringed boxes below turn green as each agent finishes.            | the running agents                        |
+| settled, after an unchanged re-run | Nothing below turned amber. Same table out, so obsel marked nothing. | nothing, and that is the claim            |
+| flagged                            | The ringed boxes below are finished work built on that table.        | the changed table and every marked agent  |
+| settled, after a repair            | The amber cleared below because the work was redone, not dismissed.  | nothing                                   |
+
+Three properties are asserted rather than assumed. The origin comes from `currentChange`, the same
+function `lineage.tsx` uses to decide which table gets the amber border, so a ring cannot land on a
+different box from the one the graph calls the origin. The line never restates the subline above it,
+which already names the columns that moved and counts the agents that never read the table. And an
+unmarked agent on a flagged board is never ringed: a ring is attention, and pointing at work obsel
+did not mark, on the board that exists to show what it did mark, is the false positive the tool is
+against.
+
+**The rings are attention, never state.** `nodeTone` still decides what a box means and stays the
+only thing that does; the ring's colour is handed in from that same tone, so an amber ring is amber
+because the box is amber. A ring is `pointer-events: none` and sits 5px outside its box in the gap
+dagre already leaves, so it cannot swallow the click that opens the details panel — a browser test
+clicks a ringed box and checks the mark's reason opens.
+
+**Motion drives the breathing, and reduced motion holds it still.** A second `LazyMotion` wraps the
+graph, since the guide's does not reach React Flow's nodes; `domAnimation` there rather than the
+guide's `domMax`, which is only needed for the rail cursor's layout projection. Under
+`useReducedMotion` no animation props are passed and the ring renders at full strength. That is not
+the same as a shorter animation: `globals.css` cuts every CSS duration to 0.01ms, so a keyframed ring
+under the preference would land on whichever frame that is and could render nearly invisible.
+
+Directly observed, at the recording viewport, on the flagged fixture: the four rings on `clean
+orders`, `Daily revenue`, `Revenue report` and `Table docs`, with `Orders cleaner` unringed, and the
+`watch` line under the headline in the same frame. On the live board at `localhost:3000` in its
+registered state, the line reads `watch Each agent below is wired to the tables it reads and writes.`
+with nothing ringed.
+
+**The board's word ceiling was removed, at the owner's instruction.** It asserted `prose < 176` and
+`prose + log < 269` on the flagged board. It did real work once — the screen it was written against
+was 604 words in two stacked panels of paragraphs — and what it became was a toll booth. Every
+genuine improvement to the copy arrived as a failing build and a paragraph of argument written at the
+assertion, and the ceiling moved anyway each time: 160, then 168, then 176. It measured the one
+property of prose that has no relationship to whether the prose is any good. The five-act rail was
+nearly shipped as unlabelled ticks to stay under it, which produced a position meter nobody could
+read; the labels went on and the number moved. The owner's words: "i dont want word-salad in my UI,
+but i dont think having a hard word-ceiling is helpful either."
+
+What guards the same thing without a number to game, all still executed:
+
+- **`more narration does not put more words on screen`** — the log panel is a fixed height, so a
+  longer run cannot grow the board.
+- **`scale.spec.ts`'s two-board comparison** — the forty-task board and the four-task board are
+  measured in the same session at the same viewport, and their prose must stay within 25 words of
+  each other. Density is a property of the board, not of the pipeline somebody points it at. The
+  absolute `forty.prose < 160` beside it went with the ceiling; the comparison never needed it.
+- **The per-node label cap** — a box label may not grow into a sentence. That is the actual
+  word-salad failure, and it is a cap on one label rather than on the screen.
+- **The em dash guard and the internal-name guard**, which are about how the board says things
+  rather than how much. The internal-name guard is the one the ceiling could never have replaced:
+  `venv: the agents' Python environment (agents/.venv) does not exist yet` is nine words and
+  completely opaque, so a board full of identifiers scored _better_ on a word count than a longer
+  one a stranger can read.
+
+`e2e/fixtures/words.ts` stays, because the scale comparison still measures with it.
+
+Counts after this work, measured 2026-07-27: `pnpm verify` green with **484 unit tests across 20
+files**; `pnpm e2e` green with **159 browser checks across two viewports**, one skipped by design.
+Fourteen of the new unit tests are the watch derivation, including the ones that would otherwise be
+assumed: the unmarked agent left alone, a re-run that failed saying nothing, a repaired board reading
+as repaired rather than as an unchanged re-run, and the reset boundary clearing the line.
+
+`pnpm test:live` has **not** been re-run. Nothing in this change crosses a process boundary: the
+watch is derived from the same snapshot and step record the guide already read, and both are covered
+by the existing suites.
+
+### A tour that walks you through it, and the three guides it replaced (2026-07-27)
+
+Three attempts at a guide shipped and were rejected in turn, and the owner's verdicts are the record
+of why: "isnt deliberate enough", then "if a judge saw this they would still be confused", then "this
+is literally just buttons and a small rail", then "its too subtle, still". Each attempt was correct,
+derived, tested, and none of them guided anybody.
+
+**What was actually wrong, measured rather than argued.** On the live board, 97 of the 100 text
+elements are between 11 and 14 px. The guide's act labels were 13 px at 52% opacity, its ticks were
+3 px tall, and its "watch" sentence was 13 px at 56%: the thing meant to lead a stranger through the
+screen was set at the weight of a legend caption and fainter than body text. Every fix up to that
+point had added _information_ at footnote size. Two structural faults on top of it: the rail said
+which act was current while three identically weighted buttons sat beside it with nothing saying
+which one performed that act, and the node rings were 1 px on a graph built out of 1 px borders.
+
+**What replaced them**, decided with the owner rather than guessed: a docked, draggable tour window,
+opened from a button in the header, that teaches one thing at a time and lights the region of the
+board it is talking about.
+
+- **`src/features/cockpit/tour/steps.ts`** is the curriculum as data. Chapter one teaches the screen
+  in four explanation steps, advanced by a next button. Chapter two walks the real demonstration in
+  action steps, which **have no next button at all**: each quotes the real control by the label the
+  guide is currently painting on it, and advances only when the board shows the thing happened. That
+  absence is the honesty rule of the whole thing. A tour that could be paged past an action would
+  sooner or later be describing a board that does not exist.
+- **`tour/use-tour.ts`** stores two facts about the person and none about the board: whether they
+  have met the tour, and which card they last had open. Where chapter two stands is derived on every
+  render from the same snapshot the rest of the cockpit is derived from.
+- **`tour/tour-panel.tsx`** is the window. Drag by its bar through motion's `dragControls`, with
+  constraints measured from the window's own height per step so it can never be put somewhere it
+  cannot be got back from. Cards swap through `AnimatePresence` with `mode="wait"`; the window
+  itself arrives on a spring, the one in obsel, because it is an object being put down rather than
+  an instrument reading. The current step's region is lit imperatively with an `outline` and a
+  glowing `::after`, chosen because `outline` draws outside the box so nothing on the board moves,
+  and because it is the one visual property those inline-styled components do not set themselves.
+- **The opener** is lit and breathing on a browser that has never met it, with "new here?" beside
+  it, and quiet permanently after the first open or "not now".
+
+**Two derivations came out of looking at real states, and both would have broken the demonstration
+on camera.** A repaired board is clean and finished, which is exactly what a board that only ever
+ran looks like — so "has anything been changed" reads false again the moment a repair lands. Taken
+naively, a judge who had just finished the whole walk would be dragged back to "now change something
+upstream", on a board where they already had, with no next button to escape with. Both the change
+act and the repair act therefore consult the launcher's step record for the case the board has
+forgotten, and the reconciliation takes the **last** action the board has done rather than the first
+it has not. Known limit, the same one the rail before it recorded: a step driven from a terminal
+never reaches this server's launcher, and `docs/demo-script.md` requires every step of the judged run
+to be a button for exactly that reason.
+
+**Directly observed**, at 1920x990 and on the live board at `localhost:3000`: the opener lit on a
+cleared browser and quiet after a reload; chapter one walked end to end with the glow moving guide →
+graph → trace → numbers; an action step showing `press this, glowing on the board` above the real
+button label, `waiting for you`, and no next control, with the matching board button outlined; a
+running step showing `The instruction change` and a live green dot; the window dragged 120 px left
+and 200 px up and staying there.
+
+**What came out**, all of it replaced rather than kept: the five-act rail and its travelling cursor,
+the `watch` sentence, the node rings and the `watch` prop threaded through `lineage.tsx` and
+`nodes.tsx`, and `journey()` in `guide.ts`. The guide block keeps what is genuinely the board's —
+headline, subline, action buttons, prerequisite checks, live log — and the tour points at those
+rather than duplicating them. `settled()` still needs to know whether the board has been all the way
+round; it now asks `performedSteps` for a repair directly instead of asking the walk.
+
+Counts after this work, measured 2026-07-27: `pnpm verify` green with **470 unit tests across 20
+files**; `pnpm e2e` green with **163 browser checks across two viewports**, one skipped by design.
+
+`pnpm test:live` has **not** been re-run. Nothing here crosses a process boundary: the tour reads the
+same snapshot and step record the guide already read, and both are covered by the existing suites.
+Chapter two has been exercised against fixtures at every point, and **not** against a live four-agent
+run from end to end. That is the one gap: a real run would confirm the action steps advance off a
+real launcher's record rather than off a fixture's, and it is several minutes of real Codex sessions.
+
+### A launcher, and the contradiction a stopped server exposed (2026-07-27)
+
+Setup before the board was four documents that disagreed in scope: three commands in the README,
+eight steps in `setup.md`, four prerequisites in `agents/README.md`, nine preflight rows in
+`demo-script.md`. Following any one of them left something out, and the first prerequisite of all,
+the `datahub` CLI, had no install command written down anywhere except in passing in
+`upstream-contributions.md`.
+
+`scripts/start.sh` is those steps in one order, reached on macOS by double-clicking
+`Start obsel.command`. The ordering is the part that is not a convenience: registering obsel's tag
+and starting the app both only work once DataHub is answering, and a numbered list gives the reader
+no way to know that the wait in step 1 is load-bearing.
+
+**Measured on this machine, 2026-07-27.**
+
+| run                                                                          | result                                                                                                                                                                                |
+| ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| fresh, with `.env.local` and `agents/.venv` deleted                          | **16 s** from start to obsel answering on `:3000`. Board loaded, all five prerequisites green.                                                                                        |
+| re-run, everything in place and the server already up                        | **2.794 s**. Skipped DataHub, kept `.env.local`, kept the virtual environment, did not start a second server. `agents.run setup` re-ran and confirmed both entities readable in 3 ms. |
+| `env -i PATH=/usr/bin:/bin:/usr/sbin:/sbin HOME=$HOME`, the Finder condition | nvm loaded, Node v24.18.0 found, run continued. Without the `PATH` repair this machine reports Node missing while having it, which is the worst answer available.                     |
+| the same with `HOME` pointed at an empty directory, so nvm cannot be found   | refused at step 2 against the real Node **v22.14.0** in `/usr/local/bin`, naming the version and the download. A genuinely wrong Node, not an arranged one.                           |
+| `DOCKER_HOST` at a socket path that does not exist                           | refused at step 1, exit 1, created nothing. Automated in `tests/start-script.test.ts`.                                                                                                |
+| the wrapper started from another directory                                   | reported the folder it lives in, not the working directory. Automated in the same file.                                                                                               |
+
+Both `uvx --from 'acryl-datahub==1.6.0.15' datahub --version` and that command's
+`docker quickstart --help` were run before the script was written around them: the CLI resolves and
+the subcommand is real. This is what closes the missing-install-command gap, since it needs nothing
+installed permanently.
+
+**The contradiction.** Stopping the dev server to take the timing above put the board into the state
+a judge meets whenever obsel is not running, and the owner read it off the screen. Two reads fail
+together there, and each had its own reporter that did not know about the other: `guide-panel.tsx`
+said "The board below is unaffected" and `cockpit.tsx` said "Everything below is from the last read
+that worked, at 22:58:36, and may already be wrong", one paragraph apart. Both cannot be true, and
+the first is the false one. It was written for the case where only the activity read fails, which is
+real and where the sentence is correct and useful.
+
+The condition is now "this read failed while the other one is working" rather than "this read
+failed", so a stopped server is one fault with one report. A second duplicated sentence went with it:
+the alert's "The measured numbers stay blank until obsel can read again" is the guide's own subline
+two lines above in different words. Pinned by two complementary browser tests, one asserting the
+sentence is absent when both reads fail and one asserting it is present when only the demo read
+does, so neither deleting it nor always showing it passes both.
+
+**There were three copies, not two.** The first fix was checked by stopping the server again and
+reading the whole screen rather than the part that had been edited, and the trace panel was saying
+"could not be read (Failed to fetch). The board is unaffected." three panels below the alert saying
+the board may already be wrong. It is the same sentence for the same reason on a third read, and it
+now takes the same condition. Reading only the region that was changed would have left it.
+
+**And the guide's own headline had nothing asserting it.** The blank-looking guide block in that
+same screenshot turned out to be an artifact of how the screenshot was taken, not a fault: in real
+Chromium "The board lost its connection" is on screen. There was no way to tell those apart from the
+repository, because no test covered it, so the browser test now asserts the headline is visible in
+the state where the board has lost its connection.
+
+**The checklist gained a fifth row**, `uvx`, which the launcher also checks. It is the quietest
+prerequisite obsel has: without it the engine still reaches the right answer and finds every
+affected task, and the tag that records any of it is the only thing that fails, so the board looks
+correct and DataHub is never told. `tests/live/preflight.live.test.ts` proves the check against a
+`PATH` that genuinely lacks the binary.
+
+That test's first version passed while proving nothing, and it is worth writing down because the
+mistake is reusable. It reset the module registry and re-imported `preflight.ts` to get an empty
+cache, which is exactly what `preflight.ts` is built to survive: the cache hangs on `globalThis` so
+that a dev-server module reload does not throw away verdicts. The freshly imported copy answered
+from the previous test's cached `ok: true`, under a `PATH` with no `uvx` anywhere on it. It was
+caught by running it, not by reading it, and the fix is to drop the cached verdicts the way
+restarting the server would.
+
+**Not executed, and named rather than implied.** DataHub was already running throughout, holding the
+operator's own board, so the cold-start branch of step 6 and its 180 s wait have not been run; the
+16 s above is a run that skipped them, with warm pnpm and pip caches. The Gatekeeper prompt was not
+reproduced either: the real `com.apple.quarantine` attribute was set and the file still ran from a
+shell both ways, because that block is enforced by Finder on a GUI launch, which is not drivable
+here. What the README tells a judge to do about it is therefore documented macOS behavior, not a
+tested instruction. No Linux machine has run the script.
+
 ## Not done
 
+- **The launcher has never started DataHub from cold.** Every run of it so far found DataHub already
+  up, so the branch that runs `datahub docker quickstart` and waits up to 180 s for the API is
+  unexecuted, and the 16 s figure is a run that skipped it. The `uvx --from acryl-datahub` form was
+  proven to resolve and to carry a real `docker quickstart` subcommand, which is not the same as
+  having started a stack with it.
+- **The Gatekeeper block was not reproduced**, only the attribute that causes it. It is enforced by
+  Finder at GUI launch, and no GUI session was available. The right-click-Open instruction in the
+  README is documented macOS behavior rather than something observed here. The `bash scripts/start.sh`
+  fallback was run against a genuinely quarantined file and works.
+- **The launcher has only run on one macOS machine.** Linux is claimed on the strength of the script
+  avoiding macOS-only constructs, not on a run. Windows is out of scope and the README says so.
 - **Every scale figure above is one observation.** One registered board, one concurrent run, one
   mid-run cascade, one parallel repair, on one machine. That is a demonstration, not a pass rate,
   and the demo-stability bar the four-task demo was held to, repeated clean sequences across days,
@@ -1305,12 +1784,12 @@ tests are unaffected, and no live test covers the form.
   been watched during a real cascade, but nothing reads it back, it is bounded to the newest 200
   steps, and it does not survive a restart. Anything it says is corroborated by the marks in DataHub
   or it is not corroborated at all.
-- **The word ceiling is a guard, not a design proof.** `e2e/cockpit.spec.ts` fails the build if the
-  flagged board goes past 168 words of prose, or 263 of prose and visible step log together, which
-  stops the density that prompted this rebuild from creeping back. It cannot tell whether what
-  remains is the right 162 words, and no test can. The ceiling has been raised three times, each
-  time with the purchase written down word by word at the assertion; that ledger is the only thing
-  standing between "bought deliberately" and "crept up".
+- **Nothing checks whether the board says the _right_ things, only that it does not say more than
+  it used to.** The board once carried a hard ceiling on its total word count. It was removed on
+  2026-07-27 because it had become a toll booth: it was raised three times, each time by the change
+  that was improving the copy, so it never actually refused anything, and it measured the one
+  property of prose unrelated to whether the prose is any good. What replaced it is comparative and
+  per-element, and none of it can tell whether what remains is the right copy. No test can.
 - **The graph is laid out for two pipeline shapes now, not one.** The unit suite exercises a
   six-task fan-out and a cycle, and the browser suite covers the four-task demo and the forty-task
   taxi board in both states at both viewports. Nothing has been checked between or beyond those:

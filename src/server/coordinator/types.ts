@@ -97,11 +97,34 @@ export interface OutputShape {
  * `timing.ts` already documents having made once.
  */
 export interface RunDetail {
-  /** What did the work, with its version, e.g. `codex-cli 0.144.4`. */
-  runner: string;
-  /** Milliseconds the runner took, measured by the agent in a single process. */
-  ms: number;
-  /** Shape of each output dataset URN this run produced. */
+  /**
+   * What did the work, with its version, e.g. `codex-cli 0.144.4`. Null when
+   * whatever reported did not say.
+   */
+  runner: string | null;
+  /**
+   * Milliseconds the runner took, measured by the agent in a single process.
+   *
+   * **Nullable, and the null is the point.** A duration has to be measured by
+   * the thing that ran, in one process, or it is not a measurement. The cockpit
+   * bench reports a table a person typed by hand: there is no run to time, and
+   * any number here would be invented. obsel's rule is that it never shows a
+   * figure nobody took, so the honest value is nothing — and `outputs` below
+   * still arrives, which is what the board actually needs.
+   *
+   * This was `number`, and requiring it meant a reporter with no stopwatch had
+   * to omit the whole `run` object. That silently cost the shape as well, and
+   * the shape is not decoration: `engine.ts` diffs `run.outputs` columns to say
+   * WHICH columns moved, so a mark that would have read "clean expenses lost
+   * amount" degraded to "the columns in clean expenses changed".
+   */
+  ms: number | null;
+  /**
+   * Shape of each output dataset URN this run produced.
+   *
+   * The one part of `run` that is not merely display: the column lists here are
+   * what `columnChange` in `engine.ts` compares to name the columns that moved.
+   */
   outputs: Record<string, OutputShape>;
 }
 

@@ -11,11 +11,241 @@
  * mechanism. Everything here is content-sized: the graph absorbs the slack.
  */
 
+/*
+ * The block is a composition now, not a pile.
+ *
+ * It was five things stacked flush left, each ending wherever its own content
+ * ran out: the rail at 46ch, the headline at whatever the sentence measured, the
+ * line under it at 82ch, and a row of buttons each sized to its own label. Four
+ * ragged right edges inside 200px of each other, on a board where every other
+ * region is a hairline rectangle. Nothing was aligned to anything, which is what
+ * made a deliberate block read as loose.
+ *
+ * Two columns under one rail: what happened on the left, what you can do about
+ * it on the right, the log beneath the sentence it belongs to. The columns give
+ * every element one of two left edges and one of two right edges, and the rail
+ * and the rule close the block top and bottom.
+ */
 .headliner {
+  display: grid;
+  /*
+   * Two measured columns and a third that is deliberately empty.
+   *
+   * The columns were shares of the block and the block was capped, which put its
+   * bottom rule and its rail three quarters of the way across a 1920 frame with
+   * every panel below running the full width: a rule that stops in open space
+   * reads as one that broke. The block runs edge to edge now, and the measure is
+   * held by the tracks instead — 700 for a 13px sentence, 500 for a control that
+   * has to say what it does, and whatever is left over stays empty.
+   */
+  grid-template-columns: minmax(0, 700px) minmax(0, 500px) minmax(0, 1fr);
+  grid-template-areas:
+    "rail rail rail"
+    "sentence actions .";
+  align-items: start;
+  column-gap: var(--mm-space-2xl);
+  row-gap: var(--mm-space-sm);
+  min-width: 0;
+  /* The block's own bottom edge. Every other region on this board is bounded and
+     this one was not, so it floated above the graph rather than heading it. */
+  padding-bottom: var(--mm-space-md);
+  border-bottom: var(--mm-border-hair);
+}
+
+/*
+ * Nothing to press: the sentence takes the room the controls would have used.
+ *
+ * 1240 rather than 700, which is what a setup screen needs — the longest fix
+ * command obsel hands over is a `python3 -m venv` line that wraps at the narrow
+ * measure and fits at this one. It applies to the stages with no buttons, which
+ * are exactly the stages carrying the instructions.
+ */
+.headliner[data-actions="false"] {
+  grid-template-columns: minmax(0, 1240px) minmax(0, 1fr);
+  grid-template-areas:
+    "rail rail"
+    "sentence .";
+}
+
+/*
+ * One column below the width where two would squeeze the sentence.
+ *
+ * 1100px, not a device: at the laptop viewport this board is 1264px of content
+ * and the two columns come out 738 and 526, which both hold. Under that the
+ * left column starts breaking the headline into three lines to make room for
+ * buttons that are already at their cap.
+ */
+@media (max-width: 1100px) {
+  .headliner {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "rail"
+      "sentence"
+      "actions";
+  }
+
+  /*
+   * Side by side again once the controls have the whole width, and in tracks
+   * rather than at their content's width.
+   *
+   * Stacked here, a stage offering one action stretched it across the entire
+   * block: a 1000px banner saying "Start the demo agents", which is the thing
+   * the old 58ch cap existed to prevent. `auto-fill` lays the tracks whether or
+   * not there are buttons to fill them, so one button occupies one track and
+   * three occupy three, all the same width.
+   */
+  .actions {
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    margin-top: var(--mm-space-xs);
+  }
+}
+
+/* The left column: the sentence, then the log of the step that produced it. */
+.column {
+  grid-area: sentence;
+  display: flex;
+  flex-direction: column;
+  gap: var(--mm-space-sm);
+  min-width: 0;
+}
+
+/* Everything that reveals together, remounted by `key` on a stage change. */
+.reveal {
   display: flex;
   flex-direction: column;
   gap: var(--mm-space-xs);
   min-width: 0;
+}
+
+/*
+ * The rail: the region's name, and the acts of the walk it heads.
+ *
+ * Hairline ticks with a named act under each, in mmux's instrument vocabulary
+ * rather than a progress widget borrowed from somewhere else. It is 3px of rule
+ * and a row of 11px labels, and it is the only thing on the board that says any
+ * of this is a sequence.
+ */
+.rail {
+  grid-area: rail;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--mm-space-md);
+  min-width: 0;
+  padding-bottom: var(--mm-space-sm);
+}
+
+.railName {
+  font-family: var(--mm-font-mono);
+  font-size: var(--mm-text-lg);
+  letter-spacing: var(--mm-track-label);
+  color: var(--obsel-text-quiet);
+  white-space: nowrap;
+  /* Down onto the labels' own line: the tick is 3px and the gap under it 6px,
+     and at the same size as the labels the baselines then agree. */
+  padding-top: 9px;
+}
+
+/*
+ * Fixed-width acts, not shares of the row.
+ *
+ * Stretched across a 1920px recording these are a page-wide progress bar, which
+ * is a thing obsel is not doing. At a fixed width they are ticks on an
+ * instrument: the same size on every screen, and the row's remaining width is
+ * left empty on purpose rather than filled because it was there.
+ */
+.railTrack {
+  display: flex;
+  gap: var(--mm-space-sm);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow-x: auto;
+}
+
+.act {
+  display: grid;
+  gap: 6px;
+  /* Wide enough for `same again` and `run and change` on one line. */
+  min-width: 92px;
+}
+
+/*
+ * The tick, and the track the cursor slides along.
+ *
+ * The rule under every act is the same faint hairline; what moves between acts
+ * is the lit bar on top of it, so the row's geometry never changes as the walk
+ * advances.
+ */
+.tickRail {
+  position: relative;
+  display: block;
+  height: 3px;
+  background: var(--mm-rose-line);
+}
+
+.act[data-state="done"] .tickRail {
+  background: var(--mm-rose-muted);
+}
+
+/*
+ * The cursor: the one lit thing in the row, and the only glow in this block.
+ *
+ * mmux takes its elevation from a hairline and a glow rather than a shadow, and
+ * spending the glow here is what makes the current act findable at a glance on a
+ * compressed recording. `motion` moves this element between acts by `layoutId`.
+ */
+.cursor {
+  position: absolute;
+  inset: 0;
+  background: var(--mm-rose-hot);
+  box-shadow: var(--mm-glow-sm);
+}
+
+/*
+ * Named, because a tick nobody can name is a position and not a guide.
+ *
+ * 13px, not the 11px this started at. These are load-bearing text — they are the
+ * whole reason the rail is worth drawing — and obsel's type floor exists because
+ * the medium is a compressed screen recording watched at half size, where 11px
+ * of tracked monospace is a smudge.
+ */
+.actLabel {
+  font-family: var(--mm-font-mono);
+  font-size: var(--mm-text-lg);
+  letter-spacing: var(--mm-track-label);
+  line-height: 1.2;
+  color: var(--mm-cream-faint);
+  white-space: nowrap;
+}
+
+/* Behind the board: done, and quiet about it. */
+.act[data-state="done"] .actLabel {
+  color: var(--obsel-text-quiet);
+}
+
+/* Where the walk is. The one act set in full-strength text. */
+.act[data-state="now"] .actLabel,
+.act[data-state="urgent"] .actLabel {
+  color: var(--mm-cream);
+}
+
+/*
+ * The repair act while marks are standing, in the amber this board gives every
+ * stale mark.
+ *
+ * Rose here would paint "finished work is out of date, and something should be
+ * done about it" in the same colour as an ordinary step of a walk, and that is
+ * the one state on this board that must not read as ordinary. It is the same
+ * cursor element either way, so it still slides here from wherever it was.
+ */
+.act[data-state="urgent"] .cursor {
+  background: var(--obsel-stale);
+  box-shadow: 0 0 8px var(--obsel-stale-wash);
+}
+
+.act[data-state="urgent"] .tickRail {
+  background: var(--obsel-stale-line);
 }
 
 /*
@@ -34,7 +264,28 @@
   letter-spacing: -0.01em;
   color: var(--mm-cream);
   text-wrap: balance;
+  /*
+   * The counts in this sentence are recomputed every second. Proportional digits
+   * re-wrap "3 of 4 finished agents are out of date" as the numbers change, so
+   * the largest line on the board twitches while nothing has happened.
+   */
+  font-variant-numeric: tabular-nums;
 }
+
+/*
+ * The entrance is not here any more, and this is the note for anyone looking.
+ *
+ * It was three `@keyframes` blocks, a `calc()` stagger driven by an `--i`
+ * custom property set inline on every item, a wrapper element whose only job was
+ * to mask the headline, and a `prefers-reduced-motion` block restating every end
+ * state by hand. `guide-panel.tsx` drives all of it through `motion` now: one
+ * parent variant conducting its children, and the rail's cursor moving between
+ * two separate ticks by `layoutId`, which is the part that could not be written
+ * in CSS at all without measuring layout by hand on every poll.
+ *
+ * What stays in CSS is what CSS is better at: the grid, the colours, and the
+ * hover and press states below.
+ */
 
 /*
  * One line under the headline, carrying what changed.
@@ -49,7 +300,57 @@
   font-size: var(--mm-text-lg);
   line-height: var(--mm-leading-body);
   text-wrap: pretty;
-  max-width: 82ch;
+}
+
+/*
+ * Where to look on the graph below.
+ *
+ * The only line in this block that is about another region of the board, so it
+ * is set apart from the sentence above it rather than continuing the stack: a
+ * 2px rule on its left edge, in the same colour as the boxes it is sending the
+ * reader to. Mono, because it is an instruction about the instrument rather
+ * than a sentence about what happened.
+ *
+ * Rose ordinarily, amber while marks are standing. That is the same rule the
+ * rail's cursor follows, and for the same reason: a line pointing at three amber
+ * boxes, drawn in the accent colour every other step of the walk uses, would
+ * paint the one state obsel exists to report as the ordinary end of a run.
+ */
+.watch {
+  display: flex;
+  align-items: baseline;
+  gap: var(--mm-space-sm);
+  margin: 0;
+  margin-top: var(--mm-space-xs);
+  padding-left: var(--mm-space-sm);
+  border-left: 2px solid var(--mm-rose-line);
+  font-family: var(--mm-font-mono);
+  font-size: var(--mm-text-lg);
+  line-height: var(--mm-leading-body);
+  color: var(--mm-cream-dim);
+  text-wrap: pretty;
+}
+
+.watch[data-marked="true"] {
+  border-left-color: var(--obsel-stale-line);
+}
+
+/*
+ * `watch`, and it is `aria-hidden`.
+ *
+ * A screen reader has no graph to look at and no rings to see, so announcing the
+ * word would introduce an instrument the listener cannot use. The sentence after
+ * it stands on its own: "the ringed boxes below are finished work built on
+ * that table" is still true read aloud, it is just no longer an instruction.
+ */
+.watchLabel {
+  flex: none;
+  letter-spacing: var(--mm-track-label);
+  color: var(--mm-rose);
+}
+
+.watch[data-marked="true"] .watchLabel {
+  color: var(--obsel-stale);
 }
 
 /* Setup and failure stages only. Never on a stage the demo passes through. */
@@ -75,7 +376,6 @@
   font-family: var(--mm-font-sans);
   font-size: var(--mm-text-md);
   line-height: var(--mm-leading-body);
-  max-width: 82ch;
   display: grid;
   grid-template-columns: auto 1fr;
   gap: var(--mm-space-sm);
@@ -145,23 +445,21 @@
 }
 
 /*
- * A row, wrapping only when it genuinely cannot fit.
+ * A column of equal controls, not a row of differently sized ones.
  *
- * `flex: 0 1 auto` rather than the `1 1 22ch` this had while the buttons were
- * carrying 28-word detail lines: at ~8 words they no longer need to be stretched
- * to share the frame, and letting them size to their content stops two short
- * labels from being spread into a pair of banners.
+ * As a wrapping flex row each button was as wide as its own label, so a stage
+ * offering three put three different widths and three different right edges on
+ * screen, ending wherever the third label ran out. Stacked in their own column
+ * they share both edges, they are read top to bottom in the order the guide
+ * offers them, and the row of them can no longer collide with the sentence.
  */
 .actions {
-  display: flex;
-  flex-wrap: wrap;
+  grid-area: actions;
+  display: grid;
   gap: var(--mm-space-sm);
-  align-items: stretch;
-  margin-top: var(--mm-space-xs);
-}
-
-.actions > .action {
-  flex: 0 1 auto;
+  align-content: start;
+  justify-items: stretch;
+  min-width: 0;
 }
 
 /*
@@ -175,21 +473,41 @@
   text-align: left;
   padding: var(--mm-space-sm) var(--mm-space-md);
   /*
-   * 58ch, up from 44ch, now that these sit in a full-width row: at 44ch two
-   * buttons filled barely half the frame and the row read as unfinished. Still
-   * capped, because the cap is what stops a stage that offers ONE action from
-   * rendering it as a banner across the whole cockpit.
+   * No width cap. The cap existed to stop a stage that offers one action from
+   * rendering it as a banner across the whole cockpit, and the column does that
+   * job better: a lone button is 500px in its own column rather than 1900 across
+   * the frame, and it matches the edges of the two or three that other stages
+   * put there.
    */
-  max-width: 58ch;
   color: var(--mm-cream);
-  background: var(--mm-rose-soft);
+  /*
+   * The mmux surface treatment the panels use, on a control: the rose wash, a
+   * hairline, and one inset highlight along the top edge. Elevation on dark comes
+   * from those, never from a drop shadow.
+   */
+  background: linear-gradient(180deg, var(--mm-surface-2), transparent), var(--mm-rose-soft);
   border: 1px solid var(--mm-border-strong);
   border-radius: var(--mm-radius-none);
+  box-shadow: var(--mm-shadow-inset);
   cursor: pointer;
+  transition:
+    border-color var(--mm-dur-short) var(--mm-ease),
+    box-shadow var(--mm-dur-short) var(--mm-ease),
+    transform var(--mm-dur-micro) var(--mm-ease);
 }
 
 .action:hover:enabled {
   border-color: var(--mm-rose);
+  box-shadow: var(--mm-shadow-inset), var(--mm-glow-sm);
+}
+
+.action:hover:enabled .actionLabel {
+  color: var(--mm-rose-hot);
+}
+
+/* One pixel, on press only. It is the whole of the press feedback. */
+.action:active:enabled {
+  transform: translateY(1px);
 }
 
 .action:disabled {
@@ -203,6 +521,7 @@
   font-weight: var(--mm-weight-semi);
   letter-spacing: var(--mm-track-label);
   color: var(--mm-rose);
+  transition: color var(--mm-dur-short) var(--mm-ease);
 }
 
 .actionDetail {
@@ -335,3 +654,17 @@
   color: var(--mm-cream-dim);
   white-space: nowrap;
 }
+
+/*
+ * Motion is a preference, and honouring it is `guide-panel.tsx`'s job now.
+ *
+ * This was a block restating the end state of every animated element by hand,
+ * because `globals.css` cuts durations to 0.01ms globally and an end state
+ * reached only by running is not reached at all. Nothing in this file animates
+ * any more: the panel reads the preference with `useReducedMotion` and simply
+ * does not pass the animation props, so every element renders in its end state
+ * because that is the only state it is ever given.
+ *
+ * The rail needs nothing either way. It is colour and position, not movement, so
+ * it says exactly the same thing standing still.
+ */

@@ -19,9 +19,10 @@ And a row names its evidence precisely enough to re-run it or look it up.
 | browser | Playwright against the built app                                       | `pnpm e2e`         |
 | run     | a dated, measured run recorded in [`verification.md`](verification.md) | see its entry      |
 
-Counts on 2026-07-26: 424 unit tests across 19 files, 183 python self-checks across 7 modules,
-96 live tests across 10 files, 145 browser checks across two viewports. Live runs are single
-observations unless their entry says otherwise.
+Counts on 2026-07-27: 475 unit tests across 21 files, 183 python self-checks across 7 modules,
+98 live tests across 10 files, 167 browser checks across two viewports with one skipped. The live
+figure is from 2026-07-26 plus the two added to `preflight.live.test.ts` on 2026-07-27, which is the
+only live file re-run since. Live runs are single observations unless their entry says otherwise.
 
 Nothing in the unit or python columns uses a stand-in for a system boundary; that rule and its
 origin are in [`CLAUDE.md`](../CLAUDE.md). The browser suite replays recorded or invented
@@ -77,17 +78,41 @@ snapshots and says which is which in each fixture's header.
 
 These are not shapes or data. They are the ways a live swarm goes wrong, each exercised for real.
 
-| case                                    | proven by                                                                                                                                                                                        | kind               |
-| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------ |
-| an agent dies after announcing          | the hand-back path in `tests/live/worker.live.test.ts` and `run-task.live.test.ts`; real Codex timeouts on 2026-07-24 left nothing wedged and the re-runs resumed                                | live, run          |
-| a client timeout on a landed completion | observed live 2026-07-24: the cascade coordinated server-side while a 60 s client gave up; the marks were correct and the mutation ceiling is now 300 s (`MUTATION_TIMEOUT`, `agents/worker.py`) | run                |
-| obsel unreachable                       | a port nothing listens on, `tests/live/` preflights and `agents/worker.py` error paths                                                                                                           | live               |
-| the Codex CLI missing                   | a PATH that genuinely lacks it, `tests/live/codex.live.test.ts`                                                                                                                                  | live               |
-| a failed read on the board              | every measured number withheld, `e2e/cockpit.spec.ts` honesty block                                                                                                                              | browser            |
-| the repair scheduler's hard cases       | producers before consumers, exactly the flagged set, no-op on a clean board, cancel of a completed redo refused: `agents/run.py` and `agents/swarm.py` self-checks                               | python             |
-| DataHub half down, traversal gone       | the real search container stopped 2026-07-24, `docs/verification.md`; the prerequisite check goes red and the board offers the fix                                                               | run                |
-| pointed at DataHub's frontend port      | `:9002` answering 200 to both probes, `tests/live/preflight.live.test.ts`                                                                                                                        | live               |
-| somebody's own agent part way through   | the four joining steps over seeded boards, `tests/cockpit-joining.test.ts`; painted and folded, `e2e/cockpit.spec.ts` "bring your own agent"; a real MCP session ticking all four, 2026-07-24    | unit, browser, run |
+| case                                    | proven by                                                                                                                                                                                                                                                                                                                                           | kind               |
+| --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------ |
+| an agent dies after announcing          | the hand-back path in `tests/live/worker.live.test.ts` and `run-task.live.test.ts`; real Codex timeouts on 2026-07-24 left nothing wedged and the re-runs resumed                                                                                                                                                                                   | live, run          |
+| a client timeout on a landed completion | observed live 2026-07-24: the cascade coordinated server-side while a 60 s client gave up; the marks were correct and the mutation ceiling is now 300 s (`MUTATION_TIMEOUT`, `agents/worker.py`)                                                                                                                                                    | run                |
+| obsel unreachable                       | a port nothing listens on, `tests/live/` preflights and `agents/worker.py` error paths                                                                                                                                                                                                                                                              | live               |
+| the Codex CLI missing                   | a PATH that genuinely lacks it, `tests/live/codex.live.test.ts`                                                                                                                                                                                                                                                                                     | live               |
+| a failed read on the board              | every measured number withheld, `e2e/cockpit.spec.ts` honesty block                                                                                                                                                                                                                                                                                 | browser            |
+| the tour, at every point in it          | `tests/cockpit-guide.test.ts` "the tour": a board somebody else drove, a step that failed, a reset walking it back, a repaired board reading as repaired rather than as one that only ran, the taxi swarm; `e2e/cockpit.spec.ts` walks chapter one region by region and checks an action step offers no way past itself until the board has done it | unit, browser      |
+| the tour window itself                  | `e2e/cockpit.spec.ts`: the opener is emphasised on a first visit and quiet after one, across a reload; dragging by the bar moves it; Escape closes it and unlights the board; under reduced motion it arrives finished and still drags                                                                                                              | browser            |
+| the guide pointing at the board         | `tests/cockpit-guide.test.ts` "where the guide points": the sentence and the ringed URNs per stage, the unmarked agent left alone on a flagged board, a repaired board reading as repaired, a failed re-run saying nothing; `e2e/cockpit.spec.ts` rings four boxes and not the clean one, and a ring does not swallow the click that opens its box  | unit, browser      |
+| the repair scheduler's hard cases       | producers before consumers, exactly the flagged set, no-op on a clean board, cancel of a completed redo refused: `agents/run.py` and `agents/swarm.py` self-checks                                                                                                                                                                                  | python             |
+| DataHub half down, traversal gone       | the real search container stopped 2026-07-24, `docs/verification.md`; the prerequisite check goes red and the board offers the fix                                                                                                                                                                                                                  | run                |
+| pointed at DataHub's frontend port      | `:9002` answering 200 to both probes, `tests/live/preflight.live.test.ts`                                                                                                                                                                                                                                                                           | live               |
+| somebody's own agent part way through   | the four joining steps over seeded boards, `tests/cockpit-joining.test.ts`; painted and folded, `e2e/cockpit.spec.ts` "bring your own agent"; a real MCP session ticking all four, 2026-07-24                                                                                                                                                       | unit, browser, run |
+| a person reporting a table by hand      | the table that leaves the browser, `tests/cockpit-bench.test.ts`; a real register-report-rename-report loop against DataHub flagging one hop with its columns named, 2026-07-27 in `verification.md`                                                                                                                                                | unit, run          |
+| a swarm that is neither obsel pipeline  | no pipeline-specific button offered when registered, settled or flagged, `tests/cockpit-guide.test.ts`; the same board reached for real at the bench, 2026-07-27                                                                                                                                                                                    | unit, run          |
+| uv missing, the quietest prerequisite   | a PATH that genuinely lacks the binary, `tests/live/preflight.live.test.ts`; the board held on the checklist rather than let through, `tests/cockpit-guide.test.ts`                                                                                                                                                                                 | live, unit         |
+| the server stopped, both reads failing  | one fault and one report rather than two sentences that disagree, `e2e/cockpit.spec.ts`; the demo read failing alone still says the board is current, same file; found on a real stopped server 2026-07-27 in `verification.md`                                                                                                                     | browser, run       |
+
+## The launcher
+
+`scripts/start.sh`, and the `Start obsel.command` a judge double-clicks. Each row is an executed
+condition; the two rows nobody has produced are in `verification.md` under Not done, not here.
+
+| case                                         | proven by                                                                                                                                                             | kind |
+| -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---- |
+| a full setup from nothing but the repository | fresh run 2026-07-27, `.env.local` and `agents/.venv` deleted: 16 s to the board, five prerequisites green                                                            | run  |
+| running it twice                             | re-run 2026-07-27: 2.794 s, DataHub skipped, settings kept, environment kept, no second server                                                                        | run  |
+| Docker installed but not running             | a real `docker` binary at a socket path that does not exist, `tests/start-script.test.ts`; refused at step 1 naming the daemon, not the binary                        | unit |
+| it stops before writing anything             | the same refusal in a scratch copy, asserting `.env.local` and `agents/.venv` were not created, `tests/start-script.test.ts`                                          | unit |
+| Finder's bare PATH, which has no nvm         | `env -i PATH=/usr/bin:/bin:/usr/sbin:/sbin`, 2026-07-27: nvm loaded and Node 24 found, where an unrepaired PATH reports Node missing on a machine that has it         | run  |
+| a genuinely wrong Node                       | the same with nvm unreachable, against the real Node v22.14.0 in `/usr/local/bin`, 2026-07-27: refused naming the version                                             | run  |
+| started from the wrong directory             | the wrapper run from another cwd, reporting the folder it lives in, `tests/start-script.test.ts`                                                                      | unit |
+| the shell macOS will actually use            | both files parsed by this machine's `/bin/bash`, which is 3.2, `tests/start-script.test.ts`                                                                           | unit |
+| a quarantined download                       | the real `com.apple.quarantine` attribute set, 2026-07-27: `bash scripts/start.sh` runs unaffected. The Finder block itself was not reproduced, see `verification.md` | run  |
 
 ## The erasure cases
 
@@ -124,6 +149,15 @@ code, because two earlier drafts of the rule were unsound.
 Held to the same standard as everything above: these are the cases nobody has executed, written
 down so the table cannot imply them.
 
+- **The launcher starting DataHub from cold.** Every run of it found DataHub already up, so the
+  branch that runs the quickstart and waits for the API is unexecuted, and the 16 s figure in the
+  table above is a run that skipped it. What is proven is that the `uvx --from acryl-datahub` form
+  resolves and carries a real `docker quickstart` subcommand, which is not the same thing.
+- **The Gatekeeper prompt itself.** The real quarantine attribute was set and the documented
+  `bash scripts/start.sh` fallback runs against it. The block a judge would actually see is enforced
+  by Finder on a GUI launch, which nothing here can drive, so the right-click-Open instruction in
+  the README is documented macOS behavior rather than an observed one.
+- **The launcher on Linux or Windows.** One macOS machine has run it.
 - **A dropped column, live.** The fingerprint arithmetic covers it (a removal moves the schema
   hash) and `columnChange` names removals, but no live run has dropped a column; every executed
   live change is a rename or a value edit.

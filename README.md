@@ -114,6 +114,24 @@ proves.
 
 ## Try it
 
+Start Docker Desktop, then download this repository and **double-click `Start obsel.command`**.
+
+A terminal window opens and works down nine steps, saying what it is doing. You do not type
+anything. It starts DataHub, installs what is missing, registers obsel's tag, starts the app, and
+opens the board in your browser. Anything it cannot do for you, such as installing Docker or signing
+in to Codex, it names with the one thing to do next.
+
+On Linux, and on macOS if you would rather not double-click a file:
+
+```bash
+bash scripts/start.sh
+```
+
+Windows is not covered by the launcher. Use WSL and the command above, or the video and
+[`examples/`](examples/) without running anything.
+
+The same setup by hand is three commands, and the app guides the rest:
+
 ```bash
 datahub docker quickstart
 cp .env.example .env.local
@@ -126,6 +144,8 @@ The board opens on a checklist, because those three commands are not quite every
 agents need their own Python packages and a signed-in Codex CLI, and obsel needs its tag registered
 in DataHub. Every item is checked on your machine a couple of times a second, finished ones are
 ticked, and anything missing shows you the exact command to run. Work down the list and it empties.
+The launcher above does the same work in the same order, which is why it exists: two of those steps
+only work once DataHub is answering.
 
 After that, the whole demo is buttons.
 
@@ -148,8 +168,23 @@ After that, the whole demo is buttons.
 | `uv`                 | obsel writes its tag through DataHub's own MCP server                               |
 | Codex CLI, signed in | each agent is a real Codex session, so there is no offline mode and no API key path |
 
+The launcher installs `uv` if it is missing, and skips whatever is already done, so running it twice
+is safe. Docker, Node and the Codex sign-in need you, so it detects those and says what to do.
+
 Every step written out in full, with a way to tell each one worked, is in
 **[`docs/setup.md`](docs/setup.md)**.
+
+### If something goes wrong
+
+| What you see                                                             | What to do                                                                                                                       |
+| ------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
+| macOS refuses to open the file, or warns about an unidentified developer | Right-click `Start obsel.command`, choose Open, then Open again. Or run `bash scripts/start.sh`, which no such check applies to. |
+| Double-clicking opens the file in a text editor                          | Run `bash scripts/start.sh` in a terminal instead.                                                                               |
+| "Docker is installed but not running"                                    | Open Docker Desktop and wait for its icon to settle, then start the launcher again.                                              |
+| DataHub takes a very long time on the first run                          | Expected. It downloads several large images. Give Docker Desktop at least 8 GB in Settings, Resources.                           |
+| "obsel needs Node 24"                                                    | Install Node 24 from nodejs.org. The launcher will not run the app on an older one, because Next.js 16 does not support it.      |
+| Port 3000 or 8080 already in use                                         | Something else on your machine has it. Stop that, then start the launcher again.                                                 |
+| The board shows a checklist with items still missing                     | That is the launcher handing over. Each item says what to run, and ticks itself when done.                                       |
 
 ---
 
@@ -213,8 +248,19 @@ shapes, changes and edge cases obsel has been run against is
 **Declaring those tasks is a form on the board**, under the joining panel: a name, the tables it
 reads, the tables it writes. It posts to the same `/api/tasks/register` the MCP tool calls, so a
 task you add by hand and a task an agent registered itself are the same entity and appear in the
-same list. Reporting the work stays your agent's job, because obsel takes the fingerprint from the
-rows and an agent that could hand obsel a hash could hand it the previous one.
+same list.
+
+**Reporting the work is a table on the board too.** Open a task you registered and write its table
+by hand: the columns are chips you can rename, drop or add, and the rows are cells you can type
+into. Press report and obsel hashes what you handed it and answers with what it invalidated. That
+is the whole loop without Codex and without a terminal, in about fifteen seconds, and every call is
+the real one. It is the same road an agent's table goes down, because the browser never computes a
+fingerprint: the button posts to `/api/tasks/report`, which runs `agents/report.py`, which is the
+same `mcp_core.completion_body` the MCP door uses. Two implementations of the fingerprint would be
+two answers to the only question obsel exists to answer.
+
+You still cannot hand obsel a hash, from the board or from an agent, and there is still no button
+that clears a flag. Reporting work is offered; what obsel concludes from the report is obsel's.
 
 ---
 
@@ -287,12 +333,12 @@ skipped by design, half of them against a forty-task board recorded off a real r
 ## Where things live
 
 ```
-app/                     routing, and the thirteen HTTP routes
+app/                     routing, and the fourteen HTTP routes
 src/features/cockpit/    the board you look at
 src/server/coordinator/  the staleness rules, and the part that talks to DataHub
 src/server/datahub/      DataHub client, tag writes, id shapes
-src/server/runner/       the demo runner behind the buttons
-agents/                  the four demo agents, and obsel's own MCP server
+src/server/runner/       the demo runner behind the buttons, and the bench's reporter
+agents/                  the four demo agents, obsel's own MCP server, the bench's reporter
 skills/                  how an agent should work in a swarm obsel is watching
 docs/                    setup, concept, architecture, findings, demo script, verification
 examples/                sample outputs, so you can judge them without running anything

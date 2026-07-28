@@ -19,6 +19,7 @@ import { useCallback, useState } from "react";
 
 import { Backdrop } from "./backdrop";
 import { guide } from "./guide";
+import type { GuideInput } from "./guide";
 import { GuidePanel } from "./guide-panel";
 import { DataInspector, Inspector } from "./inspector";
 import { joining } from "./joining";
@@ -28,6 +29,8 @@ import { mine } from "./mine";
 import { MinePanel } from "./mine-panel";
 import { Panel, PulseDot, StatCell, StatRibbon, Wordmark } from "./mmux";
 import { agreeing } from "./naming";
+import { TourPanel, TourOpener } from "./tour/tour-panel";
+import { useTour } from "./tour/use-tour";
 import { TracePanel } from "./trace-panel";
 import { useActivity } from "./use-activity";
 import { useTrace } from "./use-trace";
@@ -90,13 +93,22 @@ export function Cockpit() {
       ? selectedUrn
       : null;
 
-  const guideView = guide({
+  /*
+   * One input object, read by both the guide panel and the tour.
+   *
+   * Named rather than built inline because the tour's action steps ask the same
+   * questions of it the guide does -- has anything been registered, has it all
+   * finished, is anything marked -- and two objects built from the same fields
+   * in two places is how the two would eventually answer differently.
+   */
+  const guideInput: GuideInput = {
     trusted,
     everRead,
     tasks,
     snapshotAt: data?.snapshot.at ?? null,
     activity,
-  });
+  };
+  const guideView = guide(guideInput);
 
   const joinView = joining({
     trusted,
@@ -105,6 +117,12 @@ export function Cockpit() {
   });
 
   const mineView = mine({ trusted, tasks });
+
+  /*
+   * The tour. It reads the same input as everything else and stores nothing
+   * about the board; `tour/use-tour.ts` records the split.
+   */
+  const tour = useTour(guideInput);
 
   return (
     <main
@@ -127,30 +145,58 @@ export function Cockpit() {
           </span>
         </div>
 
-        {/* One light. /api/health does not exist, so the cockpit reports what the
-            browser genuinely observed and nothing more: a fabricated
-            "datahub: ok" would be a claim nobody checked. */}
-        <span className={styles.light}>
-          <PulseDot color={trusted ? "var(--mm-green)" : "var(--mm-red)"} />
-          <span style={{ color: trusted ? "var(--mm-green)" : "var(--mm-red)" }}>
-            {trusted
-              ? "connected"
-              : everRead
-                ? "not connected, showing the last read"
-                : "connecting"}
+        <div className={styles.headerEnd}>
+          {/*
+            The way into the tour, and on a first visit the thing on this board
+            most likely to be noticed.
+
+            In the header rather than inside the guide block, because it has to
+            be findable in every state the board can be in, including the ones
+            where that block is a connection error.
+          */}
+          <TourOpener tour={tour} />
+
+          {/* One light. /api/health does not exist, so the cockpit reports what
+              the browser genuinely observed and nothing more: a fabricated
+              "datahub: ok" would be a claim nobody checked. */}
+          <span className={styles.light}>
+            <PulseDot color={trusted ? "var(--mm-green)" : "var(--mm-red)"} />
+            <span style={{ color: trusted ? "var(--mm-green)" : "var(--mm-red)" }}>
+              {trusted
+                ? "connected"
+                : everRead
+                  ? "not connected, showing the last read"
+                  : "connecting"}
+            </span>
           </span>
-        </span>
+        </div>
       </header>
 
-      <GuidePanel view={guideView} activity={activity} activityError={activityError} />
+      <GuidePanel
+        view={guideView}
+        activity={activity}
+        activityError={activityError}
+        boardTrusted={trusted}
+      />
 
+      {/*
+        What this block adds, once the guide above has already said the board lost
+        its connection: the endpoint that failed, and when the last working read
+        was. Both are facts a reader cannot get anywhere else on the screen.
+
+        It said one more sentence until it was read back on a stopped server:
+        "The measured numbers stay blank until obsel can read again", which is the
+        guide's own subline two lines further up in different words. A reader
+        seeing the same fact twice starts looking for the difference between the
+        two statements, and there was none.
+      */}
       {error !== null && (
         <div className={styles.alert} role="alert">
           <p className={styles.alertHead}>{error}</p>
           <p className={styles.alertBody}>
             {data === null
               ? "Nothing is shown below because obsel has not managed to read DataHub yet. This is a connection problem, not an empty board."
-              : `Everything below is from the last read that worked${lastReadAt === null ? "" : `, at ${clockTime(lastReadAt)}`}, and may already be wrong. The measured numbers stay blank until obsel can read again.`}
+              : `Everything below is from the last read that worked${lastReadAt === null ? "" : `, at ${clockTime(lastReadAt)}`}, and may already be wrong.`}
           </p>
         </div>
       )}
@@ -178,6 +224,7 @@ export function Cockpit() {
            */
           title="Each agent reads a table another agent wrote, so a change in one can make another's finished work wrong"
           label="How the work connects"
+          tour="graph"
           padded={false}
           /*
            * A fixed height, and NOT the region that absorbs the column's slack.
@@ -328,6 +375,7 @@ export function Cockpit() {
           <TracePanel
             events={traceEvents}
             error={traceError}
+            boardTrusted={trusted}
             style={{
               flex: "1 1 0",
               minWidth: 0,
@@ -368,7 +416,7 @@ export function Cockpit() {
         What is left is the pair a reader cannot derive by looking, and the one
         the whole demo exists to establish.
       */}
-      <StatRibbon label="Detection">
+      <StatRibbon label="Detection" tour="numbers">
         {[
           <StatCell
             key="detection"
@@ -430,6 +478,8 @@ export function Cockpit() {
         The live region stays. It is the only thing that announced the cascade to a
         screen reader, and it costs no pixels.
       */}
+      <TourPanel tour={tour} view={guideView} input={guideInput} />
+
       <p className={styles.announce} role="status" aria-live="polite">
         {trusted
           ? summaryLine(t.tasks, t.finished, t.stale, lastReportAt(tasks))
