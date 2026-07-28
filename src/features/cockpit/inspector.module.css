@@ -2,6 +2,12 @@
  * Raw values. Everything here is allowed to be long, and nothing is truncated
  * with an ellipsis — a half-shown URN or a hash cut at eight characters is
  * exactly what this panel exists to escape.
+ *
+ * The reveals below animate `clip-path`, `opacity` and `transform` and nothing
+ * else. Every field is complete and true in the DOM on the first frame; an
+ * interrupted run leaves a readable panel, and `forwards` fill plus the
+ * reduced-motion block at the bottom mean the end state is reached by
+ * declaration rather than by a run finishing.
  */
 
 .note {
@@ -15,18 +21,42 @@
   text-wrap: pretty;
 }
 
-.body {
+.body,
+.bodyPinned {
   display: flex;
   flex-direction: column;
+  min-height: 0;
+}
+
+/* Only the pinned panel scrolls. The preview is sized to its contents and a
+   scrollbar inside something a reader is only pointing at invites a scroll they
+   would lose the moment the pointer left. */
+.bodyPinned {
+  overflow-y: auto;
+  flex: 1;
 }
 
 .head {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  align-items: baseline;
   gap: var(--mm-space-sm);
   padding: var(--mm-space-sm) var(--mm-space-md);
-  border-bottom: 1px solid var(--mm-rose-line);
+  position: relative;
+}
+
+/* The hairline under the header, drawn from the left on arrival. A border would
+   appear all at once; this is the one place the panel gets a deliberate stroke. */
+.head::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  background: var(--mm-rose-line);
+  transform: scaleX(0);
+  transform-origin: left center;
+  animation: obsel-details-rule var(--mm-dur-med) var(--mm-ease) forwards;
 }
 
 .name {
@@ -34,6 +64,30 @@
   font-family: var(--mm-font-mono);
   font-size: var(--mm-text-body);
   font-weight: var(--mm-weight-semi);
+  overflow-wrap: anywhere;
+}
+
+/* Which of the two kinds of box this is. One word, and the only thing in the
+   header that is not the name. */
+.kind {
+  color: var(--obsel-text-quiet);
+  font-family: var(--mm-font-mono);
+  font-size: var(--mm-text-cap);
+  letter-spacing: var(--mm-track-label);
+}
+
+/* Pushes the close button, or the pin hint, to the right edge. */
+.close,
+.pinHint {
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+.pinHint {
+  color: var(--mm-cream-mute);
+  font-family: var(--mm-font-mono);
+  font-size: var(--mm-text-cap);
+  letter-spacing: var(--mm-track);
 }
 
 .close {
@@ -62,9 +116,59 @@
   gap: var(--mm-space-sm);
 }
 
+.divider {
+  padding: var(--mm-space-xs) var(--mm-space-md);
+}
+
 .field {
   display: grid;
   gap: 2px;
+  opacity: 0;
+  transform: translateY(4px);
+  animation: obsel-details-field var(--mm-dur-med) var(--mm-ease) forwards;
+}
+
+/*
+ * The stagger.
+ *
+ * Written out rather than computed from a prop so that a field added anywhere in
+ * either panel joins the sequence without threading an index through it. Past
+ * the twelfth the delay stops growing: the fingerprints at the bottom of a
+ * pinned panel would otherwise arrive most of a second late, and a reader who
+ * scrolled there is waiting on an entrance they never saw begin.
+ */
+.field:nth-child(1) {
+  animation-delay: 0ms;
+}
+.field:nth-child(2) {
+  animation-delay: 28ms;
+}
+.field:nth-child(3) {
+  animation-delay: 56ms;
+}
+.field:nth-child(4) {
+  animation-delay: 84ms;
+}
+.field:nth-child(5) {
+  animation-delay: 112ms;
+}
+.field:nth-child(6) {
+  animation-delay: 140ms;
+}
+.field:nth-child(7) {
+  animation-delay: 168ms;
+}
+.field:nth-child(8) {
+  animation-delay: 196ms;
+}
+.field:nth-child(9) {
+  animation-delay: 224ms;
+}
+.field:nth-child(10) {
+  animation-delay: 252ms;
+}
+.field:nth-child(n + 11) {
+  animation-delay: 280ms;
 }
 
 .label {
@@ -88,7 +192,21 @@
   padding: 0;
   list-style: none;
   display: grid;
-  gap: 2px;
+  gap: var(--mm-space-xs);
+}
+
+/* A table's readable name sitting directly above its exact identifier. Both are
+   the same fact, so they are one entry rather than two fields. */
+.datasetRow {
+  display: grid;
+  gap: 1px;
+}
+
+.datasetName {
+  display: block;
+  color: var(--mm-cream);
+  font-family: var(--mm-font-mono);
+  font-size: var(--mm-text-cap);
 }
 
 /*
@@ -146,4 +264,36 @@
   color: var(--obsel-text-quiet);
   font-family: var(--mm-font-sans);
   font-size: var(--mm-text-cap);
+}
+
+@keyframes obsel-details-field {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes obsel-details-rule {
+  to {
+    transform: scaleX(1);
+  }
+}
+
+/*
+ * The end state, declared. The global reduced-motion rule shortens runs to
+ * 0.01ms, which lands these correctly, but only because they fill forwards —
+ * saying it here as well means a future change to either keyframe block cannot
+ * leave a field stuck at zero opacity for a reader who asked for less motion.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .field {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+
+  .head::after {
+    animation: none;
+    transform: scaleX(1);
+  }
 }

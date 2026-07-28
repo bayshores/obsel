@@ -19,11 +19,13 @@ And a row names its evidence precisely enough to re-run it or look it up.
 | browser | Playwright against the built app                                       | `pnpm e2e`         |
 | run     | a dated, measured run recorded in [`verification.md`](verification.md) | see its entry      |
 
-Counts on 2026-07-28, after the board was rebuilt: 513 unit tests across 24 files, 183 python
-self-checks across 7 modules, 104 live tests across 11 files, 233 browser checks across two
-viewports with one skipped. The unit figure gained the erasure vocabulary and count-up suites; the
-browser figure gained `e2e/dock.spec.ts` and `e2e/erasure.spec.ts` and the new cascade and count-up
-assertions in `e2e/cockpit.spec.ts`. The live figure is from 2026-07-26 plus the two added to
+Counts on 2026-07-28, after the details panel became a surface with three depths: 526 unit tests
+across 26 files, 183 python self-checks across 7 modules, 104 live tests across 11 files, 267
+browser checks across two viewports with one skipped. The unit figure gained
+`tests/cockpit-flow.test.ts` and `tests/schematic.test.ts`; the browser figure gained the fourteen
+in `e2e/cockpit.spec.ts` → "the details surface" and two in `e2e/erasure.spec.ts`, and earlier the
+same day `e2e/dock.spec.ts`, `e2e/erasure.spec.ts` and the cascade and count-up assertions. The live
+figure is from 2026-07-26 plus the two added to
 `preflight.live.test.ts` on 2026-07-27 and the six in `removed.live.test.ts` on 2026-07-28; those two
 files are the only live ones re-run since, and nothing in the rebuild crosses a process boundary, so
 none of it needed re-running. Live runs are single observations unless their entry says otherwise.
@@ -125,6 +127,30 @@ Every row ran at both viewports, `recording-1920x990` and `laptop-1280x800`.
 | reduced motion shows the finished picture       | `e2e/cockpit.spec.ts`: the lit path stays drawn with no animations attached, and the detection figure is the measured one on the first frame                                        | browser       |
 | the tour marks the region it is talking about   | `e2e/cockpit.spec.ts`: across all four chapter-one steps, nothing is painted outside the lit region's box, the ring is inset, and no part of the region falls outside what clips it | browser       |
 | the tour window opens clear of the dock         | `e2e/cockpit.spec.ts`: the window's box does not intersect the dock's, with the dock on either side                                                                                 | browser       |
+
+## What a reader can find out about one box
+
+Added 2026-07-28, when the details panel became a surface with three depths. Every row ran at both
+viewports. The rows about the table sketch are the ones that matter most: obsel never reads a table,
+and the sketch has to be visibly a sketch.
+
+| condition                                          | proven by                                                                                                                                                                               | kind          |
+| -------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- |
+| the board says the boxes respond, before any do    | `e2e/cockpit.spec.ts` "the details surface": the hint is present on a populated board and absent on an empty one, where there is nothing to point at                                    | browser       |
+| pointing at a box previews it                      | `e2e/cockpit.spec.ts`: the preview appears on hover, carries the writer and readers, and contains no `urn:li:` anywhere                                                                 | browser       |
+| pointing moves nothing in the graph                | `e2e/cockpit.spec.ts`: every node top, the graph's height and the page scroll height are unchanged while a preview is up                                                                | browser       |
+| a click pins, Esc unpins, the preview pins itself  | `e2e/cockpit.spec.ts`: three tests, one per path into and out of the pinned depth                                                                                                       | browser       |
+| what is pinned survives pointing elsewhere         | `e2e/cockpit.spec.ts`: with one node pinned, hovering another leaves the panel naming the pinned one                                                                                    | browser       |
+| the panel names its subject exactly once           | `e2e/cockpit.spec.ts`: counts elements whose whole text is the heading, inside the panel. It was three before: title, kind line, heading                                                | browser       |
+| a table is sketched from its reported shape        | `e2e/cockpit.spec.ts`: real column names render, `+ order_total_usd` and `- order_total` agree with the mark on the same board, and the caption states the counts and the derivation    | browser       |
+| the sketch cannot show a value                     | `e2e/cockpit.spec.ts`: every placeholder block is empty. `Schematic` is passed a column list and a row count, so there is no path by which one could be filled                          | browser       |
+| a writer that reported nothing says so             | `e2e/cockpit.spec.ts` on the registered-task fixture: the plain sentence, and no sketch at all                                                                                          | browser       |
+| how many rows and columns, drawn versus stated     | `tests/schematic.test.ts`: the drawing caps at six rows; the caption carries the real count, so the cap costs no information                                                            | unit          |
+| the flow highlight lights exactly what it touches  | `tests/cockpit-flow.test.ts` (writer, every reader, one hop only, unknown urn empty, id spelling agrees with `layoutPositions`); `e2e/cockpit.spec.ts` counts three on a real board     | unit, browser |
+| the cascade is never overdrawn by the highlight    | `e2e/cockpit.spec.ts`: on the cascaded board every edge touching the table is the cascade's, so none is flowing, and the amber is untouched by the click                                | browser       |
+| reduced motion shows the finished panel            | `e2e/cockpit.spec.ts`: field opacity 1, and `animation-name: none` on both a sketch block and a flow edge                                                                               | browser       |
+| a table on the coverage board reports its coverage | `e2e/erasure.spec.ts`: the field appears when the graph is coloured by a report, and is absent when the same report has only been read for the tab                                      | browser       |
+| the copy sweep's details exclusion is real         | `e2e/cockpit.spec.ts` now runs two of its states with a node pinned open. The exclusion existed for months against a panel that rendered no such label and a sweep that never opened it | browser       |
 
 ## Erasure coverage on the board
 

@@ -31,7 +31,7 @@ import { ErasureTab } from "./erasure/erasure-tab";
 import { useErasure } from "./erasure/use-erasure";
 import { guide } from "./guide";
 import type { GuideInput } from "./guide";
-import { InspectorOverlay } from "./inspector-overlay";
+import { DetailsSurface } from "./details-surface";
 import { joining } from "./joining";
 import { Lineage } from "./lineage";
 import { mine } from "./mine";
@@ -40,11 +40,31 @@ import { TourPanel, TourOpener } from "./tour/tour-panel";
 import type { TourTarget } from "./tour/steps";
 import { useTour } from "./tour/use-tour";
 import { useActivity } from "./use-activity";
+import { useHoverIntent } from "./use-hover-intent";
 import { useTrace } from "./use-trace";
 import { useSwarm } from "./use-swarm";
 import { clockTime, inDependencyOrder, lastReportAt, summaryLine, totals } from "./timing";
+import type { TaskRecord } from "@/src/server/coordinator/types";
 
 import styles from "./cockpit.module.css";
+
+/**
+ * Which node one URN names.
+ *
+ * The graph hands over one URN whichever kind of box was pointed at; the entity
+ * type inside it says whether that was an agent or a table. Written once and
+ * called twice, for the pinned node and the hovered one, so the two can never
+ * come to disagree about what a URN means.
+ */
+function resolve(
+  tasks: TaskRecord[],
+  urn: string | null,
+): { task: TaskRecord | null; dataset: string | null } {
+  if (urn === null) return { task: null, dataset: null };
+  const task = tasks.find((candidate) => candidate.urn === urn) ?? null;
+  if (task !== null) return { task, dataset: null };
+  return { task: null, dataset: urn.startsWith("urn:li:dataset:") ? urn : null };
+}
 
 export function Cockpit() {
   const { data, error, lastReadAt, roundTripMs, everRead } = useSwarm();
@@ -54,6 +74,11 @@ export function Cockpit() {
   // poll, so holding one would pin the inspector to a snapshot that is seconds
   // stale while the rest of the cockpit moves on.
   const [selectedUrn, setSelectedUrn] = useState<string | null>(null);
+  // What the pointer is on, which is a different question from what a reader
+  // committed to by clicking. Held here rather than in the canvas because two
+  // siblings need it: the details surface previews it, and the graph animates
+  // the edges around it.
+  const hover = useHoverIntent();
 
   const dock = useDock();
   const [activeTab, setActiveTab] = useState<TabId>("activity");
@@ -90,14 +115,19 @@ export function Cockpit() {
 
   // A failed read invalidates every derived number, not just the connection.
   const trusted = data !== null && error === null;
-  const selected = tasks.find((task) => task.urn === selectedUrn) ?? null;
-  // The graph hands over one URN either way; the entity type inside it says
-  // whether the click chose an agent or a table.
-  const selectedDataset =
-    selected === null && selectedUrn !== null && selectedUrn.startsWith("urn:li:dataset:")
-      ? selectedUrn
-      : null;
-  const inspecting = selected !== null || selectedDataset !== null;
+  const selected = resolve(tasks, selectedUrn);
+  const hovered = resolve(tasks, hover.urn);
+  const inspecting = selected.task !== null || selected.dataset !== null;
+  /*
+   * Which node the board draws flow around: the pointer wins, and the pinned
+   * node keeps it when the pointer is elsewhere. Hovering a second node while
+   * one is pinned therefore shows what a click would open without disturbing
+   * what is open.
+   */
+  const flowUrn = hover.urn ?? selectedUrn;
+  // The legend and the details card share the bottom edge of a narrow canvas,
+  // so the legend stands down whenever the card is showing anything.
+  const showingDetails = inspecting || hovered.task !== null || hovered.dataset !== null;
 
   /*
    * One input object, read by both the guide panel and the tour.
@@ -256,6 +286,8 @@ export function Cockpit() {
               <Lineage
                 tasks={tasks}
                 onSelect={setSelectedUrn}
+                onHover={(urn) => (urn === null ? hover.leave() : hover.enter(urn))}
+                flowUrn={flowUrn}
                 focus={selectedUrn}
                 coverage={coverage}
               />
@@ -319,7 +351,7 @@ export function Cockpit() {
             Hidden while the details card is open: the two would otherwise share
             the bottom edge of a narrow canvas.
           */}
-          {tasks.length > 0 && !inspecting && coverage === null && (
+          {tasks.length > 0 && !showingDetails && coverage === null && (
             <ul className={styles.legend} aria-label="What the boxes mean">
               <li>
                 <span className={styles.keyAgent} aria-hidden="true" /> an agent
@@ -327,7 +359,9 @@ export function Cockpit() {
               <li>
                 <span className={styles.keyTable} aria-hidden="true" /> a table
               </li>
-              <li className={styles.keyHint}>click any box for details</li>
+              {/* No "click any box for details" hint here. The details surface
+                  in the opposite corner says that, permanently, and saying it
+                  twice on one screen is the thing this rewrite removed. */}
             </ul>
           )}
 
@@ -341,7 +375,7 @@ export function Cockpit() {
             asset; obsel has nothing to say about an agent's own erasure state,
             and a board that dimmed them silently would look like it did.
           */}
-          {tasks.length > 0 && !inspecting && coverage !== null && (
+          {tasks.length > 0 && !showingDetails && coverage !== null && (
             <ul className={styles.legend} aria-label="What the colours mean">
               <li>
                 <span
@@ -371,15 +405,40 @@ export function Cockpit() {
             </ul>
           )}
 
-          <InspectorOverlay
-            task={selected}
-            dataset={selectedDataset}
+          <DetailsSurface
+            pinnedTask={selected.task}
+            pinnedDataset={selected.dataset}
+            hoverTask={hovered.task}
+            hoverDataset={hovered.dataset}
             tasks={tasks}
             snapshotAt={data?.snapshot.at ?? null}
             readAt={trusted && lastReadAt !== null ? clockTime(lastReadAt) : null}
             roundTripMs={trusted ? roundTripMs : null}
             datahubUrl={data?.datahubUrl ?? null}
+            /*
+             * Looked up per table rather than computed for the pinned one.
+             *
+             * The surface shows a hovered table as readily as a pinned one, and
+             * a state computed here for the pinned table would have been
+             * printed under whichever table the pointer happened to be on. That
+             * is not a display fault: it is obsel stating an erasure verdict
+             * about the wrong asset.
+             *
+             * Null whenever the board is not coloured by coverage. A report read
+             * for the dock's tab says nothing about a table the reader is
+             * inspecting on the staleness board, and showing it there would be
+             * two answers to two different questions in one panel.
+             */
+            coverageFor={(dataset) =>
+              coverage === null
+                ? null
+                : (coverage.get(dataset) ?? "not reached by the lineage walk")
+            }
+            populated={tasks.length > 0}
             onClose={() => setSelectedUrn(null)}
+            onPin={() => setSelectedUrn(hover.urn)}
+            onHold={hover.hold}
+            onRelease={hover.release}
           />
         </section>
 

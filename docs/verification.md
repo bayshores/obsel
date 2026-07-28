@@ -2060,6 +2060,106 @@ show the previous layout. Every number in them is still what its run produced; t
 around those numbers is not the arrangement a judge will see. Re-shooting them is the owner's, needs
 a live DataHub and a live Codex CLI, and has not been done.
 
+### The details panel became a surface with three depths, and a table got a shape (2026-07-28)
+
+**What was wrong.** Everything obsel holds about a node was behind a click on that node, and nothing
+on the board said a click would do anything. The owner, who commissioned the panel, believed it
+opened by clicking an edge: the affordance was invisible even to someone who knew it existed. What
+it opened then stated its subject three times before any of its content, as a section title
+(`details · raw orders`), a meta line naming the kind (`a table, as last reported`), and its own
+heading (`raw orders`). And a table's panel listed its columns as a comma-joined string, which is
+the least legible form of the one thing obsel can truthfully say about a table's contents.
+
+**What it is now.** One surface in the canvas's bottom-right corner, at three depths.
+
+- **Idle** — one line: `hover a box to preview it, click to pin`. Permanent while the board has
+  nodes. The legend's own `click any box for details` was deleted in the same change; that
+  duplication is the thing this rewrite is against.
+- **Hover** — the box under the pointer, in human names, with no URN and no hash anywhere. Entering
+  the card holds the preview so it can be read.
+- **Pinned** — a click, and the full record, until Esc or close. Clicking the preview pins it too.
+
+`useHoverIntent` waits 80 ms before previewing and 140 ms before clearing. Both are design
+constants, not measurements: the forty-task board is dense enough that reaching one box sweeps the
+pointer across several, and reacting to each would churn the surface through six previews on the way
+to the seventh.
+
+**Hovering while pinned does not rewrite what is pinned.** The board's edges follow the pointer, so
+a reader sees what a click would open; the panel does not move, because a panel that rewrote itself
+while the pointer crossed the board toward it could not be read. Pinned by
+`e2e/cockpit.spec.ts` → "pointing elsewhere does not rewrite what is pinned".
+
+**The table sketch, and what it is incapable of showing.** A table's panel now draws its reported
+column names over uniform blank blocks, one row of blocks per reported row up to six, with the exact
+counts stated in words beneath: `a sketch of 4 columns and 39 rows, from what the writer last
+reported. obsel never reads the table itself.` The blocks are uniform on purpose — varying their
+widths would imply they were measured from something. `Schematic` receives a column list and a row
+count and nothing else, so no code path can render a cell value; the browser test asserts every
+block is empty rather than trusting the construction. Column names come from
+`producer.run.outputs[dataset].columns`; the added/removed highlight comes from the `ColumnChange`
+on the mark that names this table, never from comparing fingerprints, because a hash cannot name a
+column. No reported shape means no sketch and the existing honest fallback line instead.
+
+**The flow highlight, and the rule that keeps it from lying.** Pointing at a box dots its incident
+edges in rose and marches them at 900 ms. It says what `reads` and `writes` already say. It is
+distinguished from the cascade in three ways at once — colour (rose against amber), pattern (2/6
+dots against 6/4 dashes), tempo — and, decisively, **an edge the cascade has lit never receives it**:
+the skip is in `flowEdgeIds`' single caller, not in CSS specificity. `flowEdgeIds` walks one hop
+only; multi-hop reach is the cascade's claim and is read off marks, for the reason `cascade.ts`'
+header documents. Hover does not enter `graphSignature`, so pointing at a box never rebuilds the
+graph, and unchanged edges keep object identity, so a hover on the eighty-two-edge taxi board
+re-renders the two to nine edges that changed.
+
+**Motion is decorative, and the position is stated.** The reveals write `clip-path`, `opacity` and
+`transform`; the sweep is a separate `aria-hidden` element with no text and `pointer-events: none`,
+the same construction as the flare. Every field is complete and true in the DOM on the first frame,
+so an interrupted run leaves a readable panel rather than a partial claim. A text-scramble "decode"
+effect was considered for the headings and rejected: it renders characters that are false while it
+runs, which would make the animation the mechanism by which untrue text appears. `globals.css`'s
+claim that the pulse dot was "the one looping animation obsel permits" was corrected in the same
+change — it was already untrue when written, since `obsel-dash` loops.
+
+**What was checked and how.** `pnpm verify` green: 526 unit tests, the Python self-checks, and the
+build. `pnpm e2e` green at both viewports: **267 tests, up from 233**. Sixteen are new unit tests
+(`tests/cockpit-flow.test.ts`, `tests/schematic.test.ts`), including the id-spelling agreement
+between `flowEdgeIds` and `layoutPositions` that the cascade has for the same reason — a drifted
+spelling lights nothing and throws nothing.
+
+Fourteen new browser tests in `e2e/cockpit.spec.ts` → "the details surface": the idle hint present on
+a populated board and absent on an empty one; the preview appearing on hover and carrying no
+`urn:li:`; the hint returning on leave; hovering moving no node and changing no graph dimension;
+click-to-pin and Esc-to-unpin; the preview pinning itself; hover-while-pinned; the panel naming its
+subject exactly once; the sketch drawing real column names, the `+`/`-` markers agreeing with the
+mark on the same board, and no text in any block; the plain fallback when a writer has reported
+nothing; three flow tests (writer and every reader lit, never an edge the cascade lit, and an edge
+the cascade did not reach); and reduced motion, which asserts field opacity 1 with `animation-name:
+none` on both a sketch block and a flow edge.
+
+Two new tests in `e2e/erasure.spec.ts` cover a bug found while writing them: the coverage state was
+computed once for the pinned table and handed to the surface, which also renders hovered tables, so
+it would have printed an erasure verdict about one asset underneath another. It is now looked up per
+table shown, and gated on the board actually being coloured by coverage.
+
+**The copy sweep's details exclusion was dead, and is now live.** `e2e/cockpit.spec.ts`'s
+"no internal identifier reaches the board" excludes `[aria-label="Details"]`, and nothing rendered
+that label — `Panel` maps `label` to `aria-label` and neither inspector passed one. No state in that
+loop opened the panel either, so the exclusion had never once been exercised on a panel built almost
+entirely from full URNs and 64-hex hashes. Both inspectors now pass `label="Details"`, and the sweep
+runs two additional states with a node pinned open.
+
+**Fixtures changed, and why they had to.** `e2e/fixtures/swarm.ts` carried `run: null` on every task,
+so no browser test could reach the sketch at all. Each finished task now reports an output shape. The
+column names are the ones `agents/pipeline.py` declares as `output_columns`, so the fixture describes
+the real pipeline's structure; the row counts are invented, like everything else in that file, and
+its header still says so. `cascaded()`'s `clean_orders` reports the renamed column, because a fixture
+whose reported columns still said `order_total` would draw a table missing the column the same
+fixture says arrived.
+
+**Not measured.** Frame rate during the flow animation on the eighty-two-edge board has not been
+instrumented, so no number is claimed for it. Touch input and keyboard focus of graph nodes are not
+covered: the surface is driven by pointer enter/leave and a click, and a device with no hover state
+reaches the pinned depth by tapping but never sees a preview. That is a gap, not a decision.
+
 ## Not done
 
 - **The cold start ran the `datahub` CLI branch, not the `uvx` one.** This machine has that CLI

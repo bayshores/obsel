@@ -1,0 +1,174 @@
+/*
+ * Where the details surface sits now that the board is a canvas.
+ *
+ * Bottom-right, which is the one corner of the canvas nothing else claims. The
+ * caption owns the top-left, React Flow's zoom controls the top-right, and the
+ * colour key the bottom-left. All three states share that anchor, so the panel
+ * grows upward out of the hint strip rather than appearing somewhere new.
+ *
+ * Absolutely positioned, which is not a detail: the e2e suite asserts that
+ * opening details moves no node and changes no graph dimension, and an overlay
+ * satisfies that by construction rather than by careful arithmetic.
+ */
+
+.idle,
+.slot,
+.slotPinned {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  z-index: 6;
+  width: min(380px, calc(100% - 24px));
+  display: flex;
+  flex-direction: column;
+}
+
+/* The hint. One line, and permanent: it is the only thing on the board that says
+   the boxes respond at all. */
+.idle {
+  border: 1px solid var(--mm-rose-line);
+  background: var(--mm-bg-raised) linear-gradient(var(--mm-surface-2), var(--mm-surface-2));
+  padding: 6px var(--mm-space-sm);
+  animation: obsel-details-in var(--mm-dur-med) var(--mm-ease) forwards;
+  pointer-events: none;
+}
+
+.idleText {
+  color: var(--mm-cream-mute);
+  font-family: var(--mm-font-mono);
+  font-size: var(--mm-text-cap);
+  letter-spacing: var(--mm-track);
+}
+
+.slot,
+.slotPinned {
+  /*
+   * Opaque, layered rather than a lone surface token. The surface tokens are
+   * alphas meant to sit on the page background; this floats over a graph, and
+   * the first version let edges and node labels read straight through it.
+   */
+  background: var(--mm-bg-raised) linear-gradient(var(--mm-surface-2), var(--mm-surface-2));
+  box-shadow: var(--mm-shadow-md, 0 8px 32px rgba(0, 0, 0, 0.55));
+  /* Clips the arriving wipe and the sweep to the card's own box. */
+  overflow: hidden;
+}
+
+/*
+ * A card, and capped so it stays one.
+ *
+ * `calc(100% - 24px)` alone was the whole canvas: at 1280 x 800 the details for
+ * one task ran floor to ceiling and hid the graph the reader had just clicked
+ * in. The point of opening a node is to compare what it says against where it
+ * sits, and a panel that covers the picture makes that impossible.
+ *
+ * 520 is roughly the taller half of a laptop canvas, and the contents scroll
+ * inside it. A fingerprint pair and a mark's verbatim reason can be long, and
+ * the reason is the one thing on this board that must never be summarised to
+ * fit, so this bounds the card and never the text.
+ */
+.slotPinned {
+  max-height: min(520px, calc(100% - 24px));
+}
+
+/* The preview is shorter still. It is read at a glance while the pointer rests,
+   and anything that needs this much room to state is worth pinning for. */
+.slot {
+  max-height: min(360px, calc(100% - 24px));
+  cursor: pointer;
+}
+
+.reveal {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+  clip-path: inset(100% 0 0 0);
+  animation: obsel-details-wipe var(--mm-dur-med) var(--mm-ease) forwards;
+}
+
+/*
+ * One pass of light down the card as it arrives.
+ *
+ * Its own element, on top, with no text of its own and `pointer-events: none`,
+ * so nothing it does can alter or obscure a value the panel is stating. It runs
+ * once; there is no looping glow.
+ */
+.sweep {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  background: linear-gradient(
+    180deg,
+    transparent 0%,
+    var(--mm-rose-glow) 48%,
+    var(--mm-rose-hot) 50%,
+    var(--mm-rose-glow) 52%,
+    transparent 100%
+  );
+  background-size: 100% 220%;
+  background-repeat: no-repeat;
+  opacity: 0.35;
+  animation: obsel-details-sweep var(--mm-dur-long) var(--mm-ease) forwards;
+}
+
+@keyframes obsel-details-wipe {
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+@keyframes obsel-details-sweep {
+  from {
+    background-position: 0 -120%;
+    opacity: 0.35;
+  }
+  to {
+    background-position: 0 220%;
+    opacity: 0;
+  }
+}
+
+@keyframes obsel-details-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* On a short canvas the card gives up its own room rather than the graph's. */
+@media (max-height: 700px) {
+  .slotPinned {
+    max-height: calc(100% - 16px);
+  }
+
+  .slot {
+    max-height: calc(100% - 16px);
+  }
+}
+
+/*
+ * The end state, declared.
+ *
+ * The wipe matters most here: `clip-path: inset(100% 0 0 0)` is a fully hidden
+ * panel, so a reduced-motion path that failed to reach the end state would hide
+ * the details entirely rather than merely showing them without a flourish.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .reveal {
+    animation: none;
+    clip-path: none;
+  }
+
+  .sweep {
+    animation: none;
+    opacity: 0;
+  }
+
+  .idle {
+    animation: none;
+    opacity: 1;
+  }
+}

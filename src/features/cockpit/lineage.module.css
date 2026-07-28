@@ -157,6 +157,31 @@
 }
 
 /*
+ * The edges around the box under the pointer.
+ *
+ * Distinguished from the cascade above in three ways at once, because these two
+ * are the only moving lines on the board and confusing them would turn "you are
+ * pointing at this" into "a change went this way". Rose against amber; dots
+ * against dashes; and a faster, shorter period. It says only what `reads` and
+ * `writes` already say.
+ *
+ * The only property the animation writes is `stroke-dashoffset`, which is what
+ * `tone.ts` permits. The brighter stroke is React state rather than a keyframe,
+ * so an interrupted run cannot strand an edge in a colour it should not have.
+ */
+.canvas :global(.react-flow__edge.obselFlow path.react-flow__edge-path) {
+  stroke-dasharray: 2 6;
+  animation: obsel-flow 900ms linear infinite;
+}
+
+@keyframes obsel-flow {
+  to {
+    /* One dash period, so the loop is seamless. */
+    stroke-dashoffset: -8;
+  }
+}
+
+/*
  * Motion is a preference, and the cascade must survive its absence.
  *
  * The lit path stays amber, thicker, and dashed, so which edges the change
@@ -164,6 +189,13 @@
  * goes.
  */
 @media (prefers-reduced-motion: reduce) {
+  /* The same for the flow: which edges touch the box under the pointer stays
+     legible as a brighter dotted line, with nothing travelling along it. */
+  .canvas :global(.react-flow__edge.obselFlow path.react-flow__edge-path) {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+
   .canvas :global(.react-flow__edge.animated path.react-flow__edge-path) {
     animation: none;
     /*

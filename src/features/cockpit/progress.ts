@@ -90,6 +90,27 @@ export function rowsWritten(task: TaskRecord): number | null {
 }
 
 /**
+ * What did the work and how long it took, or null when neither was reported.
+ *
+ * The runner and the duration are each carried only when they were reported, and
+ * neither is stood in for. A completion can arrive with the output shape and no
+ * duration: the cockpit bench reports a table a person typed, and there is no run
+ * to time. `formatDuration(0)` would put "0 ms" on the board, which reads as a
+ * measurement — the one thing obsel must never print about a figure nobody took.
+ *
+ * Shared rather than inlined because the table panel states the same stamp about
+ * the run that wrote the table, and two spellings of one fact would eventually
+ * disagree about which half is optional.
+ */
+export function runStamp(run: TaskRecord["run"]): string | null {
+  if (run === null) return null;
+  const parts = [run.runner, run.ms === null ? null : formatDuration(run.ms)].filter(
+    (part): part is string => part !== null && part !== "",
+  );
+  return parts.length === 0 ? null : parts.join(" · ");
+}
+
+/**
  * The activity line: one sentence of what is happening, or what happened.
  *
  * Null means the cockpit was told nothing worth showing, and the row renders
@@ -105,21 +126,10 @@ export function activityNote(task: TaskRecord, snapshotAt: string | null): strin
 
   if (task.run === null) return null;
 
-  /*
-   * The runner and the duration are each carried only when they were reported,
-   * and neither is stood in for.
-   *
-   * A completion can now arrive with the output shape and no duration: the
-   * cockpit bench reports a table a person typed, and there is no run to time.
-   * `formatDuration(0)` would put "0 ms" on the board, which reads as a
-   * measurement — the one thing obsel must never print about a figure nobody
-   * took. The row falls back to the rows and columns, which were reported.
-   */
+  // The row falls back to the rows and columns when no stamp was reported.
   const parts: string[] = [];
-  const stamp = [task.run.runner, task.run.ms === null ? null : formatDuration(task.run.ms)].filter(
-    (part): part is string => part !== null && part !== "",
-  );
-  if (stamp.length > 0) parts.push(stamp.join(" · "));
+  const stamp = runStamp(task.run);
+  if (stamp !== null) parts.push(stamp);
 
   const rows = rowsWritten(task);
   if (rows !== null) parts.push(`${rows} ${rows === 1 ? "row" : "rows"}`);

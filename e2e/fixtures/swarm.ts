@@ -51,6 +51,49 @@ const TITLES: Record<string, string> = {
   write_docs: "Table docs",
 };
 
+/**
+ * What each task reported writing.
+ *
+ * The column names are the ones `agents/pipeline.py` declares as
+ * `output_columns`, so the fixture describes the real pipeline's structure
+ * rather than a shape nobody produces — the same reason `cascaded()` already
+ * renames `order_total` to `order_total_usd` rather than inventing a column.
+ * The row counts are invented, like everything else here.
+ *
+ * Without this the four-task board carries `run: null` on every task, and the
+ * table panel's sketch of columns and rows has nothing to draw from, so every
+ * browser test of it would exercise only the "nothing reported yet" fallback.
+ */
+const COLUMNS: Record<string, string[]> = {
+  clean_orders: ["order_id", "customer", "order_total", "order_date"],
+  daily_revenue: ["order_date", "total_revenue", "order_count", "average_order_value"],
+  revenue_report: ["section", "heading", "text"],
+  pipeline_docs: ["section", "heading", "text"],
+  clean_expenses: ["expense_id", "vendor", "amount"],
+  monthly_totals: ["month", "total"],
+};
+
+const ROWS: Record<string, number> = {
+  clean_orders: 39,
+  daily_revenue: 5,
+  revenue_report: 4,
+  pipeline_docs: 5,
+  clean_expenses: 12,
+  monthly_totals: 3,
+};
+
+/** What a finished task reports about the tables it wrote. */
+function run(writes: string[], columns?: Record<string, string[]>): TaskRecord["run"] {
+  const outputs: NonNullable<TaskRecord["run"]>["outputs"] = {};
+  for (const name of writes) {
+    outputs[ds(name)] = {
+      rows: ROWS[name] ?? 0,
+      columns: columns?.[name] ?? COLUMNS[name] ?? [],
+    };
+  }
+  return { runner: "codex-cli 0.144.4", ms: 51_300, outputs };
+}
+
 function task(
   name: string,
   reads: string[],
@@ -68,7 +111,7 @@ function task(
     fingerprints: {},
     finishedAt: AT,
     startedAt: null,
-    run: null,
+    run: run(writes),
     stale: null,
     /*
      * Present and empty by default, which is what a real read looks like.
@@ -183,6 +226,16 @@ export function cascaded(): SwarmResponse {
   return wrap([
     task("clean_orders", ["raw_orders"], ["clean_orders"], {
       fingerprints: { [ds("clean_orders")]: print("9", "b") },
+      /*
+       * The renamed column, reported. It has to agree with the diff on the mark
+       * below: the table panel draws the current shape and flags the arrival
+       * against `stale.columns`, so a fixture whose reported columns still said
+       * `order_total` would draw a table missing the column the same fixture
+       * says arrived.
+       */
+      run: run(["clean_orders"], {
+        clean_orders: ["order_id", "customer", "order_total_usd", "order_date"],
+      }),
     }),
     task("build_revenue", ["clean_orders"], ["daily_revenue"], {
       status: "stale",
@@ -286,6 +339,8 @@ export function justOne(state: "waiting" | "finished" | "flagged"): SwarmRespons
       task("clean_orders", ["raw_orders"], ["clean_orders"], {
         status: "registered",
         finishedAt: null,
+        // Nothing has run, so nothing has been reported about the table.
+        run: null,
       }),
     ]);
   }
@@ -328,6 +383,7 @@ export function visiting(): SwarmResponse {
       status: "registered",
       startedAt: null,
       finishedAt: null,
+      run: null,
     }),
   ]);
 }

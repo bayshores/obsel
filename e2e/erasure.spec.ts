@@ -260,6 +260,39 @@ test.describe("the graph read as an erasure report", () => {
     }
   });
 
+  /*
+   * The details panel on the coverage board.
+   *
+   * A reader who colours the board by coverage and then opens a table was told
+   * nothing about the question they were asking: the panel reported writers,
+   * readers and shape, all of which are staleness vocabulary, and said nothing
+   * about erasure. The field is gated on the board actually being coloured, so
+   * a report read for the dock's tab does not put an erasure verdict on a table
+   * a reader is inspecting for a completely different reason.
+   */
+  test("a table opened on the coverage board reports its coverage state", async ({ page }) => {
+    await arrive(page, mixed());
+    await colourTheGraph(page);
+
+    await page.locator(".react-flow__node-data").first().click();
+    const panel = page.locator('[aria-label="Details"]');
+    await expect(panel).toBeVisible();
+    await expect(panel).toContainText("erasure report says");
+  });
+
+  test("a table opened on the staleness board says nothing about erasure", async ({ page }) => {
+    await arrive(page, mixed());
+    // The report is read for the tab, and the graph is deliberately NOT
+    // coloured by it: `colourTheGraph` is the step this test leaves out.
+    await watch(page, "dsr-2f9c");
+    await expect(page.locator("li[data-state]").first()).toBeVisible();
+
+    await page.locator(".react-flow__node-data").first().click();
+    const panel = page.locator('[aria-label="Details"]');
+    await expect(panel).toBeVisible();
+    await expect(panel).not.toContainText("erasure report says");
+  });
+
   test("puts the staleness board back when it is switched off", async ({ page }) => {
     await arrive(page, mixed());
     await colourTheGraph(page);

@@ -1,0 +1,127 @@
+/*
+ * The table sketch.
+ *
+ * Column names are real and are rendered as text. Everything below them is a
+ * block with no content, and the styling keeps it looking like one: uniform
+ * width, uniform height, no alignment cues that would suggest a number or a
+ * string sitting in it.
+ */
+
+.schematic {
+  display: grid;
+  gap: var(--mm-space-xs);
+}
+
+/* A wide table scrolls rather than truncating. A column name cut in half is the
+   one thing this sketch cannot afford, since the names are its only real claim. */
+.scroll {
+  overflow-x: auto;
+  border: 1px solid var(--mm-rose-line);
+  background: var(--mm-surface);
+  padding: var(--mm-space-sm);
+}
+
+.grid {
+  display: grid;
+  gap: var(--mm-space-sm);
+  min-width: min-content;
+}
+
+.column {
+  display: grid;
+  gap: var(--mm-space-xs);
+  align-content: start;
+  /* Narrow columns still read as columns rather than as ticks. */
+  min-width: 52px;
+}
+
+.columnName {
+  color: var(--mm-cream-dim);
+  font-family: var(--mm-font-mono);
+  font-size: var(--mm-text-sm);
+  letter-spacing: var(--mm-track-tight);
+  white-space: nowrap;
+  border-bottom: 1px solid var(--mm-rose-line);
+  padding-bottom: 3px;
+}
+
+/*
+ * Arrived, and left.
+ *
+ * Same convention as the column diff on the changed node in `nodes.module.css`:
+ * amber for the column that arrived, dimmed for the one that went. Amber is
+ * reserved across the whole board for "out of date", and this is that — the
+ * column change is the change that put the downstream work out of date. It is
+ * the only amber in this panel.
+ */
+.added .columnName {
+  color: var(--obsel-stale);
+  border-bottom-color: color-mix(in srgb, var(--obsel-stale) 30%, transparent);
+}
+
+.removed .columnName {
+  color: var(--obsel-text-quiet);
+  border-bottom-color: var(--mm-cream-faint);
+}
+
+.cells {
+  display: grid;
+  gap: 4px;
+}
+
+/*
+ * One row of one column, carrying nothing.
+ *
+ * The shimmer sweeps a highlight across a block that is otherwise flat. It is
+ * decoration in the strict sense the board requires: the element has no text
+ * node, so no frame of it can be read as a value, and stopping it mid-sweep
+ * leaves a block that says exactly what a still one says.
+ */
+.cell {
+  display: block;
+  height: 8px;
+  background: var(--mm-surface-2);
+  background-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--mm-rose-glow) 50%,
+    transparent 100%
+  );
+  background-size: 220% 100%;
+  background-repeat: no-repeat;
+  animation: obsel-schematic-shimmer 2200ms linear infinite;
+  animation-delay: calc(var(--row, 0) * 120ms);
+}
+
+@keyframes obsel-schematic-shimmer {
+  from {
+    background-position: -110% 0;
+  }
+  to {
+    background-position: 210% 0;
+  }
+}
+
+.caption {
+  margin: 0;
+  color: var(--obsel-text-quiet);
+  font-family: var(--mm-font-sans);
+  font-size: var(--mm-text-cap);
+  line-height: var(--mm-leading);
+  text-wrap: pretty;
+}
+
+/*
+ * The end state, declared rather than reached by a 0.01ms run.
+ *
+ * The global reduced-motion rule cuts every duration and forces one iteration,
+ * which for a looping sweep would land the highlight wherever the last keyframe
+ * put it and leave it there. Turning the animation off and clearing the gradient
+ * gives the flat block the sweep starts and ends on.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .cell {
+    animation: none;
+    background-image: none;
+  }
+}

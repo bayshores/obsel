@@ -44,6 +44,7 @@ import {
 import type { Edge, Node } from "@xyflow/react";
 
 import { cascadeEdges } from "./graph/cascade";
+import { flowEdgeIds } from "./graph/flow";
 import { dataNodeId, layoutPositions, taskNodeId } from "./graph/positions";
 import { CAMERA_MS, FLY_MS } from "./motion-tokens";
 import { DataNode, TaskNode } from "./nodes";
@@ -318,6 +319,16 @@ function buildGraph(
  * it fed, and the `.cockpitTall` mode that state switched on all went together.
  */
 
+/**
+ * The class the flow animation hangs off.
+ *
+ * A plain global name rather than a CSS-module hash: React Flow puts this on its
+ * own `.react-flow__edge` group, the stylesheet reaches it through `:global`
+ * exactly as it reaches `.animated`, and a browser test can count the lit edges
+ * without knowing a build-time hash.
+ */
+const FLOW_CLASS = "obselFlow";
+
 interface LineageProps {
   tasks: TaskRecord[];
   /**
@@ -325,6 +336,23 @@ interface LineageProps {
    * The cockpit tells the two apart by the URN's entity type.
    */
   onSelect?: (urn: string) => void;
+  /**
+   * The pointer entering or leaving a node, by URN. Null means it left.
+   *
+   * The delay before this becomes a preview is the cockpit's, not the graph's:
+   * this fires on every crossing, and `useHoverIntent` decides which crossings a
+   * reader meant.
+   */
+  onHover?: (urn: string | null) => void;
+  /**
+   * Whose edges to draw as flowing, or null for none.
+   *
+   * Emphasis, never a claim. It says "these edges touch that box", which is
+   * `reads` and `writes` restated, and deliberately not "a change went this
+   * way" — that is the cascade, which is read off marks and keeps amber and its
+   * own dash pattern so the two can never be mistaken for each other.
+   */
+  flowUrn?: string | null;
   /**
    * The URN whose details are open, so the graph can bring it into view.
    *
@@ -354,7 +382,14 @@ export function Lineage(props: LineageProps) {
   );
 }
 
-function LineageCanvas({ tasks, onSelect, focus, coverage = null }: LineageProps) {
+function LineageCanvas({
+  tasks,
+  onSelect,
+  onHover,
+  flowUrn = null,
+  focus,
+  coverage = null,
+}: LineageProps) {
   /*
    * No cascade on the erasure board.
    *
@@ -396,6 +431,44 @@ function LineageCanvas({ tasks, onSelect, focus, coverage = null }: LineageProps
     setNodes(built.nodes);
     setEdges(built.edges);
   }, [signature, tasks, origin, coverage, setNodes, setEdges]);
+
+  /*
+   * Which edges are drawn as flowing, updated in place.
+   *
+   * Declared after the rebuild above so that a poll which genuinely changed the
+   * picture rebuilds first and is re-marked in the same commit, rather than
+   * losing the highlight for a frame.
+   *
+   * Three things this deliberately does NOT do. It does not enter
+   * `graphSignature`, so pointing at a box never rebuilds the graph or restarts
+   * node measurement. It returns the same object for an edge whose class did not
+   * change, so React Flow's memoised edges re-render only the handful that did
+   * — on the forty-task board a hover touches two to nine of eighty-two. And it
+   * skips any edge the cascade has lit: that edge is already saying something
+   * stronger, in amber, and a second animation on top of it would put two
+   * claims on one line.
+   */
+  useEffect(() => {
+    const inFlow = flowEdgeIds(tasks, flowUrn);
+    setEdges((previous) => {
+      let changed = false;
+      const next = previous.map((edge) => {
+        const wanted = inFlow.has(edge.id) && edge.animated !== true;
+        if (wanted === (edge.className === FLOW_CLASS)) return edge;
+        changed = true;
+        return {
+          ...edge,
+          className: wanted ? FLOW_CLASS : undefined,
+          style: {
+            ...edge.style,
+            stroke: wanted ? "var(--mm-rose)" : "var(--mm-rose-line)",
+            strokeWidth: wanted ? 1.5 : 1,
+          },
+        };
+      });
+      return changed ? next : previous;
+    });
+  }, [flowUrn, signature, tasks, setEdges]);
 
   /*
    * Re-frame the graph. The `fitView` prop below does this exactly once, on
@@ -518,6 +591,8 @@ function LineageCanvas({ tasks, onSelect, focus, coverage = null }: LineageProps
           // URN itself says which kind of entity was chosen.
           if (onSelect) onSelect(node.id.slice(2));
         }}
+        onNodeMouseEnter={(_event, node) => onHover?.(node.id.slice(2))}
+        onNodeMouseLeave={() => onHover?.(null)}
         {...READING}
         {...RANGE}
       >

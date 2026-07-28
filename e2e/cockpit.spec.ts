@@ -433,6 +433,283 @@ test.describe("fit", () => {
 });
 
 /*
+ * The three depths of the details surface.
+ *
+ * It replaced a panel that opened only on a click, with nothing on the board
+ * saying a click would do anything. These assertions are about the affordance as
+ * much as the contents: an idle hint that is always there, a preview under the
+ * pointer, and the full record on a click.
+ */
+test.describe("the details surface", () => {
+  const DETAILS = '[aria-label="Details"]';
+
+  test("says what pointing and clicking do, before either happens", async ({ page }) => {
+    await openCockpit(page, cascaded());
+    await page.waitForSelector(".react-flow__node", { state: "attached" });
+
+    await expect(page.getByText("hover a box to preview it, click to pin")).toBeVisible();
+  });
+
+  test("offers no hint on a board with nothing to point at", async ({ page }) => {
+    await openCockpit(page, empty());
+    await expect(page.getByText("No agents yet", { exact: false })).toBeVisible();
+
+    await expect(page.getByText("hover a box to preview it", { exact: false })).toHaveCount(0);
+  });
+
+  test("previews the box under the pointer, in names rather than identifiers", async ({ page }) => {
+    await openCockpit(page, cascaded());
+    await page.waitForSelector(".react-flow__node-data", { state: "attached" });
+
+    await page.locator(".react-flow__node-data").nth(1).hover();
+    // Polled rather than waited on: the preview is deliberately delayed, so a
+    // fixed wait would either be flaky or be a claim about the delay.
+    await expect.poll(() => page.locator(DETAILS).count()).toBe(1);
+
+    const text = (await page.locator(DETAILS).textContent()) ?? "";
+    expect(text).toContain("written by");
+    expect(text).toContain("read by");
+    // A preview carries nothing a person cannot read at a glance.
+    expect(text).not.toContain("urn:li:");
+  });
+
+  test("returns to the hint when the pointer leaves", async ({ page }) => {
+    await openCockpit(page, cascaded());
+    await page.waitForSelector(".react-flow__node-task", { state: "attached" });
+
+    await page.locator(".react-flow__node-task").nth(1).hover();
+    await expect.poll(() => page.locator(DETAILS).count()).toBe(1);
+
+    await page.mouse.move(4, 4);
+    await expect.poll(() => page.locator(DETAILS).count()).toBe(0);
+    await expect(page.getByText("hover a box to preview it, click to pin")).toBeVisible();
+  });
+
+  test("pointing at a box moves nothing in the graph", async ({ page }) => {
+    await openCockpit(page, cascaded());
+    await page.waitForSelector(".react-flow__node", { state: "attached" });
+
+    const measure = () =>
+      page.evaluate(() => ({
+        graph: Math.round(
+          document.querySelector(".react-flow")?.getBoundingClientRect().height ?? 0,
+        ),
+        nodeTops: [...document.querySelectorAll(".react-flow__node")].map((n) =>
+          Math.round(n.getBoundingClientRect().top),
+        ),
+        scrollH: document.documentElement.scrollHeight,
+      }));
+
+    const before = await measure();
+    await page.locator(".react-flow__node-task").nth(1).hover();
+    await expect.poll(() => page.locator(DETAILS).count()).toBe(1);
+
+    expect(await measure()).toEqual(before);
+  });
+
+  test("a click pins the record, and Esc puts it away", async ({ page }) => {
+    await openCockpit(page, cascaded());
+    await page.waitForSelector(".react-flow__node-task", { state: "attached" });
+
+    await page.locator(".react-flow__node-task").nth(1).click();
+    await expect(page.getByText("task urn")).toBeVisible();
+
+    await page.keyboard.press("Escape");
+    await expect(page.getByText("task urn")).toHaveCount(0);
+  });
+
+  test("the preview itself pins, without going back for the small box", async ({ page }) => {
+    await openCockpit(page, cascaded());
+    await page.waitForSelector(".react-flow__node-task", { state: "attached" });
+
+    await page.locator(".react-flow__node-task").nth(1).hover();
+    await expect.poll(() => page.locator(DETAILS).count()).toBe(1);
+    // The pointer is on the node; the preview is the thing being clicked.
+    await page.locator(DETAILS).click();
+
+    await expect(page.getByText("task urn")).toBeVisible();
+  });
+
+  /*
+   * The rule that makes a pinned panel readable: crossing the board to read it
+   * must not rewrite it. The edges follow the pointer; the panel does not.
+   */
+  test("pointing elsewhere does not rewrite what is pinned", async ({ page }) => {
+    await openCockpit(page, cascaded());
+    await page.waitForSelector(".react-flow__node-task", { state: "attached" });
+
+    const pinned = page.locator(".react-flow__node-task").nth(1);
+    const pinnedName = ((await pinned.textContent()) ?? "").trim();
+    await pinned.click();
+    await expect(page.getByText("task urn")).toBeVisible();
+
+    await page.locator(".react-flow__node-data").nth(0).hover();
+    // Long enough that a preview would have replaced the panel by now.
+    await expect.poll(() => page.locator(DETAILS).count(), { timeout: 2000 }).toBe(1);
+
+    const heading = (await page.locator(`${DETAILS} h2`).first().textContent()) ?? "";
+    expect(pinnedName).toContain(heading.trim());
+    await expect(page.getByText("task urn")).toBeVisible();
+  });
+
+  test("names its subject once, and never three times", async ({ page }) => {
+    await openCockpit(page, cascaded());
+    await page.waitForSelector(".react-flow__node-data", { state: "attached" });
+
+    await page.locator(".react-flow__node-data").nth(1).click();
+    await expect(page.locator(DETAILS)).toBeVisible();
+
+    const heading = ((await page.locator(`${DETAILS} h2`).first().textContent()) ?? "").trim();
+    expect(heading.length).toBeGreaterThan(0);
+    // The panel used to print the name as a section title, again in a meta line
+    // describing the kind, and again as its own heading.
+    const times = await page
+      .locator(DETAILS)
+      .evaluate(
+        (panel, name) =>
+          [...panel.querySelectorAll("*")].filter(
+            (element) => (element.textContent ?? "").trim() === name,
+          ).length,
+        heading,
+      );
+    expect(times).toBe(1);
+  });
+
+  /*
+   * The sketch of a table.
+   *
+   * obsel holds no warehouse credentials and never reads a table, so the sketch
+   * draws the reported column names over blocks that carry nothing. The
+   * assertion that matters most is the last one: no value appears anywhere in it,
+   * because none was ever passed to it.
+   */
+  test("sketches a table from its reported shape, and never its contents", async ({ page }) => {
+    await openCockpit(page, cascaded());
+    await page.waitForSelector(".react-flow__node-data", { state: "attached" });
+
+    // The changed table, whose writer reported the renamed column.
+    await page.getByText("clean orders", { exact: true }).first().click();
+    await expect(page.locator(DETAILS)).toBeVisible();
+
+    const sketch = page.locator(`${DETAILS} [class*="schematic"]`).first();
+    await expect(sketch).toBeVisible();
+
+    const text = (await sketch.textContent()) ?? "";
+    // Real column names, from the writer's own completion report.
+    expect(text).toContain("order_id");
+    expect(text).toContain("customer");
+    // What arrived, and what left, agreeing with the mark on the same board.
+    expect(text).toContain("+ order_total_usd");
+    expect(text).toContain("- order_total");
+    expect(text).toContain("from what the writer last reported");
+    expect(text).toContain("obsel never reads the table itself");
+
+    // Every placeholder block is empty, and is empty by construction.
+    const filled = await sketch.evaluate(
+      (node) =>
+        [...node.querySelectorAll('[class*="cell"]')].filter(
+          (cell) => (cell.textContent ?? "").trim() !== "",
+        ).length,
+    );
+    expect(filled).toBe(0);
+  });
+
+  test("says so plainly when a table's writer has reported nothing", async ({ page }) => {
+    await openCockpit(page, justOne("waiting"));
+    await page.waitForSelector(".react-flow__node-data", { state: "attached" });
+
+    await page.locator(".react-flow__node-data").first().click();
+    await expect(page.getByText("nothing reported yet", { exact: false })).toBeVisible();
+    await expect(page.locator(`${DETAILS} [class*="schematic"]`)).toHaveCount(0);
+  });
+
+  /*
+   * The flow highlight, and the one rule that keeps it from lying: it says
+   * "these edges touch that box", never "a change went this way". The cascade
+   * says the second thing, in amber, and the two must not be layered.
+   */
+  /** Which edges are drawn as flowing, and which of those the cascade also lit. */
+  function litEdges(page: Page) {
+    return page.evaluate(() => {
+      const flow = [...document.querySelectorAll(".react-flow__edge.obselFlow")];
+      return {
+        ids: flow.map((edge) => edge.getAttribute("data-id") ?? ""),
+        alsoCascade: flow.filter((edge) => edge.classList.contains("animated")).length,
+      };
+    });
+  }
+
+  test("lights the writer and every reader of the table under the pointer", async ({ page }) => {
+    await openCockpit(page, calm());
+    await page.waitForSelector(".react-flow__node-data", { state: "attached" });
+
+    await page.getByText("daily revenue", { exact: true }).first().click();
+
+    // One writer and two readers, in the fixture's own pipeline shape.
+    const lit = await litEdges(page);
+    expect(lit.ids).toHaveLength(3);
+    expect(lit.ids.filter((id) => id.endsWith("daily_revenue,PROD)"))).toHaveLength(1);
+  });
+
+  /*
+   * The rule that keeps the two moving lines apart. Every edge touching
+   * `daily revenue` on the cascaded board is already amber, saying a change
+   * travelled it. Flow says only "you are pointing at this", and layering the
+   * weaker statement over the stronger one would blur which is being made.
+   */
+  test("never draws flow along an edge the cascade already lit", async ({ page }) => {
+    await openCockpit(page, cascaded());
+    await page.waitForSelector(".react-flow__node-data", { state: "attached" });
+
+    await page.getByText("daily revenue", { exact: true }).first().click();
+
+    const lit = await litEdges(page);
+    expect(lit.alsoCascade).toBe(0);
+    expect(lit.ids, "every edge here is the cascade's to draw").toHaveLength(0);
+    // And the cascade itself is untouched by the click.
+    await expect(page.locator(".react-flow__edge.animated")).not.toHaveCount(0);
+  });
+
+  test("lights an edge the cascade did not reach", async ({ page }) => {
+    await openCockpit(page, cascaded());
+    await page.waitForSelector(".react-flow__node-data", { state: "attached" });
+
+    // The raw table upstream of the change: its one reader was never marked, so
+    // no amber runs here and the flow highlight is the only thing to draw.
+    await page.getByText("raw orders", { exact: true }).first().click();
+
+    const lit = await litEdges(page);
+    expect(lit.ids).toHaveLength(1);
+    expect(lit.alsoCascade).toBe(0);
+  });
+
+  test("holds still for a reader who asked for less motion", async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await openCockpit(page, cascaded());
+    await page.waitForSelector(".react-flow__node-data", { state: "attached" });
+
+    await page.getByText("clean orders", { exact: true }).first().click();
+    await expect(page.locator(DETAILS)).toBeVisible();
+
+    const still = await page.evaluate(() => {
+      const field = document.querySelector('[aria-label="Details"] dl > div');
+      const cell = document.querySelector('[aria-label="Details"] [class*="cell"]');
+      const edge = document.querySelector(".react-flow__edge.obselFlow path.react-flow__edge-path");
+      return {
+        fieldOpacity: field === null ? null : getComputedStyle(field).opacity,
+        cellAnimation: cell === null ? null : getComputedStyle(cell).animationName,
+        edgeAnimation: edge === null ? null : getComputedStyle(edge).animationName,
+      };
+    });
+
+    // Nothing moves, and everything the panel states is readable on the first frame.
+    expect(still.fieldOpacity).toBe("1");
+    expect(still.cellAnimation).toBe("none");
+    expect(still.edgeAnimation).toBe("none");
+  });
+});
+
+/*
  * What obsel put back into DataHub.
  *
  * The judging criterion obsel scores best on is the one about contributing to the
@@ -2264,14 +2541,32 @@ test.describe("how much the board says", () => {
     const leaks: string[] = [];
     const bareCode: string[] = [];
 
-    for (const [name, swarm, activity] of [
-      ["a finished step", cascaded(), finishedStep()],
-      ["a running step", calm(), runningStep("rerun-same")],
-      ["an unprepared machine", calm(), nothingInstalled()],
-      ["one broken prerequisite", calm(), codexSignedOut()],
-      ["settled", calm(), finishedStep("run")],
+    /*
+     * The last two states pin a node open, and that is the point of them.
+     *
+     * The `[aria-label="Details"]` exclusion above was written when the panel
+     * rendered no such label, and no state in this loop opened the panel, so it
+     * had never once been exercised: it excluded nothing from a sweep that never
+     * reached it. The panel is built almost entirely from full URNs and bare
+     * 64-hex hashes, so the exclusion has to be real before it can be relied on
+     * — and a state that opens the panel is what proves it is.
+     */
+    for (const [name, swarm, activity, pin] of [
+      ["a finished step", cascaded(), finishedStep(), null],
+      ["a running step", calm(), runningStep("rerun-same"), null],
+      ["an unprepared machine", calm(), nothingInstalled(), null],
+      ["one broken prerequisite", calm(), codexSignedOut(), null],
+      ["settled", calm(), finishedStep("run"), null],
+      ["an agent's details open", cascaded(), finishedStep(), ".react-flow__node-task"],
+      ["a table's details open", cascaded(), finishedStep(), ".react-flow__node-data"],
     ] as const) {
       await openCockpit(page, swarm, activity, cascadeSteps());
+
+      if (pin !== null) {
+        await page.waitForSelector(pin, { state: "attached" });
+        await page.locator(pin).nth(1).click();
+        await page.locator('[aria-label="Details"]').waitFor();
+      }
 
       const found = await page.evaluate(() => {
         const KEPT_OUT = ["venv", "vocabulary", "rerun-same", "exit 0", "exited", "urn:li:"];
