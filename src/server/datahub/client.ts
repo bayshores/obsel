@@ -14,10 +14,6 @@ import "server-only";
  * invented ones. `GET /openapi/v3/entity/datajob/<urn>` does return 404 for a
  * URN that was never written, verified on this instance, so it is used instead.
  * `docs/environment-findings.md` §1.
- *
- * Failures throw. Nothing here degrades to an empty array, because in this
- * product an empty result means "nothing is affected" and that is the one wrong
- * answer nobody would question.
  */
 
 import type { SwarmSnapshot, TaskRecord } from "@/src/server/coordinator/types";
