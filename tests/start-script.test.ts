@@ -49,7 +49,10 @@ function scratchRepo(): string {
   mkdirSync(join(root, "scripts"));
   copyFileSync(join(REPO, "scripts/start.sh"), join(root, "scripts/start.sh"));
   copyFileSync(join(REPO, ".env.example"), join(root, ".env.example"));
-  copyFileSync(join(REPO, "Start obsel.command"), join(root, "Start obsel.command"));
+  copyFileSync(
+    join(REPO, "scripts/Start obsel.command"),
+    join(root, "scripts/Start obsel.command"),
+  );
   return root;
 }
 
@@ -118,7 +121,7 @@ describe("the launcher refuses in a way a judge can act on", () => {
     // would look for obsel in the wrong place. The refusal is incidental here;
     // what is under test is the folder it reports having entered.
     const root = scratchRepo();
-    const run = runLauncher(root, "Start obsel.command", tmpdir());
+    const run = runLauncher(root, "scripts/Start obsel.command", tmpdir());
 
     expect(run.stdout).toContain(`Folder: ${root}`);
     expect(run.stdout).toContain("Step 1 of 9: Docker");
@@ -129,7 +132,7 @@ describe("the launcher parses under the shell that will run it", () => {
   it("has no syntax error under this machine's /bin/bash", () => {
     // macOS ships bash 3.2, which is what a double-clicked .command gets, and it
     // rejects syntax that newer bash accepts. `-n` parses without executing.
-    for (const file of ["scripts/start.sh", "Start obsel.command"]) {
+    for (const file of ["scripts/start.sh", "scripts/Start obsel.command"]) {
       expect(() =>
         execFileSync("/bin/bash", ["-n", join(REPO, file)], { encoding: "utf8" }),
       ).not.toThrow();

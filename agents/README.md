@@ -97,7 +97,7 @@ ask the agent to register a task and report a small table, then confirm on the p
 
 ## Before you start
 
-`scripts/start.sh`, which `Start obsel.command` in the repository root runs, does all four of these
+`scripts/start.sh`, which `scripts/Start obsel.command` runs, does all four of these
 in an order that works, and skips whatever is already done. The list below is the same setup by
 hand, and is what to read when one of them fails.
 

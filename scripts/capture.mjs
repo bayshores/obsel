@@ -1,8 +1,8 @@
 /**
  * Capture one of the two board screenshots in `docs/images/`.
  *
- *   node capture.mjs settled    # after `run`, before `change`
- *   node capture.mjs flagged    # after `change`
+ *   node scripts/capture.mjs settled    # after `run`, before `change`
+ *   node scripts/capture.mjs flagged    # after `change`
  *
  * Needs `pnpm dev` running against a live DataHub. It photographs whatever the board
  * actually shows, so the two shots have to be taken from **one run**, in that order,
@@ -21,7 +21,7 @@ import { chromium } from "@playwright/test";
 
 const which = process.argv[2];
 if (which !== "settled" && which !== "flagged") {
-  throw new Error("usage: node capture.mjs settled|flagged");
+  throw new Error("usage: node scripts/capture.mjs settled|flagged");
 }
 
 const browser = await chromium.launch();

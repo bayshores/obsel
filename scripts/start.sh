@@ -20,7 +20,7 @@
 # and does not start a second server.
 #
 # Bash 3.2, because that is what macOS ships and what a double-clicked
-# `Start obsel.command` gets. No associative arrays, no `${var^^}`, no `local -n`.
+# `Start obsel.command` beside it gets. No associative arrays, no `${var^^}`, no `local -n`.
 
 set -u
 
@@ -86,7 +86,7 @@ step() {
 # How to run this again, named the way the reader started it.
 retry_phrase() {
   if [ "$(uname -s)" = "Darwin" ]; then
-    printf '%s' 'double-click "Start obsel.command" again'
+    printf '%s' 'double-click "scripts/Start obsel.command" again'
   else
     printf '%s' 'run "bash scripts/start.sh" again'
   fi

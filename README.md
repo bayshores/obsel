@@ -121,7 +121,7 @@ proves.
 
 ## Try it
 
-Start Docker Desktop, then download this repository and **double-click `Start obsel.command`**.
+Start Docker Desktop, then download this repository and **double-click `scripts/Start obsel.command`**.
 
 A terminal window opens and works down nine steps, saying what it is doing. You do not type
 anything. It starts DataHub, installs what is missing, registers obsel's tag, starts the app, and
@@ -194,15 +194,15 @@ Every step written out in full, with a way to tell each one worked, is in
 
 ### If something goes wrong
 
-| What you see                                                             | What to do                                                                                                                       |
-| ------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
-| macOS refuses to open the file, or warns about an unidentified developer | Right-click `Start obsel.command`, choose Open, then Open again. Or run `bash scripts/start.sh`, which no such check applies to. |
-| Double-clicking opens the file in a text editor                          | Run `bash scripts/start.sh` in a terminal instead.                                                                               |
-| "Docker is installed but not running"                                    | Open Docker Desktop and wait for its icon to settle, then start the launcher again.                                              |
-| DataHub takes a very long time on the first run                          | Expected. It downloads several large images. Give Docker Desktop at least 8 GB in Settings, Resources.                           |
-| "obsel needs Node 24"                                                    | Install Node 24 from nodejs.org. The launcher will not run the app on an older one, because Next.js 16 does not support it.      |
-| Port 3000 or 8080 already in use                                         | Something else on your machine has it. Stop that, then start the launcher again.                                                 |
-| The page shows a checklist with items still missing                      | That is the launcher handing over. Each item says what to run, and ticks itself when done.                                       |
+| What you see                                                             | What to do                                                                                                                               |
+| ------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| macOS refuses to open the file, or warns about an unidentified developer | Right-click `scripts/Start obsel.command`, choose Open, then Open again. Or run `bash scripts/start.sh`, which no such check applies to. |
+| Double-clicking opens the file in a text editor                          | Run `bash scripts/start.sh` in a terminal instead.                                                                                       |
+| "Docker is installed but not running"                                    | Open Docker Desktop and wait for its icon to settle, then start the launcher again.                                                      |
+| DataHub takes a very long time on the first run                          | Expected. It downloads several large images. Give Docker Desktop at least 8 GB in Settings, Resources.                                   |
+| "obsel needs Node 24"                                                    | Install Node 24 from nodejs.org. The launcher will not run the app on an older one, because Next.js 16 does not support it.              |
+| Port 3000 or 8080 already in use                                         | Something else on your machine has it. Stop that, then start the launcher again.                                                         |
+| The page shows a checklist with items still missing                      | That is the launcher handing over. Each item says what to run, and ticks itself when done.                                               |
 
 ---
 

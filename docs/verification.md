@@ -165,7 +165,7 @@ and type-checks, not a plan.
 | The repair loop: flagged work redone in order, restored work skipped           | `cmd_repair` in `agents/run.py`, the guide's leading flagged action      |
 | The joining panel and its four derived steps                                   | `joining.ts`, `joining-panel.tsx`, `joinCommand` on `/api/demo/activity` |
 | Registering your own task from the page, wired into DataHub                    | `mine.ts`, `mine-panel.tsx`, over the agents' own `/api/tasks/register`  |
-| The two animated captures and the script that takes them                       | `docs/images/*.gif`, `record.mjs`                                        |
+| The two animated captures and the script that takes them                       | `docs/images/*.gif`, `scripts/record.mjs`                                |
 | The mark in the header and the browser tab icon                                | `src/features/dashboard/mark.tsx`, `mark-geometry.ts`, `app/icon.svg`    |
 | The header lockup, and the name it reveals on hover                            | `src/features/dashboard/brand.tsx`, `brand.module.css`                   |
 | HTTP API, thirteen routes in three groups                                      | `app/api/`, see [`docs/architecture.md`](architecture.md) section 11     |
@@ -323,7 +323,7 @@ display-only `path` on the run detail; nothing decides on it.
     in a measured 1035 ms, the step exiting 0 in 30.2 s. Both runs' closing claims were read back
     from the page, not assumed from the loop ending.
 - **The two animated captures**, `docs/images/cascade.gif` and `docs/images/repair.gif`, recorded
-  2026-07-24 in one sequence by `record.mjs`: the real launch route, the live page, the moment
+  2026-07-24 in one sequence by `scripts/record.mjs`: the real launch route, the live page, the moment
   decided from swarm reads rather than pixels. The cascade's ribbon landed at 2444 ms detection
   with `3 of 3 tagged`; the repair GIF holds the strip's two `cleared` lines with their reasons.
   The `change` and `repair` steps behind them exited 0 in 49.9 s and 30.2 s.
@@ -533,7 +533,7 @@ display-only `path` on the run detail; nothing decides on it.
   dry-run verified.
 
 - **The demo has a capture harness, and a reference picture lock exists, measured by ffprobe,
-  2026-07-24.** `video.mjs` records the whole take in one shot through the real guide buttons: it
+  2026-07-24.** `scripts/video.mjs` records the whole take in one shot through the real guide buttons: it
   refuses a page that is not forty registered tasks, clicks the swarm and the repair with a
   visible cursor, decides every beat from the swarm and the activity feed rather than from
   pixels, and refuses to save anything when a step exits non-zero or a beat never arrives. It
@@ -1651,7 +1651,7 @@ the `datahub` CLI, had no install command written down anywhere except in passin
 `upstream-contributions.md`.
 
 `scripts/start.sh` is those steps in one order, reached on macOS by double-clicking
-`Start obsel.command`. The ordering is the part that is not a convenience: registering obsel's tag
+`scripts/Start obsel.command`. The ordering is the part that is not a convenience: registering obsel's tag
 and starting the app both only work once DataHub is answering, and a numbered list gives the reader
 no way to know that the wait in step 1 is load-bearing.
 
@@ -2469,7 +2469,7 @@ test ids.
   arrangement was replaced on 2026-07-28: the graph is the page, the panels are tabs of a dock, and
   the two measured numbers are pinned in frame rather than reached by scrolling. Every wide shot in
   the lock is therefore wrong, and one instruction it was built around is now obsolete rather than
-  merely longer, since there is no page scroll to perform. `video.mjs` drives buttons rather than
+  merely longer, since there is no page scroll to perform. `scripts/video.mjs` drives buttons rather than
   pixels so it needs no change, but the take does: the reference has to be shot again from the top
   before anything is cut from it. Nothing has been re-recorded yet.
 - **The README's images and GIFs are of that same previous layout**, and are flagged as such in the

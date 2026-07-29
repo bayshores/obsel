@@ -1,14 +1,14 @@
 /**
  * Record the demo's whole take through the real guide buttons, in one shot.
  *
- * The sibling of `record.mjs`, for the submission video instead of the GIFs.
+ * The sibling of `scripts/record.mjs`, for the submission video instead of the GIFs.
  * Nothing is staged: the two steps are launched through the same
  * POST /api/demo/launch the guide's buttons use, by clicking the buttons, and
  * every beat is decided from the swarm and the activity feed rather than from
  * pixels. The script refuses to save anything when a step exits non-zero or a
  * beat never arrives, because a take missing its moment is not a take.
  *
- *     node video.mjs <output-dir> [base-url]
+ *     node scripts/video.mjs <output-dir> [base-url]
  *
  * Preconditions: the board is the TAXI swarm, all forty at registered (reset,
  * then scale-register, and wait for both). The take is `scale-run
@@ -30,14 +30,14 @@ import { chromium } from "@playwright/test";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 
 /*
- * `node video.mjs --replan <dir>` recomputes the segment plan and the assemble
+ * `node scripts/video.mjs --replan <dir>` recomputes the segment plan and the assemble
  * command from an existing take's timeline.json, without re-recording. The
  * plan is a function of the beats, so tuning the cut must not cost a seven
  * minute retake.
  */
 if (process.argv[2] === "--replan") {
   const dir = process.argv[3];
-  if (!dir) throw new Error("usage: node video.mjs --replan <output-dir>");
+  if (!dir) throw new Error("usage: node scripts/video.mjs --replan <output-dir>");
   const old = JSON.parse(readFileSync(`${dir}/timeline.json`, "utf8"));
   writePlan(dir, old.videoPath, old.beats);
   process.exit(0);
@@ -45,7 +45,7 @@ if (process.argv[2] === "--replan") {
 
 const OUT = process.argv[2];
 const BASE = process.argv[3] ?? "http://localhost:3000";
-if (!OUT) throw new Error("usage: node video.mjs <output-dir> [base-url]");
+if (!OUT) throw new Error("usage: node scripts/video.mjs <output-dir> [base-url]");
 mkdirSync(OUT, { recursive: true });
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));

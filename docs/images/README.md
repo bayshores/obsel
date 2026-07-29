@@ -21,7 +21,7 @@ Capturing them is the owner's action, like recording the video. Nothing here is 
 The two GIFs exist because a still of a finished cascade shows nothing moving, which was the exact
 reason the edges were animated in the first place. Fourteen seconds each, cut around the moment a
 swarm read confirmed it: three marks standing with all three tags for the cascade, zero marks
-standing for the repair. `record.mjs` at the repository root takes them, the way `capture.mjs`
+standing for the repair. `scripts/record.mjs` takes them, the way `scripts/capture.mjs`
 takes the stills: it launches the real step through the launch route, records the live page with
 Playwright, refuses to save anything when the moment never arrives or the step exits non-zero, and
 writes the cut point beside each video.
@@ -60,7 +60,7 @@ which produced `flagged.png`. Nothing between the two shots but the change itsel
 change `schema` rather than `both`, and the content hash `539b509722e8` was identical before and
 after, which is the evidence that only the column name moved.
 
-`capture.mjs` at the repository root does it, and it refuses to mislabel a shot: it decides which
+`scripts/capture.mjs` does it, and it refuses to mislabel a shot: it decides which
 page it is looking at from the ribbon's write-back cell, which is derived from the marks, rather
 than from the headline. The first version tested the headline for "out of date" and would have saved
 a settled pipeline as flagged, because the settled headline reads "all 4 finished, nothing out of date".
@@ -71,14 +71,15 @@ because that half is a count rather than a sentence.
 
 ## Replacing them
 
-Take the new pair with the same two commands, then update the date and commit in the caption in
+Take the new pair with the same two commands, both run from the repository root: the script writes
+`docs/images/<name>.png` relative to the working directory. Then update the date and commit in the caption in
 `README.md` and in `examples/README.md`, so an image can always be tied back to a specific state of
 the repository.
 
 ```bash
-node capture.mjs settled   # after run, before change
+node scripts/capture.mjs settled   # after run, before change
 ```
 
 ```bash
-node capture.mjs flagged   # after change
+node scripts/capture.mjs flagged   # after change
 ```

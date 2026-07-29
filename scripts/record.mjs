@@ -2,7 +2,7 @@
  * Record the board through a real `change` and a real `repair`, and say when the
  * moment happened so the GIF can be cut around it.
  *
- * The sibling of `capture.mjs`, for the two animated captures in `docs/images/`.
+ * The sibling of `scripts/capture.mjs`, for the two animated captures in `docs/images/`.
  * Nothing is staged: each step is launched through the same POST /api/demo/launch
  * the guide's buttons use, the video is whatever the live board did, and the
  * script fails rather than saving anything when the moment never arrives or the
@@ -10,7 +10,7 @@
  * three marks standing with all three tags confirmed for the cascade, and zero
  * marks standing for the repair.
  *
- *     node record.mjs <output-dir>
+ *     node scripts/record.mjs <output-dir>
  *
  * Writes one .webm per step plus a JSON beside it carrying the video path and
  * `momentMs`, milliseconds from recording start. Cut with ffmpeg around it, e.g.
@@ -30,7 +30,7 @@ import { writeFileSync } from "node:fs";
 
 const BASE = "http://localhost:3000";
 const OUT = process.argv[2];
-if (!OUT) throw new Error("usage: node record.mjs <output-dir>");
+if (!OUT) throw new Error("usage: node scripts/record.mjs <output-dir>");
 
 async function swarm() {
   const res = await fetch(`${BASE}/api/swarm`);

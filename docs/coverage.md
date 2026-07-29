@@ -175,7 +175,7 @@ what a reader sees, and most of them are about what the page is not allowed to s
 
 ## The launcher
 
-`scripts/start.sh`, and the `Start obsel.command` a judge double-clicks. Each row is an executed
+`scripts/start.sh`, and the `scripts/Start obsel.command` a judge double-clicks. Each row is an executed
 condition; the two rows nobody has produced are in `verification.md` under Not done, not here.
 
 | case                                         | proven by                                                                                                                                                             | kind |

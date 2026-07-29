@@ -6,8 +6,8 @@ full, for when something fails or you would rather use the terminal.
 ## The launcher
 
 `scripts/start.sh` does every step on this page, in an order this page leaves to the reader. On
-macOS it is reached by double-clicking `Start obsel.command`, which does nothing but find this
-folder and run it; on Linux, run `bash scripts/start.sh`.
+macOS it is reached by double-clicking `scripts/Start obsel.command`, which does nothing but find
+this folder and run it; on Linux, run `bash scripts/start.sh`.
 
 The ordering is why it exists rather than being a list of commands. Two steps only work once DataHub
 is answering: registering obsel's tag, which cannot be created at run time, and starting the app,
