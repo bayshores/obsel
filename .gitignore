@@ -9,6 +9,7 @@ test-results/
 !.env.example
 *.log
 *.tsbuildinfo
+*.bak*
 .DS_Store
 
 # Python environment for the demo agent workers and DataHub emitter
