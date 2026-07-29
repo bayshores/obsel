@@ -26,7 +26,7 @@ import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 
 import type { PublishedErasureReport } from "@/src/server/coordinator/erasure-report";
 
-export const ERASURE_POLL_MS = 5000;
+const ERASURE_POLL_MS = 5000;
 const READ_TIMEOUT_MS = 8000;
 const STORE = "obsel.erasure.v1";
 
@@ -178,7 +178,7 @@ export function useErasure(active: boolean): ErasureState {
  * during render, and the tab is the one surface whose job is to report gaps
  * honestly. Failing to render is the worst way to fail at that.
  */
-export function isReport(body: unknown): body is PublishedErasureReport {
+function isReport(body: unknown): body is PublishedErasureReport {
   if (typeof body !== "object" || body === null) return false;
   const candidate = body as Partial<PublishedErasureReport>;
   if (!Array.isArray(candidate.coverage)) return false;

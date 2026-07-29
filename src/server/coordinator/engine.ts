@@ -17,7 +17,7 @@ import {
   registerTask as writeTask,
   updateTaskProperties,
 } from "@/src/server/datahub/client";
-import { FLOW_URN, isTaskUrn, taskUrn } from "@/src/server/datahub/urns";
+import { FLOW_URN, isTaskUrn } from "@/src/server/datahub/urns";
 import { blocked, readyToStart, taskLabel } from "./staleness";
 import { clear as clearTrace, emit } from "./trace";
 import type { SwarmSnapshot, TaskRecord } from "./types";
@@ -308,6 +308,3 @@ export async function resetSwarm(): Promise<{ reset: string[]; tagsCleared: stri
 }
 
 export { coordinateCompletion } from "./completion";
-
-/** Convenience for callers that hold a short task name rather than a URN. */
-export { taskUrn };

@@ -295,11 +295,6 @@ export const TOUR: readonly TourStep[] = [
   },
 ];
 
-/** Where a step sits, for the card's own `3 of 10`. */
-export function stepNumber(id: string): number {
-  return TOUR.findIndex((step) => step.id === id) + 1;
-}
-
 /**
  * Which step should be on screen, given where the reader had got to and what
  * the board actually shows.
@@ -362,16 +357,4 @@ export function settledIndex(from: number, input: GuideInput): number {
     at += 1;
   }
   return at;
-}
-
-/**
- * Has this act already been performed, for the tick on a finished step.
- *
- * Deliberately the board's own answer rather than the launcher's step record.
- * Every act in this tour leaves something visible behind — tasks on the flow,
- * finish times, marks — so the record is never needed, and a board somebody
- * else drove reads exactly the same as one driven from these buttons.
- */
-export function isDone(step: TourStep, input: GuideInput): boolean {
-  return step.kind === "act" && step.done(input);
 }

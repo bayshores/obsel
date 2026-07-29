@@ -34,7 +34,7 @@ import type { TaskRecord } from "@/src/server/coordinator/types";
  * in `app/api/tasks/register/route.ts`. The graph reserves box width from this,
  * which is why it is tight rather than merely bounded.
  */
-export const TITLE_MAX = 60;
+const TITLE_MAX = 60;
 
 /**
  * One segment of a name: what a task is called, and what each dotted part of a

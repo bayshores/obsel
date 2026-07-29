@@ -15,7 +15,7 @@ import { useEffect, useState } from "react";
 import type { SwarmSnapshot, TaskRecord } from "@/src/server/coordinator/types";
 
 export const POLL_MS = 1000;
-export const ENDPOINT = "/api/swarm";
+const ENDPOINT = "/api/swarm";
 
 /**
  * A read that has not answered by this point is treated as a failure.
@@ -132,7 +132,7 @@ export function explain(cause: unknown): string {
   return "obsel could not read the agents, and the failure gave no reason.";
 }
 
-export function isSwarmResponse(body: unknown): body is SwarmResponse {
+function isSwarmResponse(body: unknown): body is SwarmResponse {
   if (typeof body !== "object" || body === null) return false;
   const candidate = body as Partial<SwarmResponse>;
   const snapshot = candidate.snapshot;

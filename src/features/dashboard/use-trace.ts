@@ -19,8 +19,8 @@ import { useEffect, useState } from "react";
 
 import type { TraceEvent } from "@/src/server/coordinator/types";
 
-export const TRACE_ENDPOINT = "/api/trace";
-export const TRACE_POLL_MS = 1000;
+const TRACE_ENDPOINT = "/api/trace";
+const TRACE_POLL_MS = 1000;
 
 const READ_TIMEOUT_MS = 5000;
 
@@ -72,7 +72,7 @@ export function useTrace(): TraceState {
   return state;
 }
 
-export function isTraceBody(body: unknown): body is { events: TraceEvent[] } {
+function isTraceBody(body: unknown): body is { events: TraceEvent[] } {
   if (typeof body !== "object" || body === null) return false;
   const events = (body as { events?: unknown }).events;
   if (!Array.isArray(events)) return false;

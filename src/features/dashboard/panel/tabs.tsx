@@ -35,7 +35,7 @@ export type TabId = "activity" | "join" | "data" | "erasure";
  * pairing and the order the README uses; a test used to assert they were
  * adjacent rows on the board, and the adjacency now lives here.
  */
-export const TABS: { id: TabId; label: string }[] = [
+const TABS: { id: TabId; label: string }[] = [
   { id: "activity", label: "activity" },
   /*
    * "your agent" and "your data", rather than "join" and "data".

@@ -610,6 +610,3 @@ function LineageCanvas({
     </div>
   );
 }
-
-/** Exported for tests: the node id spellings the cascade and the layout share. */
-export { dataNodeId, taskNodeId };

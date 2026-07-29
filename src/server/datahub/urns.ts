@@ -29,10 +29,6 @@ export const DATASET_NAMESPACE = "obsel_demo";
  */
 export const FLOW_ID = process.env.OBSEL_FLOW_ID ?? "orders_pipeline";
 
-/** DataHub's own edge names on the `dataJobInputOutput` aspect. */
-export const READS_EDGE = "Consumes";
-export const WRITES_EDGE = "Produces";
-
 /**
  * Dataset-to-dataset lineage, which is what a real catalog actually records.
  *

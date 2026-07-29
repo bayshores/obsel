@@ -296,4 +296,5 @@ export async function closeMcpClient(): Promise<void> {
   await client?.close();
 }
 
-export { McpUnavailableError, STALE_TAG_URN, PINNED_SERVER };
+/** Read by `tests/live/mcp.live.test.ts`, which asserts the pin is the one documented. */
+export { PINNED_SERVER };

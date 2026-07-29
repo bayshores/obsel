@@ -70,7 +70,7 @@ const DEFAULT_HOPS = 3;
  * unattested — the correct behaviour for an obsel that has not been told who it
  * trusts, and a loud one, because the board says so on every row.
  */
-export async function attestorKeys(): Promise<RegisteredKey[]> {
+async function attestorKeys(): Promise<RegisteredKey[]> {
   const raw = process.env.OBSEL_ATTESTOR_KEYS?.trim();
   if (!raw) return [];
   const text = raw.startsWith("[")

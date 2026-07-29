@@ -2,7 +2,7 @@
  * The mmux design system components obsel uses, ported to TypeScript.
  *
  * mmux is the author's own design system and predates this repository; see
- * PREEXISTING.md. Eight of its components are vendored here rather than
+ * PREEXISTING.md. Six of its components are vendored here rather than
  * imported, for two reasons.
  *
  * **It has to be `.tsx`.** `tsconfig.json` sets `allowJs: false`, so a copied
@@ -310,31 +310,6 @@ export function StatRibbon({
   );
 }
 
-/* ── Eyebrow ────────────────────────────────────────────────────────
-   Tiny mono section label with a ▸ marker. */
-
-export function Eyebrow({ children, accent = false }: { children: ReactNode; accent?: boolean }) {
-  return (
-    <span
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        gap: "var(--mm-space-xs)",
-        color: accent ? "var(--mm-rose)" : "var(--obsel-text-quiet)",
-        fontFamily: "var(--mm-font-mono)",
-        // obsel: was --mm-text-2xs (8px).
-        fontSize: "var(--mm-text-cap)",
-        fontWeight: "var(--mm-weight-medium)",
-        letterSpacing: "var(--mm-track)",
-        textTransform: "lowercase",
-      }}
-    >
-      <span style={{ color: "var(--mm-rose)" }}>▸</span>
-      {children}
-    </span>
-  );
-}
-
 /* ── PulseDot ───────────────────────────────────────────────────────
    The universal mmux live signal. */
 
@@ -364,53 +339,5 @@ export function PulseDot({
         flex: "0 0 auto",
       }}
     />
-  );
-}
-
-/* ── Badge ──────────────────────────────────────────────────────────
-   Compact status chip. Tones map to mmux's semantic colours. */
-
-const TONE: Record<string, { fg: string; line: string; fill: string }> = {
-  neutral: { fg: "var(--mm-cream-dim)", line: "var(--mm-rose-line)", fill: "var(--mm-surface)" },
-  accent: { fg: "var(--mm-rose)", line: "var(--mm-border-strong)", fill: "var(--mm-rose-soft)" },
-  live: { fg: "var(--mm-green)", line: "rgba(120,215,163,0.3)", fill: "rgba(120,215,163,0.06)" },
-  alert: { fg: "var(--mm-red)", line: "rgba(239,71,111,0.35)", fill: "rgba(239,71,111,0.07)" },
-};
-
-export function Badge({
-  children,
-  tone = "neutral",
-  style,
-}: {
-  children: ReactNode;
-  tone?: "neutral" | "accent" | "live" | "alert";
-  style?: CSSProperties;
-}) {
-  const t = TONE[tone] ?? TONE.neutral;
-  return (
-    <span
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        gap: "var(--mm-space-xs)",
-        padding: "3px 7px",
-        color: t.fg,
-        border: `1px solid ${t.line}`,
-        borderRadius: "var(--mm-radius-none)",
-        background: t.fill,
-        fontFamily: "var(--mm-font-mono)",
-        // obsel: was --mm-text-2xs (8px). A badge carries the change kind —
-        // whether the schema or the content moved — which is the whole answer.
-        fontSize: "var(--mm-text-cap)",
-        fontWeight: "var(--mm-weight-medium)",
-        letterSpacing: "var(--mm-track)",
-        lineHeight: 1.2,
-        whiteSpace: "nowrap",
-        fontVariantNumeric: "tabular-nums",
-        ...style,
-      }}
-    >
-      {children}
-    </span>
   );
 }

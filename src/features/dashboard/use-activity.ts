@@ -15,8 +15,8 @@ import { useEffect, useState } from "react";
 
 import type { DemoActivity } from "@/src/server/runner/types";
 
-export const ACTIVITY_ENDPOINT = "/api/demo/activity";
-export const ACTIVITY_POLL_MS = 2000;
+const ACTIVITY_ENDPOINT = "/api/demo/activity";
+const ACTIVITY_POLL_MS = 2000;
 
 /** Generous: a preflight probing a dead DataHub holds the answer for ~3 s. */
 const READ_TIMEOUT_MS = 8000;
@@ -71,7 +71,7 @@ export function useActivity(): ActivityState {
   return state;
 }
 
-export function isDemoActivity(body: unknown): body is DemoActivity {
+function isDemoActivity(body: unknown): body is DemoActivity {
   if (typeof body !== "object" || body === null) return false;
   const candidate = body as Partial<DemoActivity>;
   if (!Array.isArray(candidate.log)) return false;

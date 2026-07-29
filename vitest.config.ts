@@ -18,9 +18,6 @@ export default defineConfig({
      * Those tests run under `pnpm test:live` with `vitest.live.config.ts`.
      */
     exclude: ["node_modules/**", "tests/live/**"],
-    coverage: {
-      reporter: ["text", "json-summary"],
-    },
   },
   resolve: {
     alias: {

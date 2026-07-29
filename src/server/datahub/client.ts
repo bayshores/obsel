@@ -36,16 +36,7 @@ import {
   type DataJobInfoAspect,
   type DataJobInputOutputAspect,
 } from "./task-record";
-import {
-  DATASET_NAMESPACE,
-  FLOW_URN,
-  MEMBERSHIP_EDGE,
-  PLATFORM,
-  datasetUrn,
-  isTaskUrn,
-  taskName,
-  taskUrn,
-} from "./urns";
+import { FLOW_URN, MEMBERSHIP_EDGE, datasetUrn, isTaskUrn, taskName, taskUrn } from "./urns";
 
 function entityPath(urn: string): string {
   return `/openapi/v3/entity/datajob/${encodeURIComponent(urn)}`;
@@ -65,10 +56,6 @@ export async function readTaskEntity(urn: string): Promise<DataJobEntity | null>
     throw new DataHubError(`DataHub ${response.status} reading ${urn}: ${body}`, response.status);
   }
   return (await response.json()) as DataJobEntity;
-}
-
-export async function taskExists(urn: string): Promise<boolean> {
-  return (await readTaskEntity(urn)) !== null;
 }
 
 /**
@@ -366,9 +353,5 @@ export async function updateTaskProperties(urn: string, props: PropertyPatch): P
   }, 10_000);
 }
 
-/** Exposed for callers that need to name the platform, e.g. building a UI link. */
-export const DATAHUB_PLATFORM = PLATFORM;
-export const DATAHUB_DATASET_NAMESPACE = DATASET_NAMESPACE;
-
-export { confirmWrite, DataHubError, gmsUrl, PROP, readLineageDownstream, relationships };
+export { confirmWrite, gmsUrl, PROP, readLineageDownstream, relationships };
 export type { LineageReach, PropertyPatch, RelationshipDirection };

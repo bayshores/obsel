@@ -38,7 +38,7 @@ export interface PanelState extends PanelPrefs {
 }
 
 /** Where it starts, and the reason is the reading order of the picture. */
-export const DEFAULT_SIDE: PanelSide = "right";
+const DEFAULT_SIDE: PanelSide = "right";
 
 /**
  * 420, which is a measurement rather than a round number.
@@ -48,10 +48,10 @@ export const DEFAULT_SIDE: PanelSide = "right";
  * lines. Below that the panel reads as a column of wrapped fragments; much above
  * it and the graph starts paying for space the guide is not using.
  */
-export const DEFAULT_WIDTH = 420;
+const DEFAULT_WIDTH = 420;
 
 /** Narrow enough that a fix command still fits on two lines. */
-export const MIN_WIDTH = 340;
+const MIN_WIDTH = 340;
 
 /**
  * The ceiling, and it is a share of the frame rather than a fixed number.
@@ -59,7 +59,7 @@ export const MIN_WIDTH = 340;
  * On a 1280 laptop a 620px panel would leave the graph less width than the panel
  * has, which is the wrong way round for a board whose subject is the graph.
  */
-export function maxWidth(viewportWidth: number): number {
+function maxWidth(viewportWidth: number): number {
   return Math.max(MIN_WIDTH, Math.min(620, Math.round(viewportWidth * 0.45)));
 }
 

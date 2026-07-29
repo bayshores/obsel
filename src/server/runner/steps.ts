@@ -8,21 +8,6 @@ import path from "node:path";
 
 import type { DemoStep, RunningStep } from "./types";
 
-export const DEMO_STEPS: readonly DemoStep[] = [
-  "setup",
-  "register",
-  "run",
-  "rerun-same",
-  "change",
-  "repair",
-  "reset",
-  "scale-register",
-  "scale-run",
-  "scale-change",
-  "scale-change-mid",
-  "scale-repair",
-];
-
 /**
  * The `agents.run` argv a step launches. Pure, so the one translation —
  * `scale-change-mid` is `scale-run --change-during`, a command plus a flag —

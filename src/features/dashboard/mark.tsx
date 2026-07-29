@@ -48,7 +48,7 @@ export type MarkState = "gathered" | "rest" | "open";
  * `svg` is the parent of the 41 fragments. On the lockup it would stagger the
  * lockup's own children, which are the mark and the wordmark: two things.
  */
-export const MARK_STAGGER: Variants = {
+const MARK_STAGGER: Variants = {
   gathered: {},
   // Assembling: a beat after the bowl, then outward, nearest fragment first.
   rest: { transition: { delayChildren: 0.08, staggerChildren: 0.012 } },

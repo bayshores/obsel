@@ -188,15 +188,6 @@ export async function readAttestationsFor(
   return found;
 }
 
-/** Where the next attestation about this asset goes. */
-export async function nextAttestationSequence(
-  request: string,
-  asset: string,
-  limit = 25,
-): Promise<number> {
-  return (await readAttestationsFor(request, asset, limit)).length + 1;
-}
-
 /**
  * A stable, collision-free slug for a URN inside another URN.
  *
@@ -206,7 +197,7 @@ export async function nextAttestationSequence(
  * one ledger record; the readable tail is there so a human reading the ledger in
  * DataHub's UI can tell which table a record is about without decoding anything.
  */
-export function assetSlug(asset: string): string {
+function assetSlug(asset: string): string {
   let hash = 0x811c9dc5;
   for (let index = 0; index < asset.length; index += 1) {
     hash ^= asset.charCodeAt(index);

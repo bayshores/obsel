@@ -118,10 +118,34 @@ async function call(client: Client, name: string, args: Record<string, unknown>)
   return JSON.parse(text);
 }
 
-/** Index a list of obsel's records by one of their fields, for assertion by name. */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function byKey(items: any[], key: string): Map<string, any> {
-  return new Map(items.map((item) => [String(item[key]), item]));
+/** One of obsel's records as it crossed the wire: fields present, values unread. */
+type WireRecord = Record<string, unknown>;
+
+/**
+ * Index a list of obsel's records by one of their fields, for assertion by name.
+ *
+ * `get` throws rather than returning `undefined`, which is what lets the records
+ * stay `Record<string, unknown>` instead of `any`: every call site reads a field
+ * straight off the result, and against a `Map` that only typechecks if the
+ * element type defeats the null check. Throwing also turns a name that is not on
+ * the board into a failure that says which names were, rather than into
+ * `undefined.hops` three lines later.
+ */
+function byKey(items: readonly WireRecord[], key: string) {
+  const found = new Map(items.map((item) => [String(item[key]), item]));
+  return {
+    names: () => [...found.keys()],
+    values: () => [...found.values()],
+    get: (name: string): WireRecord => {
+      const item = found.get(name);
+      if (item === undefined) {
+        throw new Error(
+          `no record whose ${key} is "${name}"; the reply carried ${[...found.keys()].join(", ")}`,
+        );
+      }
+      return item;
+    },
+  };
 }
 
 /** The error text a failing tool call produced, or "" if it unexpectedly succeeded. */
@@ -266,7 +290,7 @@ describe("an outside agent joins, works, and finishes", () => {
 
     const board = await call(agent, "read_board", {});
     const onBoard = byKey(board.tasks, "name");
-    expect([...onBoard.keys()]).toEqual(expect.arrayContaining([CLEAN, AGG, REPORT]));
+    expect(onBoard.names()).toEqual(expect.arrayContaining([CLEAN, AGG, REPORT]));
     // The board reports tables the way the agent named them, not as urns.
     expect(onBoard.get(CLEAN).writes).toEqual([CLEAN_OUT]);
   }, 120_000);
@@ -373,13 +397,13 @@ describe("a real change cascades to work that never read it", () => {
       ),
       "name",
     );
-    expect([...marked.keys()].sort()).toEqual([AGG, REPORT].sort());
+    expect(marked.names().sort()).toEqual([AGG, REPORT].sort());
     // The whole reason lineage traversal is needed rather than a file watcher: the
     // report task never read the table that changed.
     expect(marked.get(AGG).hops).toBe(1);
     expect(marked.get(REPORT).hops).toBe(2);
     for (const mark of marked.values()) {
-      expect(mark.reason.length).toBeGreaterThan(0);
+      expect(String(mark.reason).length).toBeGreaterThan(0);
       expect(mark.causedBy).toBe(datasetUrn(CLEAN_OUT));
     }
 
@@ -403,7 +427,7 @@ describe("a real change cascades to work that never read it", () => {
     // The mark is carried through untouched rather than summarised, so an agent can
     // hand its operator the same sentence obsel recorded.
     const record = await readTask(taskUrn(AGG));
-    expect(byTable.get(AGG_OUT).stale.reason).toBe(record?.stale?.reason);
+    expect((byTable.get(AGG_OUT).stale as WireRecord).reason).toBe(record?.stale?.reason);
   }, 120_000);
 
   it("refuses to re-register over a recorded baseline", async () => {

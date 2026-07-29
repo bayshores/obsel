@@ -193,7 +193,7 @@ export function pae(payloadType: string, payload: Buffer): Buffer {
 }
 
 /** The exact bytes an attestor signs and a verifier checks. One definition, both sides. */
-export function signingBytes(payload: Buffer): Buffer {
+function signingBytes(payload: Buffer): Buffer {
   return pae(PAYLOAD_TYPE, payload);
 }
 
