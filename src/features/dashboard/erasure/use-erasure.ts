@@ -184,6 +184,10 @@ function isReport(body: unknown): body is PublishedErasureReport {
   if (!Array.isArray(candidate.coverage)) return false;
   if (typeof candidate.summary !== "object" || candidate.summary === null) return false;
   if (typeof candidate.assurance !== "object" || candidate.assurance === null) return false;
+  // The limits are required on the wire, so a body without them is not a report
+  // this tab can honestly render: the counts would arrive with nothing stating
+  // what they were measured over.
+  if (!Array.isArray(candidate.assurance.limits)) return false;
   return candidate.coverage.every(
     (entry) =>
       typeof entry === "object" &&

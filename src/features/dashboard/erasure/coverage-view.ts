@@ -119,6 +119,11 @@ export function summaryLine(summary: CoverageSummary): string {
  * assets can be entirely covered and say nothing about an estate of three
  * hundred, and a reader who sees only "3 of 3 covered" has no way to tell those
  * apart. The hop count is the other half: coverage stops where the walk did.
+ *
+ * `assurance.limits` is deliberately not rendered. The tab already tells a
+ * reader that obsel walks the lineage DataHub records and attests nothing
+ * itself, and one surface may not state the same fact twice. The limits exist
+ * for the JSON, whose readers do not have the tab's sentence in front of them.
  */
 export function assuranceLine(assurance: {
   hopsWalked: number;

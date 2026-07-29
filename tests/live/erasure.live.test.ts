@@ -173,6 +173,19 @@ describe("one erasure request, from opening to covered and back", () => {
     const assurance = opened.body.assurance as Record<string, number>;
     expect(assurance.hopsWalked).toBe(2);
     expect(assurance.assetsReached).toBe(summary.total);
+
+    /*
+     * And it says what those numbers cannot account for, on the wire rather
+     * than only in the documentation. Asserted on the real route because the
+     * unit test can only prove the constant is well formed; this proves the
+     * response an API consumer actually receives carries it.
+     */
+    const limits = (opened.body.assurance as { limits?: unknown }).limits as string[];
+    expect(Array.isArray(limits)).toBe(true);
+    expect(limits.length).toBeGreaterThan(0);
+    for (const limit of limits) {
+      expect(/\b(proof|proven|proves|complete|completely)\b/i.test(limit), limit).toBe(false);
+    }
   }, 300_000);
 
   it("does not echo the subject's identifiers back in the report", async () => {

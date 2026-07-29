@@ -46,6 +46,21 @@ export interface ErasureReport {
      */
     evidenceRecords: number;
     attestationsDroppedForKeys: { asset: string; attestor: string; reason: string }[];
+    /**
+     * What this report structurally cannot account for, carried in the report
+     * itself rather than left in the documentation.
+     *
+     * Fixed sentences, not computed: they describe the shape of the method, not
+     * this run. Required rather than optional, deliberately — a report without
+     * them is a different and stronger-looking claim than the one obsel makes,
+     * and the counts above are exactly the part a reader is most likely to
+     * quote onward with no idea what they were measured over.
+     *
+     * The dashboard does not render these. The erasure tab already carries the
+     * same statement in its own words, and one surface may not state the same
+     * fact twice; the JSON is a separate surface with separate readers.
+     */
+    limits: string[];
   };
 }
 

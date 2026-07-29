@@ -198,6 +198,14 @@ recoverable by comparing published aggregates across time. This sits outside the
 export, spreadsheet, or shadow pipeline is invisible. Missing lineage is reported as an assurance
 gap rather than silently treated as absence of risk.
 
+Since 2026-07-29 this limit and the one above it travel in the report itself, as
+`assurance.limits` in the JSON `GET /api/erasure/<id>` returns. The sentences are fixed text in
+`ASSURANCE_LIMITS` ([`erasure.ts`](../src/server/coordinator/erasure.ts)), and the reason they are
+in the payload rather than only here is that the counts beside them are what gets quoted onward:
+"22 of 23 covered" reads as a statement about an estate unless something in the same object says
+what it was measured over. The dashboard does not render them, because the erasure tab already
+says the same thing in its own words and one surface may not state a fact twice.
+
 ## Phase 0b: the coverage measurement that corrected the rule
 
 Measured 2026-07-26 against a live `datahub docker quickstart` with `showcase-ecommerce` loaded,

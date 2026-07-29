@@ -171,6 +171,7 @@ what a reader sees, and most of them are about what the page is not allowed to s
 | no way to mark an asset covered              | `e2e/erasure.spec.ts` reads every control in the tab and refuses a label that reads as closing a gap; there is no route either                                            | browser       |
 | the graph coloured by coverage               | `e2e/erasure.spec.ts`: tables carry their state, agents carry none, an unreached table says so, and no amber appears anywhere on that page                                | browser       |
 | switching it off                             | `e2e/erasure.spec.ts`: the staleness view returns, origin outline and lit edges included                                                                                  | browser       |
+| the report states its own limits             | `tests/erasure-limits.test.ts`: the sentences exist, name the lineage scope and the no-credentials fact, and use none of the forbidden words; `tests/live/erasure.live.test.ts` re-checks both on the real route's response | unit, live    |
 
 ## The launcher
 

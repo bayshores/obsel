@@ -18,6 +18,7 @@
  * touching data.
  */
 
+import { ASSURANCE_LIMITS } from "@/src/server/coordinator/erasure";
 import type { PublishedErasureReport } from "@/src/server/coordinator/erasure-report";
 
 const PLATFORM = "urn:li:dataPlatform:obsel";
@@ -53,6 +54,10 @@ export function dayOne(): PublishedErasureReport {
       assetsReached: 3,
       evidenceRecords: 1,
       attestationsDroppedForKeys: [],
+      // The real sentences, imported rather than retyped. They are fixed text
+      // in the kernel, so a fixture carrying its own copy could drift into
+      // describing caveats the route does not actually send.
+      limits: [...ASSURANCE_LIMITS],
     },
   };
 }
@@ -131,6 +136,7 @@ export function mixed(): PublishedErasureReport {
           reason: "key-compromised",
         },
       ],
+      limits: [...ASSURANCE_LIMITS],
     },
   };
 }

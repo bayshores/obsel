@@ -36,7 +36,7 @@ import {
   type RegisteredKey,
   type VerificationFailure,
 } from "./attestation";
-import { coverageFor, summarize, type Attestation } from "./erasure";
+import { ASSURANCE_LIMITS, coverageFor, summarize, type Attestation } from "./erasure";
 import type { ErasureReport, ErasureRequest } from "./erasure-report";
 import { emit } from "./trace";
 
@@ -340,6 +340,9 @@ async function buildReport(request: ErasureRequest): Promise<ErasureReport> {
         attestor: entry.attestation.attestor,
         reason: entry.reason.kind,
       })),
+      // Spread, so the report carries its own copy rather than a reference a
+      // consumer could mutate into a different set of caveats.
+      limits: [...ASSURANCE_LIMITS],
     },
   };
 }

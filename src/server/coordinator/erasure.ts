@@ -623,3 +623,34 @@ export function summarize(coverage: Coverage[]): {
     contradicted: coverage.filter((entry) => entry.state === "CONTRADICTED").length,
   };
 }
+
+/**
+ * What every report says about its own reach, verbatim and unconditionally.
+ *
+ * These travel in the report's JSON because the counts beside them are the part
+ * a reader quotes onward, and "22 of 23 covered" reads as a statement about an
+ * estate unless something says what it was measured over. Both sentences are
+ * already committed to in `docs/erasure-coverage.md` under "What the rule does
+ * not catch"; this is the same claim, carried where the numbers go rather than
+ * in a document the numbers can outrun.
+ *
+ * Fixed text, never computed from the run. They describe the shape of the
+ * method, so a report that varied them would be describing something other than
+ * the rule it implements.
+ *
+ * Here in the kernel rather than in the engine because this is part of what
+ * obsel claims, and what obsel claims is decided in this file. It also keeps
+ * the sentences importable by the browser and by the browser suite's fixtures
+ * without either reaching into a module that holds DataHub credentials.
+ *
+ * The vocabulary table is enforced on these by `tests/erasure-limits.test.ts`,
+ * which is why neither sentence says "proof", "proven" or "complete".
+ */
+export const ASSURANCE_LIMITS: readonly string[] = [
+  "coverage is computed over the lineage DataHub records, as of this walk. An export, " +
+    "spreadsheet or pipeline that nobody catalogued is not represented here, and is not counted " +
+    "in any number above.",
+  "an attestation is a signed claim by a named attestor, not a measurement obsel took. obsel " +
+    "holds no warehouse credentials and reads no warehouse data, so it cannot itself establish " +
+    "that a subject is absent from any asset.",
+];
