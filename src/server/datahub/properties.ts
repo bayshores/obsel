@@ -52,6 +52,16 @@ export const PROP = {
   staleReason: "obsel.stale.reason",
   staleSince: "obsel.stale.since",
   staleDetectedMs: "obsel.stale.detectedMs",
+  /**
+   * Every cause, as JSON, including the one the properties above repeat.
+   *
+   * Separate from the fields beside it rather than replacing them: those are
+   * what DataHub's own UI shows and what every existing reader parses, and the
+   * nearest cause is the right thing to lead with. This is the rest of the
+   * record, so a repaired cause does not leave a flag standing with no
+   * explanation on file.
+   */
+  staleCauses: "obsel.stale.causes",
 } as const;
 
 /** `null` clears a key. Undefined keys are left untouched. */

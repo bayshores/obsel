@@ -341,6 +341,50 @@ describe("a real change cascades through DataHub's own lineage", () => {
     expect(revenue?.stale?.columns ?? null).toBeNull();
   });
 
+  it("accumulates a second cascade's cause instead of overwriting the first", async () => {
+    /*
+     * Two changes, one downstream task, against the real DataHub properties.
+     *
+     * `write_report` reads `daily_revenue`, so a change to `clean_orders` reaches
+     * it at two hops, and a later change to `daily_revenue` reaches it at one.
+     * Both are real reasons it is out of date, and repairing either leaves the
+     * other standing.
+     *
+     * Before causes were recorded the second cascade overwrote the first in
+     * DataHub, so the earlier reason was gone from the record entirely. The
+     * assertion that matters is the read-back: the property has to survive a
+     * round trip through DataHub and `parseStale`, not merely exist in memory.
+     */
+    await runAll();
+    await coordinateCompletion(finished("clean_orders", "clean_orders", "s1-changed", "c1"));
+    await coordinateCompletion(finished("build_revenue", "daily_revenue", "s2-changed", "c2"));
+
+    const report = await readTask(taskUrn("write_report"));
+    expect(report?.status).toBe("stale");
+    // The nearer, newer cause leads, which is what the board shows.
+    expect(report?.stale?.causedBy).toBe(datasetUrn("daily_revenue"));
+    expect(report?.stale?.hops).toBe(1);
+    // And the first cause is still on file, at its own distance.
+    expect(report?.stale?.causes?.map((cause) => [cause.causedBy, cause.hops])).toEqual([
+      [datasetUrn("daily_revenue"), 1],
+      [datasetUrn("clean_orders"), 2],
+    ]);
+  });
+
+  it("clears every cause when the flagged task itself is redone", async () => {
+    // A task's own redo retires all of its reasons at once, and the property has
+    // to go with them: `parseCauses` throws on a list it cannot read, so one left
+    // behind on a task obsel calls complete would fail every later snapshot read.
+    await runAll();
+    await coordinateCompletion(finished("clean_orders", "clean_orders", "s1-changed", "c1"));
+    await coordinateCompletion(finished("build_revenue", "daily_revenue", "s2-changed", "c2"));
+    await coordinateCompletion(finished("write_report", "revenue_report", "s3-redone", "c3"));
+
+    const report = await readTask(taskUrn("write_report"));
+    expect(report?.status).toBe("complete");
+    expect(report?.stale).toBeNull();
+  });
+
   it("leaves an unrelated branch alone", async () => {
     // Over-reaching is the same class of failure as crying wolf: a mark on work the
     // change never touched is a false alarm with extra steps.

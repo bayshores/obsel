@@ -631,6 +631,13 @@ def board_summary(swarm: Any) -> dict[str, Any]:
                         "reason": mark.get("reason"),
                         "hops": mark.get("hops"),
                         "since": mark.get("since"),
+                        # How many changes independently broke this, so an agent
+                        # can tell "one thing to fix" from "several". A count
+                        # rather than the list: the reason names the nearest
+                        # cause already, and an agent acting on the rest reads
+                        # `rerun_plan`. Marks written before causes were recorded
+                        # carry one reason, which is one cause.
+                        "causes": len(mark.get("causes") or []) or 1,
                     }
                     if isinstance(mark, dict)
                     else None

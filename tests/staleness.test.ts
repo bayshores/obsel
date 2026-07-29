@@ -6,13 +6,17 @@ import {
   classifyObservation,
   columnChange,
   compareFingerprints,
+  causesOf,
+  mergeMark,
   readyToStart,
   restoredBy,
   shortName,
   supersededMark,
 } from "@/src/server/coordinator/staleness";
 import type {
+  ChangeKind,
   OutputFingerprint,
+  StaleMark,
   SwarmSnapshot,
   TaskRecord,
   TaskStatus,
@@ -412,9 +416,17 @@ describe("affectedBy — awkward graph shapes", () => {
     expect(names(found)).toEqual(["a", "b"]);
   });
 
-  it("reports a task reachable two ways once, at its shortest distance", () => {
-    // final reads both the 1-hop and the 2-hop output; it should be described
-    // by the nearest cause, not an arbitrary one.
+  it("reports a task reachable two ways from ONE change once, at its shortest distance", () => {
+    /*
+     * final reads both the 1-hop and the 2-hop output; it should be described
+     * by the nearest cause, not an arbitrary one.
+     *
+     * Two PATHS, one cause. This is the distinction that matters now that a mark
+     * can carry several: `source` changing is one reason `final` is broken, and
+     * the fact that the breakage arrives by two routes does not make it two.
+     * Recording it twice would have the details panel list the same table as an
+     * independent cause of itself.
+     */
     const swarm = snapshot([
       task("near", ["source"], ["near_out"]),
       task("far", ["near_out"], ["far_out"]),
@@ -423,7 +435,64 @@ describe("affectedBy — awkward graph shapes", () => {
     const found = affectedBy(swarm, [{ dataset: ds("source"), kind: "content" }], NOW);
     expect(names(found)).toEqual(["far", "final", "near"]);
     expect(found.filter((a) => a.task.name === "final")).toHaveLength(1);
-    expect(found.find((a) => a.task.name === "final")?.mark.hops).toBe(2);
+    const final = found.find((a) => a.task.name === "final");
+    expect(final?.mark.hops).toBe(2);
+    expect(final?.mark.causes).toHaveLength(1);
+  });
+
+  it("records two ORIGINS reaching one task as two causes, nearest leading", () => {
+    /*
+     * The sibling of the case above, and the reason the walk is per-change.
+     * `raw_a` and `raw_b` are independent changes; `both` is broken by each of
+     * them separately, and repairing one leaves the other standing. Under a
+     * shared visited set the second origin found nothing, so the record said
+     * `both` was stale for one reason — and after that reason was repaired the
+     * flag remained with a sentence naming a table that had just been fixed.
+     */
+    const swarm = snapshot([
+      task("near_a", ["raw_a"], ["mid_a"]),
+      task("both", ["raw_b", "mid_a"], ["both_out"]),
+    ]);
+
+    const found = affectedBy(
+      swarm,
+      [
+        { dataset: ds("raw_a"), kind: "schema" },
+        { dataset: ds("raw_b"), kind: "content" },
+      ],
+      NOW,
+    );
+
+    const both = found.find((a) => a.task.name === "both");
+    // raw_b reaches it directly at one hop; raw_a arrives through near_a at two.
+    expect(both?.mark.causedBy).toBe(ds("raw_b"));
+    expect(both?.mark.hops).toBe(1);
+    expect(both?.mark.causes?.map((cause) => [cause.causedBy, cause.hops])).toEqual([
+      [ds("raw_b"), 1],
+      [ds("raw_a"), 2],
+    ]);
+  });
+
+  it("keeps each cause's own distance and kind, not the primary's", () => {
+    // A cause is a record of one change, so it carries what that change was.
+    // Flattening them onto the primary's values would make the second entry a
+    // duplicate of the first with a different table name.
+    const swarm = snapshot([
+      task("near_a", ["raw_a"], ["mid_a"]),
+      task("both", ["raw_b", "mid_a"], ["both_out"]),
+    ]);
+
+    const found = affectedBy(
+      swarm,
+      [
+        { dataset: ds("raw_a"), kind: "schema" },
+        { dataset: ds("raw_b"), kind: "content" },
+      ],
+      NOW,
+    );
+
+    const causes = found.find((a) => a.task.name === "both")?.mark.causes;
+    expect(causes?.map((cause) => cause.changeKind)).toEqual(["content", "schema"]);
   });
 
   it("handles several tables changing at once", () => {
@@ -1068,5 +1137,141 @@ describe("supersededMark — the mark a straddling reader earns", () => {
         NOW,
       ),
     ).toThrow(/matches the standing record/);
+  });
+});
+
+describe("mergeMark — a second cascade onto already-flagged work", () => {
+  /** A mark as `affectedBy` builds one, with its own cause list. */
+  function markFor(origin: string, hops: number, kind: ChangeKind = "content"): StaleMark {
+    return {
+      causedBy: ds(origin),
+      causedByTask: null,
+      hops,
+      changeKind: kind,
+      reason: `read ${origin}, and its rows changed after this finished`,
+      since: NOW,
+      detectedMs: null,
+      causes: [
+        { causedBy: ds(origin), causedByTask: null, hops, changeKind: kind, since: NOW },
+      ],
+    };
+  }
+
+  it("keeps the earlier cause and adds the new one", () => {
+    /*
+     * The defect this exists for. Overwriting meant the first cause was gone
+     * from the record, so repairing the second left a flag standing with
+     * nothing on file explaining why.
+     */
+    const merged = mergeMark(markFor("raw_a", 1), markFor("raw_b", 2));
+
+    expect(merged.causes?.map((cause) => cause.causedBy)).toEqual([ds("raw_a"), ds("raw_b")]);
+  });
+
+  it("leads with the incoming cascade, which is what the board is showing", () => {
+    const merged = mergeMark(markFor("raw_a", 1), markFor("raw_b", 2));
+
+    expect(merged.causedBy).toBe(ds("raw_b"));
+    expect(merged.hops).toBe(2);
+  });
+
+  it("updates a cause seen again rather than listing it twice", () => {
+    // The same table changing a second time is one ongoing reason, at its
+    // latest distance, not two entries a reader has to reconcile.
+    const merged = mergeMark(markFor("raw_a", 3), markFor("raw_a", 1, "schema"));
+
+    expect(merged.causes).toHaveLength(1);
+    expect(merged.causes?.[0].hops).toBe(1);
+    expect(merged.causes?.[0].changeKind).toBe("schema");
+  });
+
+  it("treats a mark written before causes existed as carrying its own", () => {
+    /*
+     * An older mark has no list and is not causeless: its primary fields ARE
+     * its cause. Reading absence as an empty list would discard the reason a
+     * standing flag was raised, the first time a new cascade touched it.
+     */
+    const legacy: StaleMark = { ...markFor("raw_a", 1) };
+    delete legacy.causes;
+
+    expect(causesOf(legacy)).toHaveLength(1);
+    expect(mergeMark(legacy, markFor("raw_b", 1)).causes?.map((c) => c.causedBy)).toEqual([
+      ds("raw_a"),
+      ds("raw_b"),
+    ]);
+  });
+});
+
+describe("restoredBy — a redo against a task broken more than once", () => {
+  /**
+   * `reader` is stale for two reasons: `mid_a`, which `producer_a` writes, and
+   * `raw_b`, which nothing here writes and which is therefore never proven.
+   */
+  function twoCauseSwarm(): SwarmSnapshot {
+    const producer = task("producer_a", ["raw_a"], ["mid_a"], "stale");
+    const reader = task("reader", ["mid_a", "raw_b"], ["reader_out"], "stale");
+    producer.fingerprints = { [ds("mid_a")]: fp("s1", "c1") };
+    producer.stale = {
+      causedBy: ds("raw_a"),
+      causedByTask: null,
+      hops: 1,
+      changeKind: "content",
+      reason: "read raw a, and its rows changed after this finished",
+      since: NOW,
+      detectedMs: null,
+    };
+    reader.stale = {
+      causedBy: ds("mid_a"),
+      causedByTask: null,
+      hops: 1,
+      changeKind: "content",
+      reason: "read mid a, and its rows changed after this finished",
+      since: NOW,
+      detectedMs: null,
+      causes: [
+        { causedBy: ds("mid_a"), causedByTask: null, hops: 1, changeKind: "content", since: NOW },
+        { causedBy: ds("raw_b"), causedByTask: null, hops: 1, changeKind: "content", since: NOW },
+      ],
+    };
+    return snapshot([producer, reader]);
+  }
+
+  it("refuses to clear a task whose other recorded cause is still standing", () => {
+    /*
+     * `producer_a` redoes `mid_a` identically, which proves that ONE of the
+     * reader's two reasons never moved. The other, `raw_b`, is untouched by
+     * this redo and is on file. Clearing here would be the one catastrophic
+     * answer: declaring sound work that is still standing on ground that moved.
+     *
+     * Before causes were recorded this was invisible — the reader's single
+     * stored cause was `mid_a`, and nothing said `raw_b` had ever broken it.
+     */
+    const swarm = twoCauseSwarm();
+    const finishing = swarm.tasks.find((t) => t.name === "producer_a")!;
+
+    expect(restoredBy(swarm, finishing, [ds("mid_a")])).toEqual([]);
+  });
+
+  it("still clears when every recorded cause is accounted for", () => {
+    // The same shape with the second cause absent: the redo now answers for
+    // everything on file, and refusing here would be a flag nothing can clear.
+    const swarm = twoCauseSwarm();
+    const reader = swarm.tasks.find((t) => t.name === "reader")!;
+    reader.reads = [ds("mid_a")];
+    reader.stale = {
+      ...reader.stale!,
+      causes: [
+        { causedBy: ds("mid_a"), causedByTask: null, hops: 1, changeKind: "content", since: NOW },
+      ],
+    };
+    const finishing = swarm.tasks.find((t) => t.name === "producer_a")!;
+
+    // Its own mark names mid_a, which the finishing task just redid identically.
+    reader.stale.causedBy = ds("raw_b");
+    reader.stale.causes = [
+      { causedBy: ds("raw_b"), causedByTask: null, hops: 2, changeKind: "content", since: NOW },
+    ];
+
+    expect(restoredBy(swarm, finishing, [ds("mid_a")]).map((r) => r.task.name)).toEqual(["reader"]);
   });
 });

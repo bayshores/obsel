@@ -174,6 +174,46 @@ export interface StaleMark {
    * Null on a mark written before this was recorded.
    */
   detectedMs: number | null;
+  /**
+   * Every change that independently invalidates this task, nearest first.
+   *
+   * **Includes the primary.** The fields above are this list's first entry
+   * repeated, so a consumer that only understands one cause needs no change and
+   * one that wants them all has a self-contained list. `causes.length > 1` is
+   * the test for "more than one thing broke this".
+   *
+   * The reason it exists: a task can be stale because table A changed AND
+   * because table B changed, through different paths. Recording only the
+   * nearest meant that after A was repaired the flag stayed — correctly, since
+   * B is still unrepaired — while its stored explanation still named A, which
+   * had just been fixed. The flag was right and the sentence beside it was
+   * wrong, in the exact moment somebody was checking whether to trust obsel.
+   *
+   * Optional, because a mark written before this existed has no list. Absent
+   * means "one cause, the one above", not "no causes".
+   */
+  causes?: StaleCause[];
+}
+
+/**
+ * One reason a task is out of date, without the prose.
+ *
+ * The primary cause's sentence lives on `StaleMark.reason`; the entries here
+ * carry only what is machine-readable. That is deliberate: `reason` is written
+ * for the one cause the board leads with, and generating a paragraph per cause
+ * would put a wall of near-identical sentences on a panel whose job is to be
+ * read.
+ */
+export interface StaleCause {
+  /** The upstream dataset that moved. */
+  causedBy: string;
+  /** Who wrote it, when that is known. Null for an unreported change. */
+  causedByTask: string | null;
+  /** Distance from THIS cause, which may be further than the primary's. */
+  hops: number;
+  changeKind: ChangeKind;
+  /** ISO timestamp this cause was recorded. */
+  since: string;
 }
 
 /** One agent's unit of work. */

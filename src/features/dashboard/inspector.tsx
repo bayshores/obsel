@@ -170,6 +170,25 @@ export function Inspector({
                 </Field>
                 <Field label="mark · hops">{task.stale.hops}</Field>
                 <Field label="mark · change kind">{task.stale.changeKind}</Field>
+                {/*
+                  The other changes that independently broke this task, when
+                  there are any. Only the tables are named: the fields above
+                  already carry the nearest cause in full, and repeating its
+                  distance and kind per row would restate what is on screen.
+
+                  Conditional on there being MORE than one, so the ordinary
+                  single-cause mark gains no row. A field reading "also caused
+                  by: nothing" would be the board answering a question nobody
+                  asked.
+                */}
+                {(task.stale.causes?.length ?? 0) > 1 && (
+                  <Field label="mark · also caused by">
+                    {task.stale
+                      .causes!.filter((cause) => cause.causedBy !== task.stale!.causedBy)
+                      .map((cause) => datasetTitle(cause.causedBy))
+                      .join(", ")}
+                  </Field>
+                )}
                 {/* The diff the graph draws on the changed table, in full. Absent
                     on a content-only change and on marks written before obsel
                     recorded it, which is why it is conditional rather than

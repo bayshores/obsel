@@ -45,13 +45,23 @@ export function cascadeEdges(
   const lit: Record<string, number> = {};
   if (originDataset === null) return lit;
 
-  // Only tasks obsel marked for THIS change, with the distance it recorded.
+  /*
+   * Only tasks obsel marked for THIS change, with the distance it recorded.
+   *
+   * Every cause is consulted, not just the one the mark leads with. A task
+   * broken by two changes carries the nearer one in its primary fields, so
+   * matching on that alone left the second change's cascade half-drawn: the
+   * board showed an origin whose reach stopped at whichever tasks happened to
+   * have no closer cause. Each cause carries its own distance, which is what
+   * the edge is lit with.
+   */
   const markedHere = new Map<string, number>();
   for (const task of tasks) {
     if (task.urn === causeTaskUrn) continue;
-    if (task.stale !== null && task.stale.causedBy === originDataset) {
-      markedHere.set(task.urn, task.stale.hops);
-    }
+    if (task.stale === null) continue;
+    const causes = task.stale.causes ?? [task.stale];
+    const here = causes.find((cause) => cause.causedBy === originDataset);
+    if (here) markedHere.set(task.urn, here.hops);
   }
   if (markedHere.size === 0) return lit;
 

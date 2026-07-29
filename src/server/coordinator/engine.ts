@@ -273,6 +273,10 @@ export async function resetSwarm(): Promise<{ reset: string[]; tagsCleared: stri
         // reset reports as wiped. A reset that half-clears is a worse thing to
         // debug than one that does not exist.
         [PROP.staleDetectedMs]: null,
+        // Same rule, and this one is not harmless: `parseCauses` throws on a
+        // list it cannot read, so a causes property surviving a reset that
+        // wiped the fields around it would fail every later snapshot read.
+        [PROP.staleCauses]: null,
       }),
     ),
   );

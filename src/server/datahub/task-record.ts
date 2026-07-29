@@ -20,6 +20,7 @@ import type {
   OutputFingerprint,
   OutputShape,
   RunDetail,
+  StaleCause,
   StaleMark,
   TaskRecord,
   TaskStatus,
@@ -248,7 +249,62 @@ function parseStale(
     // Absent on marks written before this was recorded, which is a missing
     // measurement rather than a measurement of zero.
     detectedMs: Number.isFinite(detectedMs) ? detectedMs : null,
+    ...parseCauses(props[PROP.staleCauses], urn),
   };
+}
+
+/**
+ * Every recorded cause, or nothing when the property is absent.
+ *
+ * Strict, like the primary fields above and unlike `parseColumns`. The
+ * distinction is what the field is for: a column diff is decoration, so an
+ * unreadable one is dropped and the mark still explains itself. The causes are
+ * the record of why a flag stands, and `restoredBy` consults them before
+ * clearing anything — a list that silently parsed as empty would let a redo
+ * clear a flag over a reason that is on file and unreadable, which is the one
+ * answer obsel must never give. Refusing the whole snapshot is loud, and a
+ * reset is the recovery, exactly as it is for a malformed fingerprint map.
+ *
+ * Returns a spreadable object so an absent property leaves `causes` off the mark
+ * entirely rather than setting it to an empty array, which `causesOf` would
+ * otherwise have to tell apart from a genuinely empty list.
+ */
+function parseCauses(raw: string | undefined, urn: string): { causes?: StaleCause[] } {
+  if (!raw) return {};
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw new DataHubError(`task ${urn} has an unparseable ${PROP.staleCauses}`);
+  }
+  if (!Array.isArray(parsed) || parsed.length === 0) {
+    throw new DataHubError(`task ${urn} has a ${PROP.staleCauses} that is not a non-empty array`);
+  }
+
+  const causes = parsed.map((entry): StaleCause => {
+    const cause = entry as Partial<StaleCause>;
+    const kind = cause.changeKind;
+    if (
+      typeof cause.causedBy !== "string" ||
+      cause.causedBy === "" ||
+      typeof cause.hops !== "number" ||
+      !Number.isFinite(cause.hops) ||
+      typeof kind !== "string" ||
+      !(CHANGE_KINDS as readonly string[]).includes(kind)
+    ) {
+      throw new DataHubError(`task ${urn} has a malformed entry in ${PROP.staleCauses}`);
+    }
+    return {
+      causedBy: cause.causedBy,
+      causedByTask: typeof cause.causedByTask === "string" && cause.causedByTask ? cause.causedByTask : null,
+      hops: cause.hops,
+      changeKind: kind as ChangeKind,
+      since: typeof cause.since === "string" ? cause.since : "",
+    };
+  });
+
+  return { causes };
 }
 
 export function toTaskRecord(entity: DataJobEntity): TaskRecord {

@@ -13,6 +13,7 @@ import type {
   InputObservation,
   OutputFingerprint,
   RestoredTask,
+  StaleCause,
   StaleMark,
   SwarmSnapshot,
   TaskRecord,
@@ -366,102 +367,183 @@ export function affectedBy(
     }
   }
 
-  // Each frontier entry remembers the original change it descends from, so a
-  // task five hops out can still name the table that actually moved.
-  interface Pending {
-    dataset: string;
-    origin: string;
-    kind: ChangeKind;
-    /**
-     * The ORIGIN's column change, carried unchanged however far the walk goes.
-     *
-     * A task five hops out is stale because of what happened to the origin, and
-     * its mark names the origin on `causedBy`, so the columns it reports must be
-     * the origin's too. Re-deriving them at each hop would describe the wrong
-     * table.
-     */
-    columns: ColumnChange | null;
-    /** Carried like `columns`: whether the ORIGIN's change was unreported. */
-    noticedBy: TaskRecord | null;
+  /*
+   * One walk per change, not one walk from all of them.
+   *
+   * The distinction is the whole of this function's shape. Two PATHS from one
+   * origin to a task is one reason that task is broken, reported at the shorter
+   * distance — that is what the per-walk visited set gives, and it is unchanged.
+   * Two ORIGINS reaching the same task are two independent reasons, and a shared
+   * visited set silently discarded the second: whichever change was listed first
+   * claimed the task, and the other left no record at all.
+   *
+   * That mattered when the first cause was repaired. The flag stayed, correctly,
+   * because the second cause was still unrepaired — and the sentence beside it
+   * still named the table that had just been fixed. Somebody checking whether to
+   * trust obsel found a flag whose stated reason was demonstrably no longer true.
+   */
+  const perTask = new Map<string, { task: TaskRecord; marks: StaleMark[] }>();
+
+  for (const change of changes) {
+    for (const found of walkFrom(change)) {
+      const existing = perTask.get(found.task.urn);
+      if (existing) existing.marks.push(found.mark);
+      else perTask.set(found.task.urn, { task: found.task, marks: [found.mark] });
+    }
   }
 
-  const seenDatasets = new Set<string>(changes.map((c) => c.dataset));
-  const seenTasks = new Set<string>(excluded);
-  const affected: AffectedTask[] = [];
+  /** Everything one change reaches, at that change's own shortest distances. */
+  function walkFrom(change: DatasetChange): { task: TaskRecord; mark: StaleMark }[] {
+    const origin = change.dataset;
+    const kind = change.kind;
+    const columns = change.columns ?? null;
+    const noticedBy = change.noticedBy ?? null;
 
-  let frontier: Pending[] = changes.map((c) => ({
-    dataset: c.dataset,
-    origin: c.dataset,
-    kind: c.kind,
-    columns: c.columns ?? null,
-    noticedBy: c.noticedBy ?? null,
-  }));
-  let hops = 0;
+    // Per walk, so one origin's reach cannot hide another's. Excluded tasks are
+    // seeded into every walk: the reporter is out of all of them.
+    const seenDatasets = new Set<string>([origin]);
+    const seenTasks = new Set<string>(excluded);
+    const found: { task: TaskRecord; mark: StaleMark }[] = [];
 
-  while (frontier.length > 0) {
-    hops += 1;
-    const next: Pending[] = [];
+    let frontier: string[] = [origin];
+    let hops = 0;
 
-    for (const pending of frontier) {
-      // Sorted so the output is deterministic regardless of registration order.
-      const readers = [...(readersOf.get(pending.dataset) ?? [])].sort((a, b) =>
-        a.urn.localeCompare(b.urn),
-      );
+    while (frontier.length > 0) {
+      hops += 1;
+      const next: string[] = [];
 
-      for (const task of readers) {
-        if (seenTasks.has(task.urn)) continue;
+      for (const dataset of frontier) {
+        // Sorted so the output is deterministic regardless of registration order.
+        const readers = [...(readersOf.get(dataset) ?? [])].sort((a, b) =>
+          a.urn.localeCompare(b.urn),
+        );
 
-        // Work that has not finished cannot be stale, and its outputs are not
-        // final, so the walk does not continue through it.
-        if (task.status !== "complete" && task.status !== "stale") continue;
+        for (const task of readers) {
+          if (seenTasks.has(task.urn)) continue;
 
-        seenTasks.add(task.urn);
+          // Work that has not finished cannot be stale, and its outputs are not
+          // final, so the walk does not continue through it.
+          if (task.status !== "complete" && task.status !== "stale") continue;
 
-        const mark: StaleMark = {
-          causedBy: pending.origin,
-          // An unreported change has no known author. Naming the producer here
-          // would blame it for bytes it never wrote, and someone acting on the
-          // mark would go interrogate the wrong agent.
-          causedByTask: pending.noticedBy
-            ? null
-            : (soleProducer(producers, pending.origin)?.urn ?? null),
-          hops,
-          changeKind: pending.kind,
-          columns: pending.columns,
-          reason: reasonFor(
-            hops,
-            pending.origin,
-            hops > 1 ? soleProducer(producers, pending.dataset) : null,
-            pending.kind,
-            pending.noticedBy,
-          ),
-          since: now,
-          // Filled in by the engine once every mark from this change has been
-          // written and confirmed. Deciding is pure and does not know how long
-          // the writes will take, and guessing a number here would be the
-          // unmeasured timing claim obsel's rules forbid.
-          detectedMs: null,
-        };
-        affected.push({ task, mark });
+          seenTasks.add(task.urn);
 
-        for (const output of task.writes) {
-          if (seenDatasets.has(output)) continue;
-          seenDatasets.add(output);
-          next.push({
-            dataset: output,
-            origin: pending.origin,
-            kind: pending.kind,
-            columns: pending.columns,
-            noticedBy: pending.noticedBy,
+          found.push({
+            task,
+            mark: {
+              causedBy: origin,
+              // An unreported change has no known author. Naming the producer
+              // here would blame it for bytes it never wrote, and someone acting
+              // on the mark would go interrogate the wrong agent.
+              causedByTask: noticedBy ? null : (soleProducer(producers, origin)?.urn ?? null),
+              hops,
+              changeKind: kind,
+              columns,
+              reason: reasonFor(
+                hops,
+                origin,
+                hops > 1 ? soleProducer(producers, dataset) : null,
+                kind,
+                noticedBy,
+              ),
+              since: now,
+              // Filled in by the engine once every mark from this change has been
+              // written and confirmed. Deciding is pure and does not know how long
+              // the writes will take, and guessing a number here would be the
+              // unmeasured timing claim obsel's rules forbid.
+              detectedMs: null,
+            },
           });
+
+          for (const output of task.writes) {
+            if (seenDatasets.has(output)) continue;
+            seenDatasets.add(output);
+            next.push(output);
+          }
         }
       }
+
+      frontier = next;
     }
 
-    frontier = next;
+    return found;
   }
 
+  /*
+   * One mark per task, carrying every cause that reached it.
+   *
+   * The primary — the fields the board and DataHub's properties have always
+   * read — is the nearest cause, so the sentence a person sees still names the
+   * closest thing that broke this. Ties go to the lexicographically smaller
+   * origin URN, which is arbitrary and is stated out loud so the answer is
+   * deterministic rather than dependent on the order changes arrived in.
+   */
+  const affected: AffectedTask[] = [];
+  for (const { task, marks } of perTask.values()) {
+    const ordered = [...marks].sort(
+      (a, b) => a.hops - b.hops || a.causedBy.localeCompare(b.causedBy),
+    );
+    affected.push({ task, mark: { ...ordered[0], causes: ordered.map(causeOf) } });
+  }
+  affected.sort((a, b) => a.mark.hops - b.mark.hops || a.task.urn.localeCompare(b.task.urn));
+
   return affected;
+}
+
+/** The machine-readable half of a mark. The prose stays on the primary. */
+function causeOf(mark: StaleMark): StaleCause {
+  return {
+    causedBy: mark.causedBy,
+    causedByTask: mark.causedByTask,
+    hops: mark.hops,
+    changeKind: mark.changeKind,
+    since: mark.since,
+  };
+}
+
+/**
+ * The mark to write when a task that is ALREADY flagged is flagged again.
+ *
+ * Two cascades reaching one task is ordinary: a second table changes while the
+ * first repair has not happened yet. The old behaviour overwrote the whole mark,
+ * so the first cause vanished from the record — and then a repair of the second
+ * cause left a task whose only remaining reason had already been forgotten.
+ *
+ * The incoming mark becomes the primary, which preserves what the board has
+ * always shown: the newest cascade is what a person is watching happen. The
+ * causes are the union, deduped on the pair that identifies a cause, with the
+ * newer entry winning so a re-detection of the same cause updates its distance
+ * and timestamp rather than appearing twice.
+ *
+ * **Never drops a recorded cause.** Every rule in this file falls toward keeping
+ * a flag and keeping its reasons; forgetting one is how a flag ends up standing
+ * with nothing left to explain it.
+ */
+export function mergeMark(existing: StaleMark | null, incoming: StaleMark): StaleMark {
+  const causes = new Map<string, StaleCause>();
+
+  const key = (cause: StaleCause): string => `${cause.causedBy} ${cause.causedByTask ?? ""}`;
+
+  // Existing first, incoming second, so the incoming copy of a repeated cause
+  // overwrites the older one rather than being discarded by it.
+  for (const cause of causesOf(existing)) causes.set(key(cause), cause);
+  for (const cause of causesOf(incoming)) causes.set(key(cause), cause);
+
+  const ordered = [...causes.values()].sort(
+    (a, b) => a.hops - b.hops || a.causedBy.localeCompare(b.causedBy),
+  );
+  return { ...incoming, causes: ordered };
+}
+
+/**
+ * A mark's causes, including marks written before the list existed.
+ *
+ * An older mark has no `causes` and is not causeless: its primary fields ARE its
+ * one cause. Reading absence as an empty list would quietly discard the reason a
+ * pre-existing flag was raised the first time a new cascade touched it.
+ */
+export function causesOf(mark: StaleMark | null): StaleCause[] {
+  if (mark === null) return [];
+  return mark.causes && mark.causes.length > 0 ? mark.causes : [causeOf(mark)];
 }
 
 /**
@@ -538,7 +620,18 @@ export function restoredBy(
     if (!settled) return false;
 
     if (producer.observed?.[input]) return false;
-    if (reader.stale?.causedBy === input) return false;
+    /*
+     * EVERY cause the reader's mark records, not only the one it leads with.
+     *
+     * A hop-one cause naming this input is the record saying the input changed
+     * after the reader finished, and no amount of soundness elsewhere argues
+     * with it. Once a mark can carry several causes, checking only the primary
+     * means a cause demoted out of that slot by a nearer one stops being
+     * consulted — so a redo could clear a flag over a recorded reason that is
+     * still standing. Consulting all of them is strictly more conservative,
+     * which is the direction every rule in this function falls.
+     */
+    if (causesOf(reader.stale).some((cause) => cause.causedBy === input)) return false;
 
     const wrote = finishedAtOf(producer);
     const read = finishedAtOf(reader);

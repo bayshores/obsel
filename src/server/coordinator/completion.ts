@@ -17,6 +17,7 @@ import {
   columnChange,
   compareFingerprints,
   hopLabel as hops,
+  mergeMark,
   producersOf,
   restoredBy,
   supersededMark,
@@ -32,6 +33,7 @@ import type {
   CoordinationResult,
   OutputFingerprint,
   RestoredTask,
+  StaleMark,
   TaskRecord,
 } from "./types";
 
@@ -163,11 +165,10 @@ async function decideCompletion(
    */
   const observedChanges: DatasetChange[] = [];
   const observationsFor = new Map<TaskRecord, Record<string, OutputFingerprint>>();
-  // At most one: the finishing task's own mark, earned by finishing on an input
-  // that was replaced while it ran. The first superseded input (sorted order)
-  // carries the mark; the rest are narrated. Two marks on one task would just
-  // overwrite each other's properties.
-  let superseded: AffectedTask | null = null;
+  // The finishing task's own marks, earned by finishing on inputs that were
+  // replaced while it ran. Collected rather than capped at one: they become the
+  // causes of a single mark below, whose primary is the first in sorted order.
+  const supersededMarks: StaleMark[] = [];
   const producers = producersOf(snapshot);
   for (const dataset of Object.keys(report.inputs ?? {}).sort()) {
     const observation = (report.inputs ?? {})[dataset];
@@ -231,12 +232,18 @@ async function decideCompletion(
     );
 
     if (verdict.kind === "superseded") {
-      if (!superseded) {
-        superseded = {
-          task: finishing,
-          mark: supersededMark(dataset, producer, verdict, observation, new Date().toISOString()),
-        };
-      }
+      /*
+       * Every superseded input, not just the first.
+       *
+       * This kept only one because two marks on one task overwrote each other's
+       * properties, so a second replaced input was narrated and then thrown
+       * away. A mark now carries several causes, so each one is recorded; the
+       * first in sorted order becomes the primary below, which is the sentence
+       * the board leads with.
+       */
+      supersededMarks.push(
+        supersededMark(dataset, producer, verdict, observation, new Date().toISOString()),
+      );
       continue;
     }
 
@@ -321,10 +328,29 @@ async function decideCompletion(
     ),
   );
 
-  // After recordCompletion, deliberately: that call just recorded this task's
-  // outputs and cleared any old mark, and this one writes the new mark it
-  // earned by finishing on a replaced input. The other order would let the
-  // completion bookkeeping wipe the mark it is supposed to leave standing.
+  /*
+   * The finishing task's own mark, when it finished on inputs that moved under
+   * it. One mark carrying one cause per replaced input: the first in sorted
+   * order leads, and `mergeMark` folds the rest in as causes.
+   *
+   * After recordCompletion, deliberately: that call just recorded this task's
+   * outputs and cleared any old mark, and this one writes the new mark it
+   * earned. The other order would let the completion bookkeeping wipe the mark
+   * it is supposed to leave standing. `mergeMark` is called against null rather
+   * than against the standing mark for the same reason — recordCompletion has
+   * already cleared it, and this task's own redo is exactly the event that
+   * retires its previous causes.
+   */
+  const superseded: AffectedTask | null =
+    supersededMarks.length > 0
+      ? {
+          task: finishing,
+          // `mergeMark(next, carried)`, not the other way round: the second
+          // argument becomes the primary, and the one that leads must stay the
+          // first input in sorted order rather than whichever was folded in last.
+          mark: supersededMarks.reduce((carried, next) => mergeMark(next, carried)),
+        }
+      : null;
   if (superseded) await markAllStale([superseded]);
   const marked = superseded ? [...affected, superseded] : affected;
 
@@ -412,6 +438,7 @@ async function clearRestored(entry: RestoredTask): Promise<void> {
     [PROP.staleReason]: null,
     [PROP.staleSince]: null,
     [PROP.staleDetectedMs]: null,
+    [PROP.staleCauses]: null,
   });
 
   emit("write", `cleared ${label(task)}`, reason);
@@ -480,6 +507,7 @@ async function recordCompletion(finishing: TaskRecord, report: CompletionReport)
     [PROP.staleReason]: null,
     [PROP.staleSince]: null,
     [PROP.staleDetectedMs]: null,
+    [PROP.staleCauses]: null,
   });
 
   // Keyed on the mark itself, not on `status`. By the time a completion arrives
@@ -544,10 +572,23 @@ async function markAllStale(entries: AffectedTask[]): Promise<void> {
 async function writeStaleProperties(entry: AffectedTask): Promise<void> {
   const { task, mark } = entry;
 
+  /*
+   * Merged against whatever this task already carried, not written over it.
+   *
+   * `entry.task` came from the snapshot read at the top of this completion, so
+   * it still holds the mark standing before this cascade. A second cascade
+   * reaching an already-flagged task used to overwrite the whole record, and the
+   * first cause was then gone: repairing the second one left a flag standing
+   * with nothing on file to explain it. The primary fields still take the new
+   * cascade's values, which is what the board has always shown.
+   */
+  const merged = mergeMark(task.stale, mark);
+
   await updateTaskProperties(task.urn, {
     [PROP.status]: "stale",
     [PROP.staleCausedBy]: mark.causedBy,
     [PROP.staleCausedByTask]: mark.causedByTask ?? "",
+    [PROP.staleCauses]: JSON.stringify(merged.causes),
     // Written when there is a diff to write, cleared when there is not, so a
     // content-only change can never inherit the column names from a schema
     // change that marked the same task earlier.
