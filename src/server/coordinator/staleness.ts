@@ -286,6 +286,11 @@ export function taskLabel(task: Pick<TaskRecord, "name" | "title">): string {
     : task.name.replace(/_/g, " ");
 }
 
+/** `1 hop`, `2 hops`. One place, so nothing obsel writes says "1 hops" again. */
+export function hopLabel(count: number): string {
+  return `${count} ${count === 1 ? "hop" : "hops"}`;
+}
+
 /**
  * Every task that writes each dataset, not one of them.
  *
