@@ -2429,7 +2429,18 @@ lets the element type stay honest — every call site reads a field straight off
 against a `Map` that only typechecks if the element type defeats the null check. The one remaining
 `any`, on `call()`, keeps the reason already written above it.
 
-**A latent flake in the tour tests was found and fixed.** The browser suite runs with `retries: 0` on
+**Two latent flakes were found and fixed, both the same shape: a fixed wait where the condition
+should have been polled.** The browser suite runs with `retries: 0` on purpose, so a test that only
+passes on the second try is a finding rather than something to re-run.
+
+The second is in `e2e/scale.spec.ts`, which this cleanup did not otherwise touch. It resized the
+viewport, slept 700 ms, and asserted no node was clipped. A resize triggers a reframe that takes
+`CAMERA_MS` to travel, so under a full parallel run the assertion landed mid-flight and reported
+nodes clipped that were still moving into frame. It surfaced once on `main` after the merge, passed
+alone, and passed on a re-run of the whole suite — which is exactly the shape `retries: 0` exists to
+make visible. Both waits are now `expect.poll` on the same condition.
+
+The first: The browser suite runs with `retries: 0` on
 purpose, so a test that only passes on the second try is a finding. Splitting the dashboard spec
 changed how tests distribute across workers, and one tour test failed once under a full parallel run:
 it pressed "next" four times in a bare loop, so under load a press landed before the window had

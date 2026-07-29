@@ -271,14 +271,19 @@ test.describe("the graph at forty tasks", () => {
     await graphReady(page, 82);
     expect((await framing(page))?.clipped).toEqual([]);
 
+    /*
+     * Polled, not slept on. A resize triggers a reframe that takes CAMERA_MS to
+     * travel (`motion-tokens.ts`), and a fixed wait long enough on an idle
+     * machine is not long enough under a full parallel run: this asserted
+     * mid-flight and reported nodes clipped that were still moving into frame.
+     * The condition is the same one, waited for rather than timed.
+     */
     const size = page.viewportSize();
     await page.setViewportSize({ width: 1100, height: 620 });
-    await page.waitForTimeout(700);
-    expect((await framing(page))?.clipped, "after a shrink").toEqual([]);
+    await expect.poll(async () => (await framing(page))?.clipped, { timeout: 8_000 }).toEqual([]);
 
     await page.setViewportSize({ width: size?.width ?? 1280, height: size?.height ?? 800 });
-    await page.waitForTimeout(700);
-    expect((await framing(page))?.clipped, "after restoring").toEqual([]);
+    await expect.poll(async () => (await framing(page))?.clipped, { timeout: 8_000 }).toEqual([]);
   });
 });
 
