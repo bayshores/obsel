@@ -549,7 +549,7 @@ def cmd_reset(args: argparse.Namespace, root: Path = REPO_ROOT) -> int:
     # against a table this machine no longer has.
     url = f"{args.obsel_url}/api/demo/reset"
     try:
-        reply = worker.post_json(url, {}, headers=worker.auth_headers())
+        reply = worker.post_json(url, {})
     except RuntimeError as error:
         print(f"  FAILED to reset obsel's task state: {error}")
         print("  Nothing local was touched, so the two halves still agree. Fix obsel and")

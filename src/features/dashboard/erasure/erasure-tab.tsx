@@ -130,9 +130,10 @@ export function ErasureTab({
  *
  * It offers a command rather than a button, and that is a statement about the
  * design rather than a shortcut. Opening a request is a mutation, obsel's
- * mutations are token-gated, and the browser holds no token: a button here could
- * not work, and a button that cannot work is worse than a sentence explaining
- * why. It is the same reasoning the header's board note uses for the flow id.
+ * erasure mutations are token-gated, and the browser holds no token: a button
+ * here could not work, and a button that cannot work is worse than a sentence
+ * explaining why. It is the same reasoning the header's board note uses for
+ * the flow id.
  */
 function NoRequest() {
   return (

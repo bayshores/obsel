@@ -405,6 +405,48 @@ else
   ok "Created the settings file .env.local from .env.example."
 fi
 
+# The API token. Every route that changes anything requires it, and with the
+# line empty those routes answer 503 to everyone -- a closed deployment, which
+# is the safe default and a broken demo. So an empty OBSEL_API_TOKEN= line gets
+# a generated value here, whether the file was just created or has sat for
+# weeks; a line somebody filled in themselves is never touched, per the
+# safe-to-repeat rule at the top of this script.
+#
+# The value itself is deliberately not printed: this window is what a demo
+# recording captures. The file is named instead, and the board's token field
+# takes the value from there.
+generate_token() {
+  if command -v openssl >/dev/null 2>&1; then
+    openssl rand -hex 24
+  else
+    # No openssl: bytes from urandom, printed as safe characters. LC_ALL=C so
+    # tr treats them as bytes rather than as text in the operator's locale.
+    LC_ALL=C tr -dc 'a-f0-9' < /dev/urandom | head -c 48
+  fi
+}
+
+if grep -q '^OBSEL_API_TOKEN=[[:space:]]*$' .env.local; then
+  TOKEN_VALUE="$(generate_token)"
+  if [ -z "$TOKEN_VALUE" ]; then
+    fail "Could not generate an API token: neither openssl nor /dev/urandom produced one." \
+      "put any long random value on the OBSEL_API_TOKEN= line in .env.local, then $(retry_phrase)."
+  fi
+  # awk into a temp file and move it back: sed -i takes different arguments on
+  # macOS and Linux, and this script runs on both under bash 3.2.
+  if ! awk -v token="$TOKEN_VALUE" '
+    sub(/^OBSEL_API_TOKEN=[[:space:]]*$/, "OBSEL_API_TOKEN=" token) { }
+    { print }
+  ' .env.local > .env.local.tmp; then
+    rm -f .env.local.tmp
+    fail "Could not write the generated API token into .env.local." \
+      "check that you have permission to write in $REPO_ROOT, then $(retry_phrase)."
+  fi
+  mv .env.local.tmp .env.local
+  ok "Generated an API token into .env.local. The board's token field takes this value."
+else
+  ok "An API token is already set in .env.local, and was left alone."
+fi
+
 info "Installing the app's packages. This takes a minute on the first run."
 if ! run_pnpm install; then
   fail "Installing the app's Node packages failed. The output above says why." \

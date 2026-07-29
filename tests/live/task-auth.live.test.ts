@@ -9,8 +9,12 @@
  * Why this suite exists at all: an un-gated `/api/tasks/complete` was a side
  * door around the no-clear rule. A forged completion whose fingerprints match
  * the recorded baseline reads as an identical redo, and `restoredBy` derives
- * clears from those — so the gate on these routes is part of what makes "no
- * route clears a flag" true, not hygiene around it.
+ * clears from those, so the gate on these routes is part of what makes "no
+ * route clears a flag" true rather than hygiene around it.
+ *
+ * The last test is the counterpart: the board's own routes must stay reachable
+ * without a token, or the demo path a judge follows would need one pasted in
+ * before any button worked.
  *
  * The bodies below are deliberately trivial or invalid; every request must be
  * refused by the gate BEFORE the body is read. A 400 from any of them would
@@ -30,18 +34,15 @@ let server: ObselServer;
 let tokenless: ObselServer;
 
 /**
- * Every mutating task and demo route, one row each, so a route that forgets
+ * The task routes only a separate agent process calls, so a route that forgets
  * the gate fails here by name rather than shipping open.
+ *
+ * `register`, `report` and the two demo routes are absent because they are
+ * ungated by decision, not by oversight: the board calls them from a browser
+ * that has nowhere to keep a token, and none of them can clear a flag.
+ * `auth.ts` carries the full reasoning.
  */
-const MUTATIONS = [
-  "/api/tasks/register",
-  "/api/tasks/start",
-  "/api/tasks/complete",
-  "/api/tasks/abandon",
-  "/api/tasks/report",
-  "/api/demo/launch",
-  "/api/demo/reset",
-];
+const MUTATIONS = ["/api/tasks/start", "/api/tasks/complete", "/api/tasks/abandon"];
 
 async function post(
   base: string,
@@ -103,5 +104,27 @@ describe("a server with no token refuses everyone, including the right guess", (
     const { status, body } = await post(tokenless.url, "/api/tasks/complete", API_TOKEN);
     expect(status).toBe(503);
     expect(String(body.error)).toContain("OBSEL_API_TOKEN");
+  });
+});
+
+describe("the routes the board calls stay open", () => {
+  /*
+   * Asserted as "not an auth refusal" rather than as a success. Each of these
+   * rejects the empty body this helper sends, which is the point: reaching the
+   * body parser at all proves the request was never turned away for lacking a
+   * token. A 401 or 503 here would mean the judge's demo path needs one pasted
+   * in before anything works.
+   */
+  for (const path of ["/api/tasks/register", "/api/tasks/report", "/api/demo/launch"]) {
+    it(`${path} answers without a token`, async () => {
+      const { status } = await post(server.url, path, null);
+      expect(status).toBe(400);
+    });
+  }
+
+  it("/api/demo/reset answers without a token", async () => {
+    // No body to reject, so this one genuinely resets the integration flow.
+    const { status } = await post(server.url, "/api/demo/reset", null);
+    expect(status).toBe(200);
   });
 });

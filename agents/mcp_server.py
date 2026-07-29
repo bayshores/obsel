@@ -77,20 +77,23 @@ OBSEL_URL = os.environ.get("OBSEL_URL", "http://localhost:3000")
 def _api_headers() -> dict[str, str]:
     """The bearer token, or a refusal that names what to set.
 
-    Every mutating route wants it -- task, demo and erasure alike. Resolved per
-    call through `obsel_client.auth_headers()` (environment first, then the
-    repository's `.env.local`, where `scripts/start.sh` generates one), so an
-    operator can set it without restarting every agent. Refused loudly when
-    absent: obsel would answer 503 anyway, and an error naming the variable is
-    more use to whoever is holding the terminal than a status code from two
-    processes away.
+    For the routes obsel gates: `start`, `complete`, `abandon`, and the erasure
+    mutations. Resolved per call through `obsel_client.auth_headers()`
+    (environment first, then the repository's `.env.local`, where
+    `scripts/start.sh` generates one), so an operator can set it without
+    restarting every agent. Refused loudly when absent: obsel would answer 503
+    anyway, and an error naming the variable is more use to whoever is holding
+    the terminal than a status code from two processes away.
+
+    `register_task` deliberately does not call this. That route is ungated, so
+    refusing here would block a registration obsel would have accepted.
     """
     headers = worker.auth_headers()
     if not headers:
         raise mcp_core.ToolInputError(
-            "obsel's mutating routes need a bearer token, and OBSEL_API_TOKEN is set neither "
-            "in this server's environment nor in the repository's .env.local. obsel refuses "
-            "writes without one, deliberately: an unconfigured deployment is a closed one."
+            "this obsel route needs a bearer token, and OBSEL_API_TOKEN is set neither in this "
+            "server's environment nor in the repository's .env.local. obsel refuses agent "
+            "completions without one, deliberately: an unconfigured deployment is a closed one."
         )
     return headers
 
@@ -209,7 +212,9 @@ def build_server(obsel_url: str = OBSEL_URL) -> Any:
 
         reply = worker.post_json(
             f"{obsel_url}/api/tasks/register", body, timeout=worker.MUTATION_TIMEOUT,
-            headers=_api_headers(),
+            # Sent when there is one, never required: this route is ungated, so
+            # a hard refusal here would block a registration obsel accepts.
+            headers=worker.auth_headers(),
         )
         if not isinstance(reply, dict) or "urn" not in reply:
             raise mcp_core.ObselReplyError(

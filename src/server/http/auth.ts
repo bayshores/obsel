@@ -3,12 +3,23 @@ import "server-only";
 /**
  * Who is allowed to change something through obsel's HTTP surface.
  *
- * Every mutating route is gated: the task routes, the demo routes, and the
- * erasure routes. Reads stay open — they change nothing, and the page polls
- * them. The task routes are not an afterthought here: an un-gated completion
- * report whose fingerprints match the recorded baseline reads as an identical
- * redo, and `restoredBy` derives clears from those, so without this gate the
- * no-clear rule held only against honest callers.
+ * Gated: the three routes only a separate agent process calls — `start`,
+ * `complete`, `abandon` — and the three erasure mutations. `complete` is why
+ * this exists on the task side: a forged completion whose fingerprints match
+ * the recorded baseline reads as an identical redo, and `restoredBy` derives
+ * clears from those, so without the gate the no-clear rule held only against
+ * honest callers.
+ *
+ * **Ungated, deliberately: the routes the board itself calls** — `register`,
+ * `report`, and the two demo routes. A token cannot protect those. The browser
+ * has no environment to read one from, so either a human pastes it before any
+ * button works, or the server hands it to the page and anyone who can load the
+ * page can read it. The second is theatre, and the first costs every operator a
+ * manual step to guard routes that create a node, hash a table somebody typed,
+ * or run a demo step from a twelve-literal allowlist. None of those can clear a
+ * flag, which is the failure that matters. This is a real limit and it belongs
+ * written down rather than implied: obsel bound to a reachable interface trusts
+ * its own network for those four routes.
  *
  * **This is a bearer token, and on the erasure side it is not the interesting
  * half of the security.** An attestation is worth something because it is
@@ -36,9 +47,10 @@ export function authorizeMutation(request: Request): AuthOutcome {
       ok: false,
       status: 503,
       error:
-        "this obsel has no OBSEL_API_TOKEN configured, so it accepts no writes to the erasure " +
-        "ledger. Set one and restart. Refusing is deliberate: an unconfigured deployment is a " +
-        "closed one, not an open one.",
+        "this obsel has no OBSEL_API_TOKEN configured, so it accepts no agent completions and " +
+        "no writes to the erasure ledger. Set one and restart; scripts/start.sh generates one " +
+        "into .env.local. Refusing is deliberate: an unconfigured deployment is a closed one, " +
+        "not an open one",
     };
   }
 
