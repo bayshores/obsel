@@ -12,8 +12,8 @@ the one judgement call is written out in full rather than summarised.
 | `mcp-server-datahub` 0.6.0   | Apache-2.0        | The MCP Server, for writing the stale tag          |
 | `acryl-datahub` (Python SDK) | Apache-2.0        | Creating entities and the tag, which MCP cannot do |
 | `@modelcontextprotocol/sdk`  | MIT               | Speaking MCP from TypeScript                       |
-| Next.js, React               | MIT               | The cockpit                                        |
-| `@xyflow/react` 12.11.2      | MIT               | The lineage graph on the board                     |
+| Next.js, React               | MIT               | The page                                           |
+| `@xyflow/react` 12.11.2      | MIT               | The lineage graph on the page                      |
 | `@dagrejs/dagre` 3.0.0       | MIT               | Laying that graph out left to right                |
 | `motion` 12.42.2             | MIT               | The guide's entrance and its moving rail cursor    |
 | `geist` (Vercel)             | SIL OFL-1.1 / MIT | Geist and Geist Mono, self-hosted                  |
@@ -26,7 +26,7 @@ The fonts are installed from npm and served by obsel itself, never fetched from
 build time so a machine with no network would fail to build. The mmux design system's own token
 sheet uses a Google Fonts `@import`; obsel's copy deliberately does not.
 
-**There is no shader library.** The cockpit's WebGL backdrop is about sixty lines of GLSL in
+**There is no shader library.** The page's WebGL backdrop is about sixty lines of GLSL in
 `src/features/cockpit/backdrop-shader.ts`, written for this project. A commercial shader library
 was evaluated and rejected: its licence makes integration code derivative and still subject to that
 licence, which cannot be reconciled with obsel being Apache-2.0 in a public repository, and it
@@ -49,7 +49,7 @@ the honest position for a public hackathon entry. It is toned down in
 hidden.
 
 **The animation library is one feature's worth, and it replaced hand-written keyframes.** The
-guide's rail marks which act of the walk the board is at, and the mark travels from one act to the
+guide's rail marks which act of the walk the page is at, and the mark travels from one act to the
 next when it advances. Doing that by hand means measuring both ticks on every poll and driving the
 distance between them; `motion` does it declaratively with `layoutId`, and the same import took over
 the guide's entrance, which was three `@keyframes` blocks, a `calc()` stagger driven by an inline

@@ -90,11 +90,11 @@ The full comparison, including where obsel is genuinely not novel, is in
 Both came out of one run on 2026-07-23, from commit `9bd695e`, against a live DataHub and a live
 Codex CLI. Not mockups, and not assembled from separate sessions.
 
-**These four images and the two below show the previous layout.** The board was rebuilt on
+**These four images and the two below show the previous layout.** The page was rebuilt on
 2026-07-28: the lineage graph is now the whole page, and the guide, the activity feed and the two
 measured numbers sit in one panel beside it that a reader can move, resize or hide. Every number
 and every sentence in them is still what that run produced. They are due to be recaptured against
-the new board, and until they are, what they show is the same evidence in a different arrangement.
+the new page, and until they are, what they show is the same evidence in a different arrangement.
 See [docs/verification.md](docs/verification.md) for what the new layout is and how it was checked.
 
 | What happened                                       | Measured                                             |
@@ -125,7 +125,7 @@ Start Docker Desktop, then download this repository and **double-click `Start ob
 
 A terminal window opens and works down nine steps, saying what it is doing. You do not type
 anything. It starts DataHub, installs what is missing, registers obsel's tag, starts the app, and
-opens the board in your browser. Anything it cannot do for you, such as installing Docker or signing
+opens the page in your browser. Anything it cannot do for you, such as installing Docker or signing
 in to your agent CLI, it names with the one thing to do next.
 
 On Linux, and on macOS if you would rather not double-click a file:
@@ -147,7 +147,7 @@ pnpm install && pnpm dev
 
 Open **`http://localhost:3000`**.
 
-The board opens on a checklist, because those three commands are not quite everything. The demo
+The page opens on a checklist, because those three commands are not quite everything. The demo
 agents need their own Python packages and a signed-in agent CLI, and obsel needs its tag registered
 in DataHub. Every item is checked on your machine a couple of times a second, finished ones are
 ticked, and anything missing shows you the exact command to run. Work down the list and it empties.
@@ -177,7 +177,7 @@ After that, the whole demo is buttons.
 
 **Either agent CLI will do, and you need only one.** With nothing set, obsel uses whichever is
 installed and prefers Codex when both are. To pick, set `OBSEL_RUNNER=codex` or `OBSEL_RUNNER=claude`
-before starting: the board's checklist, the launcher and the workers all read it, so they cannot
+before starting: the setup checklist, the launcher and the workers all read it, so they cannot
 disagree about which product is doing the work. The runner is the agent's business, not obsel's. Every
 measured number below was taken against Codex.
 
@@ -186,7 +186,7 @@ is safe. Docker, Node and the agent CLI sign-in need you, so it detects those an
 installs DataHub `v1.5.0.6` by name, which is the version every measured number here was taken
 against.
 
-obsel shows one board at a time. The board's header carries its name, and opening that name explains
+obsel shows one page at a time. The page's header carries its name, and opening that name explains
 how to start obsel on a different one. See [`docs/setup.md`](docs/setup.md).
 
 Every step written out in full, with a way to tell each one worked, is in
@@ -202,7 +202,7 @@ Every step written out in full, with a way to tell each one worked, is in
 | DataHub takes a very long time on the first run                          | Expected. It downloads several large images. Give Docker Desktop at least 8 GB in Settings, Resources.                           |
 | "obsel needs Node 24"                                                    | Install Node 24 from nodejs.org. The launcher will not run the app on an older one, because Next.js 16 does not support it.      |
 | Port 3000 or 8080 already in use                                         | Something else on your machine has it. Stop that, then start the launcher again.                                                 |
-| The board shows a checklist with items still missing                     | That is the launcher handing over. Each item says what to run, and ticks itself when done.                                       |
+| The page shows a checklist with items still missing                      | That is the launcher handing over. Each item says what to run, and ticks itself when done.                                       |
 
 ---
 
@@ -215,7 +215,7 @@ of its own, so any MCP-capable agent can join a swarm.
 claude mcp add obsel -- "$PWD/agents/.venv/bin/python" -m agents.mcp_server
 ```
 
-The board carries this too, in the panel beside the graph, with your machine's own copy of that command and a
+The page carries this too, in the panel beside the graph, with your machine's own copy of that command and a
 four step checklist that ticks itself off as obsel sees your agent declare itself, announce, report,
 and get its first answer. It is derived from the swarm rather than stored, so driving your agent
 from a terminal ticks it just the same.
@@ -263,12 +263,12 @@ with every reply quoted from that run, is in [`docs/setup.md`](docs/setup.md). T
 shapes, changes and edge cases obsel has been run against is
 [`docs/coverage.md`](docs/coverage.md).
 
-**Declaring those tasks is a form on the board**, under the joining panel: a name, the tables it
+**Declaring those tasks is a form on the page**, under the joining panel: a name, the tables it
 reads, the tables it writes. It posts to the same `/api/tasks/register` the MCP tool calls, so a
 task you add by hand and a task an agent registered itself are the same entity and appear in the
 same list.
 
-**Reporting the work is a table on the board too.** Open a task you registered and write its table
+**Reporting the work is a table on the page too.** Open a task you registered and write its table
 by hand: the columns are chips you can rename, drop or add, and the rows are cells you can type
 into. Press report and obsel hashes what you handed it and answers with what it invalidated. That
 is the whole loop without an agent CLI and without a terminal, in about fifteen seconds, and every call is
@@ -277,7 +277,7 @@ fingerprint: the button posts to `/api/tasks/report`, which runs `agents/report.
 same `mcp_core.completion_body` the MCP door uses. Two implementations of the fingerprint would be
 two answers to the only question obsel exists to answer.
 
-You still cannot hand obsel a hash, from the board or from an agent, and there is still no button
+You still cannot hand obsel a hash, from the page or from an agent, and there is still no button
 that clears a flag. Reporting work is offered; what obsel concludes from the report is obsel's.
 
 ---
@@ -317,15 +317,15 @@ The full record of what has been measured, and what has not, is in
   a joined fifth agent in the unit suite. Nothing between or beyond those.
 - The submission video is not voiced or uploaded. A measured 157.9 s reference picture lock exists
   from a clean one-shot take, but it predates the joining panel and has to be shot again.
-- **Bringing your own data is half on the board.** Declaring tasks is a form, driven against a real
+- **Bringing your own data is half on the page.** Declaring tasks is a form, driven against a real
   DataHub on 2026-07-26. Reporting a file is not: obsel takes the fingerprint from rows itself, and
   doing that in the browser would be a second definition of what counts as a change, so the report
   still comes from whatever runs your work.
-- **The erasure half has no board.** One request has been run end to end against a real catalog on
+- **The erasure half has no page.** One request has been run end to end against a real catalog on
   2026-07-26 — 23 assets over five platforms, one turned attested by a real Ed25519 signature — but
   the coverage picture is JSON from `GET /api/erasure/<id>`. The screen shows erasure only as
   activity in the trace panel: requests opened, challenges issued, attestations accepted and
-  refused. No agent yet drives that board on its own; the attestation in that run was signed by the
+  refused. No agent yet drives that page on its own; the attestation in that run was signed by the
   operator, not routed to an owner and waited for.
 
 ---
@@ -333,7 +333,7 @@ The full record of what has been measured, and what has not, is in
 ## Commands
 
 ```bash
-pnpm dev         # the cockpit at http://localhost:3000
+pnpm dev         # the page at http://localhost:3000
 pnpm verify      # format, lint, typecheck, tests, Python self-checks, build
 pnpm test        # pure logic only, no Docker
 pnpm test:live   # the real thing; needs DataHub up, uvx, and an agent CLI on PATH
@@ -344,7 +344,7 @@ pnpm e2e         # browser checks; builds and serves the app itself
 
 Checked 2026-07-28: `pnpm verify` passes end to end, with 531 tests and 200 Python self-checks
 across eight modules. `pnpm e2e` passes 271 browser checks across two viewports, with one
-skipped by design, half of them against a forty-task board recorded off a real run.
+skipped by design, half of them against a forty-task pipeline recorded off a real run.
 
 `pnpm test:live` passes 112 tests across eleven files in 434 s, including one real agent session
 per installed CLI. Its closing line names any runner it did not exercise, so a green run on a
@@ -357,7 +357,7 @@ machine with one CLI cannot be read as evidence about both. See
 
 ```
 app/                     routing, and the fourteen HTTP routes
-src/features/cockpit/    the board you look at
+src/features/cockpit/    the page you look at
 src/server/coordinator/  the staleness rules, and the part that talks to DataHub
 src/server/datahub/      DataHub client, tag writes, id shapes
 src/server/runner/       the demo runner behind the buttons, and the bench's reporter

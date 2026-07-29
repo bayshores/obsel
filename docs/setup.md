@@ -11,7 +11,7 @@ folder and run it; on Linux, run `bash scripts/start.sh`.
 
 The ordering is why it exists rather than being a list of commands. Two steps only work once DataHub
 is answering: registering obsel's tag, which cannot be created at run time, and starting the app,
-whose first read of the board is a real read. Working down eight numbered steps gives no hint that
+whose first read of the page is a real read. Working down eight numbered steps gives no hint that
 the wait in step 1 is load-bearing.
 
 What it does, in order:
@@ -30,7 +30,7 @@ What it does, in order:
 9. Reports whether your agent CLI is signed in, without blocking on it, then starts the app, waits
    for it to answer, and opens the browser.
 
-**How to tell it worked:** the browser opens on the board, and the board's own checklist is either
+**How to tell it worked:** the browser opens on the page, and the setup checklist is either
 absent or shows only the agent CLI item. A measured fresh run is recorded in
 [`verification.md`](verification.md).
 
@@ -44,24 +44,24 @@ alone is refused, because the map has no `v1.5.0` key and an unlisted value need
 `--version stable` is a different stack, `v1.6.0`. To move the pin, run the launcher with the new
 value, run `pnpm test:live`, then update `scripts/start.sh` and this paragraph together.
 
-## Which board obsel opens
+## Which page obsel opens
 
 obsel shows one DataFlow at a time, named by `OBSEL_FLOW_ID` and read once when the server starts.
-The default is `orders_pipeline`. The board's header carries the name, and opening it shows the same
+The default is `orders_pipeline`. The page's header carries the name, and opening it shows the same
 explanation as this section.
 
 ```bash
-OBSEL_FLOW_ID=my_board pnpm dev     # or set it in .env.local and use the launcher
+OBSEL_FLOW_ID=my_pipeline pnpm dev     # or set it in .env.local and use the launcher
 ```
 
-**How to tell it worked:** the header reads `my_board · prod`, and the board is empty, which is the
+**How to tell it worked:** the header reads `my_pipeline · prod`, and the page is empty, which is the
 one state that offers the choice between the demo agents and the taxi swarm.
 
-Nothing is deleted or moved by this. Each board keeps its own tasks, and the tasks on the board you
+Nothing is deleted or moved by this. Each page keeps its own tasks, and the tasks on the page you
 left are still there when you start obsel on it again. This is also why the demo and the taxi swarm
-cannot be swapped on one board: `reset` puts tasks back to registered and removes their tags, and
-obsel deletes no task, so registering the second swarm onto a board that already holds one gives a
-board holding both.
+cannot be swapped on one page: `reset` puts tasks back to registered and removes their tags, and
+obsel deletes no task, so registering the second swarm onto a page that already holds one gives a
+page holding both.
 
 The demo agents read the same variable independently, so run them with it set the same way. The
 launcher passes the environment it was started with straight through.
@@ -97,8 +97,8 @@ and it is the step people skip.
   **You need only one.** With nothing set, obsel uses whichever is installed and prefers Codex when
   both are. `OBSEL_RUNNER=codex` or `OBSEL_RUNNER=claude` picks explicitly, and an explicit choice is
   never second-guessed: a missing CLI reports the one you asked for rather than quietly switching to
-  the other, because a board reporting on a product you did not choose is worse than a clear failure.
-  The board's checklist, `scripts/start.sh` and the workers all read the same variable.
+  the other, because a page reporting on a product you did not choose is worse than a clear failure.
+  The setup checklist, `scripts/start.sh` and the workers all read the same variable.
 
   See [`THIRD_PARTY_NOTICES.md`](../THIRD_PARTY_NOTICES.md) for the terms question this raises.
 
@@ -112,7 +112,7 @@ cp .env.example .env.local
 pnpm install && pnpm dev
 ```
 
-Then open `http://localhost:3000`. **The board opens on a checklist**, because the three commands
+Then open `http://localhost:3000`. **The page opens on a checklist**, because the three commands
 above are not the whole of it: the demo agents need their own Python environment and a signed-in
 agent CLI, and obsel needs its tag registered in DataHub. Each item is genuinely checked on your
 machine every couple of seconds, the ones already done are ticked, and anything missing shows the
@@ -120,7 +120,7 @@ exact command to run. Work down the list and it empties.
 
 Once it does, the whole demo is buttons: set up the demo agents, put them to work, re-run one
 identically, change a requirement upstream, reset. Each button runs the same `agents.run` command
-listed in step 8 below, verbatim, and streams that step's own output onto the board.
+listed in step 8 below, verbatim, and streams that step's own output onto the page.
 
 ## Every step
 
@@ -182,7 +182,7 @@ uvx --version                    # should print a version
 **6. Start obsel.**
 
 ```bash
-pnpm dev        # http://localhost:3000 should show the cockpit, not an error
+pnpm dev        # http://localhost:3000 should show the page, not an error
 ```
 
 **7. Register obsel's vocabulary in DataHub.** Run every agent command from the repository root, so
@@ -206,19 +206,19 @@ agents/.venv/bin/python -m agents.run change        # renames a column, three ta
 agents/.venv/bin/python -m agents.run reset         # back to the starting state
 ```
 
-[`agents/README.md`](../agents/README.md) explains what each command should print. The board follows
+[`agents/README.md`](../agents/README.md) explains what each command should print. The page follows
 either path identically, because the guide derives everything from what DataHub holds.
 
 ## Bring your own data
 
-**Declaring the tasks is a form on the board**, in the "bring your own data" panel under the graph.
+**Declaring the tasks is a form on the page**, in the "bring your own data" panel under the graph.
 Type a name, the tables it reads and the tables it writes, and it becomes a real DataJob with its
 lineage edges. It posts to the same `/api/tasks/register` the MCP tool calls, so nothing about the
 task is different for having been typed. Executed on 2026-07-26 against a real DataHub: the two-task
 chain below, registered from the form, read back off `GET /api/swarm` with its lineage and drawn on
 the graph. See [`verification.md`](verification.md) for that run and the bug it found.
 
-**Reporting the work is also on the board, if you want to see the whole loop first.** Open a task
+**Reporting the work is also on the page, if you want to see the whole loop first.** Open a task
 you registered and it offers you its table: the columns are chips you can rename, drop or add, and
 the rows are cells you type into. Press report and obsel hashes what you handed it and answers.
 Report two tasks in a chain, rename a column upstream, report again, and the downstream task is
@@ -285,7 +285,7 @@ reports. Here the totals came out identical, because a renamed input column does
 sums, and the flag came off through that redo. A totals task whose output moved would have
 cascaded onward instead. There is no tool that clears a flag, on purpose.
 
-Everything above is the same six board tools the
+Everything above is the same six page tools the
 [Bring your own agent](../README.md#bring-your-own-agent) section lists first, and the order is the
 one `skills/obsel-collaboration/SKILL.md` teaches. The three erasure tools beside them are the
 subject of the next section. What obsel
@@ -345,7 +345,7 @@ stand. To report one compromised, set `"status": {"state": "compromised", "at": 
 signature it ever made falls, and any asset it covered goes back to unattested on the next read.
 Both take effect when obsel restarts, because the registry is read at startup.
 
-**3. Open a request and read the board.**
+**3. Open a request and read the page.**
 
 ```bash
 curl -s -X POST localhost:3000/api/erasure -H "Authorization: Bearer $OBSEL_API_TOKEN" \

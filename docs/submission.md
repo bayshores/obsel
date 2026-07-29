@@ -28,7 +28,7 @@ schema and content, separately, so a rename is distinguishable from new rows), c
 the recorded baseline, and walks DataHub's own lineage downstream. Finished work built on the
 changed table gets marked stale, with the cause, the hop distance, and a plain sentence stored on
 the mark. The `obsel-stale` tag lands on the DataJob through DataHub's MCP server, so the flag shows up in
-DataHub's own UI beside obsel's board.
+DataHub's own UI beside obsel's page.
 
 The rules that make the flags trustworthy:
 
@@ -41,7 +41,7 @@ The rules that make the flags trustworthy:
   a tool to declare work fresh would be a tool for silencing the one thing obsel is for. When a
   flagged task re-runs and its output comes back identical, obsel clears the downstream flags
   that redo provably restores, and only those.
-- Every number on the board was measured, or it is withheld. A failed read blanks every stat.
+- Every number on the page was measured, or it is withheld. A failed read blanks every stat.
 
 ### The demo
 
@@ -55,11 +55,11 @@ roughly 188 s to redo everything, that baseline estimated from each task's own l
 and labeled as an estimate everywhere it appears.
 
 Any MCP-capable agent can join a swarm through obsel's own MCP server (nine tools, six for the
-board and three for erasure; every mutation goes through obsel's HTTP API and the server holds no
+page and three for erasure; every mutation goes through obsel's HTTP API and the server holds no
 DataHub credentials). The
 bring-your-own-data walkthrough in `docs/setup.md` was executed for real: a five-row expenses CSV,
 a renamed column, the downstream task flagged at one hop in 3,934 ms, the flag cleared by the
-redo. Declaring your own tasks does not need an agent at all: a form on the board posts to the same
+redo. Declaring your own tasks does not need an agent at all: a form on the page posts to the same
 registration route the MCP tool calls, driven against a real DataHub on 2026-07-26. Reporting the
 work still comes from whatever runs it, because obsel takes the fingerprint from the rows itself and
 a second implementation of that would be a second definition of what counts as a change.
@@ -67,7 +67,7 @@ a second implementation of that would be a second definition of what counts as a
 ### Built with
 
 DataHub (quickstart, GMS v1.5.0.6) for the graph and the record; DataHub's MCP server
-(`mcp-server-datahub`, pinned `==0.6.0`) for the tag writes; Next.js for the board; Python for
+(`mcp-server-datahub`, pinned `==0.6.0`) for the tag writes; Next.js for the page; Python for
 the agents and obsel's own MCP server; the Codex CLI or Claude Code for the real agent sessions,
 whichever the operator has. The traps found on
 the way, including the endpoint that fabricates entities for invented URNs and the search index

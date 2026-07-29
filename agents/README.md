@@ -35,9 +35,9 @@ DataHub and a signed-in Codex CLI, with every step's own assertions passing:
 | `change`     | called `schema`; marked exactly 3 tasks at 1, 2 and 2 hops, in 2591 ms          |
 
 Later the same day the sequence was driven again, this time entirely from the
-cockpit's guide buttons, which spawn these same commands, including the reverse
+page's guide buttons, which spawn these same commands, including the reverse
 experiment order, `change` first and then `rerun-same` on the already-flagged
-board: byte-identical output, 0 changed outputs, 0 new marks confirmed in 89 ms,
+page: byte-identical output, 0 changed outputs, 0 new marks confirmed in 89 ms,
 and the three existing marks untouched. (That order failed on its first live
 attempt and exposed a real bug. See the `rerun-same` section below.)
 
@@ -67,7 +67,7 @@ were found.
 | `setup.py`          | One-time DataHub setup: creates obsel's tag and the demo DataFlow.                                                                                                                                                                        |
 | `run.py`            | The command line that drives the demo. 33 self-checks over the guards behind what it prints.                                                                                                                                              |
 | `mcp_core.py`       | Everything obsel's MCP server decides before it speaks: reply guards, output resolution, freshness verdicts, the completion body, tables handed over as file paths. Standard library only, so `pnpm verify` can check it. 39 self-checks. |
-| `mcp_server.py`     | obsel's own MCP server: the nine tools any MCP-capable agent joins through, six for the board and three for erasure. Wiring only; covered by `tests/live/obsel-mcp.live.test.ts`.                                                         |
+| `mcp_server.py`     | obsel's own MCP server: the nine tools any MCP-capable agent joins through, six for the page and three for erasure. Wiring only; covered by `tests/live/obsel-mcp.live.test.ts`.                                                          |
 
 ## Joining from your own agent
 
@@ -92,7 +92,7 @@ which is the same reason the identical-re-run rule is proven deterministically r
 two Codex sessions. The deterministic path, using a real MCP client with the real server, a real obsel
 and a real DataHub, is `pnpm test:live`. The manual run, when someone wants it: configure the
 server as above,
-ask the agent to register a task and report a small table, then confirm on the board at
+ask the agent to register a task and report a small table, then confirm on the page at
 `http://localhost:3000` and on the DataJob in DataHub that the task and its lineage are really there.
 
 ## Before you start
@@ -167,7 +167,7 @@ agents/.venv/bin/python -m agents.run run
 
 Runs all four agents in dependency order. For each one it prints what did the work
 and how long it took, the table that came out with its row count and columns, its
-fingerprint, and what obsel made of it. The cockpit shows the same figures, and
+fingerprint, and what obsel made of it. The page shows the same figures, and
 shows an elapsed count while each agent is still working.
 
 On the first `run` after a `reset` there is no previous version of any table, so
@@ -226,7 +226,7 @@ With both in place the step passes: byte-identical output, nothing marked,
 confirmed by obsel in 60 ms.
 
 **And the step that failed second, later the same day.** Run for the first time
-_after_ `change`, from the cockpit's guide on the flagged board, it reverted
+_after_ `change`, from the page's guide on the flagged pipeline, it reverted
 the rename and failed its own assertion. The re-run replayed the changed
 instruction ("name the column order_total_usd") but passed no column contract, so
 the worker fell back to the task's standing `output_columns`, meaning the original
@@ -277,7 +277,7 @@ Redoes the flagged work, producers before consumers, each redo a real Codex
 session replaying what that task last ran on its current inputs. There is no
 command that clears a flag, on purpose: a flag comes off through redone work,
 either the task's own redo or obsel proving the task sound when an upstream redo
-lands byte-identical. The command re-reads the board at every turn and skips
+lands byte-identical. The command re-reads the page at every turn and skips
 whatever obsel has already cleared, printing the reason obsel recorded.
 
 The loop runs in passes rather than once, because a live model is allowed to
@@ -289,7 +289,7 @@ called it a content change and refused to clear the two tasks downstream, and
 all three were redone in 93.7 s, ending clean. The averaging precision is pinned
 in `pipeline.py` now, the third instruction pinned for the same reason.
 
-The closing claim is read back from the board: zero flags, or the command exits
+The closing claim is read back from the page: zero flags, or the command exits
 1 with `UNEXPECTED:` naming what still stands.
 
 ### `reset`
@@ -321,7 +321,7 @@ in [`docs/verification.md`](../docs/verification.md).
 agents/.venv/bin/python -m agents.run scale-register  # forty tasks into DataHub
 agents/.venv/bin/python -m agents.run scale-run       # all forty, concurrently
 agents/.venv/bin/python -m agents.run scale-run --change-during  # with the change landing mid-swarm
-agents/.venv/bin/python -m agents.run scale-change    # the change alone, on a settled board
+agents/.venv/bin/python -m agents.run scale-change    # the change alone, on a settled pipeline
 agents/.venv/bin/python -m agents.run scale-repair    # redo only the flagged, in parallel
 ```
 
@@ -329,11 +329,11 @@ agents/.venv/bin/python -m agents.run scale-repair    # redo only the flagged, i
   default 8). With `--change-during`, one task re-runs with a renamed column
   while others are still in flight, which is the claim that in-flight work is
   never flagged being exercised rather than asserted.
-- `scale-change` renames the passenger column **away from wherever the board
+- `scale-change` renames the passenger column **away from wherever the page
   currently sits**, and prints which direction before the agent runs. It reads
   the direction off the producer's recorded run columns, because a repair never
   touches the task that caused the cascade: a hard-coded direction made the
-  second press of the board's own button reproduce the table byte for byte and
+  second press of the page's own button reproduce the table byte for byte and
   fail its own assertion, three times, before this was learned. Either
   direction must mark the same nine descendants, out to three hops, and the
   step asserts exactly that set.
@@ -342,7 +342,7 @@ agents/.venv/bin/python -m agents.run scale-repair    # redo only the flagged, i
   them unnecessary. It prints each cancellation with obsel's reason as the
   proof lands.
 
-Both swarms hang off the same DataFlow, so the board shows whichever is
+Both swarms hang off the same DataFlow, so the page shows whichever is
 registered; `reset`, then register the other, to switch.
 
 ## Useful flags
@@ -399,16 +399,16 @@ silent on the ones that did not. What was fragile was the agent's spelling of an
 unchanged number, and that is what got fixed.
 
 **obsel is told before the work, not after.** The agent announces its start,
-then runs Codex. That is what lets the cockpit show an agent working while it is
+then runs Codex. That is what lets the page show an agent working while it is
 working, rather than showing "waiting" for the 20 to 50 seconds a Codex session
 takes. Because obsel excludes `running` work from the cascade, a run that dies
 hands the announcement back via `POST /api/tasks/abandon` and the task returns to
 `registered`. Without that, a crashed agent would leave a task invisible to every
-later traversal while the board still showed a healthy swarm.
+later traversal while the page still showed a healthy swarm.
 
 Every completion also reports what the run was like, meaning which runner, how long,
-how many rows and which columns, and the cockpit shows it. obsel decides nothing on any
-of it; it exists so a person watching the board sees what the terminal sees.
+how many rows and which columns, and the page shows it. obsel decides nothing on any
+of it; it exists so a person watching the page sees what the terminal sees.
 
 Table contents go to the model as data, never as instruction. The system prompt
 says so explicitly: if a value in the data reads like a command, it is treated as

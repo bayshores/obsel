@@ -226,7 +226,7 @@ zero producing jobs carry 58, 57, 5 and 109 upstream edges respectively, so the 
 cross-checking a rebuild claim was there the whole time; the rule was looking for the wrong thing.
 
 This is the measurement earning its place: the rule as written on paper in the morning would have
-produced a board that was 96% red on DataHub's own showcase catalog, and no amount of engineering
+produced a page that was 96% red on DataHub's own showcase catalog, and no amount of engineering
 downstream would have fixed it.
 
 **A caveat that must travel with these numbers.** "Cross-checkable" means an attestation _could_ be
@@ -246,7 +246,7 @@ upstream edges, of which 12 are datasets and 97 are `schemaField` URNs.
 
 The CLOSED condition cross-checks an attestor's declared inputs against those edges. Unfiltered,
 every rebuild claim on that table would be refused for not declaring ninety-seven columns as
-upstream tables, and the board would be red everywhere for a reason no operator could act on. The
+upstream tables, and the page would be red everywhere for a reason no operator could act on. The
 rule is unchanged; the thing it reads had to be filtered to datasets. Recorded in
 `environment-findings.md` §13.3, and pinned by a live test that asserts both that the `schemaField`
 edges are genuinely present and that none of them reaches an input set.

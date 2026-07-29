@@ -86,7 +86,7 @@ announce_start(taskUrn: "<the urn register_task returned>")
 
 obsel never marks work that is in flight. A task that is running will pick up its own
 inputs when it reads them, so marking it would be a false alarm. Announcing is also
-what lets a person watching the board see that you are working rather than stuck.
+what lets a person watching the page see that you are working rather than stuck.
 
 If this returns an **"already running"** error, another agent may hold this task.
 Stop and ask your operator. Do not race it.
@@ -143,7 +143,7 @@ abandon_task(taskUrn: "<the urn>")
 ```
 
 obsel skips running work when it walks the graph. A task left at `running` by an agent
-that died is invisible to every later traversal, while the board still shows a healthy
+that died is invisible to every later traversal, while the page still shows a healthy
 swarm. That is a false negative, and it is the one answer obsel must never give.
 
 If you announced and then failed for any reason, abandon. It returns the task to

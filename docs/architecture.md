@@ -44,8 +44,8 @@ A `DataJob` gives us identity and edges. Everything else is carried in that Data
 | `obsel.stale.since`        | ISO timestamp the mark was applied                   | `2026-07-21T14:05:52.244Z`                                                                   |
 
 `startedAt`, the `obsel.run.*` group and `obsel.stale.columns` are display only. `startedAt` lets the
-cockpit say how long work in flight has been in flight; `obsel.run.*` is what an agent reports about
-its own run; `obsel.stale.columns` names which columns moved so the board can show
+page say how long work in flight has been in flight; `obsel.run.*` is what an agent reports about
+its own run; `obsel.stale.columns` names which columns moved so the page can show
 `- order_total / + order_total_usd` instead of a sha256. obsel's staleness answer reads none of them,
 and a task carrying none of them still cascades correctly.
 
@@ -53,7 +53,7 @@ and a task carrying none of them still cascades correctly.
 settled `changeKind` from the sha256 pair by the time it is computed. It is derived from
 `obsel.run.outputs`, which obsel already recorded, by comparing the previous run's column list
 against the incoming one, so no new evidence is collected. It is absent on a content-only change and
-on every mark written before 2026-07-23, and the board falls back to "the columns in clean orders
+on every mark written before 2026-07-23, and the page falls back to "the columns in clean orders
 changed" when it is.
 
 One consequence is worth naming because it reversed an earlier decision. `startTask` used to clear
@@ -76,7 +76,7 @@ exists. **obsel cannot create that tag at runtime**, because open-source DataHub
 `add_tags` but no `create_tag`, and applying an unregistered tag URN is rejected. It is created
 once by [`agents/setup.py`](../agents/setup.py), which fails loudly if it did not land.
 
-### The tag is read back onto the board
+### The tag is read back onto the page
 
 `globalTags` is now parsed into every `TaskRecord` as `tags` (every tag URN DataHub reports, sorted)
 and `staleTagged` (whether obsel's own is among them), by
@@ -85,11 +85,11 @@ and `staleTagged` (whether obsel's own is among them), by
 `toTaskRecord` simply discarded it.
 
 **Neither field enters any decision.** `compareFingerprints` decides staleness, on sha256 and nothing
-else. They exist so the cockpit can show that obsel's contribution to the catalog actually landed
+else. They exist so the page can show that obsel's contribution to the catalog actually landed
 rather than assert it: the stat ribbon reports `3 of 3 tagged`, and the details panel lists the tags
 in full and links to the entity page.
 
-Three consequences worth stating, because each is a claim the board can now make and could get wrong:
+Three consequences worth stating, because each is a claim the page can now make and could get wrong:
 
 - **A shortfall is usually a write in flight, not a failure.** obsel writes the mark and then the tag,
   and DataHub's writes are asynchronous, so a marked task legitimately has no tag for a moment. The
@@ -98,9 +98,9 @@ Three consequences worth stating, because each is a claim the board can now make
 - **A tag with no mark never resolves itself**, and is counted separately as `left over`. It is what a
   reset done by hand leaves behind, since the properties and the tag live on different aspects of the
   same entity. That is the most damaging frame the demo video
-  could contain, and the board can now say it out loud.
+  could contain, and the page can now say it out loud.
 - **Absent is not zero.** A snapshot captured before these fields existed carries no tag information,
-  and the board reports `not recorded`. Rendering `0 of 3` would claim DataHub is missing three tags
+  and the page reports `not recorded`. Rendering `0 of 3` would claim DataHub is missing three tags
   obsel never looked for. Understating obsel's own contribution is as much a false claim as
   overstating it.
 
@@ -163,7 +163,7 @@ The flow, in [`src/server/coordinator/engine.ts`](../src/server/coordinator/engi
    soon as the upstream task runs again.
 8. Return a `CoordinationResult` with a measured `elapsedMs` covering all of the above.
 
-The cockpit is a separate, dumber path: it polls `GET /api/swarm` once a second and renders
+The page is a separate, dumber path: it polls `GET /api/swarm` once a second and renders
 whatever DataHub currently says. It never computes staleness.
 
 What it _does_ compute is position and colour, and both are deliberately walled off from the
@@ -173,7 +173,7 @@ exactly `(status, hasMark)` and reads no timer. `graph/cascade.ts` decides which
 travelled along by reading hop counts off the marks obsel wrote, rather than re-deriving them from
 topology, so the picture cannot claim a change reached work obsel decided it did not reach. Between
 them, the animation layer is left able to write only `stroke-dashoffset`: it is structurally
-incapable of changing what the cockpit claims is true, so a dropped frame or an interrupted
+incapable of changing what the page claims is true, so a dropped frame or an interrupted
 transition cannot produce a wrong answer on camera.
 
 The graph itself is [React Flow](https://reactflow.dev) with a dagre layout, which replaced about
@@ -209,7 +209,7 @@ asserts every node stays inside the panel across a resize.
 
 Interaction is bounded rather than off, which reverses an earlier decision and records why. All
 interaction used to be disabled: a stranded graph had no way back, so nothing was allowed to move
-it. The forty-task board changed the arithmetic, because its whole-graph fit is zoom 0.58 and its
+it. The forty-task pipeline changed the arithmetic, because its whole-graph fit is zoom 0.58 and its
 labels land at 7.5 px, so the fitted frame is an overview and the design-size detail exists only
 if a reader can go and get it. The reading moves are on (drag pans, pinch zooms, React Flow's own
 zoom and fit buttons restyled to obsel's tokens), the recovery the lock used to substitute for is
@@ -330,7 +330,7 @@ finished the work. A timeout on a mutation is an unknown outcome, not a failure;
 what keeps the two distinct.
 
 **As a server**, so an agent that is not in this repository can join a swarm.
-[`agents/mcp_server.py`](../agents/mcp_server.py) serves nine tools over stdio. Six are the board:
+[`agents/mcp_server.py`](../agents/mcp_server.py) serves nine tools over stdio. Six are the page:
 `check_freshness`, `register_task`, `announce_start`, `report_complete`, `abandon_task`,
 `read_board`. Three are erasure: `erasure_board`, `request_challenge`, `submit_attestation`. Three
 properties of it are deliberate:
@@ -434,7 +434,7 @@ readable", not as "covered by end-to-end evidence". See [Evidence](#9-evidence) 
 | The integration harness                     | `tests/live/`, `vitest.live.config.ts`, `tests/support/server-only.ts`                                                      | shipped, 44 tests, no stand-ins                     |
 | URN shapes                                  | `src/server/datahub/urns.ts`                                                                                                | shipped                                             |
 | HTTP API                                    | `app/api/swarm`, `app/api/trace`, `app/api/tasks/{register,start,abandon,complete}`, `app/api/demo/{reset,launch,activity}` | shipped                                             |
-| Cockpit                                     | `app/page.tsx`, `src/features/cockpit/`                                                                                     | shipped, 133 unit + 51 browser tests                |
+| Page                                        | `app/page.tsx`, `src/features/cockpit/`                                                                                     | shipped, 133 unit + 51 browser tests                |
 | Live agent progress                         | `src/features/cockpit/progress.ts`                                                                                          | shipped, 23 passing tests, seen live                |
 | The guide                                   | `src/features/cockpit/guide.ts`, `guide-panel.tsx`                                                                          | shipped, 24 passing tests, driven live              |
 | The joining guide, four steps off the swarm | `src/features/cockpit/joining.ts`, `joining-panel.tsx`                                                                      | shipped, 24 unit + 7 browser tests                  |
@@ -443,7 +443,7 @@ readable", not as "covered by end-to-end evidence". See [Evidence](#9-evidence) 
 | Grouping the trace into decisions           | `src/features/cockpit/passes.ts`                                                                                            | shipped, 15 unit + 2 browser tests                  |
 | The lineage graph                           | `src/features/cockpit/lineage.tsx`, `nodes.tsx`, `graph/positions.ts`, `graph/cascade.ts`, on React Flow and dagre          | shipped, 33 unit + 4 browser tests                  |
 | Naming which columns moved                  | `src/server/coordinator/staleness.ts` (`columnChange`); `obsel.stale.columns`                                               | shipped, 9 tests, verified live                     |
-| Reading the stale tag back onto the board   | `src/server/datahub/tags.ts`, `timing.ts` (`totals`); the ribbon's write-back cell                                          | shipped, 14 unit + 6 browser tests                  |
+| Reading the stale tag back onto the page    | `src/server/datahub/tags.ts`, `timing.ts` (`totals`); the ribbon's write-back cell                                          | shipped, 14 unit + 6 browser tests                  |
 | The link into DataHub's own UI              | `src/features/cockpit/datahub-link.ts`, `inspector.tsx`                                                                     | shipped, 8 tests, path read from DataHub's bundle   |
 | Demo runner                                 | `src/server/runner/`: `steps.ts`, `launcher.ts`, `preflight.ts`                                                             | shipped, 11 tests on the pure half                  |
 | Task registration and traversal in Python   | `agents/graph.py`                                                                                                           | shipped, verified live                              |
@@ -490,13 +490,13 @@ What has been verified directly, and what has not.
   `write_report` (2 hops) in 2591 ms. That run exercises `engine.ts`, `client.ts` and `mcp.ts`
   against real DataHub, by hand rather than by an automated test.
 - **The same demo driven from the browser alone**, later on 2026-07-22: five clicks in the
-  cockpit's guide (reset, re-declare, run, identical re-run, change) with no terminal. Register
+  page's guide (reset, re-declare, run, identical re-run, change) with no terminal. Register
   wrote each task's job description onto its DataJob and read it back in 506 ms; `run` took
   112.2 s; the identical re-run reported 0 changed outputs and 0 marks confirmed in 106 ms; the
   rename was called `schema` and marked the same three tasks in 2310 ms. Each button spawned the
   real `agents.run` step through `POST /api/demo/launch`, and as a cross-check that the guide is
-  state-derived, the closing `reset` was run from a terminal, and the board tracked it identically.
-- **The board naming agents in words, and narrating its own work**, on 2026-07-23 against a live
+  state-derived, the closing `reset` was run from a terminal, and the page tracked it identically.
+- **The page naming agents in words, and narrating its own work**, on 2026-07-23 against a live
   DataHub and a signed-in Codex CLI. Driven from the browser: `reset` and `register` wrote each
   task's `obsel.title` and job description onto its DataJob and read both back, so the graph, the
   guide and the trace all name `clean_orders` as "Orders cleaner" from DataHub rather than from a map
@@ -518,7 +518,7 @@ What has been verified directly, and what has not.
   - The animation reported `playState: "running"` with an unbounded iteration count, and its
     `stroke-dashoffset` advanced between samples, so the cascade is still moving after the run has
     settled rather than having played once.
-  - 238 words on the page, zero em dashes, no horizontal scroll, and the whole board inside the
+  - 238 words on the page, zero em dashes, no horizontal scroll, and the whole page inside the
     990 px frame.
 
   Two defects were found by measuring rather than by looking, and both are recorded in the code that
@@ -536,10 +536,10 @@ What has been verified directly, and what has not.
 - The agent output contract, by the self-check in `agents/worker.py`: `217` and `217.0` reach one
   fingerprint, an id column keeps its integers, and a value that genuinely moved still moves the
   hash. Added after a live run where a single value's spelling broke two demo steps at once.
-- **That the tag obsel writes is actually on the entity**, on 2026-07-23 from a reset board: `run`
+- **That the tag obsel writes is actually on the entity**, on 2026-07-23 from a reset page: `run`
   140.5 s, `change` called `schema` and marked three tasks in 868 ms, and `GET /api/swarm` then
   reported `urn:li:tag:obsel-stale` on exactly those three and no tag on `clean_orders`. `reset`
-  cleared both halves, after which every task reported no tags. This is the first time obsel's board
+  cleared both halves, after which every task reported no tags. This is the first time obsel's page
   could show its DataHub contribution rather than assert it, and the first time the two halves of a
   mark could be seen to agree.
 
@@ -557,12 +557,12 @@ What has been verified directly, and what has not.
 
   **They run against their own DataFlow.** `OBSEL_FLOW_ID` is set in `vitest.live.config.ts` and read
   by both `src/server/datahub/urns.ts` and `agents/pipeline.py`, so the suite registers real DataJobs
-  into a real but separate flow and cannot reset the operator's board. That is isolation, not a
+  into a real but separate flow and cannot reset the operator's page. That is isolation, not a
   stand-in, and `tests/urns.test.ts` runs the Python module for real to check the two implementations
   still agree on every URN they build.
 
   Covered: registration writing real `Consumes`, `Produces` and `IsPartOf` edges; a first run and an
-  identical re-run each marking nothing, including on an already-flagged board; a real change reaching
+  identical re-run each marking nothing, including on an already-flagged pipeline; a real change reaching
   one direct and two transitive tasks at the right distances over `GET /relationships`; the cause
   unmarked and untagged; an unrelated branch untouched; running and never-run tasks both ineligible,
   with the walk stopping at the running one; each mark's reason, cause, distance and column diff as
@@ -651,12 +651,12 @@ What has been verified directly, and what has not.
   which asserts it and exits non-zero when it fails.
 - **`run_task(report=False)`.** Nothing calls it, so no test spends a real agent session on it.
 - **The browser suite still uses canned bodies, for the four-task states.** `e2e/` intercepts
-  `/api/swarm` to drive the board through states a live run cannot easily produce, notably a failed
+  `/api/swarm` to drive the page through states a live run cannot easily produce, notably a failed
   read, and those bodies are invented. Its fixtures say so in their own header. It is the one place
   left in the repository that tests against something invented, and it is named here rather than
   left to be found.
 
-  Narrowed on 2026-07-24, and only narrowed. The forty-task board's two fixtures are recordings of
+  Narrowed on 2026-07-24, and only narrowed. The forty-task pipeline's two fixtures are recordings of
   real `GET /api/swarm` responses rather than invented ones, because a hand-typed forty-task graph
   would be a hand-typed claim about the layout those tests exist to check. The interception is
   unchanged: what is replayed is real, and it is still replayed, so the server half is still absent
@@ -666,8 +666,8 @@ What has been verified directly, and what has not.
   against a Docker quickstart on one laptop.
 - **The window between a mark landing and its tag landing.** `markStale` awaits the confirmed property
   write and then `applyStaleTag`, so a marked task genuinely has no tag for a moment, and the ribbon
-  counts rather than ticks because of it. Polling the live board every two seconds on 2026-07-23, that
-  moment was never caught: the board went from having nothing to write straight to `3 of 3`. So the partial
+  counts rather than ticks because of it. Polling the live page every two seconds on 2026-07-23, that
+  moment was never caught: the page went from having nothing to write straight to `3 of 3`. So the partial
   count is asserted by a unit test and a browser test against a fixture, and the live evidence says
   only that the window is shorter than two seconds on this machine.
 
@@ -704,7 +704,7 @@ What has been verified directly, and what has not.
   redo lands byte-identical, the flags downstream of that output were standing on ground that
   never moved, and `restoredBy` (`src/server/coordinator/staleness.ts`) clears the ones the
   records prove. Nothing can request that clear, since no route and no tool takes a task to
-  unflag, which keeps the only path to a clean board through redone work.
+  unflag, which keeps the only path to a clean page through redone work.
 
 ## 11. The HTTP API
 
@@ -723,15 +723,15 @@ mutating routes answer 503 rather than running unauthenticated, which is the clo
 
 **The demo runner, three routes.** `/api/demo/launch`, `/api/demo/activity` and `/api/demo/reset`.
 They execute and report the demo's own CLI steps on the machine obsel runs on, exist so the
-cockpit's guide can drive the demo without a terminal, and are not part of what an agent
+page's guide can drive the demo without a terminal, and are not part of what an agent
 integrating with obsel would ever call.
 
-**Two of these are reachable from the board itself.** The guide's buttons POST to
+**Two of these are reachable from the page itself.** The guide's buttons POST to
 `/api/demo/launch`, and the bring-your-own-data panel POSTs to `/api/tasks/register`. The second is
 the only write the browser performs, and it performs it through the agents' own route rather than a
 route of its own: a form and an MCP client that registered the same task have to produce the same
 entity, and two routes would eventually be two answers about what a registration is. Nothing on the
-board can reach `/api/tasks/complete`, because a fingerprint is taken from rows by
+page can reach `/api/tasks/complete`, because a fingerprint is taken from rows by
 `agents/fingerprint.py` and there is no second implementation of it.
 
 **One asymmetry to know before you call anything:** `POST /api/tasks/register` takes **short dataset
@@ -744,8 +744,8 @@ lives in one place and an agent cannot hand-build a malformed URN. A URN sent to
 Building the URNs server-side was only half of that guarantee, and the other half is new. The names
 themselves were checked for nothing but being non-empty, so `clean,orders` or `a.b.c` registered a
 real DataJob whose lineage pointed at a URN no reader could recover the name from — `datasetUrn`
-interpolates the name, and `datasetName`, `shortName` in the cockpit and `dataset_short_name` in
-Python all split back on commas and dots. The board drew a box with the truncated name and nothing
+interpolates the name, and `datasetName`, `shortName` in the page and `dataset_short_name` in
+Python all split back on commas and dots. The page drew a box with the truncated name and nothing
 downstream could tell. A dataset name must now be lowercase letters, digits and underscores,
 optionally with one namespace segment (`obsel_taxi.clean_trips`, which the scale swarm uses); a task
 name must be the same without the namespace. The rule lives in `NAME_PATTERN` in `urns.ts`, is
@@ -755,7 +755,7 @@ asserts the two URN builders are.
 
 Every route answers `400 {"error": string}` on a body that fails validation and
 `500 {"error": string}` when the work fails. Errors are never an empty success: a swarm that cannot
-be read is a 500, not an empty task list, because an empty board is indistinguishable from
+be read is a 500, not an empty task list, because an empty page is indistinguishable from
 "everything is fine".
 
 The response types named below are defined in
@@ -798,7 +798,7 @@ fingerprints, so it is not the way to re-run a task.
 
 The description is stored as the DataJob's own `dataJobInfo.description`, which is real graph
 metadata, so
-DataHub's UI shows the same sentence the cockpit does. Reading a task back returns it as
+DataHub's UI shows the same sentence the page does. Reading a task back returns it as
 `description`, null when the task registered without one (the placeholder older registrations
 carried is filtered out rather than shown as though an agent had said it). Confirmed live
 2026-07-22: registered through this route, read back off GMS at
@@ -821,11 +821,11 @@ deliberately left in place as the baseline this run will be compared against.
 Returns `200` with the updated `TaskRecord`. Starting a task that is already `running` is a 500.
 
 The server stamps `startedAt` here, on its own clock, and clears any `run` detail left by the
-previous run. The cockpit subtracts `startedAt` from `SwarmSnapshot.at` to say how long work in
+previous run. The page subtracts `startedAt` from `SwarmSnapshot.at` to say how long work in
 flight has been in flight, and both timestamps come from this process, so the difference is an interval
 rather than two machines disagreeing about the time.
 
-**Agents call this before doing their work, not after.** That is what lets the board show an agent
+**Agents call this before doing their work, not after.** That is what lets the page show an agent
 working while it is working; it also means a run that dies owes the announcement back, which is what
 `POST /api/tasks/abandon` is for.
 
@@ -848,7 +848,7 @@ against, and dropping them would make that run read as a first run and mark noth
 
 This route exists because obsel excludes `running` work from the cascade, correctly, since work in
 flight picks up the new input itself. A task abandoned at `running` would therefore be skipped by
-every later traversal while the board still showed a healthy swarm, which is a false negative.
+every later traversal while the page still showed a healthy swarm, which is a false negative.
 
 ### `POST /api/tasks/complete`
 
@@ -884,7 +884,7 @@ The one that matters. An agent reporting that it finished is what triggers the w
 verbatim. It is deliberately not derived from `finishedAt` minus `startedAt`: those two are stamped
 on different clocks, a mistake this codebase has already made once and documents in
 [`timing.ts`](../src/features/cockpit/timing.ts). A completion that omits `run` clears any previous
-detail rather than leaving it, so the cockpit never captions a run with the last one's numbers.
+detail rather than leaving it, so the page never captions a run with the last one's numbers.
 
 ```jsonc
 // 200: a CoordinationResult
@@ -931,14 +931,14 @@ Everything the dashboard shows, in one read. Polled once a second.
 }
 ```
 
-`tasks` is sorted by URN, so the board's row order does not depend on registration order. `ready`
+`tasks` is sorted by URN, so the page's row order does not depend on registration order. `ready`
 and `blocked` are derived by `staleness.ts` from the same snapshot rather than computed separately.
 
 Each task carries `tags` and `staleTagged`, read off `globalTags`, see section 2. Both are absent on
-a capture taken before they existed, which the board renders as `not recorded` rather than as zero.
+a capture taken before they existed, which the page renders as `not recorded` rather than as zero.
 
 `datahubUrl` is `DATAHUB_FRONTEND_URL` from the server's environment, with any trailing slash
-stripped, and `null` when it is unset, in which case the cockpit offers no link rather than one that
+stripped, and `null` when it is unset, in which case the page offers no link rather than one that
 looks live and goes nowhere. It sits on the envelope and deliberately **not** inside `snapshot`: the
 snapshot is a domain value the coordinator writes and [`examples/`](../examples) captures as a record
 of what DataHub held, and a browser base URL is neither, so it would outlive its meaning the moment a
@@ -1010,7 +1010,7 @@ explicitly decided against.
 
 What the demo runner is doing right now: the running step, how the last one ended, the step's own
 stdout/stderr tail (bounded to the newest 500 lines), and whether this machine's prerequisites
-hold. The cockpit polls it every two seconds beside `/api/swarm`. Task state itself is never in
+hold. The page polls it every two seconds beside `/api/swarm`. Task state itself is never in
 here. That lives in DataHub and comes back through the swarm read.
 
 Each preflight check is a genuine observation carrying the exact fix command when it fails:
@@ -1047,7 +1047,7 @@ because without the tag staleness would be detected and silently not recorded.
     "codex": { "ok": false, "detail": "the Codex CLI is not signed in", "fix": "codex login" },
   },
   // The command that connects an outside MCP agent to this obsel, with this
-  // machine's real absolute interpreter path. Display only; the board's
+  // machine's real absolute interpreter path. Display only; the page's
   // "bring your own agent" panel renders it, because a placeholder path would
   // hand the reader a command that fails.
   "joinCommand": "claude mcp add obsel -- /…/agents/.venv/bin/python -m agents.mcp_server",
@@ -1057,7 +1057,7 @@ because without the tag staleness would be detected and silently not recorded.
 ### `GET /api/trace`
 
 The steps the coordinator took, in the order it took them, for the "what obsel is doing" panel.
-Oldest first. The cockpit polls it every second, faster than the activity feed, because a whole
+Oldest first. The page polls it every second, faster than the activity feed, because a whole
 cascade arrives in one burst and a two-second poll would show it already finished.
 
 Emitted by `engine.ts` as it works: the swarm read, one step per fingerprint comparison **whichever
@@ -1077,7 +1077,7 @@ claim, and why the buffer is deliberately something nothing else depends on.
 
 Steps are written at log length rather than as sentences, and the panel renders only the newest
 eight. Both are deliberate. The route still returns the full tail, so nothing is dropped from what
-callers can read; what is bounded is how much of the board a 21-step run is allowed to occupy.
+callers can read; what is bounded is how much of the page a 21-step run is allowed to occupy.
 
 ```jsonc
 // 200
@@ -1094,17 +1094,17 @@ callers can read; what is bounded is how much of the board a 21-step run is allo
 }
 ```
 
-## 12. What the cockpit's two side panels may and may not say
+## 12. What the page's two side panels may and may not say
 
 Both sit in the strip under the lineage graph, and neither carries a demo beat.
 
 Before them, one thing about the graph panel itself. Its heading is **what obsel is for**, "Each agent
 reads a table another agent wrote, so a change in one can make another's finished work wrong", and
-that is the only place on the board that states obsel's purpose. It reached that slot by replacing
+that is the only place on the page that states obsel's purpose. It reached that slot by replacing
 "how the work connects", a caption explaining how to read a picture whose boxes carry names and whose
 arrows show direction, so the statement cost an already-spent line rather than new prose. Two earlier
 attempts at the same job were prose, a header tagline and then paragraphs above the graph, and both
-were removed as part of cutting the board from 604 words; `guide.ts` was left holding a
+were removed as part of cutting the page from 604 words; `guide.ts` was left holding a
 `WHAT_OBSEL_IS` constant that nothing read, which is now deleted.
 
 A third attempt sat here until 2026-07-23, and it is worth recording why it was replaced, because it
@@ -1124,7 +1124,7 @@ that appears only once something has gone wrong is not a statement of purpose.
 
 **The inspector** shows one task's uncompressed values: full URNs, complete 64-character
 fingerprints, and every field of its stale mark. It computes nothing. In particular it never derives
-an age or a freshness, because the cockpit knows when it _read_ a value rather than when it became
+an age or a freshness, because the page knows when it _read_ a value rather than when it became
 true,
 and an inspector is exactly the place that distinction gets quietly lost. It is mounted only while a
 task is selected, which is now done by clicking a box on the graph. The strip's height is fixed, so
@@ -1176,7 +1176,7 @@ subsequently failed.
 
 ### Grouped by decision, because that is what the steps are
 
-The steps are a flat list and the work is not. Measured on a live board after one `run` and one
+The steps are a flat list and the work is not. Measured on a live page after one `run` and one
 `change`, the 25 steps held were five separate pieces of coordination:
 
 ```
@@ -1184,7 +1184,7 @@ write write | read compare done | read compare done | read compare done
             | read compare done | read compare walk mark mark mark done
 ```
 
-One judgement per agent completion, four of which found nothing to do, and the board rendered all 25
+One judgement per agent completion, four of which found nothing to do, and the page rendered all 25
 as undifferentiated lines. That flattened the thing the demo's second half exists to establish: four
 _separate_ judgements that stayed quiet are what make the fifth believable, and undivided they read as
 one long preamble in which nothing happened.
@@ -1217,8 +1217,8 @@ reads `5 decisions, 25 steps` and every step it counts is rendered, so the count
 act on. After the change, 11 rows are fully visible and the top edge shows a 2px sliver of the
 previous group rather than most of a sentence.
 
-One consequence for the board's word-count guard, which is worth naming because getting it wrong
+One consequence for the page's word-count guard, which is worth naming because getting it wrong
 would invert the guard's purpose: `e2e/cockpit.spec.ts` counts the log's **visible** steps, not its
 DOM text. Counting all of it would make the ceiling track how much obsel narrated rather than how
-dense the board is, and the way to pass a failure would be to narrate less. A separate assertion
+dense the page is, and the way to pass a failure would be to narrate less. A separate assertion
 holds the line directly: tripling the trace must not increase what is on screen.

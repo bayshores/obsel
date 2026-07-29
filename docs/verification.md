@@ -11,15 +11,15 @@ been established is in [Not done](#not-done) rather than left out.
 
 ## What is built
 
-**The whole loop is built, and the whole demo now runs from the browser.** The cockpit carries a
+**The whole loop is built, and the whole demo now runs from the browser.** The page carries a
 guide that reads the live state once a second and offers the next real action as a button: set up
 the demo agents, start them, run one again unchanged, or change one agent's instructions. Each button
 launches the same `agents.run` step the terminal path runs, verbatim, and the step's own printed
-output streams onto the board. On 2026-07-22 the full journey (reset → re-declare → run →
+output streams onto the page. On 2026-07-22 the full journey (reset → re-declare → run →
 identical re-run → change) was driven end to end **with five clicks and no terminal**, against a
 live DataHub with a live Codex CLI, every step exiting 0.
 
-Several things were rebuilt on 2026-07-23, all for the same reason: a stranger looking at the board
+Several things were rebuilt on 2026-07-23, all for the same reason: a stranger looking at the page
 could not tell what it was.
 
 - **Every sentence on screen is written for someone who has not read this file.** Two earlier passes
@@ -27,7 +27,7 @@ could not tell what it was.
   identifier is short: `venv: the agents' Python environment (agents/.venv) does not exist yet` scores
   better on a word count than a sentence that explains itself. So the rule is written into
   `guide.ts`'s header and a check enforces the half a machine can see. **No internal name reaches the
-  board**: not the `DemoStep` ids the launcher takes, not the keys of the preflight record, not an
+  page**: not the `DemoStep` ids the launcher takes, not the keys of the preflight record, not an
   exit code, not a URN outside the details panel and the step log. It was run against the previous
   copy first and failed on six leaks across four states, which is how it is known to work. What went
   with them: "if obsel flags anything, it cried wolf", "now try to break it", "work in flight is never
@@ -49,11 +49,11 @@ could not tell what it was.
   the CSS asserted was enough "without needing a label to say so" and which nobody can see.
 
 - **Agents and tables are named in words.** Every agent registers a human name and a one-sentence
-  job as real DataHub metadata, `obsel.title` and the DataJob's description, and the board reads them
+  job as real DataHub metadata, `obsel.title` and the DataJob's description, and the page reads them
   back, so `clean_orders` appears as "Orders cleaner" everywhere, including in the reason written
   onto a stale mark. Nothing is mapped in the frontend; a pipeline that registers no title still
   reads as words, via a fallback.
-- **The change is named, not hashed.** The demo renames a column, and the board used to render that
+- **The change is named, not hashed.** The demo renames a column, and the page used to render that
   fact as `s f7b62a66`: obsel's real evidence, and unreadable. The changed table now shows
   `- order_total` and `+ order_total_usd`, and the headline reads "clean orders lost order_total and
   gained order_total_usd after they finished". It says lost and gained rather than renamed, because a
@@ -75,7 +75,7 @@ could not tell what it was.
   decisions rather than a preamble, which matters because they are what make the fifth believable. It
   is narration, not a decision path: nothing reads it back, and it is not the record. The record is the
   marks in DataHub.
-- **The board says what obsel is for.** It never did, which was the complaint underneath ten rounds
+- **The page says what obsel is for.** It never did, which was the complaint underneath ten rounds
   of feedback. Both previous attempts were prose, a tagline in the header and then paragraphs above
   the graph, and both got deleted for the reason they should have been: they are how the screen reached
   604 words. The graph's heading carries it instead, in the slot that used to hold "how the work
@@ -84,19 +84,19 @@ could not tell what it was.
   can make another's finished work wrong", and it states obsel's limits as much as its scope: not
   whether the work is good, not whether the pipeline is healthy, just whether it is still built on
   something still true.
-- **The board says far less.** The flagged screen was 604 words in two stacked panels of prose, with
+- **The page says far less.** The flagged screen was 604 words in two stacked panels of prose, with
   nothing on it set larger than 13 px, so there was no entry point and the only way in was to read
   all of it. It is 267 words now, one headline leads, and the graph carries the mechanism. Nothing
   was deleted from the system: every reason, fingerprint, timing and code identifier is one click
   away on a node. Checks in the suite hold the line, because ten rounds of hand-edited copy is what
-  produced the 604 in the first place: the two boards must say the same amount whatever the size of
+  produced the 604 in the first place: the two pages must say the same amount whatever the size of
   the pipeline, a longer run may not put more on screen, no box label may grow into a sentence, no
   em dash may reach the screen in any state, and the identifier guard described next. A hard ceiling
-  on the board's total word count was among these and was removed on 2026-07-27; the dated section
+  on the page's total word count was among these and was removed on 2026-07-27; the dated section
   below records why.
-- **What obsel wrote into DataHub is on the board, and counted.** obsel tags each marked job
+- **What obsel wrote into DataHub is on the page, and counted.** obsel tags each marked job
   `urn:li:tag:obsel-stale` through the MCP server, which is the thing a person browsing DataHub sees
-  without knowing obsel exists, and the board used to mention it in five grey words at the bottom of a
+  without knowing obsel exists, and the page used to mention it in five grey words at the bottom of a
   scroller. obsel now reads `globalTags` back off the entity it was already fetching, so the ribbon
   reports `3 of 3 tagged` and the details panel lists every tag on the job and links to its real
   DataHub page. It is a check rather than a badge, and the states are distinguished on purpose: a
@@ -113,13 +113,13 @@ could not tell what it was.
   consumes and the two can disagree.
 
 The guide is a lens, not a script: it derives its stage from what DataHub actually holds, so
-driving a step from the terminal instead moves the board the same way, and nothing on screen is
+driving a step from the terminal instead moves the page the same way, and nothing on screen is
 staged or pre-recorded.
 
 **Added 2026-07-24: the loop closes.** Three things shipped together, because each is what makes
 the others mean something.
 
-- **A flag is now something you act on.** The flagged board leads with **Redo the work obsel
+- **A flag is now something you act on.** The flagged pipeline leads with **Redo the work obsel
   flagged**, a new `repair` demo step: the flagged agents re-run in dependency order, real Codex
   sessions replaying what each task last ran, and every flag comes off through a redo. There is
   still no way to clear a flag directly, anywhere, and that is the point of the wording on the
@@ -154,17 +154,17 @@ and type-checks, not a plan.
 | Marks written back into DataHub                                                | `src/server/coordinator/engine.ts`, `src/server/datahub/mcp.ts`          |
 | Four demo agent workers, each a real Codex session                             | `agents/worker.py`, `agents/run.py`                                      |
 | The agent output contract, names and number form                               | `agents/worker.py` (`canonicalise_numbers`), with a self-check           |
-| The cockpit: graph, headline, stats, step log, details                         | `app/page.tsx`, `src/features/cockpit/`                                  |
-| Live agent progress on the board                                               | `src/features/cockpit/progress.ts`                                       |
+| The page: graph, headline, stats, step log, details                            | `app/page.tsx`, `src/features/cockpit/`                                  |
+| Live agent progress on the page                                                | `src/features/cockpit/progress.ts`                                       |
 | The guide: stage derived from live state, buttons that launch the real steps   | `src/features/cockpit/guide.ts`, `guide-panel.tsx`                       |
 | The demo runner: spawns `agents.run` steps, checks the machine's prerequisites | `src/server/runner/`                                                     |
-| Each task's job, stored on its DataJob in DataHub and read back onto the board | `agents/pipeline.py`, `src/server/datahub/client.ts`                     |
-| The stale tag read back off the entity, and counted on the board               | `src/server/datahub/tags.ts`, `src/features/cockpit/timing.ts`           |
+| Each task's job, stored on its DataJob in DataHub and read back onto the page  | `agents/pipeline.py`, `src/server/datahub/client.ts`                     |
+| The stale tag read back off the entity, and counted on the page                | `src/server/datahub/tags.ts`, `src/features/cockpit/timing.ts`           |
 | A link from any task to its real page in DataHub's UI                          | `src/features/cockpit/datahub-link.ts`, `inspector.tsx`                  |
 | The restoration rule: which flags an identical redo provably clears            | `restoredBy` in `src/server/coordinator/staleness.ts`                    |
 | The repair loop: flagged work redone in order, restored work skipped           | `cmd_repair` in `agents/run.py`, the guide's leading flagged action      |
 | The joining panel and its four derived steps                                   | `joining.ts`, `joining-panel.tsx`, `joinCommand` on `/api/demo/activity` |
-| Registering your own task from the board, wired into DataHub                   | `mine.ts`, `mine-panel.tsx`, over the agents' own `/api/tasks/register`  |
+| Registering your own task from the page, wired into DataHub                    | `mine.ts`, `mine-panel.tsx`, over the agents' own `/api/tasks/register`  |
 | The two animated captures and the script that takes them                       | `docs/images/*.gif`, `record.mjs`                                        |
 | The mark in the header and the browser tab icon                                | `src/features/cockpit/mark.tsx`, `mark-geometry.ts`, `app/icon.svg`      |
 | The header lockup, and the name it reveals on hover                            | `src/features/cockpit/brand.tsx`, `brand.module.css`                     |
@@ -189,7 +189,7 @@ clear". Three things shipped against that, together:
   obsel reports a change nobody made. A missing file, non-JSON bytes, a non-table shape and an
   ambiguous path-plus-rows value are each refused with the path in the message, and every one is
   exercised against a real file or a real absence in `agents/mcp_core.py`'s self-checks and live over stdio.
-- **The quiet claim is bounded.** The board says "none of the tables they read has changed since,
+- **The quiet claim is bounded.** The page says "none of the tables they read has changed since,
   as of the last report at 17:42:07", because that timestamp is the edge of obsel's knowledge, and
   an unbounded all-clear claims more than it can know.
 
@@ -228,7 +228,7 @@ display-only `path` on the run detail; nothing decides on it.
   restored file passed all 72. The positives: the demo shape clears exactly two, a three-deep chain
   clears transitively through the fixpoint, and an input nothing in the swarm produces counts as
   stable ground.
-- **The cockpit's own logic**, by 192 further tests across `tests/cockpit-*.test.ts`. The load-bearing
+- **The page's own logic**, by 192 further tests across `tests/cockpit-*.test.ts`. The load-bearing
   ones: graph geometry is byte-identical across every task status, so nothing moves on the frame
   three tasks flip amber; no label can overflow its box, checked against measured per-character
   advances; a six-task pipeline the layout has never seen draws correctly; amber fills a node if and
@@ -247,7 +247,7 @@ display-only `path` on the run detail; nothing decides on it.
   deleted rather than kept: it encoded a propagation delay attributed to a finding that says something
   else, and its tests agreed with the mistake, because a stand-in can only assert what its author
   already believed. The suite runs against its own real DataFlow via `OBSEL_FLOW_ID`, so it cannot
-  reset the board you have open, and `tests/urns.test.ts` runs the Python module for real to check both
+  reset the page you have open, and `tests/urns.test.ts` runs the Python module for real to check both
   languages still build identical URNs.
 
   **It found a real bug on its first run**, one the stand-in had made structurally invisible.
@@ -296,12 +296,12 @@ display-only `path` on the run detail; nothing decides on it.
   chosen. **A run of this suite is evidence about the runners that machine has, not about both.**
 
 - **Restoration against the real DataHub**, added to `engine.live.test.ts` on 2026-07-24: from a
-  flagged board with four marks standing, one deterministic identical redo of the middle task
+  flagged pipeline with four marks standing, one deterministic identical redo of the middle task
   cleared exactly the two transitive marks, held the direct reader of the changed table with its
   tag still on (read back off `globalTags`, not inferred), left the cleared tasks' fingerprints and
   finish times untouched, and carried the reason on each entry. The changed-redo negative runs
   beside it: a redo landing a different table restores nothing and cascades instead, fresh marks
-  naming the redone table. The identical re-run on a flagged board now also asserts
+  naming the redone table. The identical re-run on a flagged pipeline now also asserts
   `restored: []`, the trap where restoration would be catastrophically wrong, held live. Over the
   MCP wire, `obsel-mcp.live.test.ts` drives the same shape through a real client on real stdio:
   the reply's `restored` names the two-hop task, the summary carries
@@ -313,7 +313,7 @@ display-only `path` on the run detail; nothing decides on it.
     full float precision (`104.48666666666666`) where the previous run had rounded, so its content
     hash moved, obsel correctly called it a change and refused to clear anything, marked the two
     downstream tasks with the redone table as cause, and the repair's pass loop redid all three:
-    `redid 3 of the 3 flagged task(s) in 93.7 s`, exit 0, board clean. obsel was right at every
+    `redid 3 of the 3 flagged task(s) in 93.7 s`, exit 0, page clean. obsel was right at every
     step; the averaging precision is now pinned in `pipeline.py`, the third instruction pinned for
     the same class of reason.
   - **The second, after the pin, is the money moment.** One Codex session redid `build_revenue`
@@ -321,9 +321,9 @@ display-only `path` on the run detail; nothing decides on it.
     itself, each with its reason: `redid 1 of the 3 flagged task(s) in 30.0 s`,
     `obsel cleared 2 without a re-run: write_docs, write_report`, restoration confirmed end to end
     in a measured 1035 ms, the step exiting 0 in 30.2 s. Both runs' closing claims were read back
-    from the board, not assumed from the loop ending.
+    from the page, not assumed from the loop ending.
 - **The two animated captures**, `docs/images/cascade.gif` and `docs/images/repair.gif`, recorded
-  2026-07-24 in one sequence by `record.mjs`: the real launch route, the live board, the moment
+  2026-07-24 in one sequence by `record.mjs`: the real launch route, the live page, the moment
   decided from swarm reads rather than pixels. The cascade's ribbon landed at 2444 ms detection
   with `3 of 3 tagged`; the repair GIF holds the strip's two `cleared` lines with their reasons.
   The `change` and `repair` steps behind them exited 0 in 49.9 s and 30.2 s.
@@ -338,7 +338,7 @@ display-only `path` on the run detail; nothing decides on it.
   dataset it reads, and the cascade is transitive. The full walk was measured at 92 ms. That
   measurement is of [`agents/graph.py`](../agents/graph.py), the Python traversal, not the end-to-end
   path.
-- **The board naming its agents in words, and narrating its own work**, on 2026-07-23 against a live
+- **The page naming its agents in words, and narrating its own work**, on 2026-07-23 against a live
   DataHub and a signed-in Codex CLI, driven from the browser. `reset` and `register` wrote each
   task's `obsel.title` and job description onto its DataJob and read both back, so every panel named
   `clean_orders` as "Orders cleaner" from DataHub rather than from anything hard-coded. `run` took
@@ -350,7 +350,7 @@ display-only `path` on the run detail; nothing decides on it.
   second sequence the same day, from the terminal with `--capture`, produced the current `examples/`
   set: `run` **124.1 s**, the same three tasks marked in a measured **745 ms**, and fingerprints
   identical to the previous day's capture, the column contract holding across runs.
-- **The rebuilt board, measured rather than eyeballed**, on 2026-07-23 against the same live DataHub
+- **The rebuilt page, measured rather than eyeballed**, on 2026-07-23 against the same live DataHub
   and Codex CLI. `run` took **143.1 s**; the rename was called **`schema`** and marked the same three
   tasks in a measured **3281 ms**. `GET /api/swarm` returned
   `columns: {"added":["order_total_usd"],"removed":["order_total"]}` on all three marks, including
@@ -358,7 +358,7 @@ display-only `path` on the run detail; nothing decides on it.
   `clean orders / - order_total / + order_total_usd`. In the browser at 1920 x 990: 9 nodes, 8 edges,
   exactly **6 of them animated** (the cascade path), stable across ten samples over four seconds,
   with the animation reporting an unbounded iteration count and a `stroke-dashoffset` still advancing
-  between samples. **238 words** on the page, **zero em dashes**, no horizontal scroll, whole board
+  between samples. **238 words** on the page, **zero em dashes**, no horizontal scroll, whole page
   inside the frame. Three defects were caught by measuring rather than looking, none of which was
   visible in a screenshot of a freshly loaded page: React Flow drew **zero edges** while the poll
   replaced its node array every second; the log strip beside the graph squeezed node labels to
@@ -367,34 +367,34 @@ display-only `path` on the run detail; nothing decides on it.
   All three are fixed, each is written up in the code that fixes it, and the last is now asserted in
   `e2e/cockpit.spec.ts` across a resize.
 - **The write-back, read back off DataHub**, on 2026-07-23 against the same live stack. From a reset
-  board: `run` took **140.5 s** for four Codex sessions, then `change` was called **`schema`** and
+  page: `run` took **140.5 s** for four Codex sessions, then `change` was called **`schema`** and
   marked three tasks in a measured **868 ms**. `GET /api/swarm` reported
   `tags: ["urn:li:tag:obsel-stale"]` on exactly those three and `tags: []` on `clean_orders`, which is
   the cause rather than a casualty, so the ribbon read **`3 of 3 tagged`** beside the detection time.
   Clicking a flagged node showed the tag and a link resolving to
   `http://localhost:9002/tasks/urn:li:dataJob:(...,build_revenue)`. `POST /api/demo/reset` then
   reported clearing properties on all four and the tag from all three, after which every task read
-  `tags: []` and the cell reported **nothing to write** with nothing left over. The board measured
-  **251 words**, 96 of them prose, **zero em dashes**, whole board inside 990 px with no scroll.
+  `tags: []` and the cell reported **nothing to write** with nothing left over. The page measured
+  **251 words**, 96 of them prose, **zero em dashes**, whole page inside 990 px with no scroll.
   **Not observed live:** the moment between the mark landing and the tag landing. Polling every two
-  seconds, the board went straight from having nothing to write to `3 of 3`, so the asynchronous window is
+  seconds, the page went straight from having nothing to write to `3 of 3`, so the asynchronous window is
   shorter than that in practice. The partial count is covered by a unit test and a browser test
   against a fixture, not by a live sighting, and the ribbon is worded as a count for exactly that
   reason.
-- **One flaw found by reading the rendered board rather than the code.** The ribbon lowercases its
+- **One flaw found by reading the rendered page rather than the code.** The ribbon lowercases its
   labels, which was fine until a label carried DataHub's name: the cell crediting DataHub rendered as
   "written into datahub". `StatCell` now takes `preserveCase`, used only there.
 - **The whole demo, driven from the browser alone**, on 2026-07-22 against a live DataHub and a
   signed-in Codex CLI, in five clicks in the guide with no terminal: reset, then re-declare (which
-  wrote each task's job description onto its DataJob and read it back onto the board in a
+  wrote each task's job description onto its DataJob and read it back onto the page in a
   measured **506 ms**), then `run`, four Codex sessions in **112.2 s**, watched live as
   "in flight for N s", then the identical re-run, which obsel answered with **0 changed outputs
   and 0 marks, confirmed in 106 ms**, then the upstream rename, which obsel called **`schema`**
   and answered by marking exactly `build_revenue` (1 hop), `write_docs` and `write_report`
   (2 hops each) in a measured **2310 ms**. Every step exited 0 with its own assertions passing,
-  and the board followed each transition within a poll. As a cross-check that the guide derives
+  and the page followed each transition within a poll. As a cross-check that the guide derives
   from state rather than following a script, the final `reset` was run from a terminal instead,
-  and the board tracked it identically.
+  and the page tracked it identically.
 - **The whole demo, end to end, from the terminal**, earlier on 2026-07-22 against the same live
   DataHub and Codex CLI. `reset` → `run` → `rerun-same` → `change`, exit 0, every assertion
   passing:
@@ -412,11 +412,11 @@ display-only `path` on the run detail; nothing decides on it.
 
   Four earlier runs of `run` measured 135.9 s, 119.4 s, 152.0 s and 134.0 s on the same machine.
 
-- **The board showing an agent while it works.** During the second run the cockpit reported
+- **The page showing an agent while it works.** During the second run the page reported
   `clean_orders` as `in flight for 12.7 s`, then 20.7 s on a later poll, and after it finished
   `codex-cli 0.144.4 · 43.9 s · 39 rows · order_id, customer, order_total, order_date`, which were the
   same figures the terminal printed. Before this, obsel was told an agent had started only after its
-  work was already over, so the board said "waiting" throughout.
+  work was already over, so the page said "waiting" throughout.
 - **The MCP write path**, by round trip: apply the tag, confirm it through GraphQL, remove it,
   confirm removal.
 - **The existence predicate and swarm enumeration**, by curl against the live instance.
@@ -425,7 +425,7 @@ display-only `path` on the run detail; nothing decides on it.
 - **`readSnapshot` now reads the whole swarm in one `batchGet`, adopted 2026-07-24.** The
   2026-07-23 entry here recorded the per-task version's linear request count as a risk and the
   batch endpoint as researched but not worth adopting before a submission. The forty-task swarm
-  changed that arithmetic: the board polls every second, and forty tasks would have put ~41
+  changed that arithmetic: the page polls every second, and forty tasks would have put ~41
   requests per second on DataHub to render a screen. The endpoint adopted is the one already
   verified safe (`POST /openapi/v3/entity/datajob/batchGet` carries every aspect obsel reads and
   omits an invented URN rather than fabricating one, re-confirmed against this instance with a
@@ -436,7 +436,7 @@ display-only `path` on the run detail; nothing decides on it.
   regardless of swarm size, against the previous one-per-task.
 
 - **The forty-task swarm, live, the whole loop, on 2026-07-24.** One sequence against a live
-  DataHub with a live Codex CLI, on an isolated flow, every closing claim read back from the board
+  DataHub with a live Codex CLI, on an isolated flow, every closing claim read back from the page
   rather than assumed from the loop ending. Three measured results:
   - **The concurrent run.** 41 real Codex sessions (the forty tasks plus the mid-run change)
     finished in **252.6 s** wall clock at a measured peak of 8 running at once, scheduled by
@@ -449,20 +449,20 @@ display-only `path` on the run detail; nothing decides on it.
     ended complete and unflagged, including `report_city`, which finished after the cascade on
     inputs whose bytes had not moved and was correctly left alone. The step exited 0 with every
     assertion passing.
-  - **The parallel repair.** From the 8-flag board, `scale-repair` redid the five direct readers
+  - **The parallel repair.** From the 8-flag page, `scale-repair` redid the five direct readers
     concurrently and cancelled the other three out of its own plan as proofs landed:
     `weekday_profile`'s identical redo cleared `rider_overview` and `report_riders`,
     `fare_summary`'s cleared `revenue_overview`, each cancellation printed with obsel's reason.
     `docs_marts`'s redo correctly came back different, since its prose documents the renamed
     column, and being a leaf it cascaded to nothing. **Redid 5 of 8 in a measured 42.4 s** against about
     188 s to redo all eight, that baseline estimated from each task's last measured run and
-    labeled as an estimate everywhere it appears. The board ended with zero flags, read back from
+    labeled as an estimate everywhere it appears. The page ended with zero flags, read back from
     DataHub.
 
-- **A second full cycle on the same board, and three rules confirmed by accident, 2026-07-24.**
+- **A second full cycle on the same page, and three rules confirmed by accident, 2026-07-24.**
   Run while recording the browser fixtures, which is why it is here: these are observations from
   work with another purpose, not a benchmark set up to produce them.
-  - **An identical re-run at forty tasks marked nothing.** `scale-change` was run against a board
+  - **An identical re-run at forty tasks marked nothing.** `scale-change` was run against a page
     already carrying the rename. The agent produced a byte-identical table, obsel reported zero
     changed outputs and **zero marks across all 40**, and the producer's recorded previous
     fingerprint stayed at the version before the rename rather than collapsing to equal the
@@ -478,23 +478,23 @@ display-only `path` on the run detail; nothing decides on it.
     running, obsel's reason printed as the proof landed. Two of the eight redos came back
     different and cascaded to nothing, both being leaves. Every flag came off through a redo or a
     proof.
-  - **The forward change, a second time.** `daily_trips` renamed the column on a settled board:
+  - **The forward change, a second time.** `daily_trips` renamed the column on a settled pipeline:
     **9 of 40 marked out to 3 hops in a measured 3968 ms**, 30 tasks outside it and none flagged,
     all nine tags confirmed in DataHub. This is the run the browser fixtures were recorded from.
 
-- **`scale-change` now renames whichever way the board sits, proven live in both directions,
+- **`scale-change` now renames whichever way the page sits, proven live in both directions,
   2026-07-24.** The step used to be one hard-coded direction, and a repair never touches the task
-  that causes the cascade, so pressing the settled board's own button a second time in a session
+  that causes the cascade, so pressing the settled pipeline's own button a second time in a session
   reproduced the table byte for byte and the step failed its own descendant assertion; obsel was
   right every time and the demo was wrong, observed three times. The step now reads the producer's
-  recorded run columns off the board and renames away from wherever they sit
+  recorded run columns off the page and renames away from wherever they sit
   (`scale.change_for`), with the choice printed in words before the agent runs. Five new
   self-checks pin the chooser and the mirror property. Live: the forward press marked the nine
   descendants at their exact hops with the schema kind and the right column diff, and the reverse
   press then exited 0 on its first attempt, printing "the passenger column is passenger_total on
-  the board today; this run renames it to riders" and marking **the same nine at the same hops out
-  to 3**. The final repair settled the board with zero flags and zero tags, read back. The
-  mid-swarm form stays forward on purpose: it lands on a board that just ran the original
+  the page today; this run renames it to riders" and marking **the same nine at the same hops out
+  to 3**. The final repair settled the page with zero flags and zero tags, read back. The
+  mid-swarm form stays forward on purpose: it lands on a page that just ran the original
   instructions.
 
 - **A night of load found two real operational bugs, both fixed and both now tested with real
@@ -521,20 +521,20 @@ display-only `path` on the run detail; nothing decides on it.
 - **A launched step now reports to the server that launched it, found by running two obsels at
   once, 2026-07-24.** The agents default to `http://localhost:3000`, and the launcher spawned
   steps with that default intact, so a button pressed on an obsel at any other port sent the
-  step's writes to whatever was listening on 3000. With an operator's board and an isolated one
-  both up, the isolated board's reset button reset the operator's flow, and its register button
+  step's writes to whatever was listening on 3000. With an operator's page and an isolated one
+  both up, the isolated page's reset button reset the operator's flow, and its register button
   put one foreign task into the operator's pipeline before the step's own URN-mismatch guard
   stopped it at a single task. The launch route now passes its own origin (from the URL Next
   resolved, never from a client header) into the child's `OBSEL_URL`, so the child reports to
   the obsel whose button was pressed, whatever its port. Validated live by re-running the same
   two steps on the isolated port with the fix in place: both exited 0 against the isolated flow
-  with the operator's board untouched. The operator's flow was restored through the ordinary
+  with the operator's page untouched. The operator's flow was restored through the ordinary
   demo path, and the one foreign task's soft delete is left as an owner action, the command
   dry-run verified.
 
 - **The demo has a capture harness, and a reference picture lock exists, measured by ffprobe,
   2026-07-24.** `video.mjs` records the whole take in one shot through the real guide buttons: it
-  refuses a board that is not forty registered tasks, clicks the swarm and the repair with a
+  refuses a page that is not forty registered tasks, clicks the swarm and the repair with a
   visible cursor, decides every beat from the swarm and the activity feed rather than from
   pixels, and refuses to save anything when a step exits non-zero or a beat never arrives. It
   writes the continuous recording, two same-run screenshots, and a `timeline.json` carrying the
@@ -561,7 +561,7 @@ display-only `path` on the run detail; nothing decides on it.
   range too, which made a latent backstop real: `fitView`'s 0.2 floor option was silently clamped
   by the viewport's own 0.5 default the whole time. Editing stays off: nodes cannot be dragged,
   connected or selected, and the scroll wheel deliberately does not zoom so the tall page stays
-  scrollable. Measured on the live board: six clicks reach zoom 1.5 with labels at **19.5 px**,
+  scrollable. Measured on the live page: six clicks reach zoom 1.5 with labels at **19.5 px**,
   and the fit button returns to exactly 0.583 with zero nodes clipped, which is the recovery the
   old interaction lock existed to substitute for. A browser test zooms, strands the picture on
   purpose with a hard pan, and asserts the fit button recovers it: **107 browser checks pass**.
@@ -578,26 +578,26 @@ display-only `path` on the run detail; nothing decides on it.
   quoted there is from this run.
 
 - **The graph panel grows to the layout instead of clipping it, found and fixed the same day.**
-  The first forty-task board rendered cut off at the top and bottom: `fitView` has a 0.5 zoom
+  The first forty-task pipeline rendered cut off at the top and bottom: `fitView` has a 0.5 zoom
   floor it clamps at, and the fixed 320px panel needed roughly 0.38. The panel now takes its
   height from the laid-out graph (`panelHeightFor` in `lineage.tsx`), the page scrolls when the
-  board genuinely cannot fit the frame, and the four-task demo keeps its exact previous geometry.
+  page genuinely cannot fit the frame, and the four-task demo keeps its exact previous geometry.
   Measured after the fix at 1920 x 990: pane 1758 x 845, zoom 0.58, zero nodes clipped in either
   direction.
 
 - **Growing the graph panel starved the panels under it, found by the owner and fixed the same
   day.** The strip below the graph holds the details panel and obsel's own narration, and it is
-  `flex: 1 1 0` with a 172px floor. That pairing is what makes the four-task board work: the graph
+  `flex: 1 1 0` with a 172px floor. That pairing is what makes the four-task pipeline work: the graph
   takes its fixed height first and the strip absorbs whatever the frame has left, so a taller
   display grows the step list rather than a black gap. All of it depends on there being slack.
-  A tall board has none, so the strip resolved to its floor exactly, and the fix for the clipping
+  A tall page has none, so the strip resolved to its floor exactly, and the fix for the clipping
   had quietly made the panels beneath it as small as they are allowed to get.
 
   Measured at 1920 x 990 before: trace panel 172px, its scroller 105px, three of eighty-six steps
   legible, the details panel beside it identical. After, with the strip sized rather than fitted
-  on a tall board: **panel 396px, scroller 329px**, both panels showing a full decision group and
+  on a tall page: **panel 396px, scroller 329px**, both panels showing a full decision group and
   the whole detail list without scrolling at all. The laptop comes out at 360 and 293 against the
-  clamp's floor. Nothing about the four-task board changed, which the browser suite checks by
+  clamp's floor. Nothing about the four-task pipeline changed, which the browser suite checks by
   comparing the two rather than by pinning a number.
 
   A pinned ribbon was tried for the same complaint, the measured detection time sitting at y=1338
@@ -622,18 +622,18 @@ display-only `path` on the run detail; nothing decides on it.
   the on-camera Codex-timed sighting during a scale run, where both interleavings are asserted
   correct for what they are.
 
-- **The forty-task board is browser-tested, against two recordings of a real one, 2026-07-24.**
+- **The forty-task pipeline is browser-tested, against two recordings of a real one, 2026-07-24.**
   `e2e/scale.spec.ts`, 13 tests, run at both viewports: **103 browser tests pass, 1 skipped,
   exit 0**, up from 78. Its fixtures are the difference worth stating. Every other fixture in that
   suite is hand-written and says so; these two are `GET /api/swarm` as the server sent it, captured
-  a minute apart off the live board on flow `obsel_scale_v2`: forty finished Codex sessions with
-  nothing marked, then the same board after `daily_trips` renamed one column, carrying the nine
+  a minute apart off the live page on flow `obsel_scale_v2`: forty finished Codex sessions with
+  nothing marked, then the same page after `daily_trips` renamed one column, carrying the nine
   marks obsel wrote and the nine tags DataHub confirmed. A hand-typed forty-task graph would be a
   hand-typed claim about the layout these tests exist to check. They are read through a structural
   type check plus a runtime check of the three unions and every mark's cause, so a capture of a bug
   cannot pass as a fixture.
 
-  What the browser establishes that nothing else did: no node clipped on either board, at either
+  What the browser establishes that nothing else did: no node clipped on either page, at either
   viewport, across a shrink to 1100 x 620 and back; eighty-two boxes with not one overlapping pair
   in pixels; no sideways scroll; exactly the recorded nine painted amber and no other, matched task
   by task against the capture, with the amber proven to still resolve to a colour; all three hop
@@ -643,29 +643,29 @@ display-only `path` on the run detail; nothing decides on it.
 
   Confirmed the same day against a live read rather than a recording, on a server pointed at the
   real flow at 1920 x 990: 82 nodes, **zero clipped**, pane 1758 x 846 at zoom 0.578, document
-  width equal to the viewport so nothing scrolls sideways, page height 1411 so the tall board
+  width equal to the viewport so nothing scrolls sideways, page height 1411 so the tall page
   scrolls down as designed, 18 cascade edges lit, and no console error.
 
-- **The board's word ceiling was measuring the wrong thing, and the correction moved the numbers.**
+- **The page's word ceiling was measuring the wrong thing, and the correction moved the numbers.**
   Rescoping it for forty tasks turned up a defect in the measurement itself. `prose` is a
   subtraction, everything on the body less the parts counted separately, and the graph was being
   counted with `textContent` while the body used `innerText`, so each node ran its title into its
   status word and handed prose one word per node that was not prose. Nine nodes made that look like
   rounding; eighty-two made it a paragraph. Corrected in `e2e/fixtures/words.ts`, which both suites
-  now share so the two boards are measured identically.
+  now share so the two pages are measured identically.
 
-  Measured at 1920 x 990 after the correction: the four-task flagged board is **147 words of prose**
-  (recorded as 154 before, with no copy changed) and the forty-task flagged board is **135**. Ten
+  Measured at 1920 x 990 after the correction: the four-task flagged pipeline is **147 words of prose**
+  (recorded as 154 before, with no copy changed) and the forty-task flagged pipeline is **135**. Ten
   times the pipeline, twelve words fewer, because the taxi stage offers two actions where the demo
   offers three and every other sentence is the same sentence with different nouns in it. The graph
   left the combined total, which is a correction and not a relaxation: labels are scanned, there is
   one per box, and the box count is the user's pipeline rather than obsel's to budget. It is capped
-  per node instead, at 9 against a worst observed 8. `scale.spec.ts` asserts the two boards' prose
+  per node instead, at 9 against a worst observed 8. `scale.spec.ts` asserts the two pages' prose
   figures against each other rather than against a constant, so the claim that density does not
   track pipeline size is checked rather than assumed.
 
 - **The prerequisite checklist reported four green ticks while obsel was completely blind.**
-  Found on 2026-07-24 by opening the board cold. It showed "This page lost its connection" over a
+  Found on 2026-07-24 by opening the page cold. It showed "This page lost its connection" over a
   500, and its own checklist showed DataHub, the tag, the Python packages and Codex all passing.
   `docker ps -a` explained it: `datahub-opensearch-1  Exited (127) 4 hours ago`.
 
@@ -695,12 +695,12 @@ failed`. Traversal is the whole of obsel's reasoning, so obsel could do nothing,
 
   Every one of those four had read green in the same state ten minutes earlier.
 
-  **The board's dead end closed with it, and no cockpit code changed.** The connect stage already
+  **The page's dead end closed with it, and no page code changed.** The connect stage already
   renders a failing DataHub check with its fix; it had nothing to render because preflight was
   reporting success. With the truth reaching it, the same screen that had offered a newcomer no
   next step now carries the failure and `Run this in a terminal: datahub docker quickstart`.
   Recovery measured the same session: `docker start datahub-opensearch-1` reported healthy in about
-  20 s and the board came back on its next poll about 3 s later, with no data lost, because the
+  20 s and the page came back on its next poll about 3 s later, with no data lost, because the
   graph is rebuilt from the aspect store rather than stored only in the index.
 
 - **The frontend port answers 200 to both probes a status check would make.** Measured the same
@@ -723,7 +723,7 @@ failed`. Traversal is the whole of obsel's reasoning, so obsel could do nothing,
 - **The door an outside agent joins through was on the page, 17 pixels tall, and its own author
   did not know it was there.** The owner asked on 2026-07-24 why obsel had no way to help somebody
   get connected. It had one: a `<details>` carrying this machine's real `claude mcp add` command, a
-  copy button, and the six tools with what each is for. Measured on the running board at 1440 x 900
+  copy button, and the six tools with what each is for. Measured on the running page at 1440 x 900
   before it was replaced: **12px type in a 17px row**, closed, above the graph. He wrote its
   contents. A door its own author cannot find is not a door, and no amount of correct content
   inside it changes that.
@@ -733,7 +733,7 @@ failed`. Traversal is the whole of obsel's reasoning, so obsel could do nothing,
   heading**, a state line beside it, and a line inviting the click.
 
   What it gained is a checklist that ticks itself off, derived the way every other sentence on the
-  board is derived. `src/features/cockpit/joining.ts` recomputes four steps from the swarm snapshot
+  page is derived. `src/features/cockpit/joining.ts` recomputes four steps from the swarm snapshot
   on every poll, in the order `skills/obsel-collaboration/SKILL.md` teaches: the agent declared what
   it reads and writes, it announced before writing, it reported what it produced, and obsel answered
   a change to its data. There is no stored step anywhere.
@@ -781,7 +781,7 @@ failed`. Traversal is the whole of obsel's reasoning, so obsel could do nothing,
 
   **Driven end to end by a real MCP session, 2026-07-24.** A `next start` on port 3200 pointed at
   its own flow, `obsel_join_check`, and a real `agents.mcp_server` over stdio registering and
-  reporting two tasks of its own. The board was read after each step:
+  reporting two tasks of its own. The page was read after each step:
 
   ```
   1. both registered            clean_expenses registered   monthly_totals registered
@@ -799,10 +799,10 @@ failed`. Traversal is the whole of obsel's reasoning, so obsel could do nothing,
   The demo flow on port 3000 was confirmed unchanged across the whole exercise, which is the check
   the launcher-origin incident earlier the same day earned.
 
-  Measured cost to the board's prose budget: **147 words to 155**, ceiling 160. Twelve words bought
+  Measured cost to the page's prose budget: **147 words to 155**, ceiling 160. Twelve words bought
   the heading, the state line and the invitation, less the four the old disclosure spent. Everything
   behind the fold still costs nothing until opened, and `joining.ts` keeps it folded on exactly the
-  board the ceiling measures. Counts after this work: 298 unit tests across 14 files, 76 live across
+  page the ceiling measures. Counts after this work: 298 unit tests across 14 files, 76 live across
   8, 121 browser checks, 174 Python self-checks. (Both counts moved on 2026-07-26; see the
   defect section below.)
 
@@ -823,7 +823,7 @@ passed before the fix as well.
   recorded nowhere, so a rule that consults one is picking at random.
 
   Pinned by 6 tests in `tests/staleness.test.ts` under "two tasks writing one table". Mutating
-  `restoredBy` back to last-writer-wins clears `write_report` and `write_docs` on a board where the
+  `restoredBy` back to last-writer-wins clears `write_report` and `write_docs` on a page where the
   table's other writer is still stale: a false clear, the one answer that must never happen.
   Mutating the author rule back names an arbitrary writer; mutating `readyToStart` back starts a
   task on a table another writer is mid-way through replacing.
@@ -867,7 +867,7 @@ passed before the fix as well.
   a specific failure measurement for this defect: roughly 48 marks, three tags landing at 14.6, 15.0
   and 17.6 seconds and the rest failing at 20.5 and 68.4. Those numbers came from a code review
   summary and were written here as though they were a recorded run. Searching every file at every
-  commit in this repository finds no such measurement, and the largest cascade the scale board can
+  commit in this repository finds no such measurement, and the largest cascade the scale page can
   produce is nine marks, not forty-eight, so the figure cannot have come from the scale runner
   either. **It has been removed rather than re-measured, because it was never obsel's measurement to
   begin with.** What justifies the fix is the structure above, which anyone can check out and read.
@@ -878,7 +878,7 @@ passed before the fix as well.
   than from the tags DataHub actually holds, so a task whose properties were cleared while its tag
   survived was walked straight past — and that is exactly the disagreement a reset exists to remove.
   One was left in the integration flow by the run that measured the concurrency defect, and every
-  later run started on a board carrying a flag from a take that was over. Now filtered on
+  later run started on a page carrying a flag from a take that was over. Now filtered on
   `staleTagged`, the real aspect. Confirmed by the live suite recovering from that leftover state
   on its first run after the change.
 
@@ -1025,7 +1025,7 @@ Counts at this point in the day, before the two sections below added to them: `p
 with **373 unit tests across 17 files**; `pnpm test:live` green with **93 tests across 10 files in
 256 s**; `pnpm e2e` green with 121 browser checks in 35 s. The current figures are at the end.
 
-### The door an agent joins the erasure board through (2026-07-26)
+### The door an agent joins the erasure view through (2026-07-26)
 
 `agents/mcp_server.py` now registers **nine** tools rather than six: `erasure_board`,
 `request_challenge` and `submit_attestation` sit beside the swarm's original set. Every mutation
@@ -1086,13 +1086,13 @@ The run, against the `showcase-ecommerce` catalog on DataHub v1.5.0.6, seeded fr
 `snowflake … order_entry.customers`, four hops:
 
 - **23 assets reached across five platforms** — postgres, snowflake, dbt, looker, powerbi, tableau —
-  and every one came back `UNPROVEN` with `no-attestation`. That is the honest day-one board.
+  and every one came back `UNPROVEN` with `no-attestation`. That is the honest day-one page.
 - The same walk seeded from the **postgres** copy of the same table reaches **1 asset**, because
   DataHub records no downstream edges from it. The report says `assetsReached: 1` rather than
   implying a small estate, which is the assurance field earning its place.
 - One real Ed25519 keypair, one challenge, one signed direct attestation over
   `snowflake … analytics.order_details`, submitted to `POST /api/erasure/proof`: **1 of 23 attested,
-  22 unattested**, `evidenceRecords` 1 → 3, and the sentence the board prints is
+  22 unattested**, `evidenceRecords` 1 → 3, and the sentence the page prints is
   `order details is attested absent over version unknown by warehouse-adapter@obsel.local`.
 - With no `OBSEL_API_TOKEN` set, `POST /api/erasure` answered **503** and named the reason. That is
   the fail-closed default observed on a real server rather than asserted in a unit test.
@@ -1126,24 +1126,24 @@ Final counts, all measured 2026-07-26 against DataHub v1.5.0.6, after the fix ab
 green with **375 unit tests across 17 files and 183 Python self-checks**; `pnpm test:live` green with
 **96 tests across 10 files in 266 s**; `pnpm e2e` green with **121 browser checks in 37 s**.
 
-**Still not built, and named rather than implied.** No demo agent yet drives the erasure board end to
+**Still not built, and named rather than implied.** No demo agent yet drives the erasure view end to
 end on its own: the live run signs its attestation directly rather than routing work to an owner and
-waiting. **There is no coverage board**, so the panels a judge sees are still the staleness ones —
+waiting. **There is no coverage page**, so the panels a judge sees are still the staleness ones —
 with one correction made after actually looking at the running dashboard on 2026-07-26: the "what
 obsel is doing" trace panel already carries erasure, because `erasure-engine.ts` emits into the same
 activity stream the coordinator does. Opening a request, issuing a challenge, accepting an
 attestation and refusing one all appear there live, the refusal in the same colour a stale mark
-uses. That is narration of the erasure path, not a view of coverage; the 23-asset board itself is
+uses. That is narration of the erasure path, not a view of coverage; the 23-asset page itself is
 still only reachable as JSON from `GET /api/erasure/<id>`.
 The demonstration script for the erasure path does not exist. Article 19 recipient notification is
 out of scope and stated as such. No cascade timing figure is claimed at scale; see the correction above for why the one previously printed here was withdrawn.
 
-### Registering your own tasks from the board, and the bug driving it found (2026-07-26)
+### Registering your own tasks from the page, and the bug driving it found (2026-07-26)
 
 The bring-your-own-data panel: a form for the one half of "point obsel at my own files" that is pure
 declaration. Until it existed the only route was the MCP walkthrough in
 [`setup.md`](setup.md#bring-your-own-data), which is five steps of hand-written JSON before anything
-appears on screen, and nothing on the board said the route existed at all.
+appears on screen, and nothing on the page said the route existed at all.
 
 **What it is not.** It does not report work, and there is deliberately no route by which the browser
 could. A fingerprint is taken from rows by `agents/fingerprint.py` through
@@ -1155,7 +1155,7 @@ notice until the two disagreed by a byte. The panel POSTs to the agents' own
 an MCP client registered are the same entity.
 
 **Driven by hand against a real DataHub**, on `OBSEL_FLOW_ID=obsel_ui_check` so the run could not
-touch the operator's board, serving the production build:
+touch the operator's page, serving the production build:
 
 - `clean_expenses` (reads `expenses_csv`, writes `clean_expenses`) typed into the form and
   registered. Read back off `GET /api/swarm`: a real `DataJob` on `obsel_ui_check` with both lineage
@@ -1168,7 +1168,7 @@ touch the operator's board, serving the production build:
 
 **The bug it found, which no test had.** After the first successful registration the panel **shut
 itself**, taking the confirmation line and the new row with it. `mine.ts` paints the form only on a
-board with nothing on it, so the first registration flips that derivation to folded — and the
+page with nothing on it, so the first registration flips that derivation to folded — and the
 `chosen ?? expanded` idiom borrowed from `joining-panel.tsx` does not save it, because at the moment
 the reader opened the panel it was already open. Their choice matched the derivation, so nothing was
 recorded, and one poll later the panel closed under somebody who was about to register the second
@@ -1194,7 +1194,7 @@ in 41 s**, one skipped by design. `pnpm test:live` was not re-run for this chang
 are unaffected by it; no live test covers the form, and the run above is a single observation on one
 machine rather than a suite.
 
-**Still not built at the time of writing.** Reporting a file from the board, which is the other half
+**Still not built at the time of writing.** Reporting a file from the page, which is the other half
 and the one that would let somebody watch a cascade on their own CSV without an agent. It needs one
 definition of how a CSV becomes rows, shared with the agents rather than private to the UI, and that
 is a decision about what obsel considers a table. Half of this is now built and the half that is not
@@ -1203,14 +1203,14 @@ is still the file: see **the bench**, below.
 **A name that builds an unreadable URN is now refused at both doors**, landed the same day in a
 separate worktree. The route checked names for being non-empty and nothing else, so `clean,orders` or
 `a.b.c` created a real DataJob whose lineage pointed at a URN no reader could recover the name from:
-`datasetUrn` interpolates the name, and `datasetName`, `shortName` in the cockpit and
-`dataset_short_name` in Python all split back on commas and dots. The board drew a box with a
+`datasetUrn` interpolates the name, and `datasetName`, `shortName` in the page and
+`dataset_short_name` in Python all split back on commas and dots. The page drew a box with a
 truncated name and nothing downstream could tell. `NAME_PATTERN` in `urns.ts` is now applied by
 `register-body.ts`, mirrored in `agents/mcp_core.py`, and `tests/register-body.test.ts` reads the
 pattern out of the real Python module and asserts it identical, the way `tests/urns.test.ts` does for
 the two URN builders.
 
-The board's form keeps its own copy, because browser code here does not import server modules, and
+The page's form keeps its own copy, because browser code here does not import server modules, and
 `tests/cockpit-mine.test.ts` holds the two together by comparing the form's verdict against
 `taskNameProblem` and `datasetNameProblem` over a shared list of names. **That comparison
 immediately found the form was too strict**: it refused any dot, while the route allows one namespace
@@ -1229,12 +1229,12 @@ gate that cries wolf.
 **Every counted sentence now agrees with the number it is about**, landed the same day in the second
 worktree. "1 agents ready to run" reached a real browser, seen while driving the form above: obsel's
 own demonstrations register four tasks or forty, so a count of one never reached a stage until the
-board could register one at a time, and every sentence that counts something had been written for the
+page could register one at a time, and every sentence that counts something had been written for the
 plural.
 
 Two of those were wrong at counts that needed no new feature to reach. The flagged headline and
 `summaryLine` both keyed their **noun** to the marked count when it belongs to the finished count, so
-**"1 of 3 finished agent is out of date" was reachable on the demo board** — the ratio's own
+**"1 of 3 finished agent is out of date" was reachable on the demo page** — the ratio's own
 denominator contradicted by the word after it. The noun counts the finished work; only the verb and
 the pronoun count the stale part. `agreeing` in `naming.ts` deliberately does not print the number,
 because half these sentences put the count elsewhere in the clause than beside the noun it governs,
@@ -1242,7 +1242,7 @@ so a helper owning the number could serve only the easy half and the hard half i
 Every stage that counts something is now checked at one rather than only the stage that broke, since
 zero, four and forty all pass a sentence written for the plural, which is how it survived.
 
-**A one-task board is now rendered in a browser too**, which the merged work did not cover: its tests
+**A one-task pipeline is now rendered in a browser too**, which the merged work did not cover: its tests
 are all unit-level over `guide()` and `summaryLine()`, and the state had no fixture. `justOne()` in
 `e2e/fixtures/swarm.ts` gives the three states a count of one can be in, and "a swarm of one" in
 `e2e/cockpit.spec.ts` asserts no sentence anywhere on the page says `1 agents` or `all 1`, or glues a
@@ -1256,7 +1256,7 @@ files and 183 Python self-checks**; `pnpm e2e` green with **145 browser checks a
 viewports**, one skipped by design. `pnpm test:live` was not re-run for any of this work; its 96
 tests are unaffected, and no live test covers the form.
 
-### Reporting a table from the board, and the two things driving it exposed (2026-07-27)
+### Reporting a table from the page, and the two things driving it exposed (2026-07-27)
 
 The bench: the other half of the panel above. A task you registered opens an editable table — the
 columns are chips you can rename, drop or add, the rows are cells you type into — and one button
@@ -1265,7 +1265,7 @@ terminal.
 
 **Why this was the gap.** Every path to watching obsel do the thing obsel is for went through
 something the reader might not have: four real Codex sessions and several minutes, or an MCP client
-wired up from a terminal. Somebody with neither could read the board and never make it move.
+wired up from a terminal. Somebody with neither could read the page and never make it move.
 
 **The browser still does not hash anything, and that constraint chose the design.** The button POSTs
 to `POST /api/tasks/report`, which spawns `agents/report.py`, which calls the same
@@ -1286,7 +1286,7 @@ over. A "simulate a change" button would have been a stand-in for the one event 
 about, in the one place a newcomer is looking.
 
 **Driven by hand against a real DataHub**, on `OBSEL_FLOW_ID=obsel_bench_check` so the run could not
-touch the operator's board:
+touch the operator's page:
 
 - `clean_expenses` (reads `expenses_csv`, writes `clean_expenses`) and `expense_report` (reads
   `clean_expenses`, writes `expense_report`) registered through the form above.
@@ -1295,7 +1295,7 @@ touch the operator's board:
 - `amount` renamed to `amount_usd` in the upstream chip and reported again. `expense_report` came
   back **`stale`**, `hops: 1`, reason `read clean expenses, and its columns changed after this
 finished`, and `columns: {"added":["amount_usd"],"removed":["amount"]}`.
-- The board followed: headline **"1 of 2 finished agents is out of date"**, subline naming the column
+- The page followed: headline **"1 of 2 finished agents is out of date"**, subline naming the column
   that left and the one that arrived, the graph amber along the path, the trace panel reporting
   **6519 ms end to end**, and the joining panel's four-beat checklist at **4 of 4** — every beat
   driven from the bench rather than from a terminal.
@@ -1306,7 +1306,7 @@ omit all three. The bench has no stopwatch — a person typed the table, and the
 and inventing a millisecond count is the one thing obsel is not allowed to do. But `outputs` is not
 display material: `columnChange` in `engine.ts` diffs those column lists to say **which** columns
 moved, so dropping them degraded "clean expenses lost amount" into "the columns in clean expenses
-changed", quietly, on exactly the mark the whole board is built to make readable.
+changed", quietly, on exactly the mark the whole page is built to make readable.
 
 `runner` and `ms` are now independently nullable, end to end: the zod schema defaults them to null
 rather than leaving them optional, `engine.ts` writes each property on its own rather than gating all
@@ -1315,26 +1315,26 @@ absent, and `activityNote` prints neither rather than printing `0 ms` — a figu
 the thing obsel refuses everywhere else. The self-check in `agents/mcp_core.py` that asserted the old
 all-or-nothing behaviour now asserts the shape survives and the unmeasured halves are null.
 
-**The second thing it exposed: the guide offered buttons that act on tables not on the board.**
+**The second thing it exposed: the guide offered buttons that act on tables not on the page.**
 `swarmKind` in `guide.ts` has always documented that a swarm which is neither obsel's demo nor its
 taxi pipeline "gets the actions that are safe anywhere and no pipeline-specific ones", and the code
 never implemented it — an unrecognised swarm fell through to the demo's buttons. Before the bench
-there was almost no way to reach a flagged board made only of somebody else's tasks, so the gap went
+there was almost no way to reach a flagged pipeline made only of somebody else's tasks, so the gap went
 unnoticed; the existing test recorded it as a fallback that was "honest only while its labels name
-their own scope". They do not. **"Run the orders cleaner again" was on screen on a board with no
+their own scope". They do not. **"Run the orders cleaner again" was on screen on a page with no
 orders cleaner**, beside "Redo the work obsel flagged", which would have started the demo's agents
 against the demo's tables while pointing at somebody else's flag.
 
 `registered`, `settled` and `flagged` now withhold every pipeline-specific action on an unrecognised
 swarm. `reset` survives, because `resetSwarm` puts every task on the flow back to registered whoever
-registered it, so it means exactly what it says on any board. The settled line points at the bench
-instead, which is the thing on that board that does what the withheld buttons would have done. Three
+registered it, so it means exactly what it says on any page. The settled line points at the bench
+instead, which is the thing on that page that does what the withheld buttons would have done. Three
 tests in `tests/cockpit-guide.test.ts` pin it, and the test that documented the old fallback now
 asserts the new behaviour.
 
 **The word ceiling did not move.** The bench renders inside the fold `mine.ts` already keeps closed
-on every board the ceiling measures, so it costs nothing there; the per-task toggle that opens it
-renders only when a task of yours exists, which is no board the ceiling measures either. `pnpm e2e`
+on every page the ceiling measures, so it costs nothing there; the per-task toggle that opens it
+renders only when a task of yours exists, which is no page the ceiling measures either. `pnpm e2e`
 passed unchanged, including the bare-identifier and em-dash guards, which was checked rather than
 assumed.
 
@@ -1347,17 +1347,17 @@ thing this section needs.
 ### The guide has a name and a position now, 2026-07-27
 
 **The reported problem was not being able to find it.** The owner of this repository asked where the
-interactive guide was. Nothing on the board was called a guide: the region's panel title
-(`00 · guide — …`) had been removed for burying the headline, nothing replaced it, and the board gave
+interactive guide was. Nothing on the page was called a guide: the region's panel title
+(`00 · guide — …`) had been removed for burying the headline, nothing replaced it, and the page gave
 no sign that its stages are a sequence rather than a set of unrelated sentences. On several stages
 the whole region is one sentence with nothing to click.
 
-**The first answer was a rail of board states, and it did not work.** It drew five unlabelled ticks
+**The first answer was a rail of page states, and it did not work.** It drew five unlabelled ticks
 with `guide 5/5` beside them, and put the stage names only in the rail's accessible description to
-keep the board's measured word count flat. What that gave a reader was a position in an unnamed
+keep the page's measured word count flat. What that gave a reader was a position in an unnamed
 sequence. The owner's response was that a judge would still be confused, which was correct twice
 over: a position with no destination is a meter rather than a guide, and the rail also ran
-**backwards**, because a repaired board goes from out of date back to settled, so the marker walked
+**backwards**, because a repaired page goes from out of date back to settled, so the marker walked
 back a step and the reader had to work out that going backwards was the good outcome. Both faults are
 recorded at the top of `guide.ts` next to what replaced them.
 
@@ -1374,12 +1374,12 @@ claim obsel makes, and they only ever go forwards. The taxi swarm gets its own t
 `run and change`, `repair`), because its run and its change are one step and forty agents make the
 unchanged-re-run argument on screen in the same moment. A swarm that is neither pipeline gets no rail
 at all: every act launches a step against obsel's own tables, and a walk drawn over somebody else's
-board would describe work that is not on screen.
+page would describe work that is not on screen.
 
-All mmux tokens and no new ones: the acts behind the board are `--mm-rose-muted` with quiet labels,
+All mmux tokens and no new ones: the acts behind the page are `--mm-rose-muted` with quiet labels,
 the current act carries a `--mm-rose-hot` cursor with the `--mm-glow-sm` glow and a cream label, and
 the acts ahead are `--mm-cream-faint`. The last act while marks are standing is `--obsel-stale`
-amber, the colour this board gives every stale mark, so the state the whole tool exists to report
+amber, the colour this page gives every stale mark, so the state the whole tool exists to report
 never reads as the ordinary end of a run. The labels are 13px, not the 11px they started at, because
 obsel's type floor exists for a compressed recording watched at half size and these are the most
 load-bearing text in the region.
@@ -1392,7 +1392,7 @@ underneath makes the same argument in a picture.
 **The block is a composition rather than a stack, and that was the second complaint.** It was five
 things flush left, each ending where its own content ran out: the rail at 46ch, the headline at
 whatever the sentence measured, the line under it at 82ch, and a row of buttons each sized to its own
-label. Four ragged right edges within 200px of each other, on a board where every other region is a
+label. Four ragged right edges within 200px of each other, on a page where every other region is a
 hairline rectangle. It is now two measured columns under one rail — what happened on the left at a
 700px measure, what you can do about it on the right at 500px, the log under the sentence it belongs
 to — with a hairline closing the block at the bottom, which it had never had. The buttons are a
@@ -1405,32 +1405,32 @@ renders it as a banner.
 say: `prepare` lists every prerequisite with the command that fixes it, and at the narrow measure the
 `python3 -m venv agents/.venv && …` line wrapped across two while 800px sat empty beside it. The
 section carries `data-actions`, and with no actions the sentence column widens to 1240px. Measured at
-the recording viewport on the three-prerequisite board: every fix command on one line, and the block
+the recording viewport on the three-prerequisite page: every fix command on one line, and the block
 40px shorter than before.
 
-**Where the walk stands is derived on every poll, from two sources, and stored nowhere.** The board
+**Where the walk stands is derived on every poll, from two sources, and stored nowhere.** The page
 answers most of it: tasks existing is `set up`, every task having finished is `run`, marks standing
-is `change`. Two acts leave no trace on the board and only the step record can answer them, and both
-gaps are honest rather than lazy — an identical re-run leaves the board exactly as it was, which is
-the entire claim it makes, and a repair ends with a board that looks like one that was never changed.
+is `change`. Two acts leave no trace on the page and only the step record can answer them, and both
+gaps are honest rather than lazy — an identical re-run leaves the page exactly as it was, which is
+the entire claim it makes, and a repair ends with a page that looks like one that was never changed.
 So `src/server/runner/launcher.ts` now keeps an append-only, bounded record of finished steps, and
 `journey()` reads the slice after the last successful reset. That slice is what makes the walk
 **repeatable**: pressing reset really does put every task back to registered, and the rail agrees
-with the board it is describing rather than staying complete forever after one run. A step that
+with the page it is describing rather than staying complete forever after one run. A step that
 exited non-zero ticks nothing, because a step that failed did not demonstrate its claim.
 
 Two rules sit on top of first-undone, both because first-undone alone lies. Marks standing put the
 walk at its last act whatever was skipped, since what to do about the marks is the only thing that
-matters on that board. And a step that is running names its act outright, which is the strongest
+matters on that page. And a step that is running names its act outright, which is the strongest
 evidence there is about where the walk has got to: it is happening. One limit is written down in the
 code rather than papered over — a step driven from a terminal never reaches this server's launcher,
-so `same again` will not tick from one. Every other act is carried by board state, which is visible
+so `same again` will not tick from one. Every other act is carried by page state, which is visible
 however it came about, and the demo script's own rule is that the judged demonstration is driven
 entirely from these buttons.
 
 **A completed walk says so and offers the way round again.** Settled with every act performed reads
 "Every step has run. Reset to walk through it again." and puts the reset button first. Without it a completed
-walk is indistinguishable from one that never started: the same settled board, and a line underneath
+walk is indistinguishable from one that never started: the same settled pipeline, and a line underneath
 telling the reader to try the things they have just finished trying.
 
 **The animation is a library now, and that deleted more than it added.** `motion` (MIT, through
@@ -1442,7 +1442,7 @@ means measuring both elements on every poll if written by hand. `AnimatePresence
 sentence a real exit instead of a hard swap.
 
 **The entrance runs on a change of act and at no other time**, and the test that proves it had to be
-rewritten twice. The board is recomputed once a second, so an entrance driven by render would replay
+rewritten twice. The page is recomputed once a second, so an entrance driven by render would replay
 once a second forever. `e2e/cockpit.spec.ts` samples `getAnimations()` under the guide every frame
 through `requestAnimationFrame`, counting each distinct animation once: it asserts the entrance runs
 on arrival, does not run again across three polls with the stage unchanged, and runs again when the
@@ -1458,7 +1458,7 @@ the animation props are passed at all, so under the preference the end state is 
 elements are ever given. The browser test asserts full opacity, no transform, no animation name, and
 nothing in flight on the headline.
 
-**The word ceiling moved, 168 to 176, and it was argued at the assertion.** The board measured 170
+**The word ceiling moved, 168 to 176, and it was argued at the assertion.** The page measured 170
 words of prose, up from 162: the word `guide`, which gave the region a name it had not had since its
 panel title was deleted, and seven words naming the acts of the walk, less the `5/5` figure that came
 off when named acts made counting unnecessary. That ceiling has since been removed; see the section
@@ -1467,21 +1467,21 @@ below.
 Counts after this work, measured 2026-07-27: `pnpm verify` green with **470 unit tests across 20
 files**; `pnpm e2e` green with **155 browser checks across two viewports**, one skipped by design.
 Fourteen of the new unit tests are the walk's derivation, including the ones that would otherwise be
-assumed: a step that failed, a board somebody else drove, the change pressed before the unchanged
+assumed: a step that failed, a page somebody else drove, the change pressed before the unchanged
 re-run, and the reset boundary rewinding.
 
 `pnpm test:live` has **not** been re-run, and there is one thing in this change it would cover that
 nothing else does: the step record is written by the real launcher, and every test above supplies it
 as a fixture. What the live suite would establish is that a real `agents.run` finishing appends what
-`journey()` expects. The board's own halves are covered without it, since board state is read from
+`journey()` expects. The page's own halves are covered without it, since page state is read from
 DataHub by the existing suites.
 
-### The guide points at the board, and the board's word ceiling is gone (2026-07-27)
+### The guide points at the page, and the page's word ceiling is gone (2026-07-27)
 
 The complaint, in the owner's words: the guide "isnt interactive... this is literally just buttons
 and a small rail on the top left". That was accurate. Pressing `change` turned three boxes amber on
-the graph six inches below a sentence about the change, and nothing on the board connected the press
-to the boxes. The guide could describe the board's state and never point at it.
+the graph six inches below a sentence about the change, and nothing on the page connected the press
+to the boxes. The guide could describe the page's state and never point at it.
 
 > **Superseded on 2026-07-27.** The watch sentence and the rings this section records were removed
 > the same day, along with the rail above; the tour window in the section below replaced all three.
@@ -1493,11 +1493,11 @@ to the boxes. The guide could describe the board's state and never point at it.
 painted in the guide's left column; the URNs go to `Lineage`, which rings exactly those boxes. They
 come from one object, so the line and the rings cannot end up about different boxes. Same house rule
 as everything else here: derived from the snapshot on every poll, no stored position, no diffing one
-poll against the last, and a board somebody else drove to the same state gets the same line.
+poll against the last, and a page somebody else drove to the same state gets the same line.
 
 What each stage points at, and what it deliberately does not:
 
-| board state                        | painted                                                              | ringed                                    |
+| page state                         | painted                                                              | ringed                                    |
 | ---------------------------------- | -------------------------------------------------------------------- | ----------------------------------------- |
 | registered                         | Each agent below is wired to the tables it reads and writes.         | nothing: the boxes appearing is the event |
 | working                            | The ringed boxes below turn green as each agent finishes.            | the running agents                        |
@@ -1509,8 +1509,8 @@ Three properties are asserted rather than assumed. The origin comes from `curren
 function `lineage.tsx` uses to decide which table gets the amber border, so a ring cannot land on a
 different box from the one the graph calls the origin. The line never restates the subline above it,
 which already names the columns that moved and counts the agents that never read the table. And an
-unmarked agent on a flagged board is never ringed: a ring is attention, and pointing at work obsel
-did not mark, on the board that exists to show what it did mark, is the false positive the tool is
+unmarked agent on a flagged pipeline is never ringed: a ring is attention, and pointing at work obsel
+did not mark, on the page that exists to show what it did mark, is the false positive the tool is
 against.
 
 **The rings are attention, never state.** `nodeTone` still decides what a box means and stays the
@@ -1528,12 +1528,12 @@ under the preference would land on whichever frame that is and could render near
 
 Directly observed, at the recording viewport, on the flagged fixture: the four rings on `clean
 orders`, `Daily revenue`, `Revenue report` and `Table docs`, with `Orders cleaner` unringed, and the
-`watch` line under the headline in the same frame. On the live board at `localhost:3000` in its
+`watch` line under the headline in the same frame. On the live page at `localhost:3000` in its
 registered state, the line reads `watch Each agent below is wired to the tables it reads and writes.`
 with nothing ringed.
 
-**The board's word ceiling was removed, at the owner's instruction.** It asserted `prose < 176` and
-`prose + log < 269` on the flagged board. It did real work once — the screen it was written against
+**The page's word ceiling was removed, at the owner's instruction.** It asserted `prose < 176` and
+`prose + log < 269` on the flagged pipeline. It did real work once — the screen it was written against
 was 604 words in two stacked panels of paragraphs — and what it became was a toll booth. Every
 genuine improvement to the copy arrived as a failing build and a paragraph of argument written at the
 assertion, and the ceiling moved anyway each time: 160, then 168, then 176. It measured the one
@@ -1545,17 +1545,17 @@ but i dont think having a hard word-ceiling is helpful either."
 What guards the same thing without a number to game, all still executed:
 
 - **`more narration does not put more words on screen`** — the log panel is a fixed height, so a
-  longer run cannot grow the board.
-- **`scale.spec.ts`'s two-board comparison** — the forty-task board and the four-task board are
+  longer run cannot grow the page.
+- **`scale.spec.ts`'s two-page comparison** — the forty-task pipeline and the four-task pipeline are
   measured in the same session at the same viewport, and their prose must stay within 25 words of
-  each other. Density is a property of the board, not of the pipeline somebody points it at. The
+  each other. Density is a property of the page, not of the pipeline somebody points it at. The
   absolute `forty.prose < 160` beside it went with the ceiling; the comparison never needed it.
 - **The per-node label cap** — a box label may not grow into a sentence. That is the actual
   word-salad failure, and it is a cap on one label rather than on the screen.
-- **The em dash guard and the internal-name guard**, which are about how the board says things
+- **The em dash guard and the internal-name guard**, which are about how the page says things
   rather than how much. The internal-name guard is the one the ceiling could never have replaced:
   `venv: the agents' Python environment (agents/.venv) does not exist yet` is nine words and
-  completely opaque, so a board full of identifiers scored _better_ on a word count than a longer
+  completely opaque, so a page full of identifiers scored _better_ on a word count than a longer
   one a stranger can read.
 
 `e2e/fixtures/words.ts` stays, because the scale comparison still measures with it.
@@ -1563,7 +1563,7 @@ What guards the same thing without a number to game, all still executed:
 Counts after this work, measured 2026-07-27: `pnpm verify` green with **484 unit tests across 20
 files**; `pnpm e2e` green with **159 browser checks across two viewports**, one skipped by design.
 Fourteen of the new unit tests are the watch derivation, including the ones that would otherwise be
-assumed: the unmarked agent left alone, a re-run that failed saying nothing, a repaired board reading
+assumed: the unmarked agent left alone, a re-run that failed saying nothing, a repaired page reading
 as repaired rather than as an unchanged re-run, and the reset boundary clearing the line.
 
 `pnpm test:live` has **not** been re-run. Nothing in this change crosses a process boundary: the
@@ -1577,7 +1577,7 @@ of why: "isnt deliberate enough", then "if a judge saw this they would still be 
 is literally just buttons and a small rail", then "its too subtle, still". Each attempt was correct,
 derived, tested, and none of them guided anybody.
 
-**What was actually wrong, measured rather than argued.** On the live board, 97 of the 100 text
+**What was actually wrong, measured rather than argued.** On the live page, 97 of the 100 text
 elements are between 11 and 14 px. The guide's act labels were 13 px at 52% opacity, its ticks were
 3 px tall, and its "watch" sentence was 13 px at 56%: the thing meant to lead a stranger through the
 screen was set at the weight of a legend caption and fainter than body text. Every fix up to that
@@ -1587,50 +1587,50 @@ which one performed that act, and the node rings were 1 px on a graph built out 
 
 **What replaced them**, decided with the owner rather than guessed: a docked, draggable tour window,
 opened from a button in the header, that teaches one thing at a time and lights the region of the
-board it is talking about.
+page it is talking about.
 
 - **`src/features/cockpit/tour/steps.ts`** is the curriculum as data. Chapter one teaches the screen
   in four explanation steps, advanced by a next button. Chapter two walks the real demonstration in
   action steps, which **have no next button at all**: each quotes the real control by the label the
-  guide is currently painting on it, and advances only when the board shows the thing happened. That
+  guide is currently painting on it, and advances only when the page shows the thing happened. That
   absence is the honesty rule of the whole thing. A tour that could be paged past an action would
-  sooner or later be describing a board that does not exist.
-- **`tour/use-tour.ts`** stores two facts about the person and none about the board: whether they
+  sooner or later be describing a page that does not exist.
+- **`tour/use-tour.ts`** stores two facts about the person and none about the page: whether they
   have met the tour, and which card they last had open. Where chapter two stands is derived on every
-  render from the same snapshot the rest of the cockpit is derived from.
+  render from the same snapshot the rest of the page is derived from.
 - **`tour/tour-panel.tsx`** is the window. Drag by its bar through motion's `dragControls`, with
   constraints measured from the window's own height per step so it can never be put somewhere it
   cannot be got back from. Cards swap through `AnimatePresence` with `mode="wait"`; the window
   itself arrives on a spring, the one in obsel, because it is an object being put down rather than
   an instrument reading. The current step's region is lit imperatively with an `outline` and a
-  glowing `::after`, chosen because `outline` draws outside the box so nothing on the board moves,
+  glowing `::after`, chosen because `outline` draws outside the box so nothing on the page moves,
   and because it is the one visual property those inline-styled components do not set themselves.
 - **The opener** is lit and breathing on a browser that has never met it, with "new here?" beside
   it, and quiet permanently after the first open or "not now".
 
 **Two derivations came out of looking at real states, and both would have broken the demonstration
-on camera.** A repaired board is clean and finished, which is exactly what a board that only ever
+on camera.** A repaired page is clean and finished, which is exactly what a page that only ever
 ran looks like — so "has anything been changed" reads false again the moment a repair lands. Taken
 naively, a judge who had just finished the whole walk would be dragged back to "now change something
-upstream", on a board where they already had, with no next button to escape with. Both the change
-act and the repair act therefore consult the launcher's step record for the case the board has
-forgotten, and the reconciliation takes the **last** action the board has done rather than the first
+upstream", on a page where they already had, with no next button to escape with. Both the change
+act and the repair act therefore consult the launcher's step record for the case the page has
+forgotten, and the reconciliation takes the **last** action the page has done rather than the first
 it has not. Known limit, the same one the rail before it recorded: a step driven from a terminal
 never reaches this server's launcher, and `docs/demo-script.md` requires every step of the judged run
 to be a button for exactly that reason.
 
-**Directly observed**, at 1920x990 and on the live board at `localhost:3000`: the opener lit on a
+**Directly observed**, at 1920x990 and on the live page at `localhost:3000`: the opener lit on a
 cleared browser and quiet after a reload; chapter one walked end to end with the glow moving guide →
 graph → trace → numbers; an action step showing `press this, glowing on the board` above the real
-button label, `waiting for you`, and no next control, with the matching board button outlined; a
+button label, `waiting for you`, and no next control, with the matching page button outlined; a
 running step showing `The instruction change` and a live green dot; the window dragged 120 px left
 and 200 px up and staying there.
 
 **What came out**, all of it replaced rather than kept: the five-act rail and its travelling cursor,
 the `watch` sentence, the node rings and the `watch` prop threaded through `lineage.tsx` and
-`nodes.tsx`, and `journey()` in `guide.ts`. The guide block keeps what is genuinely the board's —
+`nodes.tsx`, and `journey()` in `guide.ts`. The guide block keeps what is genuinely the page's —
 headline, subline, action buttons, prerequisite checks, live log — and the tour points at those
-rather than duplicating them. `settled()` still needs to know whether the board has been all the way
+rather than duplicating them. `settled()` still needs to know whether the page has been all the way
 round; it now asks `performedSteps` for a repair directly instead of asking the walk.
 
 Counts after this work, measured 2026-07-27: `pnpm verify` green with **470 unit tests across 20
@@ -1644,7 +1644,7 @@ real launcher's record rather than off a fixture's, and it is several minutes of
 
 ### A launcher, and the contradiction a stopped server exposed (2026-07-27)
 
-Setup before the board was four documents that disagreed in scope: three commands in the README,
+Setup before the page was four documents that disagreed in scope: three commands in the README,
 eight steps in `setup.md`, four prerequisites in `agents/README.md`, nine preflight rows in
 `demo-script.md`. Following any one of them left something out, and the first prerequisite of all,
 the `datahub` CLI, had no install command written down anywhere except in passing in
@@ -1659,7 +1659,7 @@ no way to know that the wait in step 1 is load-bearing.
 
 | run                                                                          | result                                                                                                                                                                                |
 | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| fresh, with `.env.local` and `agents/.venv` deleted                          | **16 s** from start to obsel answering on `:3000`. Board loaded, all five prerequisites green.                                                                                        |
+| fresh, with `.env.local` and `agents/.venv` deleted                          | **16 s** from start to obsel answering on `:3000`. Page loaded, all five prerequisites green.                                                                                         |
 | re-run, everything in place and the server already up                        | **2.794 s**. Skipped DataHub, kept `.env.local`, kept the virtual environment, did not start a second server. `agents.run setup` re-ran and confirmed both entities readable in 3 ms. |
 | `env -i PATH=/usr/bin:/bin:/usr/sbin:/sbin HOME=$HOME`, the Finder condition | nvm loaded, Node v24.18.0 found, run continued. Without the `PATH` repair this machine reports Node missing while having it, which is the worst answer available.                     |
 | the same with `HOME` pointed at an empty directory, so nvm cannot be found   | refused at step 2 against the real Node **v22.14.0** in `/usr/local/bin`, naming the version and the download. A genuinely wrong Node, not an arranged one.                           |
@@ -1671,10 +1671,10 @@ Both `uvx --from 'acryl-datahub==1.6.0.15' datahub --version` and that command's
 the subcommand is real. This is what closes the missing-install-command gap, since it needs nothing
 installed permanently.
 
-**The contradiction.** Stopping the dev server to take the timing above put the board into the state
+**The contradiction.** Stopping the dev server to take the timing above put the page into the state
 a judge meets whenever obsel is not running, and the owner read it off the screen. Two reads fail
 together there, and each had its own reporter that did not know about the other: `guide-panel.tsx`
-said "The board below is unaffected" and `cockpit.tsx` said "Everything below is from the last read
+said "The page below is unaffected" and `cockpit.tsx` said "Everything below is from the last read
 that worked, at 22:58:36, and may already be wrong", one paragraph apart. Both cannot be true, and
 the first is the false one. It was written for the case where only the activity read fails, which is
 real and where the sentence is correct and useful.
@@ -1689,18 +1689,18 @@ does, so neither deleting it nor always showing it passes both.
 **There were three copies, not two.** The first fix was checked by stopping the server again and
 reading the whole screen rather than the part that had been edited, and the trace panel was saying
 "could not be read (Failed to fetch). Nothing else on this page is affected." three panels below the alert saying
-the board may already be wrong. It is the same sentence for the same reason on a third read, and it
+the page may already be wrong. It is the same sentence for the same reason on a third read, and it
 now takes the same condition. Reading only the region that was changed would have left it.
 
 **And the guide's own headline had nothing asserting it.** The blank-looking guide block in that
 same screenshot turned out to be an artifact of how the screenshot was taken, not a fault: in real
 Chromium "This page lost its connection" is on screen. There was no way to tell those apart from the
 repository, because no test covered it, so the browser test now asserts the headline is visible in
-the state where the board has lost its connection.
+the state where the page has lost its connection.
 
 **The checklist gained a fifth row**, `uvx`, which the launcher also checks. It is the quietest
 prerequisite obsel has: without it the engine still reaches the right answer and finds every
-affected task, and the tag that records any of it is the only thing that fails, so the board looks
+affected task, and the tag that records any of it is the only thing that fails, so the page looks
 correct and DataHub is never told. `tests/live/preflight.live.test.ts` proves the check against a
 `PATH` that genuinely lacks the binary.
 
@@ -1713,7 +1713,7 @@ caught by running it, not by reading it, and the fix is to drop the cached verdi
 restarting the server would.
 
 **Not executed, and named rather than implied.** DataHub was already running throughout, holding the
-operator's own board, so the cold-start branch of step 6 and its 180 s wait have not been run; the
+operator's own page, so the cold-start branch of step 6 and its 180 s wait have not been run; the
 16 s above is a run that skipped them, with warm pnpm and pip caches. The Gatekeeper prompt was not
 reproduced either: the real `com.apple.quarantine` attribute was set and the file still ran from a
 shell both ways, because that block is enforced by Finder on a GUI launch, which is not drivable
@@ -1731,7 +1731,7 @@ the trace before it went in, each for a reason that would have shown on screen:
 
 - **One filled layer of the two.** The trace emitted an outer grey (`#5d5d5d`) and an inner black
   (`#181818`) overlapping closely enough to read as one shape. Both are baked colours no token
-  controls, and the cockpit's background is `--mm-ink`, `#0b0a0e`. Dropped straight in, the mark
+  controls, and the page's background is `--mm-ink`, `#0b0a0e`. Dropped straight in, the mark
   would have been a near-black shape on a near-black panel. Only the inner contour set is kept, so
   the mark is one fill and takes `currentColor`.
 - **Cropped to the drawing.** Inkscape wrote an A4 page, `210mm x 297mm`, with the mark sitting in a
@@ -1748,7 +1748,7 @@ generated rather than hand-written. Confirmed on the running dev server: the tag
 
 **The red is there to be seen against a tab strip obsel does not control**, which is the one thing
 this asset has to do beyond looking like the product. The tile is `--mm-red` `#ef476f` and the mark
-on it is `--mm-ink` `#0b0a0e`, so both colours are the cockpit's own. It is full bleed with no
+on it is `--mm-ink` `#0b0a0e`, so both colours are the page's own. It is full bleed with no
 corner radius, because a rounded tile shows the browser's own colour at the corners. Measured:
 the mark on the tile is **5.45:1**, clearing WCAG AA; the tile against a white tab bar is
 **3.62:1** and against Chrome's dark `#202124` is **4.45:1**.
@@ -1762,7 +1762,7 @@ is what makes a black mark legible, at 5.45:1. Three combinations were rendered 
 composited onto both a white and a dark tab strip before this one was kept.
 
 Neither the deep red nor the brighter `#d81e3f` survived the change: black measures 2.90:1 and
-3.53:1 on them. `#ef476f` is also the token the cockpit uses for a failed state, which is a
+3.53:1 on them. `#ef476f` is also the token the page uses for a failed state, which is a
 collision in meaning and not in code, since the icon is a static file holding a literal and would
 not follow the token if it were retuned.
 
@@ -1778,7 +1778,7 @@ this was visible in the browser and fixed to 12 px, then re-checked at the same 
 ### The header shows the mark, and reveals the name on hover (2026-07-28)
 
 The header carried the mark and the word "obsel" side by side, permanently, which says the same
-thing twice in a bar whose other job is to report the pipeline and whether the board is live. The
+thing twice in a bar whose other job is to report the pipeline and whether the page is live. The
 resting header is now the mark alone at 26 px, and the name ghosts in under a pointer: opacity,
 a 4 px blur clearing to none, and 6 px of travel, over 0.26 s. The fragments disperse at the same
 time, each one further than the one before it, because `mark-geometry.ts` orders them by distance
@@ -1831,10 +1831,10 @@ flight. The reduced-motion case must set the preference through `contextOptions`
 `page.emulateMedia`, which arrives after the page exists.
 
 **One existing test failed and the failure was in its selector.** "the alert takes its own row
-rather than covering the board" located the graph as `main svg`, whichever `<svg>` came first in the
-document, which was the graph only while the graph was the only drawing on the board. A mark in the
+rather than covering the page" located the graph as `main svg`, whichever `<svg>` came first in the
+document, which was the graph only while the graph was the only drawing on the page. A mark in the
 header made it resolve to the logo, so the test compared the alert against something above it and
-reported the board covered. It names `.react-flow` now. The layout was never wrong.
+reported the page covered. It names `.react-flow` now. The layout was never wrong.
 
 **Pinned by `tests/cockpit-mark.test.ts`, seven tests.** The icon and the geometry module hold
 duplicate copies of the same 43 contours, because a static file convention cannot import a module,
@@ -1873,26 +1873,26 @@ flag does not do what its name says, it accepts the exact unlisted version given
 plan line it printed and the compose file it then fetched, both naming `v1.5.0.6`.
 
 **Reset vanished on restart, and that is the whole of "it always comes back the same".** Reported by
-the owner in those words. The board is DataHub's and survives a restart; the launcher's record of
+the owner in those words. The page is DataHub's and survives a restart; the launcher's record of
 which steps ran is this server's and `runner/types.ts` says plainly that it does not. `walked` asked
-only that record, so quitting obsel and starting it again took "Reset and start over" off a board
-that had genuinely been all the way round, with nothing about the board having changed.
+only that record, so quitting obsel and starting it again took "Reset and start over" off a page
+that had genuinely been all the way round, with nothing about the page having changed.
 
-It is board-derived now: an output whose recorded previous fingerprint differs from its current one.
-Checked against real boards rather than argued — the live demo board, which has only ever run,
+It is page-derived now: an output whose recorded previous fingerprint differs from its current one.
+Checked against real pages rather than argued — the live demo page, which has only ever run,
 carries it on zero of five tasks, and `e2e/fixtures/captures/scale-settled.json`, a recording of a
-real repaired forty-task board, carries it on exactly three (`daily_trips`, `docs_marts`,
+real repaired forty-task pipeline, carries it on exactly three (`daily_trips`, `docs_marts`,
 `report_city`). It reads false again after a reset only because `resetSwarm` nulls the property,
 which makes that one line in the reset list load-bearing for a button three files away; the comment
 in `fingerprints.ts` says so. The launcher's record stays as a second route, since it is the stronger
 evidence where it exists. `tour/steps.ts` had the same bug in two steps and got the same fix.
 
-**Both fixes read off a live board, 2026-07-28.** The demo board could not be used for it, and why is
+**Both fixes read off a live page, 2026-07-28.** The demo page could not be used for it, and why is
 worth writing down: `orders_pipeline` carries a fifth DataJob, `clean_trips`, that a launcher bug
 registered on 2026-07-24 and that nothing has removed, so `finished` never equals `tasks.length` and
-that board cannot reach the settled stage at all. It sits on "4 of 5 agents finished" whatever is
+that page cannot reach the settled stage at all. It sits on "4 of 5 agents finished" whatever is
 done to it. Deleting that entity is the owner's, and until it happens the reset button is unreachable
-on the demo board for a reason that has nothing to do with this fix.
+on the demo page for a reason that has nothing to do with this fix.
 
 So the state was built on an isolated flow instead, `obsel_walk_check`, on a second server started
 with `OBSEL_FLOW_ID`, using the report route rather than Codex: two tasks registered, both reported,
@@ -1900,10 +1900,10 @@ then the upstream reported again with a renamed column, which flagged the downst
 downstream reported again, which cleared it. A genuine walk with real fingerprints, real marks and a
 real clear.
 
-That server's launcher history is `[]`, which is exactly what a restarted server has, and the board
+That server's launcher history is `[]`, which is exactly what a restarted server has, and the page
 offered **Reset and start over**, accented, above the two unaccented experiments. Before this change
-the same board offered the two experiments and no way back. The header read `obsel_walk_check · prod`,
-which is also the first time the board has said which board it is.
+the same page offered the two experiments and no way back. The header read `obsel_walk_check · prod`,
+which is also the first time the page has said which page it is.
 
 The full demo was still walked end to end on `orders_pipeline` first, with real Codex sessions, and it
 turned up two things worth recording. A backgrounded step was killed mid-run and left `build_revenue`
@@ -1915,7 +1915,7 @@ re-run resumed and finished with "every flag is off, and every one came off thro
 
 **A soft delete DataHub accepted and obsel ignored (2026-07-28).** The rogue `clean_trips` above was
 soft-deleted with `datahub delete --soft`, which succeeded: `status: {removed: true}` landed on the
-entity and DataHub hid it in its own UI. The board went on drawing it and counting it, so it still
+entity and DataHub hid it in its own UI. The page went on drawing it and counting it, so it still
 read "4 of 5 agents finished" and still could not settle.
 
 The reason is that a soft delete writes one aspect and nothing else. The `IsPartOf` edge stays, so
@@ -1937,21 +1937,21 @@ the CLI writes and undoing it afterwards, so the suite leaves its flow as it fou
 the two facts that made this invisible: with the task removed, the flow's edge still lists it and
 `batchGet` still returns it.
 
-**The demo board settles for the first time.** With that one entity removed, `orders_pipeline` reads
+**The demo page settles for the first time.** With that one entity removed, `orders_pipeline` reads
 four tasks, all complete, three carrying a recorded change, on a server whose launcher history is
-empty. The board shows "all 4 finished, nothing out of date", "Every step has run. Reset to walk it
+empty. The page shows "all 4 finished, nothing out of date", "Every step has run. Reset to walk it
 again.", and three buttons with the reset accented and the two experiments quiet. Both of the day's
-board fixes, on the operator's own board, with no fixture involved.
+page fixes, on the operator's own page, with no fixture involved.
 
 **What the signal is loose about, observed rather than predicted.** Running the four demo agents on
-2026-07-28 over a board that had last run on 2026-07-24, without a reset in between, left
+2026-07-28 over a page that had last run on 2026-07-24, without a reset in between, left
 `write_docs` and `write_report` carrying a recorded change and `clean_orders` and `build_revenue` not.
 That is correct and it is not a walk: those two agents write prose, and a live Codex session does not
 produce the same paragraph twice, so their outputs genuinely moved while the two deterministic
-transforms did not. The board therefore offers "start over" after a second plain run.
+transforms did not. The page therefore offers "start over" after a second plain run.
 
-That is the accepted looseness of asking the board rather than the launcher, and it is one-directional:
-the offer is to reset a board where something did move, which is a legitimate thing to be offered,
+That is the accepted looseness of asking the page rather than the launcher, and it is one-directional:
+the offer is to reset a page where something did move, which is a legitimate thing to be offered,
 rather than a claim that work is sound. The judged run is unaffected, because `docs/demo-script.md`
 resets before the take, and a first completion after a reset records no previous version at all.
 
@@ -1962,39 +1962,39 @@ for an identical re-run, and its own comment explains why. The docstring was wro
 a unit test now pins the distinction the wrong reading would have lost.
 
 **The dataset choice was reachable exactly once.** `Set up the forty-agent taxi run instead` is offered only on
-an empty board, and obsel deletes no task, so after the first registration it was unreachable
-forever. The owner chose one pipeline per board, made visible, over mixing both onto one: the header
-name is now a disclosure saying that the board is one DataFlow named by `OBSEL_FLOW_ID`, that a new
-board opens empty, and that nothing here is deleted. No control switches boards, and the sentence does
+an empty page, and obsel deletes no task, so after the first registration it was unreachable
+forever. The owner chose one pipeline per page, made visible, over mixing both onto one: the header
+name is now a disclosure saying that the page is one DataFlow named by `OBSEL_FLOW_ID`, that a new
+page opens empty, and that nothing here is deleted. No control switches pages, and the sentence does
 not imply one: obsel reads the flow once at startup and the demo agents read the same variable
-independently, so a button would move the board and leave the agents pointed at the old one.
+independently, so a button would move the page and leave the agents pointed at the old one.
 `agents/scale.py`'s header claimed "Reset, then register the other, to switch", which is false for the
 same reason, and now says what actually happens.
 
-**Every button in a stage looked identical.** One `.action` class, 13px, so on a flagged board "Redo
+**Every button in a stage looked identical.** One `.action` class, 13px, so on a flagged pipeline "Redo
 the work obsel flagged" and "Reset and start over" were the same object with different text. The
 bench's own rule, written in `bench.module.css`, is applied to the guide: at most one accented action
 per stage, the one the stage's sentence is asking for, and a stage whose sentence points at the bench
 accents nothing. Spent on colour and elevation, never on size — both labels stay 13px and both details
 12px, because `docs/verification.md` already records three guides that failed by adding what mattered
 at footnote size, and the secondary form gets more contrast than it had, its label moving from
-`--mm-rose` to `--mm-cream`. On the settled demo board the change now leads and takes the accent,
-ahead of the identical re-run, because the settled taxi board offers exactly one experiment and it is
+`--mm-rose` to `--mm-cream`. On the settled demo page the change now leads and takes the accent,
+ahead of the identical re-run, because the settled taxi pipeline offers exactly one experiment and it is
 its change; leading on the re-run made one stage teach two different lessons.
 
-`pnpm test:live` was not re-run for the board work and does not need to be: nothing in it crosses a
+`pnpm test:live` was not re-run for the page work and does not need to be: nothing in it crosses a
 process boundary. The derivation reads a field `client.ts` already parses and the live suite already
 covers, and the four existing `previousFingerprints` cases in `tests/cockpit-joining.test.ts` passing
 unchanged is the regression guard on moving it into `fingerprints.ts`.
 
-### The board became a canvas, and the feed stopped being a residual (2026-07-28)
+### The page became a canvas, and the feed stopped being a residual (2026-07-28)
 
-**What was wrong.** The board was a column of stacked regions: a header, the guide, a graph panel
+**What was wrong.** The page was a column of stacked regions: a header, the guide, a graph panel
 fixed at 320 px, a strip beneath it, two fold-out panels and the stat ribbon. Only the strip
 absorbed slack, so after every content-sized region took its share of a 990 px column the strip
-landed on its 172 px floor with a 105 px scroller inside it. Measured on the taxi board: three of
+landed on its 172 px floor with a 105 px scroller inside it. Measured on the taxi pipeline: three of
 eighty-six steps visible, the top one cut through its own text. Nothing about that was tunable,
-because the strip was the residual of a stack. A forty-task board escaped by growing the graph panel
+because the strip was the residual of a stack. A forty-task pipeline escaped by growing the graph panel
 and letting the whole page scroll, which put the two measured numbers below the fold.
 
 **What it is now.** The lineage canvas is the page. One dock beside it holds the guide, a tab strip
@@ -2005,14 +2005,14 @@ and `overflow: hidden` on the stage states that rather than hoping for it.
 
 **Measured, at 1920 x 990 and 1280 x 800, with the fixtures the browser suite serves:**
 
-|                                             | before                | after             |
-| ------------------------------------------- | --------------------- | ----------------- |
-| activity feed panel, taxi board, 1280 x 800 | 172 px                | 299 px            |
-| its scroller                                | 105 px                | 294 px            |
-| page scroll height, taxi board              | taller than the frame | exactly the frame |
+|                                                | before                | after             |
+| ---------------------------------------------- | --------------------- | ----------------- |
+| activity feed panel, taxi pipeline, 1280 x 800 | 172 px                | 299 px            |
+| its scroller                                   | 105 px                | 294 px            |
+| page scroll height, taxi pipeline              | taller than the frame | exactly the frame |
 
-`e2e/scale.spec.ts` asserts the scroller is at least 280 px and at least as tall on the taxi board
-as on the demo board, which is the property that was inverted before: the board with more to say
+`e2e/scale.spec.ts` asserts the scroller is at least 280 px and at least as tall on the taxi pipeline
+as on the demo page, which is the property that was inverted before: the page with more to say
 got less room to say it.
 
 **What was checked and how.** 229 browser tests pass at both viewports (`pnpm e2e`), including three
@@ -2024,40 +2024,40 @@ in `e2e/cockpit.spec.ts` for the ripple's hop ordering and the count-up. `pnpm v
 **The animation, and what is deliberately not animated.** The cascade ripple is a flare drawn in its
 own element over each marked box, delayed by the hop count obsel recorded, plus a one-shot draw-in on
 each lit edge with the same stagger. The colour underneath is unchanged: `nodeTone` paints it from
-the record on its own, so a dropped frame cannot alter what the board claims, which is the rule
+the record on its own, so a dropped frame cannot alter what the page claims, which is the rule
 `tone.ts` keeps. `tone.ts`'s allowance sentence was widened to name the flare, and the widening is
 written next to it. The detection number counts up over 600 ms, keyed on which change is being
-timed rather than on the value, so a board re-read once a second does not restart it; the last frame
+timed rather than on the value, so a page re-read once a second does not restart it; the last frame
 renders the measured integer exactly. Reduced motion follows the repo pattern everywhere: the
 animation props are not passed at all, so the first frame is the finished picture.
 
-**Erasure is on the board for the first time.** A tab reads `GET /api/erasure/{id}` for a request id
+**Erasure is on the page for the first time.** A tab reads `GET /api/erasure/{id}` for a request id
 a reader pastes in, at five seconds. There is no list endpoint and the tab does not pretend there is
 one: `documents.ts` derives every URN and never searches, so obsel cannot enumerate its requests, and
 the empty state says so and hands over the command that opens one. A toggle recolours the dataset
 nodes by coverage state. `tests/cockpit-erasure-view.test.ts` (25 assertions) pins the vocabulary,
 and `e2e/erasure.spec.ts` re-checks it against the rendered page: no "proven clean", "proof",
 "complete" or percentage anywhere, no enum spelling in any sentence, no control whose label reads as
-a way to close a gap, and no amber on the erasure board at all.
+a way to close a gap, and no amber on the erasure view at all.
 
-**Not measured.** Frame rate during the ripple on the 82-node board has not been instrumented, so no
-number is claimed for it. The board was watched at both viewports and nothing dropped visibly, which
+**Not measured.** Frame rate during the ripple on the 82-node page has not been instrumented, so no
+number is claimed for it. The page was watched at both viewports and nothing dropped visibly, which
 is an observation and not a measurement.
 
 **Two bugs the rebuild introduced, found by driving the tour and fixed the same day.**
 
 The first: the tour marked no region. Its highlight was an `outline` at a 4px offset plus a glow at
-`inset: -5px`, both drawn outside the target's box, which was correct while the board was a column
+`inset: -5px`, both drawn outside the target's box, which was correct while the page was a column
 of panels with gaps between them. Every region a step points at now sits flush inside a container
-that clips its overflow, so all of it was cut away. Walking the tour on the rebuilt board and
+that clips its overflow, so all of it was cut away. Walking the tour on the rebuilt page and
 measuring each step: five of the six highlights a reader passes were clipped, and four rendered
 nothing at all. The tour spent four consecutive steps telling somebody to look at a region while
 marking no region. Fixed by drawing the ring as an inset shadow inside the target's own box, which
-an ancestor cannot clip and which still moves nothing on the board, since `box-shadow` never affects
+an ancestor cannot clip and which still moves nothing on the page, since `box-shadow` never affects
 layout.
 
 The second: the tour window opened on top of the dock. Its home corner was the bottom right
-unconditionally, a free corner on the old board and a panel on this one, so it covered the two
+unconditionally, a free corner on the old page and a panel on this one, so it covered the two
 measured numbers pinned at the dock's foot. It now opens against whichever edge the dock is not on
 and follows the dock when a reader moves it; the drag limits are worked out from where it actually
 rests rather than assuming it starts on the right.
@@ -2076,7 +2076,7 @@ a live DataHub and a live Codex CLI, and has not been done.
 ### The details panel became a surface with three depths, and a table got a shape (2026-07-28)
 
 **What was wrong.** Everything obsel holds about a node was behind a click on that node, and nothing
-on the board said a click would do anything. The owner, who commissioned the panel, believed it
+on the page said a click would do anything. The owner, who commissioned the panel, believed it
 opened by clicking an edge: the affordance was invisible even to someone who knew it existed. What
 it opened then stated its subject three times before any of its content, as a section title
 (`details · raw orders`), a meta line naming the kind (`a table, as last reported`), and its own
@@ -2085,7 +2085,7 @@ the least legible form of the one thing obsel can truthfully say about a table's
 
 **What it is now.** One surface in the canvas's bottom-right corner, at three depths.
 
-- **Idle** — one line: `hover a box to preview it, click to pin`. Permanent while the board has
+- **Idle** — one line: `hover a box to preview it, click to pin`. Permanent while the page has
   nodes. The legend's own `click any box for details` was deleted in the same change; that
   duplication is the thing this rewrite is against.
 - **Hover** — the box under the pointer, in human names, with no URN and no hash anywhere. Entering
@@ -2093,13 +2093,13 @@ the least legible form of the one thing obsel can truthfully say about a table's
 - **Pinned** — a click, and the full record, until Esc or close. Clicking the preview pins it too.
 
 `useHoverIntent` waits 80 ms before previewing and 140 ms before clearing. Both are design
-constants, not measurements: the forty-task board is dense enough that reaching one box sweeps the
+constants, not measurements: the forty-task pipeline is dense enough that reaching one box sweeps the
 pointer across several, and reacting to each would churn the surface through six previews on the way
 to the seventh.
 
-**Hovering while pinned does not rewrite what is pinned.** The board's edges follow the pointer, so
+**Hovering while pinned does not rewrite what is pinned.** The page's edges follow the pointer, so
 a reader sees what a click would open; the panel does not move, because a panel that rewrote itself
-while the pointer crossed the board toward it could not be read. Pinned by
+while the pointer crossed the page toward it could not be read. Pinned by
 `e2e/cockpit.spec.ts` → "pointing elsewhere does not rewrite what is pinned".
 
 **The table sketch, and what it is incapable of showing.** A table's panel now draws its reported
@@ -2120,7 +2120,7 @@ dots against 6/4 dashes), tempo — and, decisively, **an edge the cascade has l
 the skip is in `flowEdgeIds`' single caller, not in CSS specificity. `flowEdgeIds` walks one hop
 only; multi-hop reach is the cascade's claim and is read off marks, for the reason `cascade.ts`'
 header documents. Hover does not enter `graphSignature`, so pointing at a box never rebuilds the
-graph, and unchanged edges keep object identity, so a hover on the eighty-two-edge taxi board
+graph, and unchanged edges keep object identity, so a hover on the eighty-two-edge taxi pipeline
 re-renders the two to nine edges that changed.
 
 **Motion is decorative, and the position is stated.** The reveals write `clip-path`, `opacity` and
@@ -2139,11 +2139,11 @@ between `flowEdgeIds` and `layoutPositions` that the cascade has for the same re
 spelling lights nothing and throws nothing.
 
 Fourteen new browser tests in `e2e/cockpit.spec.ts` → "the details surface": the idle hint present on
-a populated board and absent on an empty one; the preview appearing on hover and carrying no
+a populated page and absent on an empty one; the preview appearing on hover and carrying no
 `urn:li:`; the hint returning on leave; hovering moving no node and changing no graph dimension;
 click-to-pin and Esc-to-unpin; the preview pinning itself; hover-while-pinned; the panel naming its
 subject exactly once; the sketch drawing real column names, the `+`/`-` markers agreeing with the
-mark on the same board, and no text in any block; the plain fallback when a writer has reported
+mark on the same page, and no text in any block; the plain fallback when a writer has reported
 nothing; three flow tests (writer and every reader lit, never an edge the cascade lit, and an edge
 the cascade did not reach); and reduced motion, which asserts field opacity 1 with `animation-name:
 none` on both a sketch block and a flow edge.
@@ -2151,10 +2151,10 @@ none` on both a sketch block and a flow edge.
 Two new tests in `e2e/erasure.spec.ts` cover a bug found while writing them: the coverage state was
 computed once for the pinned table and handed to the surface, which also renders hovered tables, so
 it would have printed an erasure verdict about one asset underneath another. It is now looked up per
-table shown, and gated on the board actually being coloured by coverage.
+table shown, and gated on the page actually being coloured by coverage.
 
 **The copy sweep's details exclusion was dead, and is now live.** `e2e/cockpit.spec.ts`'s
-"no internal identifier reaches the board" excludes `[aria-label="Details"]`, and nothing rendered
+"no internal identifier reaches the page" excludes `[aria-label="Details"]`, and nothing rendered
 that label — `Panel` maps `label` to `aria-label` and neither inspector passed one. No state in that
 loop opened the panel either, so the exclusion had never once been exercised on a panel built almost
 entirely from full URNs and 64-hex hashes. Both inspectors now pass `label="Details"`, and the sweep
@@ -2168,7 +2168,7 @@ its header still says so. `cascaded()`'s `clean_orders` reports the renamed colu
 whose reported columns still said `order_total` would draw a table missing the column the same
 fixture says arrived.
 
-**Not measured.** Frame rate during the flow animation on the eighty-two-edge board has not been
+**Not measured.** Frame rate during the flow animation on the eighty-two-edge page has not been
 instrumented, so no number is claimed for it. Touch input and keyboard focus of graph nodes are not
 covered: the surface is driven by pointer enter/leave and a click, and a device with no hover state
 reaches the pinned depth by tapping but never sees a preview. That is a gap, not a decision.
@@ -2178,11 +2178,11 @@ reaches the pinned depth by tapping but never sees a preview. That is a gap, not
 The demo agents ran on Codex only. `agents/codex_runner.py` hardcoded the string `codex` in three
 places, with no environment variable, no configuration and no registry. Nothing about obsel required
 that: the coordinator makes no model calls, and `run.runner` is free text an agent supplies. The
-consequence was an adoption wall in front of exactly the person the board's joining panel addresses.
-With Claude Code installed and Codex absent, DataHub came up, the tag registered, the board loaded,
+consequence was an adoption wall in front of exactly the person the page's joining panel addresses.
+With Claude Code installed and Codex absent, DataHub came up, the tag registered, the page loaded,
 and every demo button was dead, with a checklist row that offered no fix.
 
-The board also contradicted itself. The joining panel served `claude mcp add obsel …` while the
+The page also contradicted itself. The joining panel served `claude mcp add obsel …` while the
 checklist a few inches away demanded the Codex CLI.
 
 **What was measured, by running the CLI rather than reading about it.** All on 2026-07-28.
@@ -2195,7 +2195,7 @@ checklist a few inches away demanded the Codex CLI.
 | no git-repo flag                | a session in `.obsel/work/_flagprobe`, gitignored and inside this repository, ran without complaint. Codex needs `--skip-git-repo-check` here; Claude Code does not                                                                                                                                                        |
 | `cwd=` on the subprocess        | Claude Code has no `--cd`, and the output landed in the working directory given                                                                                                                                                                                                                                            |
 | `stdin=DEVNULL`                 | without it the CLI prints `no stdin data received in 3s, proceeding without it` into captured stderr. The warning is gone with it. **The timing effect was not separately measured**: two single runs came out at 11.2 s and 10.5 s, which is inside the run-to-run variation of the model itself, so no saving is claimed |
-| `claude auth status`            | exits 0 signed in, 1 signed out (printing `{"loggedIn": false, …}`), ENOENT when absent. The same three-way split `codex login status` gives, which is what the board's checklist needs                                                                                                                                    |
+| `claude auth status`            | exits 0 signed in, 1 signed out (printing `{"loggedIn": false, …}`), ENOENT when absent. The same three-way split `codex login status` gives, which is what the setup checklist needs                                                                                                                                      |
 
 **`--safe-mode` is the finding, and it was not predicted.** Claude Code discovers CLAUDE.md, skills,
 plugins, hooks and MCP servers by walking up from its working directory, and the agent's working
@@ -2243,7 +2243,7 @@ shape would otherwise pass quietly.
   the function the demo actually calls rather than through a hand-built command line.
 
 **The four-task demo, end to end on Claude Code.** Run on 2026-07-28 on its own DataFlow
-(`OBSEL_FLOW_ID=obsel_claude_take`, server on port 3101), so the operator's board was never touched.
+(`OBSEL_FLOW_ID=obsel_claude_take`, server on port 3101), so the operator's page was never touched.
 All four steps exited 0.
 
 | Step         | Measured                                                                            |
@@ -2274,7 +2274,7 @@ ones that are visible:
 `change` step first reported its cascade as **162.8 s end to end** for a decision obsel made in
 105 ms. That was `mcp-server-datahub` blocking on unreachable telemetry, not obsel: with
 `DATAHUB_TELEMETRY_ENABLED=false`, which `mcp.ts` now sets, the `repair` step's coordination reported
-**1.9 s**. The 162.8 s figure is kept here because it is what the board actually said, and deleting a
+**1.9 s**. The 162.8 s figure is kept here because it is what the page actually said, and deleting a
 measurement because it was unflattering is the habit this document exists to prevent.
 
 **What has not been done.**
@@ -2303,17 +2303,17 @@ measurement because it was unflattering is the habit this document exists to pre
 - **The TypeScript runner check's not-installed branch has no test.** `preflight.live.test.ts`
   covers `datahub` and `uvx`, and it proves the `uvx` case against a PATH that genuinely lacks it,
   which is exactly the shape the runner check needs and does not have. The Python side of the same
-  question is covered against a real emptied PATH in `runners.live.test.ts`, and the rendered board
+  question is covered against a real emptied PATH in `runners.live.test.ts`, and the rendered page
   is covered from a fixture, but nothing yet observes `checkRunner` deciding "not installed" from a
   real absent binary. Until it does, that branch is reasoning rather than evidence.
 - Claude Code's terms under a consumer subscription have not been researched to the depth the Codex
   question was. See [`THIRD_PARTY_NOTICES.md`](../THIRD_PARTY_NOTICES.md).
 
-### The screen stopped calling itself a board (2026-07-28)
+### The screen stopped calling itself a page (2026-07-28)
 
-The owner asked what "board" meant, and was right to. It is a metaphor for a page, and two rules in
+The owner asked what "page" meant, and was right to. It is a metaphor for a page, and two rules in
 this repository already forbid it: CLAUDE.md says name things what they are and do not use metaphor,
-and the cockpit's own house rule in `guide.ts` says a sentence on screen has to be readable by
+and the page's own house rule in `guide.ts` says a sentence on screen has to be readable by
 somebody who has never opened the README. The word had survived both because it is the repository's
 own habit -- it is in CLAUDE.md, in eight commit subjects, and in `skills/obsel-collaboration/`.
 
@@ -2323,8 +2323,8 @@ change was scoped to what renders, where the confusion actually happens.
 
 | Was               | Is                       | Why                                                                        |
 | ----------------- | ------------------------ | -------------------------------------------------------------------------- |
-| the board         | this page, or the graph  | whichever it actually was at that point; two different things had one name |
-| this cockpit      | this page                | the reader has nowhere to look up "cockpit"                                |
+| the page          | this page, or the graph  | whichever it actually was at that point; two different things had one name |
+| this page         | this page                | the reader has nowhere to look up "page"                                   |
 | the swarm         | the agents               | plain, and it is what they are                                             |
 | the taxi swarm    | the forty-agent taxi run | says the count and the subject instead of a collective noun                |
 | Every act has run | Every step has run       | "act" is this repository's word for a stage of the tour                    |
@@ -2334,13 +2334,13 @@ which the first pass missed by only scanning `src/features`.
 
 **Verified.** `pnpm verify` green with 531 tests; `pnpm e2e` green with 271 browser checks, which is
 what proves it, since twenty of those assert on rendered text. Documentation that _quoted_ a changed
-string was updated with it; documentation that merely uses the word "board" in prose was not, and
+string was updated with it; documentation that merely uses the word "page" in prose was not, and
 that is a decision still open rather than an oversight.
 
 **Not done, and deliberately.** The code identifiers are untouched: `src/features/cockpit/`, and
 `dock`, `hud`, `rail`, `mine-panel`, `bench`, `backdrop` within it. These are the most opaque names
 in the repository and no user ever sees one; renaming the directory alone touches about 400 lines.
-`docs/` still says "board" about 400 times, and so does CLAUDE.md, which means the vocabulary is now
+`docs/` still says "page" about 400 times, and so does CLAUDE.md, which means the vocabulary is now
 inconsistent between the screen and the documents describing it. That inconsistency is real and is
 recorded here rather than quietly left.
 
@@ -2360,21 +2360,21 @@ recorded here rather than quietly left.
   fallback was run against a genuinely quarantined file and works.
 - **The launcher has only run on one macOS machine.** Linux is claimed on the strength of the script
   avoiding macOS-only constructs, not on a run. Windows is out of scope and the README says so.
-- **Every scale figure above is one observation.** One registered board, one concurrent run, one
+- **Every scale figure above is one observation.** One registered page, one concurrent run, one
   mid-run cascade, one parallel repair, on one machine. That is a demonstration, not a pass rate,
   and the demo-stability bar the four-task demo was held to, repeated clean sequences across days,
   has not begun for the forty-task one.
-- **The forty-task board is browser-tested against recordings, not against a live read.** See the
+- **The forty-task pipeline is browser-tested against recordings, not against a live read.** See the
   entry above for what the browser suite now covers. What it still does not do is drive the real
   `/api/swarm`: the two fixtures are recordings of one, replayed. A scale button has been clicked
   in the browser and the launch call asserted, but the step it launches is intercepted, so no
-  forty-agent run has yet been started from the board end to end.
+  forty-agent run has yet been started from the page end to end.
 - **The window between a committed decision and its tag is real, and a crash inside it leaves a
   tag behind.** Observed once on 2026-07-24, under the dead-session bug described above: two
   completions committed their clears, the tag removal failed with the session already dead, and
-  two complete tasks kept the tag. The board named the state honestly ("tags left over from
+  two complete tasks kept the tag. The page named the state honestly ("tags left over from
   before"), and the residue laundered itself through the next ordinary cycle: the reverse change
-  re-marked both tasks, the repair's redos cleared them properly, and the board ended with zero
+  re-marked both tasks, the repair's redos cleared them properly, and the page ended with zero
   tags anywhere, read back. The reconnect retry makes the window smaller; it does not close it,
   and nothing yet re-sweeps a tag on a task obsel considers sound.
 - **The scale commands are proven by their recorded runs, not yet by repeatable tests.** The
@@ -2402,10 +2402,10 @@ recorded here rather than quietly left.
   pinned in the instruction the same day. All three were caught by the demo's own assertions rather
   than seen on camera, which is the property worth keeping. obsel itself called every one of those
   runs correctly.
-- **An outside agent joining the demo's own board has not been watched visually.** The join path is
+- **An outside agent joining the demo's own page has not been watched visually.** The join path is
   real and proven, since the MCP live suite registers, works and cascades through it against the
   integration flow and the layout suite proves a fifth joined task lays out on the demo's shape,
-  but nobody has yet watched a fifth box appear on the demo board from a real outside agent. The
+  but nobody has yet watched a fifth box appear on the demo page from a real outside agent. The
   join panel's command is the real one for this machine; the watching is still to do.
 - **An identical re-run is not driven through two real agents.** Everything that used to sit here is
   closed: `agents/run.py`, `agents/codex_runner.py` and `worker.py`'s `run_task` are all now covered,
@@ -2426,20 +2426,20 @@ recorded here rather than quietly left.
   been watched during a real cascade, but nothing reads it back, it is bounded to the newest 200
   steps, and it does not survive a restart. Anything it says is corroborated by the marks in DataHub
   or it is not corroborated at all.
-- **Nothing checks whether the board says the _right_ things, only that it does not say more than
-  it used to.** The board once carried a hard ceiling on its total word count. It was removed on
+- **Nothing checks whether the page says the _right_ things, only that it does not say more than
+  it used to.** The page once carried a hard ceiling on its total word count. It was removed on
   2026-07-27 because it had become a toll booth: it was raised three times, each time by the change
   that was improving the copy, so it never actually refused anything, and it measured the one
   property of prose unrelated to whether the prose is any good. What replaced it is comparative and
   per-element, and none of it can tell whether what remains is the right copy. No test can.
 - **The graph is laid out for two pipeline shapes now, not one.** The unit suite exercises a
   six-task fan-out and a cycle, and the browser suite covers the four-task demo and the forty-task
-  taxi board in both states at both viewports. Nothing has been checked between or beyond those:
+  taxi pipeline in both states at both viewports. Nothing has been checked between or beyond those:
   a swarm much wider than the taxi pipeline, or one deeper than three hops, has never been drawn.
 - The submission video is not voiced or uploaded. A reference picture lock exists (157.9 s,
   ffprobe, from a clean one-shot take), and the shoot, the voiceover, the cut approval and
   the upload are the owner's.
-- **That lock is of a layout that no longer exists.** It was taken while the board was a scrolling
+- **That lock is of a layout that no longer exists.** It was taken while the page was a scrolling
   column, before the joining and bring-your-own-data panels went in under the graph, and the whole
   arrangement was replaced on 2026-07-28: the graph is the page, the panels are tabs of a dock, and
   the two measured numbers are pinned in frame rather than reached by scrolling. Every wide shot in
@@ -2448,4 +2448,4 @@ recorded here rather than quietly left.
   pixels so it needs no change, but the take does: the reference has to be shot again from the top
   before anything is cut from it. Nothing has been re-recorded yet.
 - **The README's images and GIFs are of that same previous layout**, and are flagged as such in the
-  README itself rather than quietly left to misdescribe the board.
+  README itself rather than quietly left to misdescribe the page.

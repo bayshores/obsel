@@ -569,7 +569,7 @@ So `/config` answers, Docker reports the container healthy, entity reads by URN 
 was completely blind while three separate signals said it was fine.
 
 `docker start datahub-opensearch-1` was enough; the container reported healthy in about 20 s and
-the board recovered on its next poll, roughly 3 s later. No data was lost, because the graph is
+the page recovered on its next poll, roughly 3 s later. No data was lost, because the graph is
 rebuilt from the aspect store rather than stored only in the index.
 
 ### The frontend is a worse version of the same trap
@@ -736,7 +736,7 @@ request suggests it will.
 
 **Consequence for obsel, found by running it.** The erasure kernel cross-checks an attestor's
 declared input set against these edges. Unfiltered, every rebuild claim on `order_details` would be
-refused for failing to declare ninety-seven columns as though they were upstream tables — a board
+refused for failing to declare ninety-seven columns as though they were upstream tables — a page
 red everywhere, for a reason that is nobody's fault and that no operator could act on. The filter
 is `onlyDatasets` in `src/server/datahub/client.ts`, and `tests/live/lineage.live.test.ts` asserts
 both halves: that the `schemaField` edges are really there, and that none of them reaches an input
@@ -812,7 +812,7 @@ WARNING:urllib3.connectionpool:Retrying (Retry(total=3, …)) after connection b
 ```
 
 **Consequence: obsel published a measured number that was almost entirely this.** Every stale mark
-obsel records goes through this client, so the cost landed on the one figure the board leads with. In
+obsel records goes through this client, so the cost landed on the one figure the page leads with. In
 the 2026-07-28 Claude Code run, a cascade obsel decided in 105 ms was reported as **162.8 s end to
 end**; with the variable set it was **1.9 s**. `pnpm test:live` paid it once per file, which turned a
 266 s suite into one that had not finished a single file after fifteen minutes, and produced an

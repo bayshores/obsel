@@ -198,7 +198,7 @@ clean_orders  ->  daily_revenue  ->  revenue_report
 All four finish. Then `clean_orders` re-runs and renames a column. obsel detects the changed output,
 walks downstream, and marks `daily_revenue` stale (direct), then `revenue_report` and
 `pipeline_docs` stale (transitively, through `daily_revenue`). All of it is visible in obsel's
-cockpit and in DataHub's own lineage view.
+page and in DataHub's own lineage view.
 
 The cascade is the demonstration. Flagging only the direct dependent is the trivial version and does
 not carry the demo.
@@ -286,7 +286,7 @@ reason says obsel noticed it through a read. The first observation is recorded o
 (`obsel.observed`) so later identical reads do not re-flag. Proven live in
 `tests/live/engine.live.test.ts` ("a change nothing reported is caught by the next honest read").
 
-The board's quiet claim is bounded to match: "none of the tables they read has changed since, as of
+The page's quiet claim is bounded to match: "none of the tables they read has changed since, as of
 the last report at 17:42:07" rather than an unbounded all-clear.
 
 What this deliberately does not fix, in honesty order:
