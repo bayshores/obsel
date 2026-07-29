@@ -3,9 +3,9 @@
  *
  * `server-only` is a marker: importing it throws unless the bundler resolves under
  * React's `react-server` condition, which is how Next.js guarantees a module never
- * reaches the browser. `src/server/coordinator/engine.ts`,
- * `src/server/datahub/client.ts` and `mcp.ts` all import it, and vitest does not set
- * that condition, so **none of those three modules could be imported by a test at
+ * reaches the browser. Every server module that does I/O imports it —
+ * `src/server/coordinator/engine.ts` and most of `src/server/datahub/` — and vitest does not set
+ * that condition, so **no module carrying the marker could be imported by a test at
  * all**. That is the mechanical reason they went untested for so long: not that testing
  * them was judged unimportant, but that the import threw before any test could run.
  *

@@ -29,10 +29,9 @@ export default defineConfig({
        * `server-only` becomes a no-op here, and only here.
        *
        * It is a marker package that throws on import unless the bundler resolves under
-       * React's `react-server` condition. `engine.ts`, `client.ts` and `mcp.ts` all
-       * import it, so before this alias none of the three could be loaded by a test at
-       * all, which is why they went untested for so long. The import threw before any
-       * test could run.
+       * React's `react-server` condition. Every server module that does I/O imports it,
+       * so before this alias none of them could be loaded by a test at all, which is why
+       * they went untested for so long. The import threw before any test could run.
        *
        * `resolve.conditions: ["react-server"]` would also work and is deliberately not
        * used: it would change resolution for every package in the graph, React

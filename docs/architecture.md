@@ -24,7 +24,7 @@ what on top of what is still in DataHub, and it is still queryable.
 
 A `DataJob` gives us identity and edges. Everything else is carried in that DataJob's
 `dataJobInfo.customProperties`, as strings, under an `obsel.` prefix. The keys are defined once, in
-[`src/server/datahub/client.ts`](../src/server/datahub/client.ts) as `PROP`:
+[`src/server/datahub/properties.ts`](../src/server/datahub/properties.ts) as `PROP`:
 
 | Property                   | Holds                                                | Example                                                                                      |
 | -------------------------- | ---------------------------------------------------- | -------------------------------------------------------------------------------------------- |
@@ -258,7 +258,7 @@ is what makes the whole of it testable without a network, and it is bounded by o
 the enumeration is.
 
 The erasure half genuinely does walk hop by hop:
-[`readLineageDownstream`](../src/server/datahub/client.ts) issues a `GET /relationships` per asset
+[`readLineageDownstream`](../src/server/datahub/lineage.ts) issues a `GET /relationships` per asset
 per hop, because it crosses platforms and flows no single membership read can enumerate. It also
 filters to datasets, since column-level lineage rides the same `DownstreamOf` edge type
 (`environment-findings.md` §13.3).
@@ -429,7 +429,7 @@ readable", not as "covered by end-to-end evidence". See [Evidence](#9-evidence) 
 | The contracts                               | `src/server/coordinator/types.ts`                                                                                           | shipped                                             |
 | Staleness rules                             | `src/server/coordinator/staleness.ts`                                                                                       | shipped, 34 passing tests                           |
 | Coordinator IO                              | `src/server/coordinator/engine.ts`                                                                                          | shipped, 14 integration tests vs a live DataHub     |
-| GMS client                                  | `src/server/datahub/client.ts`                                                                                              | shipped, exercised by those 14 plus 14 on `tags.ts` |
+| GMS client                                  | `src/server/datahub/{client,gms,lineage,task-record,properties,errors}.ts`                                                  | shipped, exercised by those 14 plus 14 on `tags.ts` |
 | MCP tag writes                              | `src/server/datahub/mcp.ts`                                                                                                 | shipped, 8 integration tests vs the real MCP server |
 | The integration harness                     | `tests/live/`, `vitest.live.config.ts`, `tests/support/server-only.ts`                                                      | shipped, 44 tests, no stand-ins                     |
 | URN shapes                                  | `src/server/datahub/urns.ts`                                                                                                | shipped                                             |

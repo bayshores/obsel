@@ -738,7 +738,7 @@ request suggests it will.
 declared input set against these edges. Unfiltered, every rebuild claim on `order_details` would be
 refused for failing to declare ninety-seven columns as though they were upstream tables — a page
 red everywhere, for a reason that is nobody's fault and that no operator could act on. The filter
-is `onlyDatasets` in `src/server/datahub/client.ts`, and `tests/live/lineage.live.test.ts` asserts
+is `onlyDatasets` in `src/server/datahub/lineage.ts`, and `tests/live/lineage.live.test.ts` asserts
 both halves: that the `schemaField` edges are really there, and that none of them reaches an input
 set. Removing the filter fails that test by name.
 
