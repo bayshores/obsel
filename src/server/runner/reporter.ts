@@ -5,7 +5,7 @@ import "server-only";
  *
  * Unlike `launchStep` beside it this is spawn-and-wait rather than
  * spawn-and-poll, and the difference is what the two are for. A demo step runs
- * real Codex sessions for minutes, so the board watches it through
+ * real agent sessions for minutes, so the board watches it through
  * `GET /api/demo/activity`. A bench report is one hash and one POST, and the
  * person who pressed the button is looking at it, so the answer comes back on
  * the same request.
@@ -108,7 +108,7 @@ export async function runReport(request: ReportRequest, origin: string): Promise
       settle({
         ok: false,
         error:
-          "obsel stopped waiting for the report. It may still have landed — the board says which.",
+          "obsel stopped waiting for the report. It may still have landed — the graph says which.",
         status: 504,
       });
     }, REPORT_TIMEOUT_MS);

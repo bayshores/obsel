@@ -286,8 +286,8 @@ export function Dock(props: DockProps) {
               type="button"
               className={styles.gripButton}
               onClick={props.onToggleCollapsed}
-              aria-label="Hide the panel and show the whole board"
-              title="Hide the panel and show the whole board"
+              aria-label="Hide the panel and show the whole graph"
+              title="Hide the panel and show the whole graph"
             >
               <span aria-hidden="true">{props.side === "left" ? "‹" : "›"}</span>
             </button>

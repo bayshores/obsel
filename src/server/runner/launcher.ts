@@ -12,9 +12,9 @@ import "server-only";
  * same tables), so a second launch while one is live is refused with a 409.
  *
  * This executes local processes by design. obsel's demo is a local tool on
- * the machine that owns the Codex login — nothing in this repository exposes
- * these routes beyond localhost, and the owner has explicitly decided against
- * hosting.
+ * the machine that owns the agent CLI's login — nothing in this repository
+ * exposes these routes beyond localhost, and the owner has explicitly decided
+ * against hosting.
  */
 
 import { spawn } from "node:child_process";

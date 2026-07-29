@@ -9,11 +9,40 @@
  * submission or quoted as a measurement.
  */
 
-import type { DemoActivity, DemoStep, PreflightCheck, StepResult } from "@/src/server/runner/types";
+import type {
+  DemoActivity,
+  DemoStep,
+  PreflightCheck,
+  RunnerCheck,
+  RunnerName,
+  StepResult,
+} from "@/src/server/runner/types";
 
 function ok(detail: string): PreflightCheck {
   return { ok: true, detail, fix: null };
 }
+
+/**
+ * How the server names each runner on a failing check, copied from
+ * `preflight.ts`. Both are here because the board has to be drivable into either
+ * state: an operator running Claude Code sees a different sentence and a
+ * different fix, and a fixture that only ever produced the Codex one would let
+ * the Claude Code wording break without any test noticing.
+ */
+const SIGNED_OUT: Record<RunnerName, RunnerCheck> = {
+  codex: {
+    ok: false,
+    detail: "Each demo agent is a real Codex session, so no agent can run until it is.",
+    fix: "codex login",
+    name: "codex",
+  },
+  claude: {
+    ok: false,
+    detail: "Each demo agent is a real Claude Code session, so no agent can run until it is.",
+    fix: "claude auth login",
+    name: "claude",
+  },
+};
 
 /**
  * A machine that has been all the way through the demonstration: every step
@@ -54,7 +83,7 @@ export function idle(): DemoActivity {
       vocabulary: ok("urn:li:tag:obsel-stale is registered"),
       venv: ok("agents/.venv exists"),
       uvx: ok("uv is installed"),
-      codex: ok("the Codex CLI is signed in"),
+      runner: { ...ok("The Codex CLI is signed in."), name: "codex" },
     },
     // A plausible absolute path, so the join panel renders the way it does on a
     // real machine. Invented like everything else here, and marked as such by
@@ -115,7 +144,7 @@ export function runningStep(step: DemoStep): DemoActivity {
 /**
  * A machine with nothing set up yet, which is what a stranger's first load looks like.
  *
- * `codexSignedOut()` fails exactly one check, so the setup screen it produces is a
+ * `runnerSignedOut()` fails exactly one check, so the setup screen it produces is a
  * single line and cannot show whether that line is the first of one problem or the
  * last of four. Three failures is the state worth rendering well: it is the one where
  * a reader needs to know what order to do things in and how much is left.
@@ -141,26 +170,46 @@ export function nothingInstalled(): DemoActivity {
           "They are separate from the Node packages, and `pnpm install` does not create them.",
         fix: "python3 -m venv agents/.venv && agents/.venv/bin/python -m pip install -r agents/requirements.txt",
       },
-      codex: {
-        ok: false,
-        detail: "Each demo agent is a real Codex session, so no agent can run until it is.",
-        fix: "codex login",
-      },
+      runner: SIGNED_OUT.codex,
     },
   };
 }
 
-/** The machine not ready: Codex signed out. */
-export function codexSignedOut(): DemoActivity {
+/**
+ * The machine not ready: the agent CLI is installed but signed out.
+ *
+ * Takes the runner because the board says a different sentence and offers a
+ * different command for each, and both are rendered from the same code path.
+ * A fixture fixed to Codex would leave the Claude Code wording untested.
+ */
+export function runnerSignedOut(runner: RunnerName = "codex"): DemoActivity {
+  const base = idle();
+  return {
+    ...base,
+    preflight: { ...base.preflight, runner: SIGNED_OUT[runner] },
+  };
+}
+
+/**
+ * The machine not ready in the other direction: no agent CLI at all.
+ *
+ * Distinct from `runnerSignedOut` because it has no fix command. There is
+ * nothing to sign into, the operator picks a product first, and the row must
+ * name both rather than sending them to install the one obsel happens to try
+ * first.
+ */
+export function noRunnerInstalled(): DemoActivity {
   const base = idle();
   return {
     ...base,
     preflight: {
       ...base.preflight,
-      codex: {
+      runner: {
         ok: false,
-        detail: "Each demo agent is a real Codex session, so no agent can run until it is.",
-        fix: "codex login",
+        detail:
+          "Neither the Codex CLI nor Claude Code is installed, and the demo agents are real sessions of one of them. Installing either is enough. Everything else on this board works without one.",
+        fix: null,
+        name: null,
       },
     },
   };

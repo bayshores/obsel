@@ -33,7 +33,7 @@
 
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
-import { requireDataHub, requireUvx, GMS } from "./reachable";
+import { requireDataHub, requireRunner, requireUvx, selectedRunner, GMS } from "./reachable";
 
 const { preflight } = await import("@/src/server/runner/preflight");
 
@@ -86,7 +86,7 @@ describe("the DataHub prerequisite is decided by the call the board depends on",
     const check = await datahubCheckAt(GMS);
     expect(check.ok).toBe(true);
     expect(check.fix).toBeNull();
-    expect(check.detail).toContain("could read the swarm");
+    expect(check.detail).toContain("could read the agents");
     /*
      * This test does not pin the traversal, and an earlier version of this comment
      * claimed it did. Removing the traversal probe and re-running left it green,
@@ -153,8 +153,9 @@ describe("the uv prerequisite is decided by looking for the binary", () => {
    * cache on `globalThis` on purpose, so it survives a dev-server module reload, and a
    * freshly imported copy answered from the previous test's verdict. The ten-second
    * entry is keyed by the check's name, not by PATH, because PATH does not change under
-   * a running server — only the GMS address does, which is why only that key names its
-   * subject. So the cache has to be dropped rather than worked around.
+   * a running server. Two keys do name their subject, because those can change under one:
+   * the GMS address, and `OBSEL_RUNNER`. So the cache has to be dropped rather than
+   * worked around.
    */
   function forgetCachedVerdicts(): void {
     delete (globalThis as { __obselPreflight?: unknown }).__obselPreflight;
@@ -188,5 +189,99 @@ describe("the uv prerequisite is decided by looking for the binary", () => {
     expect(uvx.ok).toBe(false);
     expect(uvx.detail).toContain("cannot record it");
     expect(uvx.fix).toBe("brew install uv");
+  });
+});
+
+/**
+ * Which CLI runs the agents, decided by looking for the binary.
+ *
+ * The same shape as the uv block above and for the same reason: the missing tool is
+ * real, a PATH that genuinely does not contain either CLI, so `execFile` fails to find
+ * them exactly as `worker.py`'s spawn would.
+ *
+ * This is the branch the board's worst state depends on. With neither CLI installed the
+ * checklist has to name both and offer no command, because there is nothing to sign into
+ * until a product is chosen. Everything else about that state is covered from a fixture;
+ * only this decides it from the machine.
+ */
+describe("the runner prerequisite is decided by looking for the binary", () => {
+  const REAL_PATH = process.env.PATH;
+  const REAL_RUNNER = process.env.OBSEL_RUNNER;
+
+  /** Same reasoning as `forgetCachedVerdicts` above: the cache hangs on `globalThis`. */
+  function forget(): void {
+    delete (globalThis as { __obselPreflight?: unknown }).__obselPreflight;
+  }
+
+  beforeAll(() => {
+    // The passing case has to be genuinely passing, or its assertion is empty.
+    requireRunner(selectedRunner());
+  });
+
+  afterEach(() => {
+    process.env.PATH = REAL_PATH;
+    if (REAL_RUNNER === undefined) delete process.env.OBSEL_RUNNER;
+    else process.env.OBSEL_RUNNER = REAL_RUNNER;
+    forget();
+    vi.resetModules();
+  });
+
+  it("passes on this machine, and says which CLI it checked", async () => {
+    forget();
+    const { runner } = await preflight();
+    expect(runner.ok).toBe(true);
+    expect(runner.fix).toBeNull();
+    // The name is the whole reason this check differs from the others: the board
+    // renders a product name from it, and a null here would print "An agent CLI".
+    expect(runner.name === "codex" || runner.name === "claude").toBe(true);
+  });
+
+  it("names both, and offers no command, on a PATH that genuinely lacks either", async () => {
+    forget();
+    process.env.PATH = "/nonexistent-so-no-agent-cli-can-be-found";
+    delete process.env.OBSEL_RUNNER;
+
+    const { runner } = await preflight();
+    expect(runner.ok).toBe(false);
+    // Null, not a guess. Naming one would send a reader to install the product obsel
+    // happens to look for first rather than the one they want.
+    expect(runner.name).toBeNull();
+    expect(runner.fix).toBeNull();
+    expect(runner.detail).toContain("Codex");
+    expect(runner.detail).toContain("Claude Code");
+    // And it must not read as obsel being broken, because it is not: the graph,
+    // the page and the staleness engine all work with no CLI at all.
+    expect(runner.detail).toContain("Everything else on this page works");
+  });
+
+  it("reports the CLI that was asked for, rather than switching to the other one", async () => {
+    /*
+     * The rule `agents/runner_select.py` states and this has to match: an explicit
+     * choice is never second-guessed. Codex is on this machine and Claude Code is
+     * asked for on a PATH that has neither, so a fallback would be visible as a
+     * verdict naming Codex.
+     */
+    forget();
+    process.env.PATH = "/nonexistent-so-no-agent-cli-can-be-found";
+    process.env.OBSEL_RUNNER = "claude";
+
+    const { runner } = await preflight();
+    expect(runner.ok).toBe(false);
+    expect(runner.name).toBe("claude");
+    expect(runner.detail).toContain("Claude Code");
+  });
+
+  it("refuses a runner name it does not know, instead of falling back", async () => {
+    // A typo that fell back would run a product the operator did not name, and the
+    // board would report that run as if nothing were wrong.
+    forget();
+    process.env.OBSEL_RUNNER = "gpt";
+
+    const { runner } = await preflight();
+    expect(runner.ok).toBe(false);
+    expect(runner.name).toBeNull();
+    expect(runner.detail).toContain("gpt");
+    expect(runner.detail).toContain("codex");
+    expect(runner.detail).toContain("claude");
   });
 });

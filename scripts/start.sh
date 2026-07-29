@@ -452,25 +452,78 @@ fi
 ok "obsel's tag is registered in DataHub."
 
 # ---------------------------------------------------------------------------
-step 8 "The Codex CLI"
+step 8 "The agent CLI"
 # ---------------------------------------------------------------------------
 #
 # Checked but never blocking. Signing in opens a browser and needs the person,
 # so this reports and moves on; the board's checklist carries the same item and
 # keeps checking it while they deal with it.
+#
+# The same rule as `agents/runner_select.py` and `preflight.ts`: OBSEL_RUNNER
+# picks one, and with nothing set the first installed wins, Codex first. Only
+# the selected one is reported on, because only it will be invoked.
 
-if codex login status >/dev/null 2>&1; then
-  ok "The Codex CLI is signed in."
-elif have codex; then
-  info "The Codex CLI is installed but not signed in. Each demo agent is a real"
-  info "Codex session, so the demo buttons will not run until it is."
-  info "Sign in with:  codex login"
+runner_status() {
+  # $1 is the runner name. Prints nothing; the exit code is the answer.
+  case "$1" in
+    codex) codex login status >/dev/null 2>&1 ;;
+    claude) claude auth status >/dev/null 2>&1 ;;
+  esac
+}
+
+# Three outcomes, and they are kept apart deliberately: a name obsel does not
+# know is a different problem from nothing being installed, and reporting both
+# would tell an operator with both CLIs installed to go and install one.
+case "${OBSEL_RUNNER:-}" in
+  codex | claude) chosen="$OBSEL_RUNNER" ;;
+  "")
+    if have codex; then
+      chosen=codex
+    elif have claude; then
+      chosen=claude
+    else
+      chosen=none
+    fi
+    ;;
+  *) chosen=unknown ;;
+esac
+
+# Two forms of the name, because the two products capitalise differently:
+# "the Codex CLI" mid-sentence is "The Codex CLI" at the start of one, while
+# "Claude Code" is the same in both. Capitalising the first letter at the point
+# of use would print "The claude Code".
+if [ "$chosen" = codex ]; then
+  chosen_label="the Codex CLI"
+  chosen_label_start="The Codex CLI"
+  chosen_sign_in="codex login"
+elif [ "$chosen" = claude ]; then
+  chosen_label="Claude Code"
+  chosen_label_start="Claude Code"
+  chosen_sign_in="claude auth login"
+fi
+
+if [ "$chosen" = unknown ]; then
+  info "OBSEL_RUNNER is set to '$OBSEL_RUNNER', which is not a runner obsel knows."
+  info "Valid values are codex and claude. Unset it to use whichever is installed."
+elif [ "$chosen" = none ]; then
+  info "No agent CLI is installed. Each demo agent is a real session of one, and"
+  info "there is no way to run them with an API key instead, so the demo buttons"
+  info "will not run without one. Install either Claude Code or the Codex CLI."
+  info "Everything else on the board works. The checklist shows this too."
+elif runner_status "$chosen"; then
+  ok "$chosen_label_start is signed in."
+elif have "$chosen"; then
+  info "$chosen_label_start is installed but not signed in. Each demo agent is a real"
+  info "$chosen_label session, so the demo buttons will not run until it is."
+  info "Sign in with:  $chosen_sign_in"
   info "The checklist on the board shows this too, and ticks when it is done."
 else
-  info "The Codex CLI is not installed. Each demo agent is a real Codex session,"
-  info "and there is no way to run them with an API key instead, so the demo"
-  info "buttons will not run without it. Everything else on the board works."
-  info "The checklist on the board shows this too."
+  # Only reachable through an explicit OBSEL_RUNNER, since detection above
+  # picks an installed one. Naming what was asked for rather than falling
+  # back, so the message matches the board and the worker.
+  info "OBSEL_RUNNER asks for $chosen_label, which is not installed, so the demo"
+  info "buttons will not run. Install it, or unset OBSEL_RUNNER to use whichever"
+  info "agent CLI this machine has."
 fi
 
 # ---------------------------------------------------------------------------

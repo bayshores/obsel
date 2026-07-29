@@ -60,6 +60,25 @@ export interface PreflightCheck {
 }
 
 /**
+ * The coding CLI that runs the demo agents. `agents/runner_select.py` owns the
+ * rule that picks one; this is the same set of names, so the board and the
+ * worker cannot disagree about which product is doing the work.
+ */
+export type RunnerName = "codex" | "claude";
+
+/**
+ * The runner check, which unlike the others has to say *what* it checked.
+ *
+ * `name` is null only when neither CLI is installed, so there is no runner to
+ * report on. Everything that renders a label has to handle that: a checklist row
+ * naming a product nobody has installed would send the reader to install the
+ * wrong one.
+ */
+export interface RunnerCheck extends PreflightCheck {
+  name: RunnerName | null;
+}
+
+/**
  * Everything the demo needs before an agent can run, each genuinely checked.
  *
  * `vocabulary` is whether `agents.run setup` has registered obsel's tag in
@@ -69,13 +88,17 @@ export interface PreflightCheck {
  * DataHub's own MCP server, which is started with `uvx`, so without it the
  * staleness engine still decides correctly and the recording of what it decided
  * is what fails.
+ *
+ * `runner` is one check, never one per CLI. Only the selected runner will be
+ * invoked, so a red mark against the other one is a failure the run would never
+ * hit — a false alarm on the operator's board.
  */
 export interface Preflight {
   datahub: PreflightCheck;
   vocabulary: PreflightCheck;
   venv: PreflightCheck;
   uvx: PreflightCheck;
-  codex: PreflightCheck;
+  runner: RunnerCheck;
 }
 
 /** The body of `GET /api/demo/activity`. */

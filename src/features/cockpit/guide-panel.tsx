@@ -276,7 +276,7 @@ export function GuidePanel({
             {/*
           Closed by default, which is the point of it.
 
-          A finished step's whole stdout is hundreds of lines of real Codex
+          A finished step's whole stdout is hundreds of lines of real agent
           output. It is genuine evidence and it stays one click away, but on the
           board it is a single summary line.
         */}

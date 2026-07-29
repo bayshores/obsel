@@ -276,11 +276,24 @@ display-only `path` on the run detail; nothing decides on it.
   one fingerprint while `218` still moves it, and the summary of an identical redo carrying its
   cleared flags beside the quiet line.
 
-- **One real Codex session**, in `tests/live/codex.live.test.ts`, the only automated model call in the
-  repository. The subject is the invocation, not the reasoning: `--sandbox workspace-write` and
-  `--skip-git-repo-check` were learned by running the CLI, both fail silently in the way that matters,
-  and no stand-in can say whether today's Codex still accepts them. The agent reads a real file, writes
-  a real table, and meets an exact column contract.
+- **One real agent session per installed runner**, in `tests/live/runners.live.test.ts`, the only
+  automated model calls in the repository. The subject is the invocation, not the reasoning. Every
+  flag was learned by running the CLI, all of them fail silently in the way that matters, and no
+  stand-in can say whether today's CLI still accepts them: Codex `--sandbox workspace-write` and
+  `--skip-git-repo-check`; Claude Code `-p`, `--permission-mode acceptEdits` and `--safe-mode`. The
+  agent reads a real file, writes a real table, and meets an exact column contract.
+
+  **This introduces the repository's first deliberate skip, and it weakens a rule that was
+  absolute.** `reachable.ts` says in its own words that a missing CLI is never skipped, because a
+  green run without one reports on a path nothing exercised. That is still true of everything else.
+  It is no longer true here: on a machine with only one CLI installed, `pnpm test:live` goes green
+  with the other runner's invocation never run.
+
+  The alternative is worse in a way that is easy to check: requiring both would make a machine with
+  one CLI unable to run the suite at all, which is the exact wall this change exists to remove. So
+  the skip is announced rather than silent — the absent runner gets its own named block in the
+  output saying it did not run. An announcement in test output is a weak guard, and it is the one
+  chosen. **A run of this suite is evidence about the runners that machine has, not about both.**
 
 - **Restoration against the real DataHub**, added to `engine.live.test.ts` on 2026-07-24: from a
   flagged board with four marks standing, one deterministic identical redo of the middle task
@@ -652,7 +665,7 @@ display-only `path` on the run detail; nothing decides on it.
   track pipeline size is checked rather than assumed.
 
 - **The prerequisite checklist reported four green ticks while obsel was completely blind.**
-  Found on 2026-07-24 by opening the board cold. It showed "The board lost its connection" over a
+  Found on 2026-07-24 by opening the board cold. It showed "This page lost its connection" over a
   500, and its own checklist showed DataHub, the tag, the Python packages and Codex all passing.
   `docker ps -a` explained it: `datahub-opensearch-1  Exited (127) 4 hours ago`.
 
@@ -779,7 +792,7 @@ failed`. Traversal is the whole of obsel's reasoning, so obsel could do nothing,
   ```
 
   The panel read **4 of 4** with every step naming the visitor's own registered title: "Expense
-  cleaner is on the board, with its tables wired to it", through to "obsel has seen Expense
+  cleaner is on the graph, with its tables wired to it", through to "obsel has seen Expense
   cleaner's table change since it was first recorded". The headline above it read "1 of 2 finished
   agents are out of date". Somebody else's two agents, on a real DataHub, with obsel answering.
 
@@ -1416,7 +1429,7 @@ however it came about, and the demo script's own rule is that the judged demonst
 entirely from these buttons.
 
 **A completed walk says so and offers the way round again.** Settled with every act performed reads
-"Every act has run. Reset to walk it again." and puts the reset button first. Without it a completed
+"Every step has run. Reset to walk through it again." and puts the reset button first. Without it a completed
 walk is indistinguishable from one that never started: the same settled board, and a line underneath
 telling the reader to try the things they have just finished trying.
 
@@ -1675,13 +1688,13 @@ does, so neither deleting it nor always showing it passes both.
 
 **There were three copies, not two.** The first fix was checked by stopping the server again and
 reading the whole screen rather than the part that had been edited, and the trace panel was saying
-"could not be read (Failed to fetch). The board is unaffected." three panels below the alert saying
+"could not be read (Failed to fetch). Nothing else on this page is affected." three panels below the alert saying
 the board may already be wrong. It is the same sentence for the same reason on a third read, and it
 now takes the same condition. Reading only the region that was changed would have left it.
 
 **And the guide's own headline had nothing asserting it.** The blank-looking guide block in that
 same screenshot turned out to be an artifact of how the screenshot was taken, not a fault: in real
-Chromium "The board lost its connection" is on screen. There was no way to tell those apart from the
+Chromium "This page lost its connection" is on screen. There was no way to tell those apart from the
 repository, because no test covered it, so the browser test now asserts the headline is visible in
 the state where the board has lost its connection.
 
@@ -1926,7 +1939,7 @@ the two facts that made this invisible: with the task removed, the flow's edge s
 
 **The demo board settles for the first time.** With that one entity removed, `orders_pipeline` reads
 four tasks, all complete, three carrying a recorded change, on a server whose launcher history is
-empty. The board shows "all 4 finished, nothing out of date", "Every act has run. Reset to walk it
+empty. The board shows "all 4 finished, nothing out of date", "Every step has run. Reset to walk it
 again.", and three buttons with the reset accented and the two experiments quiet. Both of the day's
 board fixes, on the operator's own board, with no fixture involved.
 
@@ -1948,7 +1961,7 @@ bytes". `engine.ts` guards that write on `compareFingerprints(current, next) !==
 for an identical re-run, and its own comment explains why. The docstring was wrong, not the code, and
 a unit test now pins the distinction the wrong reading would have lost.
 
-**The dataset choice was reachable exactly once.** `Set up the taxi swarm instead` is offered only on
+**The dataset choice was reachable exactly once.** `Set up the forty-agent taxi run instead` is offered only on
 an empty board, and obsel deletes no task, so after the first registration it was unreachable
 forever. The owner chose one pipeline per board, made visible, over mixing both onto one: the header
 name is now a disclosure saying that the board is one DataFlow named by `OBSEL_FLOW_ID`, that a new
@@ -2159,6 +2172,177 @@ fixture says arrived.
 instrumented, so no number is claimed for it. Touch input and keyboard focus of graph nodes are not
 covered: the surface is driven by pointer enter/leave and a click, and a device with no hover state
 reaches the pinned depth by tapping but never sees a preview. That is a gap, not a decision.
+
+### Claude Code as a second runner, and the flag two runs found (2026-07-28)
+
+The demo agents ran on Codex only. `agents/codex_runner.py` hardcoded the string `codex` in three
+places, with no environment variable, no configuration and no registry. Nothing about obsel required
+that: the coordinator makes no model calls, and `run.runner` is free text an agent supplies. The
+consequence was an adoption wall in front of exactly the person the board's joining panel addresses.
+With Claude Code installed and Codex absent, DataHub came up, the tag registered, the board loaded,
+and every demo button was dead, with a checklist row that offered no fix.
+
+The board also contradicted itself. The joining panel served `claude mcp add obsel …` while the
+checklist a few inches away demanded the Codex CLI.
+
+**What was measured, by running the CLI rather than reading about it.** All on 2026-07-28.
+
+| Flag                            | What was observed                                                                                                                                                                                                                                                                                                          |
+| ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `-p`                            | a two-row doubling job ran non-interactively and exited 0                                                                                                                                                                                                                                                                  |
+| `--permission-mode acceptEdits` | the agent wrote `output.json`, a file that did not exist, without stopping to ask                                                                                                                                                                                                                                          |
+| `--safe-mode`                   | **required**, see below                                                                                                                                                                                                                                                                                                    |
+| no git-repo flag                | a session in `.obsel/work/_flagprobe`, gitignored and inside this repository, ran without complaint. Codex needs `--skip-git-repo-check` here; Claude Code does not                                                                                                                                                        |
+| `cwd=` on the subprocess        | Claude Code has no `--cd`, and the output landed in the working directory given                                                                                                                                                                                                                                            |
+| `stdin=DEVNULL`                 | without it the CLI prints `no stdin data received in 3s, proceeding without it` into captured stderr. The warning is gone with it. **The timing effect was not separately measured**: two single runs came out at 11.2 s and 10.5 s, which is inside the run-to-run variation of the model itself, so no saving is claimed |
+| `claude auth status`            | exits 0 signed in, 1 signed out (printing `{"loggedIn": false, …}`), ENOENT when absent. The same three-way split `codex login status` gives, which is what the board's checklist needs                                                                                                                                    |
+
+**`--safe-mode` is the finding, and it was not predicted.** Claude Code discovers CLAUDE.md, skills,
+plugins, hooks and MCP servers by walking up from its working directory, and the agent's working
+directory is `.obsel/work/<task>/`, inside this repository. Two runs of one prompt in one directory,
+differing only by that flag:
+
+- **Without it**, the agent obeyed a CLAUDE.md placed in a parent directory and wrote
+  `{"sentinel": "claude-md-was-loaded", "columns": [...], "rows": [...]}`. A key the prompt never
+  asked for, put there by an instruction file the agent was never meant to read.
+- **With it**, the same prompt in the same directory wrote `{"columns": [...], "rows": [...]}`.
+
+That is not cosmetic. A demo agent doing a two-column rename must not be reading obsel's own
+instructions, and an output that depends on where the repository sits on disk is not reproducible.
+`tests/live/runners.live.test.ts` now asserts the written file has exactly `columns` and `rows` and
+nothing else, because `validate` accepts undeclared keys inside a row on purpose and a leak of that
+shape would otherwise pass quietly.
+
+**Two bugs the work found in itself.** Both were wording, and both would have shipped.
+
+- A single label per runner produced `Each demo agent is a real The Codex CLI session` and
+  `Four real the Codex CLI sessions`. The two products capitalise and read differently, so
+  `preflight.ts` and `guide.ts` each keep two forms: the thing you install, and the word that goes
+  in "a real ___ session".
+- `scripts/start.sh` printed the invalid-`OBSEL_RUNNER` message and then the no-CLI-installed
+  message, on a machine with both installed. Two contradictory sentences. The three outcomes are now
+  distinct states rather than one empty string.
+
+**What was verified, and how.**
+
+- `pnpm verify`: 531 tests, 200 Python self-checks across eight modules, build clean.
+- `pnpm e2e`: 271 browser checks, one skipped by design.
+- The checklist row **looked at** in all three states at 1280 x 800, screenshotted from the real
+  page: Codex signed out offers `codex login`; Claude Code signed out offers `claude auth login`;
+  neither installed names both products, offers no command, and wraps without overflowing. Grammar
+  correct in all three.
+- `scripts/start.sh` step 8 exercised across all seven of its branches with stubbed helpers.
+- Seven real Claude Code sessions over a two-row doubling task, five of them timed: 11.0 s, 13.3 s,
+  11.2 s, 10.5 s and 10.3 s. **This is not the demo's timing, and must not be read as one.** It is
+  a two-row toy over one file; the demo's four agents work over a 50-row seed and took 206.0 s on
+  Codex on 2026-07-23. Nothing comparable has been run on Claude Code.
+- `claude_runner.run_agent` itself, called directly rather than through its argv, on a real scratch
+  directory: returned `2.1.216 (Claude Code)` as the version obsel records, 10.3 s measured, the
+  exact three-column contract, the arithmetic right (20 and 64), and a written file whose top-level
+  keys are exactly `columns` and `rows`. That last assertion is the `--safe-mode` one, made through
+  the function the demo actually calls rather than through a hand-built command line.
+
+**The four-task demo, end to end on Claude Code.** Run on 2026-07-28 on its own DataFlow
+(`OBSEL_FLOW_ID=obsel_claude_take`, server on port 3101), so the operator's board was never touched.
+All four steps exited 0.
+
+| Step         | Measured                                                                            |
+| ------------ | ----------------------------------------------------------------------------------- |
+| `run`        | four agents in **132.6 s**; 56.0 s, 29.2 s, 23.7 s, 23.5 s each                     |
+| `rerun-same` | output **byte-identical**, 0 changed outputs, 0 marks                               |
+| `change`     | called `schema`, marked exactly 3: 1 hop, 2 hops, 2 hops; 3 of 3 tagged in DataHub  |
+| `repair`     | 1 redone identical in 32.1 s, and obsel cleared the other 2 without re-running them |
+
+Every task recorded `2.1.216 (Claude Code)` as its runner, which is the CLI's own version string
+passed through unchanged.
+
+Three things worth naming separately, because they are the properties that are hard rather than the
+ones that are visible:
+
+- **`clean_orders` came out byte-identical across two live Claude Code sessions**, content hash
+  `539b509722e8` both times, so obsel stayed silent. That is the quiet case working against a live
+  model, and it is the same content hash the Codex runs produced, because the hash is taken over a
+  canonicalised table built from a fixed seed.
+- **The rename was called `schema` and not `both`.** The content hash was `539b509722e8` before and
+  after; only the column name moved.
+- **The repair cleared two tasks that never re-ran.** `build_revenue` redid `daily_revenue`
+  identically, so obsel derived that `write_docs` and `write_report` were flagged for ground that
+  never moved, and took their flags off with a reason on each. Nothing requested that; it is
+  `restoredBy` in `staleness.ts`, and this is the first time it has been exercised on this runner.
+
+**One number in that run was not obsel's, and it is recorded in `environment-findings.md` §14.** The
+`change` step first reported its cascade as **162.8 s end to end** for a decision obsel made in
+105 ms. That was `mcp-server-datahub` blocking on unreachable telemetry, not obsel: with
+`DATAHUB_TELEMETRY_ENABLED=false`, which `mcp.ts` now sets, the `repair` step's coordination reported
+**1.9 s**. The 162.8 s figure is kept here because it is what the board actually said, and deleting a
+measurement because it was unflattering is the habit this document exists to prevent.
+
+**What has not been done.**
+
+- `pnpm test:live` **passes clean**: 112 of 112 tests across 11 of 11 files in **433.8 s** on
+  2026-07-28, exit 0, including one real agent session per installed CLI.
+
+  The run before it was 111 of 112 in 513.5 s. The single failure was a stale string in a test
+  written earlier the same day, asserting a word the label pass had changed underneath it; it is
+  recorded rather than dropped because it is the kind of failure that says something -- two edits to
+  one sentence, hours apart, and only the live suite caught the disagreement. Three attempts before
+  that were abandoned and none was a suite failure: two had concurrent builds against the same
+  `.next/`, one hit `MCP error -32001: Request timed out` because the Claude Code demo was driving
+  DataHub at the same time. All three predate the telemetry fix in §14, which is what made the suite
+  finish at all -- before it, fifteen minutes had not completed a single file.
+
+  The suite's closing line now names the runners it did **not** exercise. On this machine it read
+  `Agent runners: both Codex and Claude Code ran a real session.`, so this run is evidence about
+  both. On a machine with one CLI it would name the other and say the run is evidence about one.
+
+- The four-task demo has been run on Claude Code but the timings are **not comparable** to the Codex
+  figures: different day, different machine load, and the 206.0 s Codex figure was taken on
+  2026-07-23. Neither runner has been measured against the other under controlled conditions, and no
+  claim that either is faster is supported.
+- The forty-task taxi swarm has not been run on Claude Code.
+- **The TypeScript runner check's not-installed branch has no test.** `preflight.live.test.ts`
+  covers `datahub` and `uvx`, and it proves the `uvx` case against a PATH that genuinely lacks it,
+  which is exactly the shape the runner check needs and does not have. The Python side of the same
+  question is covered against a real emptied PATH in `runners.live.test.ts`, and the rendered board
+  is covered from a fixture, but nothing yet observes `checkRunner` deciding "not installed" from a
+  real absent binary. Until it does, that branch is reasoning rather than evidence.
+- Claude Code's terms under a consumer subscription have not been researched to the depth the Codex
+  question was. See [`THIRD_PARTY_NOTICES.md`](../THIRD_PARTY_NOTICES.md).
+
+### The screen stopped calling itself a board (2026-07-28)
+
+The owner asked what "board" meant, and was right to. It is a metaphor for a page, and two rules in
+this repository already forbid it: CLAUDE.md says name things what they are and do not use metaphor,
+and the cockpit's own house rule in `guide.ts` says a sentence on screen has to be readable by
+somebody who has never opened the README. The word had survived both because it is the repository's
+own habit -- it is in CLAUDE.md, in eight commit subjects, and in `skills/obsel-collaboration/`.
+
+**What was measured first.** The word appears 1,227 times across the repository, but only ~30 of
+those are strings a user actually reads. The rest are code identifiers and prose in `docs/`. So the
+change was scoped to what renders, where the confusion actually happens.
+
+| Was               | Is                       | Why                                                                        |
+| ----------------- | ------------------------ | -------------------------------------------------------------------------- |
+| the board         | this page, or the graph  | whichever it actually was at that point; two different things had one name |
+| this cockpit      | this page                | the reader has nowhere to look up "cockpit"                                |
+| the swarm         | the agents               | plain, and it is what they are                                             |
+| the taxi swarm    | the forty-agent taxi run | says the count and the subject instead of a collective noun                |
+| Every act has run | Every step has run       | "act" is this repository's word for a stage of the tour                    |
+
+Thirty strings across eighteen files, including five in `src/server` that reach the setup checklist,
+which the first pass missed by only scanning `src/features`.
+
+**Verified.** `pnpm verify` green with 531 tests; `pnpm e2e` green with 271 browser checks, which is
+what proves it, since twenty of those assert on rendered text. Documentation that _quoted_ a changed
+string was updated with it; documentation that merely uses the word "board" in prose was not, and
+that is a decision still open rather than an oversight.
+
+**Not done, and deliberately.** The code identifiers are untouched: `src/features/cockpit/`, and
+`dock`, `hud`, `rail`, `mine-panel`, `bench`, `backdrop` within it. These are the most opaque names
+in the repository and no user ever sees one; renaming the directory alone touches about 400 lines.
+`docs/` still says "board" about 400 times, and so does CLAUDE.md, which means the vocabulary is now
+inconsistent between the screen and the documents describing it. That inconsistency is real and is
+recorded here rather than quietly left.
 
 ## Not done
 

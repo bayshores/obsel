@@ -68,7 +68,8 @@ a second implementation of that would be a second definition of what counts as a
 
 DataHub (quickstart, GMS v1.5.0.6) for the graph and the record; DataHub's MCP server
 (`mcp-server-datahub`, pinned `==0.6.0`) for the tag writes; Next.js for the board; Python for
-the agents and obsel's own MCP server; Codex CLI for the real agent sessions. The traps found on
+the agents and obsel's own MCP server; the Codex CLI or Claude Code for the real agent sessions,
+whichever the operator has. The traps found on
 the way, including the endpoint that fabricates entities for invented URNs and the search index
 that lags freshly registered tasks, are documented with reproductions in
 `docs/environment-findings.md` and were submitted through the feedback survey.
@@ -76,8 +77,9 @@ that lags freshly registered tasks, are documented with reproductions in
 ### What is honestly not proven
 
 Most forty-task figures are one or two observations on one machine, not a benchmark. The engine
-never uses a model for its decisions, so the flags are deterministic, but Codex is a live agent
-and its output needed pinning three times (documented). Dagster does retroactive invalidation for
+never uses a model for its decisions, so the flags are deterministic, but the agent is a live
+model and its output needed pinning three times (documented). Every measured figure here came from
+a Codex run; the demo also runs on Claude Code, and nothing at demo scale has been measured on it. Dagster does retroactive invalidation for
 assets declared in its own code, and agent-coherence handles the in-memory half of this problem
 for shared artifacts inside one run; the prior-art survey in `docs/concept.md` names both rather
 than claiming novelty they would disprove. obsel's case is the one where no single orchestrator

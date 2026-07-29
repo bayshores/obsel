@@ -13,7 +13,13 @@ import { STEP_NAME, guide, sinceReset } from "@/src/features/cockpit/guide";
 import { TOUR, settledIndex } from "@/src/features/cockpit/tour/steps";
 import type { GuideInput } from "@/src/features/cockpit/guide";
 import type { StaleMark, TaskRecord, TaskStatus } from "@/src/server/coordinator/types";
-import type { DemoActivity, DemoStep, StepResult } from "@/src/server/runner/types";
+import type {
+  DemoActivity,
+  DemoStep,
+  RunnerCheck,
+  RunnerName,
+  StepResult,
+} from "@/src/server/runner/types";
 
 const AT = "2026-07-22T09:00:10.000Z";
 
@@ -79,13 +85,21 @@ function ok(detail = "fine") {
   return { ok: true, detail, fix: null };
 }
 
+/**
+ * A passing runner check. Defaults to Codex because that is what detection
+ * picks when both are installed, so it is the state most boards are in.
+ */
+function runnerOk(name: RunnerName = "codex"): RunnerCheck {
+  return { ok: true, detail: "fine", fix: null, name };
+}
+
 function activity(overrides: Partial<DemoActivity> = {}): DemoActivity {
   return {
     running: null,
     lastResult: null,
     log: [],
     history: [],
-    preflight: { datahub: ok(), vocabulary: ok(), venv: ok(), uvx: ok(), codex: ok() },
+    preflight: { datahub: ok(), vocabulary: ok(), venv: ok(), uvx: ok(), runner: runnerOk() },
     joinCommand: "claude mcp add obsel -- /tmp/x/agents/.venv/bin/python -m agents.mcp_server",
     ...overrides,
   };
@@ -184,7 +198,7 @@ describe("no em dash reaches the screen", () => {
                 vocabulary: ok(),
                 venv: ok(),
                 uvx: ok(),
-                codex: ok(),
+                runner: runnerOk(),
               },
             }),
           }),
@@ -200,7 +214,12 @@ describe("no em dash reaches the screen", () => {
                 vocabulary: { ok: false, detail: "the tag is missing", fix: null },
                 venv: ok(),
                 uvx: ok(),
-                codex: { ok: false, detail: "not installed", fix: "brew install codex" },
+                runner: {
+                  ok: false,
+                  detail: "not installed",
+                  fix: "brew install codex",
+                  name: "codex",
+                },
               },
             }),
           }),
@@ -458,7 +477,7 @@ describe("stage derivation", () => {
             vocabulary: { ok: false, detail: "cannot be checked until DataHub answers", fix: null },
             venv: ok(),
             uvx: ok(),
-            codex: ok(),
+            runner: runnerOk(),
           },
         }),
       }),
@@ -467,24 +486,77 @@ describe("stage derivation", () => {
     expect(allText(view)).toContain("datahub docker quickstart");
   });
 
-  it("prepare when the machine is broken while the swarm reads fine", () => {
-    const view = guide(
-      input({
-        tasks: FOUR_COMPLETE,
-        activity: activity({
-          preflight: {
-            datahub: ok(),
-            vocabulary: ok(),
-            venv: ok(),
-            uvx: ok(),
-            codex: { ok: false, detail: "the Codex CLI is not signed in", fix: "codex login" },
-          },
+  /*
+   * The runner row, in all three states it can be in.
+   *
+   * Two runners and a neither, because they go down one code path and the row's
+   * subject is the part that is derived. A version of this test fixed to Codex
+   * passed while the row printed `codex login` at somebody running Claude Code,
+   * whose actual fix is a different command.
+   */
+  const RUNNER_ROWS = [
+    {
+      name: "Codex signed out",
+      check: {
+        ok: false,
+        detail: "the Codex CLI is not signed in",
+        fix: "codex login",
+        name: "codex" as const,
+      },
+      says: "The Codex CLI, signed in",
+      offers: "codex login",
+      omits: "claude auth login",
+    },
+    {
+      name: "Claude Code signed out",
+      check: {
+        ok: false,
+        detail: "Claude Code is not signed in",
+        fix: "claude auth login",
+        name: "claude" as const,
+      },
+      says: "Claude Code, signed in",
+      offers: "claude auth login",
+      omits: "codex login",
+    },
+    {
+      name: "neither installed",
+      check: {
+        ok: false,
+        detail: "Neither the Codex CLI nor Claude Code is installed",
+        fix: null,
+        name: null,
+      },
+      says: "An agent CLI, signed in",
+      // No command, because there is nothing to sign into until a product is
+      // chosen, and naming one would send the reader to install the wrong one.
+      offers: null,
+      omits: "codex login",
+    },
+  ];
+
+  for (const row of RUNNER_ROWS) {
+    it(`prepare when the machine is broken while the swarm reads fine: ${row.name}`, () => {
+      const view = guide(
+        input({
+          tasks: FOUR_COMPLETE,
+          activity: activity({
+            preflight: {
+              datahub: ok(),
+              vocabulary: ok(),
+              venv: ok(),
+              uvx: ok(),
+              runner: row.check,
+            },
+          }),
         }),
-      }),
-    );
-    expect(view.stage).toBe("prepare");
-    expect(allText(view)).toContain("codex login");
-  });
+      );
+      expect(view.stage).toBe("prepare");
+      expect(allText(view)).toContain(row.says);
+      if (row.offers !== null) expect(allText(view)).toContain(row.offers);
+      expect(allText(view)).not.toContain(row.omits);
+    });
+  }
 
   it("holds the board on prepare when uv is missing, which nothing else would report", () => {
     // The quietest prerequisite: with uv absent the engine still finds every
@@ -503,7 +575,7 @@ describe("stage derivation", () => {
               detail: "obsel writes its tag through DataHub's own MCP server",
               fix: "brew install uv",
             },
-            codex: ok(),
+            runner: runnerOk(),
           },
         }),
       }),
@@ -525,7 +597,7 @@ describe("stage derivation", () => {
       },
       venv: ok(),
       uvx: ok(),
-      codex: ok(),
+      runner: runnerOk(),
     };
     const withVenv = guide(input({ activity: activity({ preflight: missingVocabulary }) }));
     expect(withVenv.actions.map((action) => action.step)).toEqual(["setup"]);
@@ -1144,6 +1216,58 @@ describe("the taxi swarm gets its own buttons, recognised by its own task names"
     expect(view.stage).toBe("registered");
     expect(view.actions).toEqual([]);
     expect(view.headline).toBe("2 agents ready to run");
+  });
+});
+
+describe("the run button says which agent product is about to start", () => {
+  /*
+   * The one sentence on the board that tells somebody what is about to happen on
+   * their machine, and for a long time it said Codex whatever was installed.
+   *
+   * It is derived from the same preflight field the checklist row uses, so the
+   * two cannot disagree. The third case is the one with no answer yet: naming a
+   * product nobody has installed would be a guess, and "four real agent
+   * sessions" is true without being one.
+   */
+  const REGISTERED = [
+    task("clean_orders", { status: "registered", finishedAt: null }),
+    task("build_revenue", { status: "registered", finishedAt: null }),
+    task("write_report", { status: "registered", finishedAt: null }),
+    task("write_docs", { status: "registered", finishedAt: null }),
+  ];
+
+  function detailFor(runner: RunnerCheck): string {
+    const view = guide(
+      input({
+        tasks: REGISTERED,
+        activity: activity({
+          preflight: { datahub: ok(), vocabulary: ok(), venv: ok(), uvx: ok(), runner },
+        }),
+      }),
+    );
+    expect(view.stage).toBe("registered");
+    const start = view.actions.find((action) => action.step === "run");
+    if (start === undefined) throw new Error("the registered stage offered no run button");
+    return start.detail;
+  }
+
+  it("names Codex when Codex is the runner", () => {
+    expect(detailFor(runnerOk("codex"))).toBe("Four real Codex sessions. Takes a few minutes.");
+  });
+
+  it("names Claude Code when Claude Code is the runner", () => {
+    expect(detailFor(runnerOk("claude"))).toBe(
+      "Four real Claude Code sessions. Takes a few minutes.",
+    );
+  });
+
+  it("names neither when the check could not find one, and still reads as a sentence", () => {
+    // Reached when the activity read itself failed, so there is no preflight to
+    // ask. "Four real an agent CLI sessions" is what a single shared label
+    // produced, which is why the product word is separate from the row's.
+    const view = guide(input({ tasks: REGISTERED, activity: null }));
+    const start = view.actions.find((action) => action.step === "run");
+    expect(start?.detail).toBe("Four real agent sessions. Takes a few minutes.");
   });
 });
 

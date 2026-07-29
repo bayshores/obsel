@@ -10,7 +10,7 @@
  * implementation and why the browser is not allowed to be a second one.
  *
  * **What the bench is for.** Until it existed, the only way to watch obsel do
- * the thing obsel is for was to run four real Codex sessions and wait a few
+ * the thing obsel is for was to run four real agent sessions and wait a few
  * minutes, or to wire an agent in over MCP from a terminal. Somebody who has
  * neither could read the board but never make it move. The bench lets a person
  * stand in for the agent: you write the table, obsel hashes it, and whatever

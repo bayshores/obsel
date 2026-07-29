@@ -389,7 +389,7 @@ export function DataInspector({
               saying so matters: it is the one table whose changes no
               completion report will ever announce. */}
           {producer === null
-            ? "no agent here writes it; it comes from outside the swarm"
+            ? "no agent here writes it; it comes from outside this pipeline"
             : `${taskTitle(producer)}${stamp === null ? "" : ` · ${stamp}`}`}
         </Field>
 

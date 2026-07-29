@@ -115,9 +115,14 @@ function finishedCount(input: GuideInput): string | null {
  * here can still read the board, which is the point of splitting it.
  *
  * Chapter two is the demonstration itself, and it is deliberately the real one.
- * The agents that run are real Codex sessions doing real work, which takes real
- * minutes; the card says so and shows the count climbing rather than pretending
- * it is quick.
+ * The agents that run are real sessions of a coding CLI doing real work, which
+ * takes real minutes, and the card shows the count climbing rather than
+ * pretending it is quick.
+ *
+ * Which CLI, and how long it takes, are on the button the card is pointing at,
+ * derived there from the runner actually selected. This card does not repeat
+ * them: it carries the one thing the button does not say, which is what obsel
+ * records as each agent finishes.
  */
 export const TOUR: readonly TourStep[] = [
   {
@@ -158,7 +163,7 @@ export const TOUR: readonly TourStep[] = [
     kind: "act",
     target: "action",
     launches: ["register", "scale-register"],
-    title: "put the agents on the board",
+    title: "put the agents on the graph",
     body: "This adds the agents to DataHub and records which tables each one reads and writes. Nothing runs yet.",
     done: (input) => input.tasks.length > 0,
     progress: () => null,
@@ -170,7 +175,7 @@ export const TOUR: readonly TourStep[] = [
     target: "action",
     launches: ["run", "scale-change-mid"],
     title: "let them work",
-    body: "These are real Codex sessions doing real work, so it takes a few minutes. As each one finishes, obsel writes down exactly what its table looked like at that moment. You can close this window and come back.",
+    body: "As each agent finishes, obsel writes down exactly what its table looked like at that moment. You can close this window and come back.",
     done: allFinished,
     progress: finishedCount,
   },

@@ -184,7 +184,7 @@ export function TracePanel({
             {error === null
               ? "nothing yet. Every step obsel takes appears here as it happens."
               : boardTrusted
-                ? `could not be read (${error}). The board is unaffected.`
+                ? `could not be read (${error}). Nothing else on this page is affected.`
                 : `could not be read (${error}).`}
           </li>
         ) : (

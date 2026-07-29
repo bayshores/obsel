@@ -883,7 +883,15 @@ def cmd_scale_run(args: argparse.Namespace) -> int:
     written = scale.install_seeds(REPO_ROOT)
     for name in written:
         print(f"  seeded {name} from the committed extract (hash checked)")
-    print(f"  pool: up to {args.pool} Codex sessions at once")
+    from agents import runner_select
+
+    # Named rather than assumed: the operator can pick with OBSEL_RUNNER, and a
+    # line saying Codex above forty Claude Code sessions would be the terminal
+    # disagreeing with the board about what did the work.
+    print(
+        f"  pool: up to {args.pool} {runner_select.PRODUCT[runner_select.resolve()]} "
+        "sessions at once"
+    )
     print()
 
     started = time.perf_counter()
@@ -893,13 +901,17 @@ def cmd_scale_run(args: argparse.Namespace) -> int:
     in_flight_at_mark: list[str] = []
 
     # How long after cueing the change the held reader is released. The change
-    # re-run is a real Codex session that takes tens of seconds; releasing the
+    # re-run is a real agent session that takes tens of seconds; releasing the
     # reader at the cue let a 26-second reader finish before a 50-second change
-    # landed (observed live, first mid-run attempt), so the straddle never
-    # happened and the reader was marked by the ordinary cascade instead. A
-    # short delay puts the reader's run inside the change's. Codex being live,
-    # either path can still occur, and both are asserted correct below; the
+    # landed (observed live on Codex, first mid-run attempt), so the straddle
+    # never happened and the reader was marked by the ordinary cascade instead. A
+    # short delay puts the reader's run inside the change's. The agent being
+    # live, either path can still occur, and both are asserted correct below; the
     # delay only raises the odds of the straddling one being on the board.
+    #
+    # The number was tuned against Codex session lengths and has not been
+    # re-measured on Claude Code, so a taxi run there may straddle less often.
+    # Both outcomes are still asserted, so it cannot make the run wrong.
     RELEASE_DELAY_S = 18.0
 
     def on_event(event: swarm.Event, outcome: swarm.Outcome, controls: swarm.Controls) -> None:
@@ -1353,7 +1365,7 @@ def cmd_self_check(args: argparse.Namespace) -> int:
     that reads a broken reply as a pass is worse than none at all.
 
     Everything here is deterministic and offline. The commands themselves talk to
-    obsel and to Codex and are covered by `tests/live/run-commands.live.test.ts`
+    obsel and to the agent CLI and are covered by `tests/live/run-commands.live.test.ts`
     and `tests/live/codex.live.test.ts`.
     """
     failures: list[str] = []
@@ -1823,7 +1835,7 @@ def main(argv: list[str] | None = None) -> int:
         "--pool",
         type=int,
         default=8,
-        help="with `scale-run`, how many Codex sessions may run at once (default %(default)s)",
+        help="with `scale-run`, how many agent sessions may run at once (default %(default)s)",
     )
     parser.add_argument(
         "--change-during",

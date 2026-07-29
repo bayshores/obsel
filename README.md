@@ -126,7 +126,7 @@ Start Docker Desktop, then download this repository and **double-click `Start ob
 A terminal window opens and works down nine steps, saying what it is doing. You do not type
 anything. It starts DataHub, installs what is missing, registers obsel's tag, starts the app, and
 opens the board in your browser. Anything it cannot do for you, such as installing Docker or signing
-in to Codex, it names with the one thing to do next.
+in to your agent CLI, it names with the one thing to do next.
 
 On Linux, and on macOS if you would rather not double-click a file:
 
@@ -148,7 +148,7 @@ pnpm install && pnpm dev
 Open **`http://localhost:3000`**.
 
 The board opens on a checklist, because those three commands are not quite everything. The demo
-agents need their own Python packages and a signed-in Codex CLI, and obsel needs its tag registered
+agents need their own Python packages and a signed-in agent CLI, and obsel needs its tag registered
 in DataHub. Every item is checked on your machine a couple of times a second, finished ones are
 ticked, and anything missing shows you the exact command to run. Work down the list and it empties.
 The launcher above does the same work in the same order, which is why it exists: two of those steps
@@ -159,7 +159,7 @@ After that, the whole demo is buttons.
 | Button                                       | What happens                                                                                  |
 | -------------------------------------------- | --------------------------------------------------------------------------------------------- |
 | **Set up the demo agents**                   | Four agents are added to DataHub. Nothing runs yet.                                           |
-| **Start the demo agents**                    | Four real Codex sessions do the work. Two to three minutes.                                   |
+| **Start the demo agents**                    | Four real agent sessions do the work. Two to three minutes.                                   |
 | **Run the orders cleaner again, no changes** | The same table comes out, so nothing should go out of date. obsel stays quiet.                |
 | **Change one agent's instructions**          | A column gets renamed. Three finished agents go amber, and two of them never read that table. |
 | **Redo the work obsel flagged**              | Agents redo it in order. A redo that lands identical clears the flags on work built on it.    |
@@ -167,16 +167,22 @@ After that, the whole demo is buttons.
 
 ### What you need
 
-| Thing                | Why                                                                                 |
-| -------------------- | ----------------------------------------------------------------------------------- |
-| Node 24 and pnpm 11  | the app                                                                             |
-| Docker               | the local DataHub stack                                                             |
-| Python 3             | the demo agents, which get their own environment                                    |
-| `uv`                 | obsel writes its tag through DataHub's own MCP server                               |
-| Codex CLI, signed in | each agent is a real Codex session, so there is no offline mode and no API key path |
+| Thing                               | Why                                                                                          |
+| ----------------------------------- | -------------------------------------------------------------------------------------------- |
+| Node 24 and pnpm 11                 | the app                                                                                      |
+| Docker                              | the local DataHub stack                                                                      |
+| Python 3                            | the demo agents, which get their own environment                                             |
+| `uv`                                | obsel writes its tag through DataHub's own MCP server                                        |
+| Codex CLI or Claude Code, signed in | each agent is a real session of one of them, so there is no offline mode and no API key path |
+
+**Either agent CLI will do, and you need only one.** With nothing set, obsel uses whichever is
+installed and prefers Codex when both are. To pick, set `OBSEL_RUNNER=codex` or `OBSEL_RUNNER=claude`
+before starting: the board's checklist, the launcher and the workers all read it, so they cannot
+disagree about which product is doing the work. The runner is the agent's business, not obsel's. Every
+measured number below was taken against Codex.
 
 The launcher installs `uv` if it is missing, and skips whatever is already done, so running it twice
-is safe. Docker, Node and the Codex sign-in need you, so it detects those and says what to do. It
+is safe. Docker, Node and the agent CLI sign-in need you, so it detects those and says what to do. It
 installs DataHub `v1.5.0.6` by name, which is the version every measured number here was taken
 against.
 
@@ -265,7 +271,7 @@ same list.
 **Reporting the work is a table on the board too.** Open a task you registered and write its table
 by hand: the columns are chips you can rename, drop or add, and the rows are cells you can type
 into. Press report and obsel hashes what you handed it and answers with what it invalidated. That
-is the whole loop without Codex and without a terminal, in about fifteen seconds, and every call is
+is the whole loop without an agent CLI and without a terminal, in about fifteen seconds, and every call is
 the real one. It is the same road an agent's table goes down, because the browser never computes a
 fingerprint: the button posts to `/api/tasks/report`, which runs `agents/report.py`, which is the
 same `mcp_core.completion_body` the MCP door uses. Two implementations of the fingerprint would be
@@ -295,7 +301,8 @@ Every row is one command away, and names the file that would fail if the claim w
 | TypeScript and Python build identical DataHub ids                        | `pnpm test`                        | `tests/urns.test.ts` runs the Python module for real                                |
 
 **Nothing here is tested against a stand-in.** Anything that crosses a process boundary is covered
-against a live DataHub, the real MCP server, a real obsel, and a real `codex exec` session.
+against a live DataHub, the real MCP server, a real obsel, and a real session of each agent CLI
+installed.
 
 ### What is still open
 
@@ -303,7 +310,7 @@ The full record of what has been measured, and what has not, is in
 **[`docs/verification.md`](docs/verification.md)**. The short version:
 
 - The demo has passed cleanly seven times, on one machine. That is not a pass rate.
-- Codex is a live agent, and its output has needed pinning down three times.
+- The agents are live models, and their output has needed pinning down three times.
 - Detection times are single observations, not a benchmark, and most forty-task figures are one or
   two observations each.
 - The graph has been checked in a real browser on two pipeline shapes, four tasks and forty, plus
@@ -329,16 +336,20 @@ The full record of what has been measured, and what has not, is in
 pnpm dev         # the cockpit at http://localhost:3000
 pnpm verify      # format, lint, typecheck, tests, Python self-checks, build
 pnpm test        # pure logic only, no Docker
-pnpm test:live   # the real thing; needs DataHub up, and uvx and codex on PATH
+pnpm test:live   # the real thing; needs DataHub up, uvx, and an agent CLI on PATH
 pnpm e2e         # browser checks; builds and serves the app itself
 ```
 
 **`pnpm verify` is the one to run first.** It needs no Docker and no browser download.
 
-Checked 2026-07-26: `pnpm verify` passes end to end, with 424 tests and 183 Python self-checks
-across seven modules. `pnpm test:live` passes 96 tests across ten files in 266 s, two of
-them real Codex sessions. `pnpm e2e` passes 145 browser checks across two viewports, with one
+Checked 2026-07-28: `pnpm verify` passes end to end, with 531 tests and 200 Python self-checks
+across eight modules. `pnpm e2e` passes 271 browser checks across two viewports, with one
 skipped by design, half of them against a forty-task board recorded off a real run.
+
+`pnpm test:live` passes 112 tests across eleven files in 434 s, including one real agent session
+per installed CLI. Its closing line names any runner it did not exercise, so a green run on a
+machine with one CLI cannot be read as evidence about both. See
+[docs/verification.md](docs/verification.md).
 
 ---
 

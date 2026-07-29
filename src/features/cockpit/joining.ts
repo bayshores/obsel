@@ -173,7 +173,7 @@ export function joining(input: JoinInput): JoinView {
       done: registered !== null,
       detail:
         registered !== null
-          ? `${taskTitle(registered)} is on the board, with its tables wired to it.`
+          ? `${taskTitle(registered)} is on the graph, with its tables wired to it.`
           : "It calls register_task once, naming the tables it reads and the tables it writes.",
     },
     {

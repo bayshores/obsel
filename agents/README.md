@@ -12,11 +12,11 @@ write_report   reads daily_revenue  writes revenue_report
 write_docs     reads daily_revenue  writes pipeline_docs
 ```
 
-These are real agents. Each one is a Codex session that reads its input, decides
-how to do its job, and writes its table with its own tools. There is no offline
-mode and no synthetic fallback: without a signed-in Codex CLI the workers stop and
-say so, because a demo that quietly fakes the model would make every number on
-screen meaningless.
+These are real agents. Each one is a session of a coding CLI -- Codex or Claude
+Code, chosen by `runner_select.py` -- that reads its input, decides how to do its
+job, and writes its table with its own tools. There is no offline mode and no
+synthetic fallback: without a signed-in CLI the workers stop and say so, because a
+demo that quietly fakes the model would make every number on screen meaningless.
 
 ## What has actually been observed
 
@@ -53,18 +53,21 @@ were found.
 
 ## What is in here
 
-| File              | What it is                                                                                                                                                                                                                                |
-| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `graph.py`        | Walks the lineage graph to find what a change breaks. Also holds the Python reference implementation of task registration, which the demo does not use, because `run.py register` goes through obsel's HTTP API instead.                  |
-| `fingerprint.py`  | Reduces a produced table to a schema hash and a content hash. 7 self-checks.                                                                                                                                                              |
-| `seed_data.py`    | The synthetic `raw_orders` table the swarm starts from, from a fixed seed.                                                                                                                                                                |
-| `pipeline.py`     | The four agents, their instructions, and the shape they form. Data only.                                                                                                                                                                  |
-| `worker.py`       | One agent: load inputs, announce the start, let Codex do the work, hold the output to its contract, fingerprint the output and the inputs as read, report both to obsel. 17 self-checks.                                                  |
-| `codex_runner.py` | Runs one agent as a real `codex exec` session, and refuses anything unusable it writes back. 22 self-checks.                                                                                                                              |
-| `setup.py`        | One-time DataHub setup: creates obsel's tag and the demo DataFlow.                                                                                                                                                                        |
-| `run.py`          | The command line that drives the demo. 33 self-checks over the guards behind what it prints.                                                                                                                                              |
-| `mcp_core.py`     | Everything obsel's MCP server decides before it speaks: reply guards, output resolution, freshness verdicts, the completion body, tables handed over as file paths. Standard library only, so `pnpm verify` can check it. 39 self-checks. |
-| `mcp_server.py`   | obsel's own MCP server: the nine tools any MCP-capable agent joins through, six for the board and three for erasure. Wiring only; covered by `tests/live/obsel-mcp.live.test.ts`.                                                         |
+| File                | What it is                                                                                                                                                                                                                                |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `graph.py`          | Walks the lineage graph to find what a change breaks. Also holds the Python reference implementation of task registration, which the demo does not use, because `run.py register` goes through obsel's HTTP API instead.                  |
+| `fingerprint.py`    | Reduces a produced table to a schema hash and a content hash. 7 self-checks.                                                                                                                                                              |
+| `seed_data.py`      | The synthetic `raw_orders` table the swarm starts from, from a fixed seed.                                                                                                                                                                |
+| `pipeline.py`       | The four agents, their instructions, and the shape they form. Data only.                                                                                                                                                                  |
+| `worker.py`         | One agent: load inputs, announce the start, let the agent do the work, hold the output to its contract, fingerprint the output and the inputs as read, report both to obsel. 17 self-checks.                                              |
+| `agent_contract.py` | What an agent is told and what it is held to, shared by both runners. Refuses anything unusable it writes back. 22 self-checks.                                                                                                           |
+| `runner_select.py`  | Which CLI runs the agents: `OBSEL_RUNNER`, or whichever is installed, Codex first. 9 self-checks.                                                                                                                                         |
+| `codex_runner.py`   | Runs one agent as a real `codex exec` session.                                                                                                                                                                                            |
+| `claude_runner.py`  | Runs one agent as a real `claude -p` session.                                                                                                                                                                                             |
+| `setup.py`          | One-time DataHub setup: creates obsel's tag and the demo DataFlow.                                                                                                                                                                        |
+| `run.py`            | The command line that drives the demo. 33 self-checks over the guards behind what it prints.                                                                                                                                              |
+| `mcp_core.py`       | Everything obsel's MCP server decides before it speaks: reply guards, output resolution, freshness verdicts, the completion body, tables handed over as file paths. Standard library only, so `pnpm verify` can check it. 39 self-checks. |
+| `mcp_server.py`     | obsel's own MCP server: the nine tools any MCP-capable agent joins through, six for the board and three for erasure. Wiring only; covered by `tests/live/obsel-mcp.live.test.ts`.                                                         |
 
 ## Joining from your own agent
 
@@ -111,8 +114,9 @@ You need four things running or set:
    agents/.venv/bin/python -m pip install -r agents/requirements.txt
    ```
 
-4. **The Codex CLI, signed in.** `codex login status` should confirm it. There is no
-   API-key path.
+4. **An agent CLI, signed in.** Either the Codex CLI (`codex login status`) or Claude
+   Code (`claude auth status`). You need only one; with `OBSEL_RUNNER` unset obsel uses
+   whichever is installed and prefers Codex when both are. There is no API-key path.
 
 Every command below is run from the repository root, so that `agents` imports as
 a package:
@@ -348,12 +352,16 @@ registered; `reset`, then register the other, to switch.
 
 ## How the agents do the work
 
-Each agent is a **real Codex session**, running in the data directory with its own
+Each agent is a **real CLI session**, running in the data directory with its own
 tools. It reads its input table, decides how to do its job, and writes its output
-table itself. Codex is the only runner: there is no API-key path, no offline mode
-and no synthetic fallback, so without a signed-in Codex CLI the workers stop and
-say so. A demo that quietly faked the model would make every number on screen
-meaningless.
+table itself. There is no API-key path, no offline mode and no synthetic fallback,
+so without a signed-in CLI the workers stop and say so. A demo that quietly faked
+the model would make every number on screen meaningless.
+
+`codex_runner.py` and `claude_runner.py` differ only in the invocation. What the
+agent is told and what it is held to are in `agent_contract.py`, shared by both:
+two copies of the validator would drift, and a drifted validator accepts a table
+the other would refuse.
 
 The output is read back off disk and checked against the column contract before
 obsel hears anything. A plausible-looking bad table would fingerprint as a real
@@ -361,7 +369,7 @@ change and mark the whole chain stale for nothing.
 
 **What this costs, measured.** An earlier design asked the model for a JSON plan
 and had deterministic code apply it to every row, which made a byte-identical
-re-run a property of the construction: same plan in, same table out. Codex
+re-run a property of the construction: same plan in, same table out. An agent
 writing the table directly gives that up, and the cost is not hypothetical.
 
 Across four live runs of `clean_orders` over the identical 50-row seed on
@@ -416,9 +424,13 @@ python3 agents/fingerprint.py
 # column keeps its integers, and a value that really moved still moves the hash.
 agents/.venv/bin/python -m agents.worker
 
-# Prove nothing a live agent writes is taken on trust: every way a Codex run can
+# Prove nothing a live agent writes is taken on trust: every way a run can
 # produce an unusable table is refused, and by a message that names it.
-agents/.venv/bin/python -m agents.codex_runner
+agents/.venv/bin/python -m agents.agent_contract
+
+# Prove the runner is chosen the same way everywhere, and that an explicit
+# choice is honoured rather than quietly swapped for the other one.
+agents/.venv/bin/python -m agents.runner_select
 
 # Prove the guards behind what the demo prints, including that a reply obsel
 # never sent is never read as "nothing was affected".

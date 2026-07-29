@@ -84,7 +84,7 @@ export function useSwarm(): SwarmState {
         }
         const body: unknown = await response.json();
         if (!isSwarmResponse(body)) {
-          throw new Error("the coordinator sent a reply this cockpit could not read");
+          throw new Error("the coordinator sent a reply this page could not read");
         }
         if (cancelled) return;
         const roundTripMs = Math.round(performance.now() - startedAt);
@@ -129,7 +129,7 @@ export function explain(cause: unknown): string {
     return `The coordinator did not answer within ${READ_TIMEOUT_MS / 1000} s. It may be stuck reading DataHub, so what is on screen is not current.`;
   }
   if (cause instanceof Error) return cause.message;
-  return "obsel could not read the swarm, and the failure gave no reason.";
+  return "obsel could not read the agents, and the failure gave no reason.";
 }
 
 export function isSwarmResponse(body: unknown): body is SwarmResponse {

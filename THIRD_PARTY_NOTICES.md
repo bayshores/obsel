@@ -18,6 +18,7 @@ the one judgement call is written out in full rather than summarised.
 | `motion` 12.42.2             | MIT               | The guide's entrance and its moving rail cursor    |
 | `geist` (Vercel)             | SIL OFL-1.1 / MIT | Geist and Geist Mono, self-hosted                  |
 | Codex CLI (`openai/codex`)   | Apache-2.0        | Running each demo agent, see the note below        |
+| Claude Code (Anthropic)      | proprietary       | The same, as the alternative runner, see below     |
 
 The fonts are installed from npm and served by obsel itself, never fetched from
 `fonts.googleapis.com`. That is not a preference: obsel's Content Security Policy sets
@@ -79,13 +80,19 @@ fares. The full derivation, source URLs and hashes are in
 [`agents/seeds/PROVENANCE.md`](agents/seeds/PROVENANCE.md), and the extract is committed so
 nothing is fetched from the TLC at demo time.
 
-## The demo agents run on Codex, signed in with a ChatGPT subscription
+## The demo agents run on a coding CLI, signed in with a consumer subscription
 
-**The decision, and why it is written down.** Each of the four demo agents is a real Codex
-session invoked as `codex exec`, working on the data files with its own tools. On this
-machine Codex is authenticated with a ChatGPT subscription (`auth_mode: chatgpt`), not an
-API key. That choice sits in a genuine grey area, and pretending otherwise would be worse
-than naming it.
+**The decision, and why it is written down.** Each of the four demo agents is a real session
+of a coding CLI, working on the data files with its own tools: `codex exec` for Codex,
+`claude -p` for Claude Code, chosen by `agents/runner_select.py`. On this machine both are
+authenticated with a consumer subscription rather than an API key -- Codex with ChatGPT
+(`auth_mode: chatgpt`), Claude Code with a Claude Max plan. That choice sits in a genuine
+grey area, and pretending otherwise would be worse than naming it.
+
+The Codex terms question below was researched first and in more depth, because Codex was the
+only runner until 2026-07-28. The same shape of question applies to Claude Code under a
+consumer plan, and it has not been researched to the same depth. What is stated about Codex
+below should not be read as covering both.
 
 **What is clearly permitted.** The Codex CLI itself is Apache-2.0. OpenAI's own
 documentation explicitly endorses non-interactive use: it describes calling `codex exec`
@@ -115,9 +122,11 @@ squarely inside the terms' explicit API carve-out. Anyone reproducing this who w
 not rely on the reading above can log the Codex CLI in with an API key instead of a ChatGPT
 account, changing nothing else in this repository.
 
-obsel previously carried a second runner that called the OpenAI API directly. It was removed
-on 2026-07-21 at the owner's instruction, along with the plan cache and the deterministic
-plan-applier that existed only to serve it. Codex is the only runner, and `agents/` contains
-no API-key path at all.
+obsel previously carried a runner that called the OpenAI API directly. It was removed on
+2026-07-21 at the owner's instruction, along with the plan cache and the deterministic
+plan-applier that existed only to serve it. Claude Code was added as a second CLI runner on
+2026-07-28, for the opposite reason: it is another agent product invoked through its own
+documented non-interactive interface, not an API-key path. `agents/` still contains no
+API-key path at all, and obsel's own coordinator makes no model calls under either runner.
 
 This is the account holder's decision, recorded here so it is visible rather than buried.

@@ -6,8 +6,8 @@ is five steps:
 1. Load the input tables from `.obsel/data/`.
 2. Tell obsel the task has started, so the board can show work in flight while it
    is in flight.
-3. Let Codex do the work: a real agent session in the data directory, with its
-   own tools, which reads, decides, and writes the output table itself.
+3. Let the agent do the work: a real session in the data directory, with its own
+   tools, which reads, decides, and writes the output table itself.
 4. Hold that output to its contract -- the exact column names, and one serialised
    form per numeric column. See `canonicalise_numbers`.
 5. Save it, fingerprint it, and POST that to obsel, which decides what the change
@@ -20,16 +20,17 @@ mid-job. Announcing beforehand means a run that dies owes the announcement back,
 because obsel skips `running` work in the cascade and a wedged task would be
 invisible to every later traversal. `run_task` does both halves.
 
-There is one runner, and it is Codex, invoked through `codex exec` and
-authenticated through the Codex CLI. There is no API-key path and no offline
-mode -- if Codex is not installed or not signed in, the run fails and says so. A
-demo that quietly fakes the model is worse than one that does not run.
+The runner is a real coding CLI -- Codex through `codex exec`, or Claude Code
+through `claude -p`, chosen by `runner_select.py`. Both authenticate through
+their own CLI. There is no API-key path and no offline mode: if the chosen one is
+not installed or not signed in, the run fails and says so. A demo that quietly
+fakes the model is worse than one that does not run.
 
 An earlier design asked the model for a JSON plan and applied it with
 deterministic code, which made a byte-identical re-run a property of the
-construction. Codex writing the table directly gives that up, which is why step 4
-exists: the agent decides what the numbers are, and the worker decides how they
-are written down, so the same table twice hashes the same twice.
+construction. An agent writing the table directly gives that up, which is why
+step 4 exists: the agent decides what the numbers are, and the worker decides how
+they are written down, so the same table twice hashes the same twice.
 """
 
 from __future__ import annotations
@@ -52,10 +53,11 @@ from agents.fingerprint import fingerprint
 REPO_ROOT = Path(__file__).resolve().parent.parent
 OBSEL_URL = os.environ.get("OBSEL_URL", "http://localhost:3000")
 
-# What does the work: a real Codex session, running in the data directory with
-# its own tools. The agent reads, decides, and writes the table itself -- an
-# agent rather than a single model call, which is what the hackathon category
-# asks for. It is the only runner.
+# What does the work: a real session of a coding CLI, running in the data
+# directory with its own tools. The agent reads, decides, and writes the table
+# itself -- an agent rather than a single model call, which is what the hackathon
+# category asks for. `runner_select.py` says which CLI; there is no other kind of
+# runner, and in particular no API-key path.
 #
 # It is not byte-reproducible on its own. Measured 2026-07-22 across four live
 # runs over the identical seed, one wrote a money value `217` where the others
@@ -624,7 +626,7 @@ def _abandon_running(task_name: str, task_urn: str, obsel_url: str, root: Path) 
     retry is then an ordinary run rather than a resume.
 
     Deliberately swallows its own failure. This runs inside an `except` block,
-    and obsel being unreachable here would replace "Codex is not signed in" --
+    and obsel being unreachable here would replace "the agent CLI is not signed in" --
     the thing that actually went wrong and the thing the operator has to fix --
     with a connection error about the cleanup. The marker file stays put when
     this fails, which is what makes the next attempt a resume instead of a
@@ -651,7 +653,7 @@ def _snapshot_inputs(
 
     The agent reads these copies, never the shared data directory. This exists
     for the concurrent swarm: the input observation is hashed from the tables
-    loaded at the top of `run_task`, but a Codex session reads its input FILES
+    loaded at the top of `run_task`, but the agent session reads its input FILES
     seconds later, and in a concurrent swarm an upstream re-run can replace a
     shared file in that gap. The observation would then describe bytes the agent
     never saw, and every conclusion obsel draws from it — including the
@@ -677,30 +679,38 @@ def _snapshot_inputs(
     return directory
 
 
-def _run_codex(
+def _run_agent(
     task: pipeline.AgentTask,
     job: str,
     expect_columns: tuple[str, ...] | None,
     working_dir: Path,
-) -> tuple[Table, float, str]:
-    """Run this task as a real Codex session and return what it produced.
+) -> tuple[Table, float, str, str]:
+    """Run this task as a real agent session and return what it produced.
 
-    Codex works in the task's private working directory: it reads the
+    The agent works in the task's private working directory: it reads the
     snapshotted inputs and writes its output as ordinary files. The table comes
     back from disk rather than from the agent's reply, because what is on disk
     is what gets published for the next agent and what obsel will fingerprint.
+
+    Which CLI runs is `runner_select`'s decision, and its name is returned
+    alongside the table so the completion report says which product did the work
+    rather than assuming. Imported here rather than at module scope so that
+    importing `worker` needs no CLI installed.
     """
-    from agents import codex_runner
+    from agents import runner_select
+
+    runner_name = runner_select.resolve()
+    module = runner_select.runner(runner_name)
 
     contract = list(expect_columns or task.output_columns) or None
-    table, seconds, version = codex_runner.run_agent(
+    table, seconds, version = module.run_agent(
         instruction=job,
         input_files=[f"{name}.json" for name in task.reads],
         output_file=f"{task.writes}.json",
         working_dir=working_dir,
         expect_columns=contract,
     )
-    return table, seconds, version
+    return table, seconds, version, runner_name
 
 
 def run_task(
@@ -744,22 +754,22 @@ def run_task(
 
     # ORDER MATTERS, and it is the reverse of what it once was.
     #
-    # The announcement used to come *after* Codex, so that a failed run could not
-    # wedge the task at `running` -- where obsel, which only ever marks *finished*
-    # work stale, would skip it in every later traversal while the board still
-    # showed a healthy swarm.
+    # The announcement used to come *after* the agent, so that a failed run could
+    # not wedge the task at `running` -- where obsel, which only ever marks
+    # *finished* work stale, would skip it in every later traversal while the board
+    # still showed a healthy swarm.
     #
     # The cost was that obsel had no idea an agent was working. For the whole 20
-    # to 50 seconds a real Codex session takes, obsel held the task at
+    # to 50 seconds a real agent session takes, obsel held the task at
     # `registered` and the cockpit said "waiting" about an agent that was at that
     # moment doing its job. The one thing a person watching wants to know -- is it
     # working or is it stuck -- was the one thing the board could not say.
     #
     # So the announcement moves in front of the work and the wedge is closed
-    # directly instead: if Codex fails, `_abandon_running` hands the announcement
-    # back and the task returns to `registered`. The property the old order bought
-    # -- a failed run leaves the task as it was -- still holds, and now the board
-    # tells the truth while the work is happening.
+    # directly instead: if the agent fails, `_abandon_running` hands the
+    # announcement back and the task returns to `registered`. The property the old
+    # order bought -- a failed run leaves the task as it was -- still holds, and
+    # now the board tells the truth while the work is happening.
     start = "not reported"
     if report:
         start = _enter_running(task.name, task_urn, obsel_url, root)
@@ -769,7 +779,9 @@ def run_task(
     # hears anything -- a plausible-looking bad table would fingerprint as a real
     # change and mark the chain stale for nothing.
     try:
-        output, model_seconds, plan_source = _run_codex(task, job, expect_columns, working_dir)
+        output, model_seconds, plan_source, runner_name = _run_agent(
+            task, job, expect_columns, working_dir
+        )
     except BaseException:
         # Nothing was produced, so there is no partial result to resume from and
         # the honest state is the one before the announcement. BaseException, not
@@ -784,7 +796,7 @@ def run_task(
     # a non-canonical one would put the two permanently out of step.
     output = canonicalise_numbers(output)
 
-    plan = {"runner": "codex", "agent": plan_source}
+    plan = {"runner": runner_name, "agent": plan_source}
 
     try:
         output_path = save_table(task.writes, output, root)

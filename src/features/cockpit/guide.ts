@@ -37,7 +37,41 @@
 import { boardSawAChange } from "./fingerprints";
 import { agreeing, datasetTitle, taskTitle } from "./naming";
 import { formatDuration, inFlightMs } from "./progress";
-import type { DemoStep, DemoActivity, StepResult } from "@/src/server/runner/types";
+import type { DemoStep, DemoActivity, RunnerName, StepResult } from "@/src/server/runner/types";
+
+/**
+ * The runner's product name, for "Four real ___ sessions".
+ *
+ * The product rather than the command, because that is the phrase: a session
+ * belongs to Codex, and `codex` is what you type. `preflight.ts` keeps the same
+ * pair for the same reason, and both lists have to hold the runners
+ * `agents/runner_select.py` chooses between, or the board reports on one CLI
+ * while the worker runs the other.
+ *
+ * Null is not "unknown yet" -- it is reached only when neither CLI is
+ * installed, and "four real agent sessions" is true there while naming one of
+ * them would send the reader to install a product they may not want. The
+ * check's own detail names both.
+ */
+function runnerProduct(name: RunnerName | null): string {
+  if (name === null) return "agent";
+  return name === "codex" ? "Codex" : "Claude Code";
+}
+
+/** The checklist row before any check has answered, when even which CLI is unknown. */
+const RUNNER_ROW_FALLBACK = "An agent CLI, signed in";
+
+/**
+ * The checklist row, which starts a line and so starts with a capital.
+ *
+ * Spelled out per runner rather than capitalised at the call site, because
+ * "The Codex CLI" and "Claude Code" capitalise differently and a generic
+ * first-letter uppercase would produce "The claude Code".
+ */
+function runnerRowName(name: RunnerName | null): string {
+  if (name === null) return RUNNER_ROW_FALLBACK;
+  return name === "codex" ? "The Codex CLI, signed in" : "Claude Code, signed in";
+}
 import type { TaskRecord } from "@/src/server/coordinator/types";
 
 /** Where the journey stands. Derived, never stored. */
@@ -169,10 +203,10 @@ export const STEP_NAME: Record<DemoStep, string> = {
   change: "The instruction change",
   repair: "The repair",
   reset: "The reset",
-  "scale-register": "Setting up the taxi swarm",
-  "scale-run": "The taxi swarm run",
+  "scale-register": "Setting up the forty-agent taxi run",
+  "scale-run": "The forty-agent taxi run",
   "scale-change": "The requirement change",
-  "scale-change-mid": "The taxi swarm run, with a change landing partway",
+  "scale-change-mid": "The forty-agent taxi run, with a change landing partway",
   "scale-repair": "The parallel repair",
 };
 
@@ -180,7 +214,7 @@ export const STEP_NAME: Record<DemoStep, string> = {
  * One prerequisite, as the setup screen shows it.
  *
  * This replaced `notes: string[]`, which rendered only the FAILING checks, each
- * prefixed with its own key in the preflight record: `venv:`, `codex:`,
+ * prefixed with its own key in the preflight record: `venv:`, `runner:`,
  * `vocabulary:`. Three opaque labels, no ordering, and no way to tell whether that
  * was the first problem of one or the last of four.
  *
@@ -321,7 +355,7 @@ function stageOf(input: GuideInput, walked: boolean): StageView {
       : {
           ...view,
           actions: [],
-          subline: `${STEP_NAME[running.step]} is running now, and the board updates as it goes`,
+          subline: `${STEP_NAME[running.step]} is running now, and this page updates as it goes`,
         };
 
   if (!input.trusted) return connect(input, attention);
@@ -336,7 +370,9 @@ function stageOf(input: GuideInput, walked: boolean): StageView {
 
   const finished = tasks.filter((task) => task.finishedAt !== null).length;
   if (finished === tasks.length) return withActions(settled(tasks, attention, walked));
-  return withActions(registered(tasks, finished, attention));
+  return withActions(
+    registered(tasks, finished, attention, input.activity?.preflight.runner.name ?? null),
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -347,7 +383,7 @@ function connect(input: GuideInput, attention: string | null): StageView {
   const datahub = input.activity?.preflight.datahub;
   return {
     stage: "connect",
-    headline: input.everRead ? "The board lost its connection" : "Starting up",
+    headline: input.everRead ? "This page lost its connection" : "Starting up",
     // Says what obsel is doing about it, not why obsel believes it is the right
     // thing to do. The reasoning is real and it belongs in the code comment on
     // BLANK in cockpit.tsx, where the people it is meant for will find it.
@@ -369,23 +405,26 @@ function connect(input: GuideInput, attention: string | null): StageView {
  * the tag is created by a script that needs the Python packages, so this order is
  * a real dependency chain and following it top to bottom always works.
  *
- * Codex is last because it is the only one nothing else depends on: it is needed
- * to run the agents, not to set anything up.
+ * The runner is last because it is the only one nothing else depends on: it is
+ * needed to run the agents, not to set anything up.
  */
 const CHECK_ORDER: readonly { key: Blocker["name"] | "datahub"; name: string }[] = [
   { key: "datahub", name: "DataHub" },
   { key: "venv", name: "Python packages for the demo agents" },
   { key: "vocabulary", name: "obsel's tag in DataHub" },
   { key: "uvx", name: "uv, which obsel writes that tag through" },
-  { key: "codex", name: "The Codex CLI, signed in" },
+  { key: "runner", name: RUNNER_ROW_FALLBACK },
 ];
 
 function prepare(input: GuideInput, blockers: Blocker[]): StageView {
   const preflight = input.activity?.preflight;
   const actions: GuideAction[] = [];
 
-  const checks: GuideCheck[] = CHECK_ORDER.map(({ key, name }) => {
+  const checks: GuideCheck[] = CHECK_ORDER.map(({ key, name: fixedName }) => {
     const check = preflight?.[key];
+    // The runner row is the one whose subject is not known until the check runs,
+    // because which CLI is being asked about is itself part of the answer.
+    const name = key === "runner" ? runnerRowName(preflight?.runner.name ?? null) : fixedName;
     const done = check?.ok === true;
     return {
       name,
@@ -461,7 +500,7 @@ function empty(attention: string | null): StageView {
       },
       {
         step: "scale-register",
-        label: "Set up the taxi swarm instead",
+        label: "Set up the forty-agent taxi run instead",
         detail: "Forty agents over a week of real taxi trips. Nothing runs yet.",
       },
     ],
@@ -469,7 +508,12 @@ function empty(attention: string | null): StageView {
   };
 }
 
-function registered(tasks: TaskRecord[], finished: number, attention: string | null): StageView {
+function registered(
+  tasks: TaskRecord[],
+  finished: number,
+  attention: string | null,
+  runner: RunnerName | null,
+): StageView {
   /*
    * Says nothing about which agents exist, and nothing about what they do.
    *
@@ -509,15 +553,14 @@ function registered(tasks: TaskRecord[], finished: number, attention: string | n
     taxi
       ? {
           step: "scale-change-mid",
-          label: "Start the taxi swarm",
-          detail:
-            "Forty real Codex sessions, running up to eight at once. Partway through, one requirement changes.",
+          label: "Start the forty-agent taxi run",
+          detail: `Forty real ${runnerProduct(runner)} sessions, running up to eight at once. Partway through, one requirement changes.`,
           primary: true,
         }
       : {
           step: "run",
           label: "Start the demo agents",
-          detail: "Four real Codex sessions. Takes a few minutes.",
+          detail: `Four real ${runnerProduct(runner)} sessions. Takes a few minutes.`,
           primary: true,
         },
   ];
@@ -529,7 +572,7 @@ function registered(tasks: TaskRecord[], finished: number, attention: string | n
       taxi
         ? {
             step: "scale-register",
-            label: "Set up the taxi swarm again",
+            label: "Set up the forty-agent taxi run again",
             detail: "Safe to repeat while nothing has run yet.",
           }
         : {
@@ -683,7 +726,7 @@ function settled(tasks: TaskRecord[], attention: string | null, walked: boolean)
      * repeatable, and this is where the loop closes.
      */
     subline: walked
-      ? "Every act has run. Reset to walk it again."
+      ? "Every step has run. Reset to walk through it again."
       : taxi
         ? "Try changing one requirement and watch how far it reaches"
         : "Try one of these and watch what obsel does",
@@ -903,7 +946,7 @@ function flagged(tasks: TaskRecord[], attention: string | null): StageView {
 // ---------------------------------------------------------------------------
 
 interface Blocker {
-  name: "venv" | "codex" | "vocabulary" | "uvx";
+  name: "venv" | "runner" | "vocabulary" | "uvx";
   check: DemoActivity["preflight"]["venv"];
 }
 
@@ -920,7 +963,7 @@ function failedChecks(input: GuideInput): Blocker[] {
   if (!preflight) return [];
   const blockers: Blocker[] = [];
   if (!preflight.venv.ok) blockers.push({ name: "venv", check: preflight.venv });
-  if (!preflight.codex.ok) blockers.push({ name: "codex", check: preflight.codex });
+  if (!preflight.runner.ok) blockers.push({ name: "runner", check: preflight.runner });
   if (!preflight.vocabulary.ok) blockers.push({ name: "vocabulary", check: preflight.vocabulary });
   if (!preflight.uvx.ok) blockers.push({ name: "uvx", check: preflight.uvx });
   return blockers;
@@ -940,5 +983,5 @@ function lastStepProblem(activity: DemoActivity | null): string | null {
   // already be looking; on the headline they are two numbers to be alarmed by and
   // nothing to do about.
   const how = last.exitCode === null ? "was stopped before it finished" : "did not finish";
-  return `${STEP_NAME[last.step]} ${how}. Its output below says why. The board still shows what DataHub holds.`;
+  return `${STEP_NAME[last.step]} ${how}. Its output below says why. This page still shows what DataHub holds.`;
 }

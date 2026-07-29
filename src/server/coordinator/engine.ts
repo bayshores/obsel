@@ -296,7 +296,7 @@ async function decideCompletion(
   const snapshot = await readSnapshot();
   const finishing = snapshot.tasks.find((task) => task.urn === report.taskUrn);
   if (!finishing) {
-    throw new Error(`completion reported for ${report.taskUrn}, which is not in the swarm`);
+    throw new Error(`completion reported for ${report.taskUrn}, which is not a registered agent`);
   }
 
   emit("read", `${label(finishing)} finished`, `read ${snapshot.tasks.length} tasks from DataHub`);

@@ -98,8 +98,10 @@ export interface OutputShape {
  */
 export interface RunDetail {
   /**
-   * What did the work, with its version, e.g. `codex-cli 0.144.4`. Null when
-   * whatever reported did not say.
+   * What did the work, with its version, e.g. `codex-cli 0.144.4` or
+   * `2.1.216 (Claude Code)`. Free text, because an agent that joined over MCP
+   * names itself and obsel is in no position to check. Null when whatever
+   * reported did not say.
    */
   runner: string | null;
   /**

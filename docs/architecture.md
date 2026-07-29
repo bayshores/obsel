@@ -32,7 +32,7 @@ A `DataJob` gives us identity and edges. Everything else is carried in that Data
 | `obsel.finishedAt`         | ISO timestamp of the last completion                 | `2026-07-21T14:02:39.905Z`                                                                   |
 | `obsel.startedAt`          | ISO timestamp obsel moved the task to `running`      | `2026-07-21T14:01:56.031Z`                                                                   |
 | `obsel.fingerprints`       | JSON: dataset URN to `{schema, content}` sha256 pair | `{"urn:li:dataset:(...)":{"schema":"8c25...","content":"f521..."}}`                          |
-| `obsel.run.runner`         | what did the work, with its version                  | `codex-cli 0.144.4`                                                                          |
+| `obsel.run.runner`         | what did the work, with its version                  | `codex-cli 0.144.4`, or `2.1.216 (Claude Code)`                                              |
 | `obsel.run.ms`             | ms the runner took, as the agent measured it         | `43937`                                                                                      |
 | `obsel.run.outputs`        | JSON: dataset URN to `{rows, columns}`               | `{"urn:li:dataset:(...)":{"rows":39,"columns":["order_id","customer"]}}`                     |
 | `obsel.stale.causedBy`     | dataset URN that actually moved                      | `urn:li:dataset:(...,obsel_demo.clean_orders,PROD)`                                          |
@@ -452,7 +452,9 @@ readable", not as "covered by end-to-end evidence". See [Evidence](#9-evidence) 
 | Vocabulary setup                            | `agents/setup.py`                                                                                                           | shipped                                             |
 | Agent worker                                | `agents/worker.py`                                                                                                          | shipped, 16 self-checks + 6 integration             |
 | Demo command line                           | `agents/run.py`                                                                                                             | shipped, 33 self-checks + 8 integration             |
-| The Codex session an agent actually is      | `agents/codex_runner.py`                                                                                                    | shipped, 22 self-checks + 1 real agent run          |
+| What an agent is told and held to           | `agents/agent_contract.py`                                                                                                  | shipped, 22 self-checks                             |
+| Which CLI runs the agents                   | `agents/runner_select.py`                                                                                                   | shipped, 9 self-checks                              |
+| The session an agent actually is            | `agents/codex_runner.py`, `agents/claude_runner.py`                                                                         | shipped, 1 real agent run per installed CLI         |
 | Demo reset                                  | `app/api/demo/reset/route.ts`, `engine.resetSwarm`                                                                          | shipped, 2 integration tests vs a live DataHub      |
 | Agent output contract                       | `agents/worker.py` (`canonicalise_numbers`)                                                                                 | shipped, 7 self-check properties                    |
 | Sample outputs                              | `examples/`                                                                                                                 | shipped, captured from a real run                   |
@@ -588,7 +590,7 @@ What has been verified directly, and what has not.
   reverted a rename live on 2026-07-22.
 
 - **That nothing a live agent writes is taken on trust**, by 22 self-checks over
-  `agents/codex_runner.py`. `_validate` is the only thing between a model's output and obsel's
+  `agents/agent_contract.py`. `validate` is the only thing between a model's output and obsel's
   fingerprint, and every rejection branch is checked against a real file: a table the agent never
   wrote, one that is not JSON, one declaring no columns, one with no rows, a row missing a declared
   column, and columns that do not match the contract, including **the right columns in the wrong
@@ -605,14 +607,25 @@ What has been verified directly, and what has not.
   locally, checked against a port genuinely nothing is listening on, with the local files under a
   temporary root.
 
-- **A real model call**, by `tests/live/codex.live.test.ts`, which runs a genuine Codex session over a
-  two-row table and confirms it read its input, wrote its output, and met an exact column contract.
-  The subject is the invocation rather than the reasoning: `--sandbox workspace-write` and
-  `--skip-git-repo-check` were learned by running the CLI, and no stand-in can say whether today's
-  Codex still accepts them. The same file proves a stale output file is removed before the agent
-  starts, isolated with a one-second ceiling Codex cannot meet, because a surviving stale table plus
-  a run that wrote nothing would validate, fingerprint unchanged, and report a failed run as a
-  successful no-change re-run.
+- **A real model call per installed runner**, by `tests/live/runners.live.test.ts`, which runs a
+  genuine session over a two-row table and confirms it read its input, wrote its output, and met an
+  exact column contract. The subject is the invocation rather than the reasoning, and every flag was
+  learned by running the CLI: Codex `--sandbox workspace-write` and `--skip-git-repo-check`; Claude
+  Code `-p`, `--permission-mode acceptEdits`, and `--safe-mode`. No stand-in can say whether today's
+  CLI still accepts them.
+
+  `--safe-mode` is the one that had to be found rather than reasoned about. The agent's working
+  directory is inside this repository, and Claude Code walks up from it discovering CLAUDE.md,
+  skills, plugins, hooks and MCP servers. Measured 2026-07-28: two runs of one prompt in one
+  directory, differing only by that flag, produced different tables. The run without it obeyed a
+  CLAUDE.md from a parent directory and added a top-level key the prompt never asked for. So the
+  test asserts the written file has exactly `columns` and `rows` and nothing else, because
+  `validate` accepts undeclared keys inside a row on purpose and a leak of that shape would
+  otherwise pass quietly.
+
+  The same file proves a stale output file is removed before the agent starts, isolated with a
+  one-second ceiling no CLI can meet, because a surviving stale table plus a run that wrote nothing
+  would validate, fingerprint unchanged, and report a failed run as a successful no-change re-run.
 
 - **`worker.py`'s `run_task` as a whole**, by `tests/live/run-task.live.test.ts`: a real agent run
   against a real obsel and a real DataHub, from announcement to confirmed completion. Three ordering
@@ -1026,7 +1039,7 @@ because without the tag staleness would be detected and silently not recorded.
     // `docs/environment-findings.md` section 12.
     "datahub": {
       "ok": true,
-      "detail": "DataHub answered at http://localhost:8080, and obsel could read the swarm from it.",
+      "detail": "DataHub answered at http://localhost:8080, and obsel could read the agents from it.",
       "fix": null,
     },
     "vocabulary": { "ok": true, "detail": "urn:li:tag:obsel-stale is registered", "fix": null },

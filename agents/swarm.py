@@ -1,6 +1,6 @@
 """Run many agent tasks concurrently, without ever running one before its inputs.
 
-The demo's four agents run one after another. Forty real Codex sessions cannot:
+The demo's four agents run one after another. Forty real agent sessions cannot:
 sequentially they are half an hour of wall clock, and a swarm that only ever
 moves one agent at a time is not the thing obsel exists to watch. This module is
 the runner's concurrency: a bounded pool, a dependency frontier, and three
@@ -8,14 +8,14 @@ controls a caller's completion hook can use to choreograph a run — release a
 held task, submit an extra execution, cancel one that has not started.
 
 What it deliberately is not: a scheduler with opinions. It knows nothing about
-obsel, Codex, staleness, or repair. `run.py` supplies an `execute` callable and
+obsel, which CLI runs the agents, staleness, or repair. `run.py` supplies an `execute` callable and
 reads the outcome; every claim about what a run means is made there, from
 obsel's own answers, never from this module's bookkeeping. The timeline it
 returns is narration and choreography, not evidence.
 
 Failure policy: a task that raises stops NEW submissions of its descendants
 (they end in `blocked`), while everything already running is left to finish.
-Killing a live Codex session mid-write would leave half a table on disk for the
+Killing a live agent session mid-write would leave half a table on disk for the
 next reader to trip over, which is worse than the wait.
 """
 
@@ -259,7 +259,7 @@ def _self_check() -> int:
 
     Real threads and a real executor; the executions are short sleeps because
     the property under test is the scheduling, and the live suite runs the same
-    pool over real Codex sessions. What matters here: nothing runs before its
+    pool over real agent sessions. What matters here: nothing runs before its
     inputs, the bound holds, holds hold, cancellation refuses what already ran,
     and a failure blocks its descendants while everything else drains.
     """

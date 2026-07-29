@@ -2,7 +2,7 @@
  * `worker.run_task` end to end: the sequence, not its ends.
  *
  * Both ends of this function are already covered against the real thing. The in-flight guard
- * has `worker.live.test.ts`, the Codex session has `codex.live.test.ts`, and the
+ * has `worker.live.test.ts`, each runner's invocation has `runners.live.test.ts`, and the
  * canonicalisation and fingerprint properties have 23 offline self-checks. What none of them
  * touch is the join: announce, run the agent, canonicalise, save, remember, fingerprint,
  * report, clear the marker. That sequence is what an agent actually is, and until this file
@@ -26,7 +26,8 @@
  * how the demo behaves too. Each therefore asserts its own premise before acting, so a change
  * in ordering fails loudly instead of quietly testing something else.
  *
- * One real Codex session runs here. `report=False` is not covered: nothing calls it.
+ * One real agent session runs here, on whichever runner this machine selects.
+ * `report=False` is not covered: nothing calls it.
  */
 
 import { execFileSync, spawnSync } from "node:child_process";
@@ -38,7 +39,14 @@ import { beforeAll, describe, expect, it } from "vitest";
 
 import { startObsel } from "./obsel-server";
 import type { ObselServer } from "./obsel-server";
-import { requireCodex, requireDataHub, requireStaleTag, requireUvx } from "./reachable";
+import {
+  requireDataHub,
+  requireRunner,
+  requireStaleTag,
+  requireUvx,
+  selectedRunner,
+} from "./reachable";
+import type { LiveRunner } from "./reachable";
 
 const { registerTask } = await import("@/src/server/coordinator/engine");
 const { readTask } = await import("@/src/server/datahub/client");
@@ -49,9 +57,9 @@ const REPO = new URL("../../", import.meta.url).pathname;
 /**
  * Python by absolute path, so a test can empty PATH without removing the interpreter.
  *
- * One test here produces a genuine agent failure by taking `codex` off PATH. Spawning
- * `python3` by name under that PATH fails to start at all, which proves only that the test
- * could not run.
+ * One test here produces a genuine agent failure by taking the agent CLI off PATH.
+ * Spawning `python3` by name under that PATH fails to start at all, which proves only that
+ * the test could not run.
  */
 const PYTHON = execFileSync("sh", ["-c", "command -v python3"], { encoding: "utf8" }).trim();
 const FLOW_ID = "obsel_integration_tests";
@@ -83,6 +91,14 @@ const INPUT_ROWS = [
 let obselServer: ObselServer;
 /** The root a successful run happens under. Holds the input table and the marker. */
 let root: string;
+/**
+ * The runner this machine would really pick, resolved once.
+ *
+ * The subject here is a whole `run_task` rather than any one CLI's invocation, which
+ * `runners.live.test.ts` covers per runner. So this file runs exactly one session and
+ * runs it on whatever the demo would have used.
+ */
+let RUNNER: LiveRunner;
 
 interface RunTaskResult {
   ok: boolean;
@@ -110,8 +126,8 @@ interface RunTaskResult {
  *
  * The whole call runs in Python rather than being reassembled here, so what is under test is
  * the function the demo calls, with its own ordering and its own failure handling. `env`
- * exists for one test only: removing `codex` from PATH is how a genuine agent failure is
- * produced without breaking anything else.
+ * exists for one test only: removing the agent CLI from PATH is how a genuine agent failure
+ * is produced without breaking anything else.
  */
 function runTask(options: { root: string; env?: Record<string, string> }): RunTaskResult {
   const script = [
@@ -177,7 +193,8 @@ beforeAll(async () => {
   await requireDataHub();
   await requireStaleTag();
   requireUvx();
-  requireCodex();
+  RUNNER = selectedRunner();
+  requireRunner(RUNNER);
 
   await registerTask(SUBJECT, [INPUT_TABLE], [OUTPUT_TABLE], undefined, "Run task subject");
   root = mkdtempSync(join(tmpdir(), "obsel-runtask-"));
@@ -316,18 +333,24 @@ describe("a failed agent hands its announcement back without erasing the run bef
 
     /*
      * A genuine agent failure, produced without breaking anything: the subprocess gets a PATH
-     * that does not contain `codex`, so `codex_version` raises inside `_run_codex` — after the
-     * announcement has already moved obsel to `running`. That is the window this test is about.
+     * that does not contain the agent CLI, so the runner's own `*_version` raises inside
+     * `_run_agent` — after the announcement has already moved obsel to `running`. That is the
+     * window this test is about.
+     *
+     * OBSEL_RUNNER is pinned to the runner this machine selected. Without it, an empty PATH
+     * would make detection find neither CLI and raise `NoRunnerAvailable`, which is a real
+     * error but a different one: it happens before a runner is chosen, so it would not prove
+     * that a *chosen* runner failing hands the announcement back.
      *
      * Two things then have to happen. The announcement must be handed back, or the task sits
      * at `running` forever and every later cascade skips it while the board looks healthy. And
      * it must be handed back to what it was, because a failed re-run of a good result must not
      * report that the good result never happened.
      */
-    const outcome = runTask({ root, env: { PATH: "/nonexistent" } });
+    const outcome = runTask({ root, env: { PATH: "/nonexistent", OBSEL_RUNNER: RUNNER } });
 
     expect(outcome.ok).toBe(false);
-    expect(outcome.error).toContain("CodexUnavailable");
+    expect(outcome.error).toContain(RUNNER === "codex" ? "CodexUnavailable" : "ClaudeUnavailable");
 
     expect(await statusOf()).toBe("complete");
     expect(markerExists(root)).toBe(false);

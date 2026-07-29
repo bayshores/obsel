@@ -122,7 +122,7 @@ export function draftProblem(draft: MineDraft, existing: readonly TaskRecord[]):
     return "A name can hold lowercase letters, digits and underscores, and starts with a letter or digit.";
   }
   if (existing.some((task) => task.name === name)) {
-    return `There is already a task called ${name} on this board.`;
+    return `There is already a task called ${name} in this pipeline.`;
   }
 
   const writes = parseNames(draft.writes);

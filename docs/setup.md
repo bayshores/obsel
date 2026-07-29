@@ -27,11 +27,11 @@ What it does, in order:
 7. Creates `.env.local` if absent, installs the Node packages, creates the agents' virtual
    environment if absent, and installs their Python packages every run.
 8. Runs `agents.run setup` to register the tag and the demo flow.
-9. Reports whether the Codex CLI is signed in, without blocking on it, then starts the app, waits
+9. Reports whether your agent CLI is signed in, without blocking on it, then starts the app, waits
    for it to answer, and opens the browser.
 
 **How to tell it worked:** the browser opens on the board, and the board's own checklist is either
-absent or shows only the Codex item. A measured fresh run is recorded in
+absent or shows only the agent CLI item. A measured fresh run is recorded in
 [`verification.md`](verification.md).
 
 **Which DataHub it installs.** `v1.5.0.6`, asked for by name rather than left to resolve. That is the
@@ -69,7 +69,7 @@ launcher passes the environment it was started with straight through.
 Every step is safe to repeat: it skips DataHub if it is already answering, keeps an existing
 `.env.local`, keeps an existing virtual environment, and does not start a second server.
 
-The three things it cannot do are Docker, Node and `codex login`. Each needs a human, so each is
+The three things it cannot do are Docker, Node and signing in to an agent CLI. Each needs a human, so each is
 detected and named with the one thing to do next. `uv` is the only tool it installs.
 
 Each step has a way to tell whether it actually worked, because several of them fail quietly.
@@ -89,9 +89,17 @@ and it is the step people skip.
   `uvx --from 'acryl-datahub==1.6.0.15' datahub docker quickstart`, which is what the launcher uses
   when the CLI is not already there
 - `uv`, for running the DataHub MCP server
-- **The Codex CLI, signed in.** `codex login status` should say so. Each demo agent is a real Codex
-  session that reads the data and decides for itself what its own table should contain. There is no
-  API-key path and no offline mode, so if Codex is missing or signed out the run fails and says so.
+- **An agent CLI, signed in.** Either the Codex CLI (`codex login status` should say so) or Claude
+  Code (`claude auth status`). Each demo agent is a real session of one of them, reading the data and
+  deciding for itself what its own table should contain. There is no API-key path and no offline
+  mode, so if the selected CLI is missing or signed out the run fails and says so.
+
+  **You need only one.** With nothing set, obsel uses whichever is installed and prefers Codex when
+  both are. `OBSEL_RUNNER=codex` or `OBSEL_RUNNER=claude` picks explicitly, and an explicit choice is
+  never second-guessed: a missing CLI reports the one you asked for rather than quietly switching to
+  the other, because a board reporting on a product you did not choose is worse than a clear failure.
+  The board's checklist, `scripts/start.sh` and the workers all read the same variable.
+
   See [`THIRD_PARTY_NOTICES.md`](../THIRD_PARTY_NOTICES.md) for the terms question this raises.
 
 ## The short version
@@ -106,7 +114,7 @@ pnpm install && pnpm dev
 
 Then open `http://localhost:3000`. **The board opens on a checklist**, because the three commands
 above are not the whole of it: the demo agents need their own Python environment and a signed-in
-Codex CLI, and obsel needs its tag registered in DataHub. Each item is genuinely checked on your
+agent CLI, and obsel needs its tag registered in DataHub. Each item is genuinely checked on your
 machine every couple of seconds, the ones already done are ticked, and anything missing shows the
 exact command to run. Work down the list and it empties.
 
@@ -144,7 +152,7 @@ cp .env.example .env.local
 ```
 
 `.env.example` documents every variable. The demo agents need no key here, because they authenticate
-through the Codex CLI. One variable, `MCP_SERVER_DATAHUB_VERSION`, is pinned deliberately. Read its
+through their own CLI. One variable, `MCP_SERVER_DATAHUB_VERSION`, is pinned deliberately. Read its
 comment before changing it, because resolving it to `@latest` silently disables every write while
 still reporting success.
 
@@ -214,7 +222,7 @@ the graph. See [`verification.md`](verification.md) for that run and the bug it 
 you registered and it offers you its table: the columns are chips you can rename, drop or add, and
 the rows are cells you type into. Press report and obsel hashes what you handed it and answers.
 Report two tasks in a chain, rename a column upstream, report again, and the downstream task is
-flagged with the columns named — no Codex, no terminal, about fifteen seconds. Executed on
+flagged with the columns named — no agent CLI, no terminal, about fifteen seconds. Executed on
 2026-07-27 against a real DataHub; the run and the two bugs it exposed are in
 [`verification.md`](verification.md).
 

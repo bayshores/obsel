@@ -47,7 +47,7 @@ export function useActivity(): ActivityState {
         }
         const body: unknown = await response.json();
         if (!isDemoActivity(body)) {
-          throw new Error("the demo runner sent a reply this cockpit could not read");
+          throw new Error("the demo runner sent a reply this page could not read");
         }
         if (cancelled) return;
         setState({ activity: body, error: null });
@@ -77,7 +77,7 @@ export function isDemoActivity(body: unknown): body is DemoActivity {
   if (!Array.isArray(candidate.log)) return false;
   const preflight = candidate.preflight;
   if (typeof preflight !== "object" || preflight === null) return false;
-  for (const key of ["datahub", "vocabulary", "venv", "codex"] as const) {
+  for (const key of ["datahub", "vocabulary", "venv", "runner"] as const) {
     const check = preflight[key];
     if (typeof check !== "object" || check === null) return false;
     if (typeof check.ok !== "boolean") return false;

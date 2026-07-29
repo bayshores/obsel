@@ -5,7 +5,7 @@
  * `repair`, and `setup`) reach a live Codex session or DataHub's vocabulary registration,
  * and are covered elsewhere: the guards those commands print are checked offline by
  * `python -m agents.run self-check`, and the Codex invocation itself by
- * `codex.live.test.ts`. `register` and `reset` are the two that talk only to obsel, so
+ * `runners.live.test.ts`. `register` and `reset` are the two that talk only to obsel, so
  * they can be driven end to end here — along with `repair`'s one Codex-free path, the
  * clean board, which reads the real swarm and must decide there is nothing to do.
  *

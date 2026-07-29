@@ -43,6 +43,18 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["tests/live/**/*.live.test.ts"],
+    /*
+     * Prints, after the summary, which agent CLI this run did not exercise.
+     *
+     * `runners.live.test.ts` skips a runner that is not installed, which is the one
+     * skip in this suite and the one place the "never skip, fail loudly" rule above
+     * is not kept. The trade is deliberate: requiring both CLIs would stop a machine
+     * with one from running the suite at all. What must not happen is a green summary
+     * being read as evidence about both, so the gap is printed below the counts,
+     * where a skipped `describe` line scrolled off the top of a ten-file run would
+     * not be seen.
+     */
+    globalSetup: ["tests/live/runner-coverage.ts"],
     env: {
       OBSEL_FLOW_ID: "obsel_integration_tests",
     },

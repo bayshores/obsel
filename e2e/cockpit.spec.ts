@@ -2,7 +2,8 @@ import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
 
 import {
-  codexSignedOut,
+  runnerSignedOut,
+  noRunnerInstalled,
   finishedStep,
   idle,
   nothingInstalled,
@@ -1010,7 +1011,7 @@ test.describe("honesty", () => {
     // reading this state back on a real stopped server, the guide block appeared
     // blank, and with no test on it there was no way to tell a real fault from an
     // artifact of how the screenshot was taken.
-    await expect(page.getByText("The board lost its connection")).toBeVisible();
+    await expect(page.getByText("This page lost its connection")).toBeVisible();
   });
 
   test("the demo read failing on its own still says the board is fine", async ({ page }) => {
@@ -1752,11 +1753,44 @@ test.describe("guide", () => {
   test("a broken prerequisite turns the guide into preparation with the exact fix", async ({
     page,
   }) => {
-    await openCockpit(page, calm(), codexSignedOut());
+    await openCockpit(page, calm(), runnerSignedOut("codex"));
 
     await expect(page.getByRole("heading", { name: /thing.? to set up/ })).toBeVisible();
     await expect(page.getByText("codex login", { exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: /Run the orders cleaner again/ })).toHaveCount(0);
+  });
+
+  test("the same screen names Claude Code and its own command when that is the runner", async ({
+    page,
+  }) => {
+    /*
+     * The other half of the row above, and the reason the fixture takes a
+     * runner. These two states go down one code path, so a fix string that was
+     * still hardcoded to Codex would render `codex login` at somebody who has
+     * never installed it and whose actual problem is one command away.
+     */
+    await openCockpit(page, calm(), runnerSignedOut("claude"));
+
+    await expect(page.getByRole("heading", { name: /thing.? to set up/ })).toBeVisible();
+    await expect(page.getByText("claude auth login", { exact: true })).toBeVisible();
+    await expect(page.getByText("codex login", { exact: true })).toHaveCount(0);
+  });
+
+  test("with no agent CLI at all the row names both and offers no command", async ({ page }) => {
+    /*
+     * The state a stranger who has only just cloned obsel is in, and the one
+     * with no fix: there is nothing to sign into until they have chosen a
+     * product. Naming one would send them to install whichever obsel happens to
+     * look for first.
+     */
+    await openCockpit(page, calm(), noRunnerInstalled());
+
+    await expect(page.getByRole("heading", { name: /thing.? to set up/ })).toBeVisible();
+    await expect(
+      page.getByText(/Neither the Codex CLI nor Claude Code is installed/),
+    ).toBeVisible();
+    await expect(page.getByText("codex login", { exact: true })).toHaveCount(0);
+    await expect(page.getByText("claude auth login", { exact: true })).toHaveCount(0);
   });
 
   test("while a step runs the buttons go away and its own output streams", async ({ page }) => {
@@ -1965,13 +1999,13 @@ test.describe("guide", () => {
       await win(page).getByRole("button", { name: "next", exact: true }).click();
     }
     await expect(
-      win(page).getByRole("heading", { name: "put the agents on the board" }),
+      win(page).getByRole("heading", { name: "put the agents on the graph" }),
     ).toBeVisible();
 
     // It quotes the real control by the label the board is painting on it, and
     // there is no next.
     await expect(win(page).getByText("Set up the demo agents")).toBeVisible();
-    await expect(win(page).getByText("press this, glowing on the board")).toBeVisible();
+    await expect(win(page).getByText("press this, glowing on the page")).toBeVisible();
     await expect(win(page).getByText("waiting for you")).toBeVisible();
     await expect(win(page).getByRole("button", { name: "next", exact: true })).toHaveCount(0);
 
@@ -2463,7 +2497,7 @@ test.describe("how much the board says", () => {
       ["cascaded", cascaded(), idle()],
       ["settled", calm(), idle()],
       ["empty", empty(), idle()],
-      ["a broken prerequisite", calm(), codexSignedOut()],
+      ["a broken prerequisite", calm(), runnerSignedOut()],
       ["a step running", calm(), runningStep("rerun-same")],
     ] as const) {
       await openCockpit(page, swarm, activity, cascadeSteps());
@@ -2555,7 +2589,12 @@ test.describe("how much the board says", () => {
       ["a finished step", cascaded(), finishedStep(), null],
       ["a running step", calm(), runningStep("rerun-same"), null],
       ["an unprepared machine", calm(), nothingInstalled(), null],
-      ["one broken prerequisite", calm(), codexSignedOut(), null],
+      ["one broken prerequisite", calm(), runnerSignedOut(), null],
+      // The runner row with no product to name, which is a state of its own: its
+      // detail is the longest sentence the checklist ever renders and it offers
+      // no command, so neither the copy nor the code-span rule is exercised by
+      // the row above it.
+      ["no agent CLI installed", calm(), noRunnerInstalled(), null],
       ["settled", calm(), finishedStep("run"), null],
       ["an agent's details open", cascaded(), finishedStep(), ".react-flow__node-task"],
       ["a table's details open", cascaded(), finishedStep(), ".react-flow__node-data"],

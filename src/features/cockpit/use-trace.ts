@@ -48,7 +48,7 @@ export function useTrace(): TraceState {
         if (!response.ok) throw new Error(`the coordinator answered ${response.status}`);
         const body: unknown = await response.json();
         if (!isTraceBody(body)) {
-          throw new Error("the coordinator sent a trace this cockpit could not read");
+          throw new Error("the coordinator sent a trace this page could not read");
         }
         if (cancelled) return;
         setState({ events: body.events, error: null });

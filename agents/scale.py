@@ -26,7 +26,7 @@ The shape, by layer:
     airport    airport_trips, airport_daily, airport_week
     leaves     four reports, four docs tables
 
-Forty tasks, diamonds and six-way fan-ins included, every one a real Codex
+Forty tasks, diamonds and six-way fan-ins included, every one a real agent
 session at run time.
 
 The change the scale demo makes lands on `daily_trips`: its passenger column is

@@ -405,7 +405,7 @@ function Ask({
               viewport -- the controls sit beside the sentence on a wide screen
               and under it on a narrow one -- and the glow on the board is the
               thing actually doing the pointing. */}
-          <span className={styles.askLead}>press this, glowing on the board</span>
+          <span className={styles.askLead}>press this, glowing on the page</span>
           <span className={styles.askLabel}>{offered.label}</span>
           <span className={styles.live}>
             <PulseDot pulse color="var(--mm-rose-hot)" />
@@ -417,7 +417,7 @@ function Ask({
           <span className={styles.askLead}>waiting for the board</span>
           <span className={styles.live}>
             <PulseDot pulse color="var(--mm-rose-hot)" />
-            {progress ?? "this step is not offered on this board"}
+            {progress ?? "this step is not offered for this pipeline"}
           </span>
         </>
       )}

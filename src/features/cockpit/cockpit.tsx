@@ -267,7 +267,7 @@ export function Cockpit() {
           <p className={styles.alertHead}>{error}</p>
           <p className={styles.alertBody}>
             {data === null
-              ? "Nothing is shown below because obsel has not managed to read DataHub yet. This is a connection problem, not an empty board."
+              ? "Nothing is shown below because obsel has not managed to read DataHub yet. This is a connection problem, not an empty pipeline."
               : `Everything below is from the last read that worked${lastReadAt === null ? "" : `, at ${clockTime(lastReadAt)}`}, and may already be wrong.`}
           </p>
         </div>
@@ -491,7 +491,7 @@ export function Cockpit() {
       <p className={styles.announce} role="status" aria-live="polite">
         {trusted
           ? summaryLine(t.tasks, t.finished, t.stale, lastReportAt(tasks))
-          : "Not reading the swarm."}
+          : "Not reading the agents."}
       </p>
     </main>
   );

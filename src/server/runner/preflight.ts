@@ -17,16 +17,19 @@ import { existsSync } from "node:fs";
 import { gmsUrl, relationships, tagExists } from "@/src/server/datahub/client";
 import { FLOW_URN, MEMBERSHIP_EDGE, STALE_TAG_URN } from "@/src/server/datahub/urns";
 import { venvPython } from "./steps";
-import type { Preflight, PreflightCheck } from "./types";
+import type { Preflight, PreflightCheck, RunnerCheck, RunnerName } from "./types";
 
 /**
  * How long a verdict is trusted before it is observed again. Long enough that
  * a 2 s activity poll does not spawn `codex login status` fifty times a
  * minute, short enough that fixing a prerequisite shows up promptly.
+ *
+ * The runner check can spawn twice when neither CLI is installed, which is the
+ * case that most needs the cache.
  */
 const CACHE_MS = 10_000;
 
-const CODEX_TIMEOUT_MS = 5_000;
+const RUNNER_TIMEOUT_MS = 5_000;
 const UVX_TIMEOUT_MS = 5_000;
 const DATAHUB_TIMEOUT_MS = 3_000;
 
@@ -45,9 +48,14 @@ function cache(): Map<string, Cached> {
   return globalRef.__obselPreflight;
 }
 
-async function cached(key: string, check: () => Promise<PreflightCheck>): Promise<PreflightCheck> {
+/*
+ * Generic over the check's own type, so the runner check keeps its `name` field
+ * on the way back out. One cache key always produces one shape, which is what
+ * makes the assertion inside safe; a caller cannot reach a key it did not write.
+ */
+async function cached<T extends PreflightCheck>(key: string, check: () => Promise<T>): Promise<T> {
   const held = cache().get(key);
-  if (held && Date.now() - held.at < CACHE_MS) return held.value;
+  if (held && Date.now() - held.at < CACHE_MS) return held.value as T;
   const value = await check();
   cache().set(key, { at: Date.now(), value });
   return value;
@@ -58,7 +66,7 @@ async function cached(key: string, check: () => Promise<PreflightCheck>): Promis
  * whether obsel can do anything.
  *
  * This asked `GET /config` and nothing else until 2026-07-24, when the board sat
- * on "The board lost its connection" with all four prerequisites ticked green.
+ * on "This page lost its connection" with all four prerequisites ticked green.
  * DataHub's search container had exited four hours earlier. GMS stayed up and
  * kept answering `/config`, because that reply is served from the process rather
  * than from any index, so the checklist reported a healthy DataHub while every
@@ -111,7 +119,7 @@ async function checkDataHub(): Promise<PreflightCheck> {
 
   return {
     ok: true,
-    detail: `DataHub answered at ${gmsUrl()}, and obsel could read the swarm from it.`,
+    detail: `DataHub answered at ${gmsUrl()}, and obsel could read the agents from it.`,
     fix: null,
   };
 }
@@ -181,32 +189,109 @@ function checkUvx(): Promise<PreflightCheck> {
   });
 }
 
-function checkCodex(): Promise<PreflightCheck> {
+/**
+ * Which coding CLI runs the demo agents, and whether it is ready.
+ *
+ * This is the TypeScript half of the rule in `agents/runner_select.py`, and the
+ * two have to agree: a checklist that ticked green for Codex while the worker
+ * ran Claude Code would be a passing check above a failing run. `OBSEL_RUNNER`
+ * is read from the same environment the launcher hands the worker, so there is
+ * one answer per machine rather than one per process.
+ *
+ * One row on the checklist, never two. The runner not selected is never
+ * invoked, so reporting it missing is a failure the demo would never hit.
+ */
+/*
+ * Two names per runner, not one. `cli` is the thing an operator installs and is
+ * the subject of a sentence; `product` is what goes in "a real ___ session".
+ * They differ for Codex -- "The Codex CLI is not installed" against "a real
+ * Codex session" -- and one shared string produces "a real The Codex CLI
+ * session", which is how this was first written.
+ */
+const RUNNER_AUTH: Record<
+  RunnerName,
+  { argv: string[]; cli: string; product: string; signIn: string }
+> = {
+  codex: {
+    argv: ["login", "status"],
+    cli: "The Codex CLI",
+    product: "Codex",
+    signIn: "codex login",
+  },
+  claude: {
+    argv: ["auth", "status"],
+    cli: "Claude Code",
+    product: "Claude Code",
+    signIn: "claude auth login",
+  },
+};
+
+/** Ask one CLI whether it is there and signed in. `installed` separates the two failures. */
+function probeRunner(name: RunnerName): Promise<{ check: RunnerCheck; installed: boolean }> {
+  const { argv, cli, product, signIn } = RUNNER_AUTH[name];
   return new Promise((resolve) => {
-    execFile("codex", ["login", "status"], { timeout: CODEX_TIMEOUT_MS }, (error) => {
+    execFile(name, argv, { timeout: RUNNER_TIMEOUT_MS }, (error) => {
       if (error === null) {
-        resolve({ ok: true, detail: "The Codex CLI is signed in.", fix: null });
+        resolve({
+          check: { ok: true, detail: `${cli} is signed in.`, fix: null, name },
+          installed: true,
+        });
         return;
       }
       // ENOENT is "not installed", any exit code is "not signed in" — two
       // different problems with two different fixes.
       const missing = (error as NodeJS.ErrnoException).code === "ENOENT";
-      resolve(
-        missing
+      resolve({
+        check: missing
           ? {
               ok: false,
-              detail:
-                "The Codex CLI is not installed. Each demo agent is a real Codex session, and there is no way to run them with an API key instead.",
+              detail: `${cli} is not installed. Each demo agent is a real ${product} session, and there is no way to run them with an API key instead.`,
               fix: null,
+              name,
             }
           : {
               ok: false,
-              detail: "Each demo agent is a real Codex session, so no agent can run until it is.",
-              fix: "codex login",
+              detail: `Each demo agent is a real ${product} session, so no agent can run until it is.`,
+              fix: signIn,
+              name,
             },
-      );
+        installed: !missing,
+      });
     });
   });
+}
+
+async function checkRunner(): Promise<RunnerCheck> {
+  const chosen = (process.env.OBSEL_RUNNER ?? "").trim();
+
+  if (chosen !== "") {
+    if (chosen !== "codex" && chosen !== "claude") {
+      // Reported rather than ignored. A typo that fell back would run a product
+      // the operator did not name, and the board would say it went fine.
+      return {
+        ok: false,
+        detail: `OBSEL_RUNNER is set to "${chosen}", which is not a runner obsel knows. Valid values are codex and claude.`,
+        fix: null,
+        name: null,
+      };
+    }
+    // An explicit choice is never second-guessed, so a missing CLI reports the
+    // one that was asked for rather than quietly switching.
+    return (await probeRunner(chosen)).check;
+  }
+
+  const codex = await probeRunner("codex");
+  if (codex.installed) return codex.check;
+  const claude = await probeRunner("claude");
+  if (claude.installed) return claude.check;
+
+  return {
+    ok: false,
+    detail:
+      "Neither the Codex CLI nor Claude Code is installed, and the demo agents are real sessions of one of them. Installing either is enough. Everything else on this page works without one.",
+    fix: null,
+    name: null,
+  };
 }
 
 /** Every check, concurrently where independent. Never throws — a failed check is a value. */
@@ -214,11 +299,14 @@ export async function preflight(): Promise<Preflight> {
   // Keyed by the address, not by the bare word: the verdict is about one GMS,
   // and a cache key that does not name it hands the answer for the old address
   // to the new one.
-  const [datahub, codex, uvx] = await Promise.all([
+  const [datahub, runner, uvx] = await Promise.all([
     cached(`datahub:${gmsUrl()}`, checkDataHub),
-    cached("codex", checkCodex),
+    // Keyed by the choice, not the bare word, for the same reason as the GMS
+    // address above: changing OBSEL_RUNNER asks a different question, and a key
+    // that does not name it would hand back the old runner's verdict.
+    cached(`runner:${process.env.OBSEL_RUNNER ?? ""}`, checkRunner),
     cached("uvx", checkUvx),
   ]);
   const vocabulary = await cached(`vocabulary:${datahub.ok}`, () => checkVocabulary(datahub.ok));
-  return { datahub, vocabulary, venv: checkVenv(), uvx, codex };
+  return { datahub, vocabulary, venv: checkVenv(), uvx, runner };
 }

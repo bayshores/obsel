@@ -148,7 +148,7 @@ export function useErasure(active: boolean): ErasureState {
           });
           return;
         }
-        if (!isReport(body)) throw new Error("obsel sent a report this cockpit could not read");
+        if (!isReport(body)) throw new Error("obsel sent a report this page could not read");
         if (cancelled) return;
         setState({ report: body, error: null, missing: false, everRead: true });
       } catch (cause) {

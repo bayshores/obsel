@@ -102,29 +102,59 @@ export function requireObselMcpEnv(): string {
   return python;
 }
 
+/** The two runners, and what each one's own preflight is called. */
+const RUNNER_PREFLIGHT = {
+  codex: { module: "codex_runner", fn: "codex_version", cli: "codex", install: "the Codex CLI" },
+  claude: { module: "claude_runner", fn: "claude_version", cli: "claude", install: "Claude Code" },
+} as const;
+
+export type LiveRunner = keyof typeof RUNNER_PREFLIGHT;
+
 /**
- * The `codex` CLI installed and signed in, without which no agent can do its job.
+ * One runner's CLI installed, without which no agent can do its job.
  *
- * Checked through `codex_runner.codex_version` rather than a bare `which`, because that
- * function is itself the preflight the demo runs and its failure message is the one an
- * operator is meant to see. Signed-out is not detected here: `codex --version` answers
- * without an account, and the only thing that proves a session works is starting one,
- * which the suite then does.
+ * Checked through that runner's own `*_version` rather than a bare `which`, because
+ * that function is itself the preflight the demo runs and its failure message is the
+ * one an operator is meant to see. Signed-out is not detected here: both CLIs answer
+ * `--version` without an account, and the only thing that proves a session works is
+ * starting one, which the suite then does.
  */
-export function requireCodex(): string {
+export function requireRunner(runner: LiveRunner): string {
+  const { module, fn, cli, install } = RUNNER_PREFLIGHT[runner];
   try {
     return execFileSync(
       "python3",
-      ["-c", "from agents import codex_runner; print(codex_runner.codex_version())"],
+      ["-c", `from agents import ${module}; print(${module}.${fn}())`],
       { stdio: "pipe", encoding: "utf8", cwd: new URL("../../", import.meta.url).pathname },
     ).trim();
   } catch (cause) {
     throw new Error(
-      `the \`codex\` CLI is not usable, so the agent path cannot be exercised ` +
+      `the \`${cli}\` CLI is not usable, so its agent path cannot be exercised ` +
         `(${cause instanceof Error ? cause.message : String(cause)}).\n` +
-        `  Fix: install the Codex CLI and sign in, then re-run.\n` +
-        `  This is not skipped when Codex is absent. The demo's agents ARE Codex sessions, ` +
-        `so a green run without one would report on a path nothing exercised.`,
+        `  Fix: install ${install} and sign in, then re-run.\n` +
+        `  This is not skipped when it is absent. The demo's agents ARE sessions of a ` +
+        `real CLI, so a green run without one would report on a path nothing exercised.`,
     );
   }
+}
+
+/**
+ * The runner the demo would actually pick on this machine, matching
+ * `agents/runner_select.py`.
+ *
+ * The suite covers both runners' invocations in their own files. This is for the
+ * tests whose subject is not the CLI but everything around it -- a whole
+ * `run_task`, a hand-back after a failure -- which need exactly one runner and
+ * should use the one this machine would really run.
+ */
+export function selectedRunner(): LiveRunner {
+  const chosen = execFileSync(
+    "python3",
+    ["-c", "from agents import runner_select; print(runner_select.resolve())"],
+    { stdio: "pipe", encoding: "utf8", cwd: new URL("../../", import.meta.url).pathname },
+  ).trim();
+  if (chosen !== "codex" && chosen !== "claude") {
+    throw new Error(`runner_select resolved to "${chosen}", which this suite cannot run.`);
+  }
+  return chosen;
 }
