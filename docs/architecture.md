@@ -204,7 +204,7 @@ picture's content changes.
 
 The failure it prevents is silent and total. The panel clips its overflow, so a graph fitted
 against a stale size sits entirely outside the visible area: nine nodes and eight edges present
-and correct in the DOM, none of them on screen, and no warning anywhere. `e2e/dashboard.spec.ts`
+and correct in the DOM, none of them on screen, and no warning anywhere. `e2e/dashboard-layout.spec.ts`
 asserts every node stays inside the panel across a resize.
 
 Interaction is bounded rather than off, which reverses an earlier decision and records why. All
@@ -1120,7 +1120,7 @@ compress them back out.
 A question rather than a claim, because the graph beneath it is the answer: the amber path is what
 "no longer true" looks like. It also fixes obsel's scope by what it does not ask. Not whether the work
 is good, not whether the pipeline is healthy, not whether anything should be re-run.
-`e2e/dashboard.spec.ts` asserts it is present in the flagged, settled and empty states, because a purpose
+`e2e/dashboard-layout.spec.ts` asserts it is present in the flagged, settled and empty states, because a purpose
 that appears only once something has gone wrong is not a statement of purpose.
 
 **The inspector** shows one task's uncompressed values: full URNs, complete 64-character
@@ -1137,7 +1137,7 @@ cards carrying a status word, a human name, a code identifier, a job sentence, a
 timestamp and a line of runner metadata: 311 px and 205 words describing the same four tasks the
 graph above already drew. Every one of those facts is here instead, including the mark's `reason`,
 which is still stored on the mark, still written into DataHub, and still shown verbatim rather than
-summarised. `e2e/dashboard.spec.ts` asserts it opens in full and is neither clipped nor ellipsised, so
+summarised. `e2e/dashboard-layout.spec.ts` asserts it opens in full and is neither clipped nor ellipsised, so
 the rule that a mark carries a traceable cause is unaffected by the move.
 
 **The trace** is titled "what obsel is doing", and it replaced a panel that diffed two `GET
@@ -1219,7 +1219,7 @@ act on. After the change, 11 rows are fully visible and the top edge shows a 2px
 previous group rather than most of a sentence.
 
 One consequence for the page's word-count guard, which is worth naming because getting it wrong
-would invert the guard's purpose: `e2e/dashboard.spec.ts` counts the log's **visible** steps, not its
+would invert the guard's purpose: `e2e/dashboard-honesty.spec.ts` counts the log's **visible** steps, not its
 DOM text. Counting all of it would make the ceiling track how much obsel narrated rather than how
 dense the page is, and the way to pass a failure would be to narrate less. A separate assertion
 holds the line directly: tripling the trace must not increase what is on screen.

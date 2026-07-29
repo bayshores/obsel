@@ -365,7 +365,7 @@ display-only `path` on the run detail; nothing decides on it.
   **8 px** on a 1280 laptop; and `fitView`, which runs once on mount, left the graph framed against
   a stale panel size, so after a resize all nine nodes sat outside a panel that clips its overflow.
   All three are fixed, each is written up in the code that fixes it, and the last is now asserted in
-  `e2e/dashboard.spec.ts` across a resize.
+  `e2e/dashboard-layout.spec.ts` across a resize.
 - **The write-back, read back off DataHub**, on 2026-07-23 against the same live stack. From a reset
   page: `run` took **140.5 s** for four Codex sessions, then `change` was called **`schema`** and
   marked three tasks in a measured **868 ms**. `GET /api/swarm` reported
@@ -1180,12 +1180,12 @@ against a panel that _refused to close_, and it is exactly right there. What it 
 intent, and a form is a place where the reader has intent. The fix records the fold on a successful
 registration, which is an action the reader took rather than a state obsel inferred; closing it by
 hand still hands control back to the derivation. Pinned by
-**"stays open after a registration, rather than shutting on the reader"** in `e2e/dashboard.spec.ts`,
+**"stays open after a registration, rather than shutting on the reader"** in `e2e/dashboard-joining.spec.ts`,
 which fails on the code as first written.
 
 **The word ceiling moved, 160 to 168, and it was argued rather than raised.** The panel costs 7 words
 always painted: 4 of heading and 3 inviting the click. Two cheaper shapes were rejected and one was
-taken, all recorded at the assertion in `e2e/dashboard.spec.ts`. Nothing was excluded from the
+taken, all recorded at the assertion in `e2e/dashboard-joining.spec.ts`. Nothing was excluded from the
 bare-identifier or em-dash guards to make this fit: both passed unchanged, which was checked rather
 than assumed.
 
@@ -1246,7 +1246,7 @@ zero, four and forty all pass a sentence written for the plural, which is how it
 **A one-task pipeline is now rendered in a browser too**, which the merged work did not cover: its tests
 are all unit-level over `guide()` and `summaryLine()`, and the state had no fixture. `justOne()` in
 `e2e/fixtures/swarm.ts` gives the three states a count of one can be in, and "a swarm of one" in
-`e2e/dashboard.spec.ts` asserts no sentence anywhere on the page says `1 agents` or `all 1`, or glues a
+`e2e/dashboard-layout.spec.ts` asserts no sentence anywhere on the page says `1 agents` or `all 1`, or glues a
 singular noun to a plural ratio. It reads the live region's `textContent` as well as the page's
 `innerText`, because a visually-hidden sentence is the one most likely to be left plural: nothing but
 a screen reader ever reads it. Mutation: restoring the counted form in `registered()` fails that test
@@ -1791,7 +1791,7 @@ immediately left of `orders_pipeline · prod`. It is in the layout at full width
 is only ever made transparent; opacity, blur and `x` are non-layout properties or transforms, so
 none of them can reflow the line. Measured in the browser across rest, hover and back: the flow
 name's x, the tour button's x, the lockup's width and the header's height are identical to three
-decimal places in all three states. Pinned by `e2e/dashboard.spec.ts` "revealing the name moves
+decimal places in all three states. Pinned by `e2e/dashboard-graph.spec.ts` "revealing the name moves
 nothing else in the header", which compares four bounding boxes at rest and on a settled reveal.
 
 **The bar is 10 px taller**, 38 px to 48.3 px, from the larger mark and from padding above the row
@@ -2020,7 +2020,7 @@ got less room to say it.
 new files: `e2e/dock.spec.ts` (seven tests: default side, snap preview during a drag, landing side,
 persistence across a reload, resize, collapse, keyboard move; every one of them re-asserts that no
 node is clipped and neither axis scrolls), `e2e/erasure.spec.ts` (thirteen), and the new assertions
-in `e2e/dashboard.spec.ts` for the ripple's hop ordering and the count-up. `pnpm verify` is green.
+in `e2e/dashboard-layout.spec.ts` for the ripple's hop ordering and the count-up. `pnpm verify` is green.
 
 **The animation, and what is deliberately not animated.** The cascade ripple is a flare drawn in its
 own element over each marked box, delayed by the hop count obsel recorded, plus a one-shot draw-in on
@@ -2101,7 +2101,7 @@ to the seventh.
 **Hovering while pinned does not rewrite what is pinned.** The page's edges follow the pointer, so
 a reader sees what a click would open; the panel does not move, because a panel that rewrote itself
 while the pointer crossed the page toward it could not be read. Pinned by
-`e2e/dashboard.spec.ts` → "pointing elsewhere does not rewrite what is pinned".
+`e2e/dashboard-graph.spec.ts` → "pointing elsewhere does not rewrite what is pinned".
 
 **The table sketch, and what it is incapable of showing.** A table's panel now draws its reported
 column names over uniform blank blocks, one row of blocks per reported row up to six, with the exact
@@ -2139,7 +2139,7 @@ build. `pnpm e2e` green at both viewports: **267 tests, up from 233**. Sixteen a
 between `flowEdgeIds` and `layoutPositions` that the cascade has for the same reason — a drifted
 spelling lights nothing and throws nothing.
 
-Fourteen new browser tests in `e2e/dashboard.spec.ts` → "the details surface": the idle hint present on
+Fourteen new browser tests in `e2e/dashboard-graph.spec.ts` → "the details surface": the idle hint present on
 a populated page and absent on an empty one; the preview appearing on hover and carrying no
 `urn:li:`; the hint returning on leave; hovering moving no node and changing no graph dimension;
 click-to-pin and Esc-to-unpin; the preview pinning itself; hover-while-pinned; the panel naming its
@@ -2154,7 +2154,7 @@ computed once for the pinned table and handed to the surface, which also renders
 it would have printed an erasure verdict about one asset underneath another. It is now looked up per
 table shown, and gated on the page actually being coloured by coverage.
 
-**The copy sweep's details exclusion was dead, and is now live.** `e2e/dashboard.spec.ts`'s
+**The copy sweep's details exclusion was dead, and is now live.** `e2e/dashboard-graph.spec.ts`'s
 "no internal identifier reaches the page" excludes `[aria-label="Details"]`, and nothing rendered
 that label — `Panel` maps `label` to `aria-label` and neither inspector passed one. No state in that
 loop opened the panel either, so the exclusion had never once been exercised on a panel built almost

@@ -32,6 +32,20 @@ import type { SwarmResponse } from "@/src/features/dashboard/use-swarm";
 import type { TraceEvent } from "@/src/server/coordinator/types";
 import type { DemoActivity, DemoStep } from "@/src/server/runner/types";
 
+/**
+ * obsel's own alert banner.
+ *
+ * Scoped to <main> on purpose: Next.js injects
+ * `<div role="alert" aria-live="assertive" id="__next-route-announcer__">` for
+ * route changes. It is empty and zero-sized, but it matches the alert role, so
+ * an unscoped `getByRole("alert")` is a strict-mode violation — and an unscoped
+ * `querySelector` silently measures the announcer's 0x0 rect instead of the
+ * banner, which is a test that passes for the wrong reason.
+ */
+export function obselAlert(page: Page) {
+  return page.locator('main [role="alert"]');
+}
+
 export interface Faults {
   consoleErrors: string[];
   pageErrors: string[];
