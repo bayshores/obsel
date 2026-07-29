@@ -452,7 +452,7 @@ readable", not as "covered by end-to-end evidence". See [Evidence](#9-evidence) 
 | Demo shape, jobs and seed data              | `agents/pipeline.py`, `agents/seed_data.py`                                                                                 | shipped                                             |
 | Vocabulary setup                            | `agents/setup.py`                                                                                                           | shipped                                             |
 | Agent worker                                | `agents/worker.py`                                                                                                          | shipped, 16 self-checks + 6 integration             |
-| Demo command line                           | `agents/run.py`                                                                                                             | shipped, 33 self-checks + 8 integration             |
+| Demo command line                           | `agents/run.py` over `run_demo.py`, `run_scale.py` and `demo_output.py`                                                     | shipped, 42 self-checks + 8 integration             |
 | What an agent is told and held to           | `agents/agent_contract.py`                                                                                                  | shipped, 22 self-checks                             |
 | Which CLI runs the agents                   | `agents/runner_select.py`                                                                                                   | shipped, 9 self-checks                              |
 | The session an agent actually is            | `agents/codex_runner.py`, `agents/claude_runner.py`                                                                         | shipped, 1 real agent run per installed CLI         |
@@ -599,7 +599,7 @@ What has been verified directly, and what has not.
   side is checked too: a row carrying an undeclared scratch key is allowed, and the fingerprint proves
   it cannot move, because rows are hashed by declared column.
 
-- **`agents/run.py`'s guards**, by 33 self-checks. The one that matters most is `_required_list`,
+- **`agents/run.py`'s guards**, by 42 self-checks. The one that matters most is `_required_list`,
   checked against the anti-pattern it exists to avoid: `reply.get(key) or []` turns a reply obsel never
   sent into "nothing was affected". Mutating it to that form fails six of these checks. Also covered:
   every branch of the coordination printout including the singular "1 hop", that an unreported elapsed

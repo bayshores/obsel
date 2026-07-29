@@ -162,7 +162,7 @@ and type-checks, not a plan.
 | The stale tag read back off the entity, and counted on the page                | `src/server/datahub/tags.ts`, `src/features/dashboard/timing.ts`         |
 | A link from any task to its real page in DataHub's UI                          | `src/features/dashboard/datahub-link.ts`, `inspector.tsx`                |
 | The restoration rule: which flags an identical redo provably clears            | `restoredBy` in `src/server/coordinator/staleness.ts`                    |
-| The repair loop: flagged work redone in order, restored work skipped           | `cmd_repair` in `agents/run.py`, the guide's leading flagged action      |
+| The repair loop: flagged work redone in order, restored work skipped           | `cmd_repair` in `agents/run_demo.py`, the guide's leading flagged action |
 | The joining panel and its four derived steps                                   | `joining.ts`, `joining-panel.tsx`, `joinCommand` on `/api/demo/activity` |
 | Registering your own task from the page, wired into DataHub                    | `mine.ts`, `mine-panel.tsx`, over the agents' own `/api/tasks/register`  |
 | The two animated captures and the script that takes them                       | `docs/images/*.gif`, `scripts/record.mjs`                                |
