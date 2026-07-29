@@ -24,7 +24,7 @@ import { datahubTaskUrl } from "./datahub-link";
 import { Divider, Panel } from "./mmux";
 import { datasetTitle, flowLine, taskTitle } from "./naming";
 import { activityNote, runStamp } from "./progress";
-import { Schematic } from "./schematic";
+import { ColumnNames } from "./columns";
 import { clockTime } from "./timing";
 import { STATUS_WORD } from "./tone";
 import type { ColumnChange, TaskRecord } from "@/src/server/coordinator/types";
@@ -416,19 +416,25 @@ export function DataInspector({
           {readers.length === 0 ? "no agent here reads it" : readers.map(taskTitle).join(", ")}
         </Field>
 
-        {/* From the writer's last completion report, so absence is honest:
-            a table whose writer has not finished has no reported shape. */}
+        {/*
+          From the writer's last completion report, so absence is honest: a
+          table whose writer has not finished has no reported shape.
+
+          Two fields, where there was a bordered box headed "shape". Nothing was
+          lost with the box: it framed six blank blocks per column standing in
+          for rows, and a caption restating counts that are now the fields
+          themselves. "as its writer reported them" is on the row count because
+          that is the number a reader would otherwise assume obsel counted.
+        */}
         {shape !== null && (
-          <div className={styles.field}>
-            <dt className={styles.label}>shape</dt>
-            <dd className={styles.value}>
-              <Schematic
-                shape={shape}
-                change={change ?? null}
-                changeKey={`${dataset}|${fingerprint?.content ?? "none"}`}
-              />
-            </dd>
-          </div>
+          <>
+            <Field label="columns">
+              <ColumnNames columns={shape.columns} change={change ?? null} />
+            </Field>
+            <Field label="rows">
+              {shape.rows} {shape.rows === 1 ? "row" : "rows"}, as its writer reported them
+            </Field>
+          </>
         )}
 
         {originMark != null && (

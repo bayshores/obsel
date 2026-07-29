@@ -271,14 +271,16 @@ test.describe("the details surface", () => {
   });
 
   /*
-   * The sketch of a table.
+   * A table's columns, named.
    *
-   * obsel holds no warehouse credentials and never reads a table, so the sketch
-   * draws the reported column names over blocks that carry nothing. The
-   * assertion that matters most is the last one: no value appears anywhere in it,
-   * because none was ever passed to it.
+   * obsel holds no warehouse credentials and never reads a table, so the panel
+   * shows the column names its writer reported and the row count that writer
+   * stated. The assertion that matters most lists the whole field, so no value
+   * can appear in it without this test failing.
    */
-  test("sketches a table from its reported shape, and never its contents", async ({ page }) => {
+  test("names a table's columns from its reported shape, and never its contents", async ({
+    page,
+  }) => {
     await openDashboard(page, cascaded());
     await page.waitForSelector(".react-flow__node-data", { state: "attached" });
 
@@ -286,27 +288,32 @@ test.describe("the details surface", () => {
     await page.getByText("clean orders", { exact: true }).first().click();
     await expect(page.locator(DETAILS)).toBeVisible();
 
-    const sketch = page.locator(`${DETAILS} [class*="schematic"]`).first();
-    await expect(sketch).toBeVisible();
+    const names = page.locator(`${DETAILS} [class*="names"]`).first();
+    await expect(names).toBeVisible();
 
-    const text = (await sketch.textContent()) ?? "";
-    // Real column names, from the writer's own completion report.
-    expect(text).toContain("order_id");
-    expect(text).toContain("customer");
-    // What arrived, and what left, agreeing with the mark on the same board.
-    expect(text).toContain("+ order_total_usd");
-    expect(text).toContain("- order_total");
-    expect(text).toContain("from what the writer last reported");
-    expect(text).toContain("obsel never reads the table itself");
-
-    // Every placeholder block is empty, and is empty by construction.
-    const filled = await sketch.evaluate(
-      (node) =>
-        [...node.querySelectorAll('[class*="cell"]')].filter(
-          (cell) => (cell.textContent ?? "").trim() !== "",
-        ).length,
+    /*
+     * Every name the field shows, in order, and nothing else in it.
+     *
+     * There were six blank blocks under each name, standing in for rows, and
+     * this test used to assert that each one was empty. That check passes
+     * trivially once no blocks exist and would have gone on passing forever, so
+     * it is replaced by the stronger claim: here is the field in full. Something
+     * able to hold a value could not be added to it without this failing.
+     */
+    const drawn = await names.evaluate((node) =>
+      [...node.children].map((element) => (element.textContent ?? "").trim()),
     );
-    expect(filled).toBe(0);
+    expect(drawn).toEqual([
+      "order_id",
+      "customer",
+      // What arrived, and what left, agreeing with the mark on the same board.
+      "+ order_total_usd",
+      "order_date",
+      "- order_total",
+    ]);
+
+    // The counts, and the one sentence saying who counted them. obsel did not.
+    await expect(page.locator(DETAILS)).toContainText("39 rows, as its writer reported them");
   });
 
   test("says so plainly when a table's writer has reported nothing", async ({ page }) => {
@@ -315,7 +322,7 @@ test.describe("the details surface", () => {
 
     await page.locator(".react-flow__node-data").first().click();
     await expect(page.getByText("nothing reported yet", { exact: false })).toBeVisible();
-    await expect(page.locator(`${DETAILS} [class*="schematic"]`)).toHaveCount(0);
+    await expect(page.locator(`${DETAILS} [class*="names"]`)).toHaveCount(0);
   });
 
   /*
@@ -386,20 +393,23 @@ test.describe("the details surface", () => {
     await page.getByText("clean orders", { exact: true }).first().click();
     await expect(page.locator(DETAILS)).toBeVisible();
 
+    /*
+     * The sketch's blocks were checked here too, until they stopped animating
+     * for every reader. Asserting them under reduced motion now proves nothing
+     * about reduced motion, so the check moved to the sketch's own test, where
+     * it holds unconditionally.
+     */
     const still = await page.evaluate(() => {
       const field = document.querySelector('[aria-label="Details"] dl > div');
-      const cell = document.querySelector('[aria-label="Details"] [class*="cell"]');
       const edge = document.querySelector(".react-flow__edge.obselFlow path.react-flow__edge-path");
       return {
         fieldOpacity: field === null ? null : getComputedStyle(field).opacity,
-        cellAnimation: cell === null ? null : getComputedStyle(cell).animationName,
         edgeAnimation: edge === null ? null : getComputedStyle(edge).animationName,
       };
     });
 
     // Nothing moves, and everything the panel states is readable on the first frame.
     expect(still.fieldOpacity).toBe("1");
-    expect(still.cellAnimation).toBe("none");
     expect(still.edgeAnimation).toBe("none");
   });
 });

@@ -205,6 +205,44 @@ display-only `path` on the run detail; nothing decides on it.
 
 ## Verified directly
 
+### The table sketch became two fields (2026-07-29)
+
+Reported by the owner as "the shape is always stuck loading". It was not loading and never had
+been. Under each column name sat six empty blocks standing in for rows, and a highlight swept
+across them on a 2200 ms loop with a 120 ms per-row stagger, which is the skeleton-loader idiom
+precisely: grey blocks brightening in sequence mean "the contents are arriving" everywhere else on
+the web. Here they were not arriving, and could not — obsel holds no warehouse credentials and
+never reads a table. The caption said so in words directly beneath, and lost, because a reader
+trusts the motion over the sentence.
+
+Three removals, each one the owner's call, and each one exposing the next. The animation went
+first. Then the blocks, after "would it hurt to read the table?" was answered no on three counts:
+credentials on every watched table, an erasure half whose whole position is that it cannot prove
+absence, and a subject-rights tool copying the very rows it exists to track. The blocks stated
+nothing anyway — the caption carried the real counts, and the drawing capped at six rows, so it did
+not even show the count it appeared to be showing. Then the box and the `shape` heading around
+them, because a bordered container and a section label wrapped around one line of names is
+scaffolding for something no longer there.
+
+What is left is two ordinary fields of the same definition list as `written by` and `read by`:
+`columns`, listing the writer's reported names with the arrived and departed markers in place, and
+`rows`, reading `39 rows, as its writer reported them`. The caption's second sentence, "obsel never
+reads the table itself", is not carried over: `as its writer reported them` states the same fact
+and states who did the counting, and the repository's rule against saying one thing twice on one
+surface applies to a disclaimer as much as to a heading. It remains on the erasure tab, which is
+where the claim does work.
+
+Checked in the running page at each step: after the animation, `animationName: "none"`; after the
+blocks, panel height 149 px to 75 px with leaf text of five names and one caption; after the box,
+the two fields in the panel's own field styling. Pinned by `e2e/dashboard-graph.spec.ts` → "names a
+table's columns from its reported shape, and never its contents", which lists the whole field
+rather than asserting each block is empty — that older check passes trivially once no blocks exist
+and would have gone on passing forever. `app/globals.css`' inventory of permitted looping
+animations is down from four to three. `SCHEMATIC_ROW_CAP` and its three unit tests went with the
+thing they bounded, `schematic.tsx` is `columns.tsx`, and its row-count animation went too: a row
+count counting itself up in a field is motion nothing asked for, and it made the browser assertion
+race the animation.
+
 ### The token gate, and the demo path through it (2026-07-29)
 
 Measured on this machine against a real DataHub, because the change most at risk of breaking the
@@ -2141,6 +2179,13 @@ block is empty rather than trusting the construction. Column names come from
 on the mark that names this table, never from comparing fingerprints, because a hash cannot name a
 column. No reported shape means no sketch and the existing honest fallback line instead.
 
+Superseded on 2026-07-29: the blocks, the box around them and the `shape` heading were all removed,
+and the panel carries `columns` and `rows` as ordinary fields. See "The table sketch became two
+fields" at the top of this section. Two claims here survive the rewrite and are the reason this
+paragraph stays: the names come from `producer.run.outputs[dataset].columns`, and the added and
+removed markers come from the `ColumnChange` on the mark rather than from comparing fingerprints,
+because a hash cannot name a column.
+
 **The flow highlight, and the rule that keeps it from lying.** Pointing at a box dots its incident
 edges in rose and marches them at 900 ms. It says what `reads` and `writes` already say. It is
 distinguished from the cascade in three ways at once — colour (rose against amber), pattern (2/6
@@ -2162,7 +2207,8 @@ change — it was already untrue when written, since `obsel-dash` loops.
 
 **What was checked and how.** `pnpm verify` green: 526 unit tests, the Python self-checks, and the
 build. `pnpm e2e` green at both viewports: **267 tests, up from 233**. Sixteen are new unit tests
-(`tests/dashboard-flow.test.ts`, `tests/schematic.test.ts`), including the id-spelling agreement
+(`tests/dashboard-flow.test.ts`, `tests/schematic.test.ts`, since renamed to `tests/columns.test.ts`
+and three tests shorter), including the id-spelling agreement
 between `flowEdgeIds` and `layoutPositions` that the cascade has for the same reason — a drifted
 spelling lights nothing and throws nothing.
 

@@ -184,8 +184,11 @@
  * `lineage.module.css` loops for as long as a mark stands. The rule it was
  * reaching for is the one in `tone.ts` — a loop may write only decorative
  * properties, so a dropped frame cannot change what the board claims. Four
- * loops satisfy it today: this dot, the cascade's marching dash, the flow dots
- * around a pointed-at box, and the shimmer on the table sketch's empty rows.
+ * loops satisfy it today: this dot, the cascade's marching dash, and the flow
+ * dots around a pointed-at box. A fourth used to sweep a highlight across the
+ * empty blocks under a table's column names; it read as a skeleton loader,
+ * reporting a fault that was not there, and both it and the blocks it decorated
+ * were removed. See the header of `columns.module.css`.
  */
 .mm-pulse {
   animation: mm-pulse 2s ease-in-out infinite;

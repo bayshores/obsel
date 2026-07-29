@@ -1,0 +1,40 @@
+/*
+ * A table's column names, inside a field of the details panel.
+ *
+ * They used to be a drawing: names in grid tracks over six blank blocks each,
+ * in a bordered box under a heading. The blocks stated nothing the panel's own
+ * fields did not state better and read as a panel still loading; the box and the
+ * heading were the frame around them, so all three went. A field of the panel's
+ * own definition list is what is left, and it needs the panel's own styling and
+ * almost nothing else.
+ */
+
+.names {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px var(--mm-space-sm);
+  font-family: var(--mm-font-mono);
+  font-size: var(--mm-text-sm);
+  letter-spacing: var(--mm-track-tight);
+}
+
+.name {
+  color: var(--mm-cream-dim);
+}
+
+/*
+ * Arrived, and left.
+ *
+ * Same convention as the column diff on the changed node in `nodes.module.css`:
+ * amber for the column that arrived, dimmed for the one that went. Amber is
+ * reserved across the whole board for "out of date", and this is that — the
+ * column change is the change that put the downstream work out of date. It is
+ * the only amber in this panel.
+ */
+.added {
+  color: var(--obsel-stale);
+}
+
+.removed {
+  color: var(--obsel-text-quiet);
+}
