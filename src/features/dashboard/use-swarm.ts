@@ -12,6 +12,7 @@
 
 import { useEffect, useState } from "react";
 
+import type { RerunPlan } from "@/src/server/coordinator/rerun";
 import type { SwarmSnapshot, TaskRecord } from "@/src/server/coordinator/types";
 
 export const POLL_MS = 1000;
@@ -42,6 +43,16 @@ export interface SwarmResponse {
    * to the dashboard: render no link.
    */
   datahubUrl?: string | null;
+  /**
+   * What to redo and in what order, when anything is flagged.
+   *
+   * Optional for the same reason as `datahubUrl`: a recorded response from a
+   * build that predates it must still parse. Nothing on the board renders it
+   * today — the graph already orders the tasks it draws, and a second ordering
+   * beside it would state the same fact twice. It is here because
+   * `GET /api/swarm` is what an agent or an operator's script reads.
+   */
+  rerun?: RerunPlan;
 }
 
 export interface SwarmState {

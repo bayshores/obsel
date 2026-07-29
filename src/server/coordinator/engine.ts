@@ -18,6 +18,7 @@ import {
   updateTaskProperties,
 } from "@/src/server/datahub/client";
 import { FLOW_URN, isTaskUrn } from "@/src/server/datahub/urns";
+import { rerunPlan, type RerunPlan } from "./rerun";
 import { blocked, readyToStart, taskLabel } from "./staleness";
 import { clear as clearTrace, emit } from "./trace";
 import type { SwarmSnapshot, TaskRecord } from "./types";
@@ -146,6 +147,14 @@ export async function readSwarm(): Promise<{
   snapshot: SwarmSnapshot;
   ready: TaskRecord[];
   blocked: { task: TaskRecord; waitingOn: string[] }[];
+  /**
+   * What to redo and in what order, derived from the same snapshot.
+   *
+   * Empty when nothing is flagged, which is most of the time. It is on this
+   * envelope rather than behind a route of its own because it is a reading of
+   * the snapshot the caller already has, exactly like `ready` and `blocked`.
+   */
+  rerun: RerunPlan;
   datahubUrl: string | null;
 }> {
   const snapshot = await readSnapshot();
@@ -153,6 +162,7 @@ export async function readSwarm(): Promise<{
     snapshot,
     ready: readyToStart(snapshot),
     blocked: blocked(snapshot),
+    rerun: rerunPlan(snapshot),
     datahubUrl: datahubUrl(),
   };
 }

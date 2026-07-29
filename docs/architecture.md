@@ -330,10 +330,10 @@ finished the work. A timeout on a mutation is an unknown outcome, not a failure;
 what keeps the two distinct.
 
 **As a server**, so an agent that is not in this repository can join a swarm.
-[`agents/mcp_server.py`](../agents/mcp_server.py) serves nine tools over stdio. Six are the page:
+[`agents/mcp_server.py`](../agents/mcp_server.py) serves ten tools over stdio. Seven are the page:
 `check_freshness`, `register_task`, `announce_start`, `report_complete`, `abandon_task`,
-`read_board`. Three are erasure: `erasure_board`, `request_challenge`, `submit_attestation`. Three
-properties of it are deliberate:
+`read_board`, `rerun_plan`. Three are erasure: `erasure_board`, `request_challenge`,
+`submit_attestation`. Three properties of it are deliberate:
 
 - **Every mutation goes through obsel's HTTP API** (section 11). The module imports no DataHub SDK
   and holds no credentials, so `staleness.ts` remains the only way anything is ever marked. There is
@@ -709,18 +709,30 @@ What has been verified directly, and what has not.
 
 ## 11. The HTTP API
 
-Thirteen routes. All of them are `force-dynamic`; nothing here is cached. They fall into three
+Fourteen routes. All of them are `force-dynamic`; nothing here is cached. They fall into three
 groups.
 
-**obsel's own protocol, six routes.** `GET /api/swarm`, `GET /api/trace`, and the four under
-`/api/tasks/`: `register`, `start`, `complete`, `abandon`. This is the whole of what an agent
-integrating with obsel calls, and every one of obsel's nine MCP tools is a wrapper over one of them.
+**obsel's own protocol, seven routes.** `GET /api/swarm`, `GET /api/trace`, and the five under
+`/api/tasks/`: `register`, `start`, `complete`, `abandon`, `report`. This is the whole of what an
+agent integrating with obsel calls, and every one of obsel's ten MCP tools is a wrapper over one of
+them. `GET /api/swarm` carries the derived repair order alongside the snapshot, so a caller that
+already reads the board does not need a second route to learn what to redo first.
 
 **The erasure ledger, four routes.** `POST /api/erasure`, `/api/erasure/challenge` and
 `/api/erasure/proof`, each gated on `OBSEL_API_TOKEN` by `authorizeMutation` in
 `src/server/http/auth.ts`, plus `GET /api/erasure/<id>`, which is deliberately ungated and strips
 the subject's identifiers out of the report before answering. With no token configured the three
 mutating routes answer 503 rather than running unauthenticated, which is the closed direction.
+
+**What the token gates, and what it deliberately does not.** `start`, `complete` and `abandon`
+carry the same gate as the erasure mutations. `complete` is the reason it exists on this side: a
+forged completion whose fingerprints match the recorded baseline reads as an identical redo, and
+`restoredBy` derives clears from those, so an open route was a way to have flags removed without
+work being redone. `register`, `report` and the two demo routes are ungated, because the page calls
+them and a browser has nowhere to keep a secret: either an operator pastes a token before any
+button works, or the server hands it to the page and anyone who can load the page can read it.
+None of the ungated four can clear a flag. This is a real limit — an obsel bound to a reachable
+interface trusts its own network for those routes — and it is written here rather than implied.
 
 **The demo runner, three routes.** `/api/demo/launch`, `/api/demo/activity` and `/api/demo/reset`.
 They execute and report the demo's own CLI steps on the machine obsel runs on, exist so the

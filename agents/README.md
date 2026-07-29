@@ -71,7 +71,7 @@ were found.
 | `demo_output.py`    | What both of those print, and how both read obsel's replies. A missing key is refused rather than read as an empty list.                                                                                                                                |
 | `mcp_core.py`       | Everything obsel's MCP server decides about a swarm before it speaks: reply guards, output resolution, freshness verdicts, the completion body, tables handed over as file paths. Standard library only, so `pnpm verify` can check it. 49 self-checks. |
 | `mcp_erasure.py`    | The erasure half of the same, kept apart because this one may never default to "nothing is wrong": turning a coverage report into sorted, actionable gaps. 9 self-checks.                                                                               |
-| `mcp_server.py`     | obsel's own MCP server: the nine tools any MCP-capable agent joins through, six for the page and three for erasure. Wiring only; covered by `tests/live/obsel-mcp.live.test.ts`.                                                                        |
+| `mcp_server.py`     | obsel's own MCP server: the ten tools any MCP-capable agent joins through, seven for the page and three for erasure. Wiring only; covered by `tests/live/obsel-mcp.live.test.ts`.                                                                        |
 
 ## Joining from your own agent
 

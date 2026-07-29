@@ -136,7 +136,7 @@ the others mean something.
 - **The joining panel.** A panel under the graph carrying a four-step checklist that ticks itself
   off from the swarm as a visiting agent declares, announces, reports and gets an answer, plus the
   `claude mcp add obsel …` command with this machine's real absolute path (served by the activity
-  route, because a placeholder path is a command that fails), the six MCP tools with what each is
+  route, because a placeholder path is a command that fails), obsel's MCP tools with what each is
   for, and the two things a visiting agent deliberately cannot do. The copy button falls back to
   selecting the command when the clipboard API refuses, which an embedded webview does. It was a
   closed 17px disclosure until 2026-07-24; the entry further down records why that was a defect.
@@ -163,12 +163,13 @@ and type-checks, not a plan.
 | A link from any task to its real page in DataHub's UI                          | `src/features/dashboard/datahub-link.ts`, `inspector.tsx`                |
 | The restoration rule: which flags an identical redo provably clears            | `restoredBy` in `src/server/coordinator/staleness.ts`                    |
 | The repair loop: flagged work redone in order, restored work skipped           | `cmd_repair` in `agents/run_demo.py`, the guide's leading flagged action |
+| The repair order derived for any caller, on `/api/swarm` and over MCP          | `src/server/coordinator/rerun.ts`, `rerun_plan` in `agents/mcp_server.py` |
 | The joining panel and its four derived steps                                   | `joining.ts`, `joining-panel.tsx`, `joinCommand` on `/api/demo/activity` |
 | Registering your own task from the page, wired into DataHub                    | `mine.ts`, `mine-panel.tsx`, over the agents' own `/api/tasks/register`  |
 | The two animated captures and the script that takes them                       | `docs/images/*.gif`, `scripts/record.mjs`                                |
 | The mark in the header and the browser tab icon                                | `src/features/dashboard/mark.tsx`, `mark-geometry.ts`, `app/icon.svg`    |
 | The header lockup, and the name it reveals on hover                            | `src/features/dashboard/brand.tsx`, `brand.module.css`                   |
-| HTTP API, thirteen routes in three groups                                      | `app/api/`, see [`docs/architecture.md`](architecture.md) section 11     |
+| HTTP API, fourteen routes in three groups                                      | `app/api/`, see [`docs/architecture.md`](architecture.md) section 11     |
 
 **Added 2026-07-23, the reader-side cross-check.** obsel's trigger is an agent reporting, so a
 process that rewrites a shared table and never reports was invisible, and the silence read as "all

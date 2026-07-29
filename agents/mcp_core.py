@@ -646,6 +646,53 @@ def board_summary(swarm: Any) -> dict[str, Any]:
     }
 
 
+def rerun_summary(swarm: Any) -> dict[str, Any]:
+    """The repair order obsel derived, trimmed for an agent to act on.
+
+    obsel computes this; nothing here decides it. The server sends `rerun` on
+    the swarm envelope, and this projects it: short table names instead of URNs,
+    and the URN kept because that is what `announce_start` takes.
+
+    An older obsel that predates the field sends nothing, which reads here as an
+    empty plan rather than an error. That is honest -- no plan was offered -- and
+    it keeps the tool usable against a server the agent did not start.
+
+    **A row in this plan is not permission to skip anything.** It says what to
+    redo first so a redo is not wasted; it says nothing about whether any task is
+    sound, and finishing a task still means reporting it like any other run.
+    """
+    plan = swarm.get("rerun") if isinstance(swarm, dict) else None
+    if not isinstance(plan, dict):
+        return {"waves": [], "startableNow": [], "cyclic": [], "flagged": 0}
+
+    def row(entry: Any) -> dict[str, Any]:
+        return {
+            "taskUrn": entry.get("urn"),
+            "name": entry.get("name"),
+            "title": entry.get("title"),
+            "reads": short_names(entry.get("reads") or []),
+            "writes": short_names(entry.get("writes") or []),
+            "causedBy": (
+                dataset_short_name(entry["causedBy"])
+                if isinstance(entry.get("causedBy"), str)
+                else None
+            ),
+        }
+
+    waves = [
+        [row(entry) for entry in wave if isinstance(entry, dict)]
+        for wave in (plan.get("waves") or [])
+        if isinstance(wave, list)
+    ]
+    cyclic = [row(entry) for entry in (plan.get("cyclic") or []) if isinstance(entry, dict)]
+    return {
+        "waves": waves,
+        "startableNow": list(plan.get("startableNow") or []),
+        "cyclic": cyclic,
+        "flagged": sum(len(wave) for wave in waves) + len(cyclic),
+    }
+
+
 # --------------------------------------------------------------------------
 # Self-check
 # --------------------------------------------------------------------------
@@ -1102,6 +1149,73 @@ def _self_check() -> int:
         "the board reports short table names and no fingerprints",
         summary["tasks"][0]["writes"] == ["clean_orders"] and "fingerprints" not in summary["tasks"][0],
         "a hash tells a reading agent nothing it can act on",
+    )
+
+    print()
+    print("the repair order, as an agent reads it")
+
+    def _demo_urn(table: str) -> str:
+        return f"urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_demo.{table},PROD)"
+
+    plan_swarm = {
+        "snapshot": {"flow": "f", "at": "now", "tasks": []},
+        "rerun": {
+            "waves": [
+                [
+                    {
+                        "urn": "urn:li:dataJob:(urn:li:dataFlow:(obsel,orders_pipeline,prod),build_revenue)",
+                        "name": "build_revenue",
+                        "title": "Daily revenue",
+                        "reads": [_demo_urn("clean_orders")],
+                        "writes": [_demo_urn("daily_revenue")],
+                        "causedBy": _demo_urn("clean_orders"),
+                    }
+                ],
+                [
+                    {
+                        "urn": "urn:li:dataJob:(urn:li:dataFlow:(obsel,orders_pipeline,prod),write_report)",
+                        "name": "write_report",
+                        "title": "Revenue report",
+                        "reads": [_demo_urn("daily_revenue")],
+                        "writes": [_demo_urn("revenue_report")],
+                        "causedBy": _demo_urn("clean_orders"),
+                    }
+                ],
+            ],
+            "startableNow": [
+                "urn:li:dataJob:(urn:li:dataFlow:(obsel,orders_pipeline,prod),build_revenue)"
+            ],
+            "cyclic": [],
+        },
+    }
+    plan = rerun_summary(plan_swarm)
+    check(
+        "the waves keep the order obsel derived",
+        [[row["name"] for row in wave] for wave in plan["waves"]]
+        == [["build_revenue"], ["write_report"]],
+        "redoing the reader first rebuilds it from an input about to change",
+    )
+    check(
+        "rows carry short names and the task urn",
+        plan["waves"][0][0]["reads"] == ["clean_orders"]
+        and plan["waves"][0][0]["causedBy"] == "clean_orders"
+        and plan["waves"][0][0]["taskUrn"].endswith("build_revenue)"),
+        "short names to read, the urn because announce_start takes it",
+    )
+    check(
+        "the flagged total counts every row, cyclic included",
+        plan["flagged"] == 2,
+        "a count that skipped the cycle would understate the work left",
+    )
+    check(
+        "a swarm with no plan reads as no work, not as an error",
+        rerun_summary({"snapshot": {"tasks": []}}) == {
+            "waves": [],
+            "startableNow": [],
+            "cyclic": [],
+            "flagged": 0,
+        },
+        "an older obsel sends no plan, and that is not a failure to report",
     )
 
     print()

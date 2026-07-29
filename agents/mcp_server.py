@@ -16,6 +16,7 @@ The tools:
   report_complete   say what you produced; obsel answers with what it invalidated
   abandon_task      hand a start announcement back after a failure
   read_board        who else is here and what state they are in
+  rerun_plan        when work is flagged, what to redo and in what order
 
 Two boundaries, both deliberate:
 
@@ -103,7 +104,7 @@ def _now() -> str:
 
 
 def build_server(obsel_url: str = OBSEL_URL) -> Any:
-    """Wire the nine tools. Imported here so the module loads without the SDK.
+    """Wire the ten tools. Imported here so the module loads without the SDK.
 
     The server builds and lists its tools whether or not obsel is reachable.
     Failing at startup would hand the calling agent's MCP client a mute
@@ -420,6 +421,31 @@ def build_server(obsel_url: str = OBSEL_URL) -> Any:
         Fingerprints are omitted deliberately -- a hash tells you nothing you can act on.
         """
         return mcp_core.board_summary(worker.read_swarm(obsel_url))
+
+    @server.tool()
+    def rerun_plan() -> dict[str, Any]:
+        """What to redo, and in what order, when work has been flagged.
+
+        A flagged task built on another flagged task's output has to wait for it:
+        redone first, it is rebuilt from an input that is itself about to change,
+        so the work is wasted and the flag returns. `waves` is that order. Every
+        task in a wave can be redone in any order or at once; each wave waits for
+        the one before it.
+
+        `startableNow` is the subset of the first wave whose inputs are settled
+        right now. A task can be in wave 0 and still not startable, when an
+        unflagged producer of something it reads is mid-run.
+
+        `cyclic` is flagged work obsel could not order, because those tasks read
+        each other's output. There is no correct order for a cycle; obsel names
+        the tasks rather than inventing one.
+
+        Read only, and derived fresh from the board on every call. **A row here
+        is not a claim that anything is sound and does not clear a flag.** It
+        says what to redo first. A flag comes off when the work is genuinely
+        redone and reported, and there is no tool here that does it any other way.
+        """
+        return mcp_core.rerun_summary(worker.read_swarm(obsel_url))
 
     return server
 

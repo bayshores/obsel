@@ -215,10 +215,16 @@ that somebody finds out when it goes wrong.
 | `report_complete(taskUrn, outputs, inputs?, runner?, ms?)` | when you are done, whether or not anything changed         |
 | `abandon_task(taskUrn)`                                    | if you announced and then failed                           |
 | `read_board()`                                             | to see who else is in the swarm and what state they are in |
+| `rerun_plan()`                                             | when work is flagged, to learn what to redo and in what order |
 
-`check_freshness` and `read_board` only read. The other four write, and everything they
+`check_freshness`, `read_board` and `rerun_plan` only read. The other four write, and everything they
 write goes through obsel's own API, which is what makes the rules in obsel's staleness
 engine the only way anything is ever marked. There is deliberately no tool that marks or
 clears staleness: a mark comes off through redone work, and only through redone work.
 Either the flagged task re-runs and reports, or an upstream redo lands byte-identical
 and obsel clears what that provably restores, on its own.
+
+`rerun_plan` is ordering, not permission. It answers "which flagged task should be redone
+first", because a task rebuilt from an input that is itself about to be rebuilt is wasted
+work that gets flagged again. It makes no claim that any task is sound, and redoing a task
+still means announcing and reporting it like any other run.

@@ -301,6 +301,33 @@ describe("a real change cascades through DataHub's own lineage", () => {
     }
 
     expect(result.elapsedMs).toBeGreaterThan(0);
+
+    /*
+     * And the repair order obsel derived from the same board, read back off the
+     * envelope the dashboard and every agent reads.
+     *
+     * The ordering claim is the one worth proving against a real graph: the two
+     * two-hop tasks read `daily_revenue`, which `build_revenue` is about to
+     * rewrite, so redoing either of them first is work that gets flagged again
+     * the moment `build_revenue` reports.
+     */
+    const swarm = await readSwarm();
+    expect(swarm.rerun.waves.map((wave) => wave.map((entry) => entry.name).sort())).toEqual([
+      ["build_revenue"],
+      ["write_docs", "write_report"],
+    ]);
+    expect(swarm.rerun.startableNow).toEqual([taskUrn("build_revenue")]);
+    expect(swarm.rerun.cyclic).toEqual([]);
+  });
+
+  it("offers no repair order when nothing is flagged", async () => {
+    // The quiet answer, on a real board. A plan naming work on a healthy swarm
+    // would be an invitation to redo sound work.
+    await runAll();
+
+    const swarm = await readSwarm();
+    expect(swarm.rerun.waves).toEqual([]);
+    expect(swarm.rerun.startableNow).toEqual([]);
   });
 
   it("calls a content-only change content, and records no columns for it", async () => {

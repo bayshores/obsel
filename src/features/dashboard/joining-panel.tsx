@@ -45,6 +45,7 @@ const TOOLS: readonly { name: string; what: string }[] = [
   },
   { name: "abandon_task", what: "hand the announcement back if I failed" },
   { name: "read_board", what: "which other agents are here, and how they are doing" },
+  { name: "rerun_plan", what: "when work is flagged, what to redo and in what order" },
   { name: "erasure_board", what: "what an erasure request still has nobody speaking for" },
   { name: "request_challenge", what: "the one-time value my attestation must be signed over" },
   { name: "submit_attestation", what: "hand over a signed claim; obsel verifies it or refuses" },

@@ -54,7 +54,7 @@ downstream redos that are now provably unnecessary. Measured: 5 of 8 redone in 4
 roughly 188 s to redo everything, that baseline estimated from each task's own last measured run
 and labeled as an estimate everywhere it appears.
 
-Any MCP-capable agent can join a swarm through obsel's own MCP server (nine tools, six for the
+Any MCP-capable agent can join a swarm through obsel's own MCP server (ten tools, seven for the
 page and three for erasure; every mutation goes through obsel's HTTP API and the server holds no
 DataHub credentials). The
 bring-your-own-data walkthrough in `docs/setup.md` was executed for real: a five-row expenses CSV,
