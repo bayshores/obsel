@@ -5,6 +5,11 @@
  * its reads and writes are `Consumes`/`Produces` lineage edges, and everything
  * below that is not an edge is carried in the DataJob's `customProperties`.
  * See `src/server/datahub/` for the mapping.
+ *
+ * **Several fields are optional as well as nullable, and the two mean different
+ * things.** Null is "obsel was not told"; an absent key is a record captured
+ * before the field existed, which stays a valid record of what was read at the
+ * time. Every such field is marked `?` for that reason and no other.
  */
 
 /**
@@ -55,11 +60,9 @@ export interface InputObservation {
  * at a glance. Both lists are derived from `OutputShape.columns`, which obsel
  * already records under `obsel.run.outputs`, so no new evidence is collected.
  *
- * Deliberately NOT called a rename. A column leaving and another arriving is
+ * Not called a rename. A column leaving and another arriving is
  * indistinguishable from a drop plus an unrelated addition, and obsel reports
- * what it observed rather than the intent it would take to guess. Rendered as a
- * diff, which lets the reader draw the obvious conclusion without obsel
- * asserting it.
+ * what it observed rather than the intent it would take to guess.
  */
 export interface ColumnChange {
   /** Present after, absent before. Sorted. */
@@ -107,18 +110,12 @@ export interface RunDetail {
   /**
    * Milliseconds the runner took, measured by the agent in a single process.
    *
-   * **Nullable, and the null is the point.** A duration has to be measured by
-   * the thing that ran, in one process, or it is not a measurement. The dashboard
-   * table form reports a table a person typed by hand: there is no run to time, and
-   * any number here would be invented. obsel's rule is that it never shows a
-   * figure nobody took, so the honest value is nothing — and `outputs` below
-   * still arrives, which is what the board actually needs.
-   *
-   * This was `number`, and requiring it meant a reporter with no stopwatch had
-   * to omit the whole `run` object. That silently cost the shape as well, and
-   * the shape is not decoration: `engine.ts` diffs `run.outputs` columns to say
-   * WHICH columns moved, so a mark that would have read "clean expenses lost
-   * amount" degraded to "the columns in clean expenses changed".
+   * Nullable because a duration has to be measured by the thing that ran, in one
+   * process, or it is not a measurement. The page's table form reports a table a
+   * person typed by hand: there is no run to time, and any number here would be
+   * invented. Requiring it would also cost `outputs`, since a reporter with no
+   * stopwatch would have to omit the whole `run` object — and `outputs` is what
+   * names the columns that moved.
    */
   ms: number | null;
   /**
@@ -193,18 +190,14 @@ export interface TaskRecord {
    * entity. This is what the board leads with; `name` stays visible beside it,
    * because these being real DataHub entities is half the point.
    *
-   * Optional as well as nullable for the same reason as `description`: captures
-   * taken before the field existed lack the key entirely. Consumers fall back to
-   * a humanised `name`.
+   * Consumers fall back to a humanised `name`.
    */
   title?: string | null;
   /**
    * The task's standing job in one sentence, registered into the DataJob's own
    * description field — so DataHub's UI and obsel's board show the same words.
    *
-   * Optional as well as nullable, deliberately: artifacts captured before this
-   * field existed lack the key entirely and remain valid records of what was
-   * read at the time. Null when a task registered without one.
+   * Null when a task registered without one.
    */
   description?: string | null;
   /** Dataset URNs this task reads. `Consumes` edges. */
@@ -257,10 +250,6 @@ export interface TaskRecord {
    * Rendered in full in the details panel, which doubles as evidence that obsel's
    * writes are additive: a human-authored tag appears beside `obsel-stale` rather
    * than being replaced by it.
-   *
-   * Optional as well as nullable, for the same reason as `title` and
-   * `description`: artifacts captured before this field existed lack the key
-   * entirely and remain valid records of what was read at the time.
    */
   tags?: string[];
   /**
@@ -274,9 +263,6 @@ export interface TaskRecord {
    * reader would re-flag the same cascade with a fresh timestamp. Cleared for a
    * dataset the moment this task completes and reports it, because a fresh
    * completion is a fresh record of what the output really is.
-   *
-   * Optional as well as omitted-when-empty, like `tags`: records captured
-   * before this existed lack the key and stay valid.
    */
   observed?: Record<string, OutputFingerprint>;
   /**
@@ -297,9 +283,6 @@ export interface TaskRecord {
    * re-reports of the same input classifies as unknown and raises the
    * unreported-change alarm — over-alarming with an imprecise author, never
    * under-flagging, which is the direction every obsel rule falls.
-   *
-   * Optional as well as omitted-when-empty, like `observed`: records captured
-   * before this existed lack the key and stay valid.
    */
   previousFingerprints?: Record<string, OutputFingerprint>;
   /**
@@ -309,9 +292,8 @@ export interface TaskRecord {
    * import from `src/server/`, so a client-side check would need its own copy of
    * the tag URN — a second spelling of the one string that DataHub, the MCP writer
    * and the reset path all key on. If the two ever drifted, the board would
-   * silently count fewer confirmed writes than there were, which is precisely the
-   * quiet under-reporting this field exists to catch. One boolean is cheaper than
-   * that risk.
+   * silently count fewer confirmed writes than there were, which is the quiet
+   * under-reporting this field exists to catch.
    *
    * Deliberately independent of `stale`. The two disagreeing is a real state worth
    * seeing, not an impossible one: obsel writes the mark before the tag, so during
@@ -352,15 +334,8 @@ export type TracePhase =
 /**
  * One step the coordinator actually took, in plain language.
  *
- * This exists because obsel's most interesting work is invisible: an agent
- * posts a completion, and somewhere inside that one request obsel reads the
- * graph, compares two hashes, walks the lineage, and writes marks back — and
- * all a viewer ever saw was the result appearing. The board now narrates it.
- *
- * **Narration, never a decision.** Nothing reads these events back; removing
- * every emit would change no outcome. Each one states what the code just did,
- * with the values it did it with, so a step here can never claim more than
- * happened.
+ * Narration, never a decision: nothing reads these events back, and removing
+ * every emit would change no outcome. `trace.ts` has the rest.
  */
 export interface TraceEvent {
   /** Monotonic within a server process. Orders events that share a timestamp. */

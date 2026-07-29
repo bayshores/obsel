@@ -55,7 +55,7 @@ describe("shader colours equal their design tokens", () => {
 });
 
 describe("the obsel token block is complete", () => {
-  it("defines every custom property the cockpit references", () => {
+  it("defines every custom property the page references", () => {
     for (const token of ["obsel-stale", "obsel-stale-wash", "obsel-stale-line", "obsel-focus"]) {
       expect(CSS, `--${token} missing from globals.css`).toContain(`--${token}:`);
     }
@@ -76,7 +76,7 @@ describe("the obsel token block is complete", () => {
   });
 });
 
-describe("no stray colour literals in the cockpit's own source", () => {
+describe("no stray colour literals in the page's own source", () => {
   /*
    * Enumerated from disk, not listed by hand.
    *

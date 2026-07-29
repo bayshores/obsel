@@ -25,8 +25,7 @@ export default defineConfig([
      * do with obsel: a git worktree created under `.claude/worktrees/` had been
      * built, and eslint walked its `.next/` output and reported 504 errors in
      * generated JavaScript. Working in worktrees is ordinary now, so a lint run
-     * that breaks whenever one exists is a gate that cries wolf, and a gate
-     * nobody trusts is worse than no gate.
+     * that fails whenever one exists is a gate people learn to ignore.
      */
     ".claude/**",
   ]),

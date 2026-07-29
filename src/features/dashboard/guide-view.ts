@@ -78,10 +78,8 @@ export interface GuideAction {
    * pipeline tells the reader to change one of their own tables, so accenting
    * its reset would point at the one thing the sentence is not asking for.
    *
-   * This is the table form's rule (`table-form.module.css`, "spending the board's accent
-   * on the single irreversible action in the panel is the whole of the visual
-   * hierarchy here") applied to a panel where more than one button is
-   * legitimate. Every action rendered identically until 2026-07-27, so on a
+   * This is the table form's rule (`table-form.module.css`) applied to a panel
+   * where more than one button is legitimate. Every action rendered identically until 2026-07-27, so on a
    * flagged board "Redo the work obsel flagged" and "Reset and start over" were
    * the same object with different text, and the reader had to read both to find
    * out which one the board was asking for.

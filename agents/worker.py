@@ -363,7 +363,7 @@ def run_task(
     #
     # The cost was that obsel had no idea an agent was working. For the whole 20
     # to 50 seconds a real agent session takes, obsel held the task at
-    # `registered` and the cockpit said "waiting" about an agent that was at that
+    # `registered` and the page said "waiting" about an agent that was at that
     # moment doing its job. The one thing a person watching wants to know -- is it
     # working or is it stuck -- was the one thing the board could not say.
     #
@@ -409,7 +409,7 @@ def run_task(
         }
         finished_at = datetime.now(timezone.utc).isoformat()
 
-        # What the cockpit shows about this run. Every figure here is already
+        # What the page shows about this run. Every figure here is already
         # printed to the terminal; sending it is what stops the board from being
         # the one place that cannot say what an agent actually did.
         run_detail = {

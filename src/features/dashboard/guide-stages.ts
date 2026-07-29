@@ -351,8 +351,8 @@ export function settled(tasks: TaskRecord[], attention: string | null, walked: b
          *
          * The re-run is a control experiment, and a control only means anything
          * to somebody who already expects the other result. It stays, second and
-         * unaccented, for the reader who has seen the cascade and wants to know
-         * whether obsel cries wolf.
+         * unaccented, for the reader who has seen work flagged and wants to check
+         * that an unchanged re-run flags nothing.
          */
         {
           step: "change",
@@ -578,8 +578,7 @@ export function flagged(tasks: TaskRecord[], attention: string | null): StageVie
     }
     return [
       {
-        // First, because it is the answer to the question a flagged board asks.
-        // A flag with nothing to do about it is a dashboard; this is the doing.
+        // First, because it is the answer to the question a flagged page asks.
         // There is no button that clears a flag directly, on purpose: the only
         // way a flag comes off is real redone work, this button's or obsel's
         // own proof that an identical redo made a re-run unnecessary.

@@ -56,25 +56,13 @@ const label = taskLabel;
  * the agent would overstate every elapsed figure on screen by the confirmation
  * time.
  *
- * The previous run's detail is deliberately left in place too, for the same
- * reason as the fingerprints, and this reverses an earlier decision.
- *
- * It used to be cleared here, on the argument that it described a run that was
- * over and would caption work happening now with the last run's row count and
- * duration. The argument was sound and the mechanism was the wrong one: nothing
- * displays it during a run anyway, because `activityNote` in `progress.ts`
- * returns an in-flight elapsed for a `running` task before it ever looks at
- * `run`, and that is the only reader of the field.
- *
- * What clearing it did break was the column diff. `coordinateCompletion` names
- * which columns moved by comparing the previous run's shapes against the
- * incoming report's, and the previous shapes are exactly what this write was
- * deleting a minute earlier. So every mark came back with `columns: null` and the
- * board fell back to "the columns changed" instead of naming them, which is the
- * one sentence that explains obsel at a glance.
- *
- * `run.outputs` is a baseline for describing a change, in the same way
- * `fingerprints` is a baseline for detecting one. Both have to outlive the run.
+ * The previous run's detail is left in place too, and clearing it here is the
+ * mistake to avoid. `run.outputs` is the baseline `columnChange` diffs to name
+ * which columns moved, so clearing it makes every mark come back with
+ * `columns: null` and the page falls back to "the columns changed" instead of
+ * naming them. It captions nothing in the meantime: `activityNote` in
+ * `progress.ts` is the only reader, and it returns an in-flight elapsed for a
+ * running task without consulting `run` at all.
  */
 export async function startTask(urn: string): Promise<TaskRecord> {
   const task = await readTask(urn);
@@ -112,22 +100,10 @@ export async function startTask(urn: string): Promise<TaskRecord> {
  * remembering here because a stashed value can outlive a reset that clears
  * everything around it.
  *
- * Recorded fingerprints are kept either way: they are the baseline the eventual
- * successful run is compared against, and dropping them would make that run look
- * like a first run and mark nothing.
- *
- * The earlier successful run's detail is kept, alongside its fingerprints, and
- * this changed with `startTask`. It used to be cleared here because `startTask`
- * had already cleared it and there was nothing to preserve. Now that the detail
- * survives a run, clearing it on a failed run would destroy a true record of the
- * last completion that did happen: the row count and columns that produced the
- * fingerprints being kept two lines above. It would also silently disarm the
- * column diff for the next real change, since that diff is computed against
- * exactly these shapes.
- *
- * Nothing mis-captions as a result. The only reader, `activityNote`, returns an
- * in-flight elapsed for a running task without consulting `run` at all, and a
- * task restored by this function is no longer running.
+ * Recorded fingerprints and the earlier run's detail are both kept, for the same
+ * reasons `startTask` records: they are the baselines the eventual successful run
+ * is compared against and described by, and dropping either makes that run look
+ * like a first run.
  *
  * A task that is not running is left alone and reported as untouched. The agent
  * calls this from a failure path, where the run may have died before it ever

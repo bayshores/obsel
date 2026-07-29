@@ -20,7 +20,7 @@ agents/.venv/
 # Local run output (runs are reproducible; artifacts are not committed)
 .obsel/
 
-# Browser-automation scratch from checking the cockpit by hand
+# Browser-automation scratch from checking the page by hand
 .playwright-mcp/
 /*.png
 

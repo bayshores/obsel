@@ -10,7 +10,7 @@
  * two different pipelines presented as one, which is the kind of quiet inconsistency
  * obsel exists to catch. `docs/images/README.md` holds the rest of the spec.
  *
- * 1920 x 990 is the recording viewport the cockpit is laid out for and the size
+ * 1920 x 990 is the recording viewport the page is laid out for and the size
  * `pnpm e2e`'s `recording-1920x990` project asserts against. `deviceScaleFactor: 2`
  * so the 13px labels survive being scaled down in a README.
  *

@@ -110,7 +110,7 @@ const READING = {
  * The zoom range the viewport itself will hold, as distinct from the range
  * `fitView` may CHOOSE from (`FIT` below).
  *
- * These must be at least as wide as FIT's, and that is not decoration: React
+ * These must be at least as wide as FIT's: React
  * Flow clamps the viewport to the instance range AFTER the fit is computed,
  * and the instance default floor is 0.5 — the exact clamp the forty-task board
  * originally clipped against. FIT.minZoom alone never fixed that, because a
@@ -304,19 +304,10 @@ function buildGraph(
 }
 
 /*
- * `panelHeightFor` used to live here, and its removal is the redesign in one
- * function.
- *
- * It computed the panel height a layout needed at the width-decided zoom, and
- * the dashboard grew the graph panel to that number and let the whole PAGE scroll
- * to honour it. That was the right answer to the forty-task board clipping
- * inside a 320px panel, given a board that was a column of stacked rows.
- *
- * The canvas is the page now. It is already as tall as the frame, so there is no
- * height to negotiate and nothing for a report to tell the dashboard: a layout too
- * tall for the frame is panned and zoomed rather than scrolled to, which is what
- * the graph's own controls are for. The height report, the `graphHeight` state
- * it fed, and the `.cockpitTall` mode that state switched on all went together.
+ * Nothing here reports a required height, and nothing should. The canvas is the
+ * page: it is already as tall as the frame, so a layout too tall for it is
+ * panned and zoomed rather than scrolled to. A height report would put the page
+ * back to scrolling, which `e2e/dashboard-layout.spec.ts` "fit" refuses.
  */
 
 /**
@@ -532,7 +523,7 @@ function LineageCanvas({
   /*
    * Bring the open node into view, and only when it is not already there.
    *
-   * The condition is the whole of it. Flying on every selection would yank the
+   * The condition is what makes this usable. Flying on every selection would yank the
    * picture out from under a reader who clicked a box they were already looking
    * at, which is nearly every click on the four-task board. This moves for the
    * two cases where the card genuinely describes something the reader cannot

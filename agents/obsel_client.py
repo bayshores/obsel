@@ -168,7 +168,7 @@ def report_completion(
 ) -> Any:
     """The CompletionReport. obsel answers with what this completion invalidated.
 
-    `run` is what the cockpit shows a viewer -- which runner did the work, how
+    `run` is what the page shows a viewer -- which runner did the work, how
     long it took, and the shape of what came out. obsel decides nothing on it,
     and omitting it changes no staleness answer; it exists so a person watching
     the board can see what the terminal sees.

@@ -1,6 +1,6 @@
 """Report a table to obsel on behalf of a person, not an agent.
 
-The cockpit's bench lets somebody edit a table by hand and hand it to obsel.
+The page's bench lets somebody edit a table by hand and hand it to obsel.
 This is the process that does it, spawned by `POST /api/tasks/report` exactly
 the way `src/server/runner/launcher.ts` spawns a demo step.
 

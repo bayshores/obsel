@@ -731,36 +731,10 @@ test.describe("how much the board says", () => {
   });
 
   /*
-   * The board's total word ceiling was here, and it is gone deliberately.
-   *
-   * It asserted `prose < 176` and `prose + log < 269` on the flagged board, and
-   * it did real work once: the screen it was written against was 604 words in
-   * two stacked panels of paragraphs, and the number is what forced that down.
-   *
-   * What it became was a toll booth. Every genuine improvement to the copy
-   * arrived as a failing build and a paragraph of argument written at the
-   * assertion, and the ceiling moved anyway each time — 160, 168, 176 — so it
-   * was never actually refusing anything. It measured the one property of prose
-   * that has no relationship to whether prose is any good. The five-act rail was
-   * nearly shipped as unlabelled ticks to stay under it, which produced a
-   * position meter nobody could read; the labels went on and the number moved.
-   *
-   * The owner removed it: "i dont want word-salad in my UI, but i dont think
-   * having a hard word-ceiling is helpful either."
-   *
-   * What is left in its place guards the same thing without a number to game:
-   *
-   * - **"more narration does not put more words on screen"** above — the log
-   *   panel is fixed height, so a longer session cannot grow the board.
-   * - **`scale.spec.ts`** — the forty-task board and the four-task board must
-   *   say the same amount, so density stays a property of the board rather than
-   *   of the pipeline somebody points it at.
-   * - **The per-node label cap in `scale.spec.ts`** — a box label may not grow
-   *   into a sentence. That is the actual word-salad failure, and it is a cap on
-   *   one label rather than on the screen.
-   * - **The em dash and internal-name guards** above, which are about how the
-   *   board says things rather than how much.
-   *
-   * `e2e/fixtures/words.ts` stays: the scale comparison still measures with it.
+   * The page's total word ceiling was removed on 2026-07-27, at the owner's
+   * instruction; `docs/verification.md` records why. What guards the same thing
+   * without a number to game is above and in `scale.spec.ts`: the log panel is
+   * fixed height, the forty-task page must say the same amount as the four-task
+   * one, and a box label may not grow into a sentence.
    */
 });

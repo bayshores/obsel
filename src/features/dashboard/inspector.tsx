@@ -318,7 +318,7 @@ export function Inspector({
             Read from <code>GET /api/swarm</code>
             {readAt === null ? "" : ` at ${readAt}`}
             {roundTripMs === null ? "" : `, round trip ${roundTripMs} ms`}. These are the values
-            DataHub returned when the cockpit last polled, not a live read of the entity.
+            DataHub returned when the page last polled, not a live read of the entity.
           </p>
         </>
       )}

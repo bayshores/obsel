@@ -237,7 +237,7 @@ export function Dashboard() {
           */}
           <TourOpener tour={tour} />
 
-          {/* One light. /api/health does not exist, so the cockpit reports what
+          {/* One light. /api/health does not exist, so the page reports what
               the browser genuinely observed and nothing more: a fabricated
               "datahub: ok" would be a claim nobody checked. */}
           <span className={styles.light}>

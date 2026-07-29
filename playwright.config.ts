@@ -4,7 +4,7 @@ const PORT = 3100;
 const BASE_URL = `http://127.0.0.1:${PORT}`;
 
 /**
- * Browser checks for the cockpit, deliberately separate from `pnpm verify`.
+ * Browser checks for the page, deliberately separate from `pnpm verify`.
  *
  * `pnpm verify` is what the README asks a judge to run, so it must stay fast
  * and need no Docker, no DataHub and no browser download. This suite is the
@@ -34,7 +34,7 @@ export default defineConfig({
     browserName: "chromium",
     // clockTime() calls toLocaleTimeString. Unpinned, the same fixture renders
     // 14:05:52 in UTC and 09:05:52 in New York, and every clock assertion
-    // becomes a fact about the machine rather than about the cockpit.
+    // becomes a fact about the machine rather than about the page.
     timezoneId: "UTC",
     locale: "en-US",
     // The ADVANCE table in graph/layout.ts is in CSS px and the backdrop's

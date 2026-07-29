@@ -574,7 +574,7 @@ test.describe("guide", () => {
        * `globals.css` cuts durations to 0.01 ms and a keyframe reached only by
        * running is not reached at all.
        *
-       * Dragging is not decoration. It is how somebody moves a window off the
+       * Dragging is how somebody moves a window off the
        * thing they are trying to read, and turning it off under this preference
        * would take away an ability rather than a flourish.
        */

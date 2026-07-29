@@ -56,7 +56,7 @@ function contrast(a: string, b: string): number {
   return (hi + 0.05) / (lo + 0.05);
 }
 
-describe("the favicon draws the same mark as the cockpit", () => {
+describe("the favicon draws the same mark as the page", () => {
   it("holds the bowl and every fragment, in the module's order", () => {
     expect(iconPaths()).toEqual([MARK_BOWL, ...MARK_GRAINS]);
   });
