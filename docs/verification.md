@@ -164,6 +164,7 @@ and type-checks, not a plan.
 | The restoration rule: which flags an identical redo provably clears            | `restoredBy` in `src/server/coordinator/staleness.ts`                    |
 | Every change that broke a task, not only the nearest                           | `causes` on `StaleMark`, `mergeMark` in `staleness.ts`, `obsel.stale.causes` |
 | Columns a task registers as meaningless, excluded from its content hash        | `exclude` in `agents/fingerprint.py`, `obsel.volatile`, `volatile_by_dataset` |
+| A door for feeds that never report: an observation of a table's contents       | `POST /api/datasets/observe`, `coordinateObservation`, `agents/observe.py`   |
 | The repair loop: flagged work redone in order, restored work skipped           | `cmd_repair` in `agents/run_demo.py`, the guide's leading flagged action |
 | The repair order derived for any caller, on `/api/swarm` and over MCP          | `src/server/coordinator/rerun.ts`, `rerun_plan` in `agents/mcp_server.py` |
 | The joining panel and its four derived steps                                   | `joining.ts`, `joining-panel.tsx`, `joinCommand` on `/api/demo/activity` |
@@ -171,7 +172,7 @@ and type-checks, not a plan.
 | The two animated captures and the script that takes them                       | `docs/images/*.gif`, `scripts/record.mjs`                                |
 | The mark in the header and the browser tab icon                                | `src/features/dashboard/mark.tsx`, `mark-geometry.ts`, `app/icon.svg`    |
 | The header lockup, and the name it reveals on hover                            | `src/features/dashboard/brand.tsx`, `brand.module.css`                   |
-| HTTP API, fourteen routes in three groups                                      | `app/api/`, see [`docs/architecture.md`](architecture.md) section 11     |
+| HTTP API, fifteen routes in three groups                                      | `app/api/`, see [`docs/architecture.md`](architecture.md) section 11     |
 
 **Added 2026-07-23, the reader-side cross-check.** obsel's trigger is an agent reporting, so a
 process that rewrites a shared table and never reports was invisible, and the silence read as "all

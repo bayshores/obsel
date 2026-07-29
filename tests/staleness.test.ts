@@ -302,7 +302,9 @@ describe("affectedBy — a change noticed by a reader, not reported by a writer"
   const noticer = task("build_revenue", ["clean_orders"], ["daily_revenue"]);
 
   function noticedChange() {
-    return [{ dataset: ds("clean_orders"), kind: "schema" as const, noticedBy: noticer }];
+    return [
+      { dataset: ds("clean_orders"), kind: "schema" as const, unreported: { noticedBy: noticer } },
+    ];
   }
 
   it("carries no author: causedByTask is null even though a producer exists", () => {

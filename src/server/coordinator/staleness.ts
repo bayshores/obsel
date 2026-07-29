@@ -37,13 +37,18 @@ export interface DatasetChange {
    */
   excluded?: readonly string[];
   /**
-   * Set when this change was noticed by a reader rather than reported by the
-   * task that wrote the dataset — the unreported change. The author is unknown,
-   * so marks descending from it carry `causedByTask: null` instead of blaming
-   * the producer for bytes it never wrote, and the hop-1 reason says the change
-   * was never reported, naming the task whose read exposed it.
+   * Present when this change was never reported by the task that wrote the
+   * dataset, whoever noticed it. The author is unknown either way, so marks
+   * descending from it carry `causedByTask: null` rather than blaming the
+   * producer for bytes it never wrote.
+   *
+   * `noticedBy` names the task whose read exposed it, and is null when an
+   * outside observer reported the table's contents directly. Presence and inner
+   * null are different facts, which is why this is an object rather than a bare
+   * task: `noticedBy: null` on its own could not tell "reported by the producer"
+   * apart from "unreported, and nobody in the swarm found it".
    */
-  noticedBy?: TaskRecord | null;
+  unreported?: { noticedBy: TaskRecord | null };
 }
 
 /**
@@ -242,7 +247,7 @@ function reasonFor(
   changedDataset: string,
   viaTask: TaskRecord | null,
   kind: ChangeKind,
-  noticedBy: TaskRecord | null,
+  unreported: { noticedBy: TaskRecord | null } | null,
   excluded: readonly string[] = [],
 ): string {
   const table = tableLabel(changedDataset);
@@ -263,9 +268,21 @@ function reasonFor(
     // The unreported case earns a longer sentence, because the usual mental
     // model — the producer re-ran — is exactly wrong here, and a reader acting
     // on that model would go ask the wrong agent what it did.
-    return noticedBy
-      ? `${base}. Nothing reported that change; obsel noticed it when ${taskLabel(noticedBy)} read the table`
-      : base;
+    if (unreported === null) return base;
+    /*
+     * The unreported case earns a longer sentence, because the usual mental
+     * model — the producer re-ran — is exactly wrong here, and a reader acting
+     * on that model would go ask the wrong agent what it did.
+     *
+     * Two shapes of it. A reader in the swarm exposed the change by reading the
+     * table, and naming that reader tells somebody where to look. An outside
+     * observer reported the contents directly, and there is no reader to name;
+     * saying so is more honest than leaving the sentence to imply a swarm member
+     * found it.
+     */
+    return unreported.noticedBy
+      ? `${base}. Nothing reported that change; obsel noticed it when ${taskLabel(unreported.noticedBy)} read the table`
+      : `${base}. Nothing reported that change; an outside observer reported the table's contents`;
   }
   const via = viaTask ? taskLabel(viaTask) : "an upstream task";
   return `built on work from ${via}, which is itself out of date because ${table} changed`;
@@ -421,7 +438,7 @@ export function affectedBy(
     const origin = change.dataset;
     const kind = change.kind;
     const columns = change.columns ?? null;
-    const noticedBy = change.noticedBy ?? null;
+    const unreported = change.unreported ?? null;
 
     // Per walk, so one origin's reach cannot hide another's. Excluded tasks are
     // seeded into every walk: the reporter is out of all of them.
@@ -458,7 +475,7 @@ export function affectedBy(
               // An unreported change has no known author. Naming the producer
               // here would blame it for bytes it never wrote, and someone acting
               // on the mark would go interrogate the wrong agent.
-              causedByTask: noticedBy ? null : (soleProducer(producers, origin)?.urn ?? null),
+              causedByTask: unreported ? null : (soleProducer(producers, origin)?.urn ?? null),
               hops,
               changeKind: kind,
               columns,
@@ -467,7 +484,7 @@ export function affectedBy(
                 origin,
                 hops > 1 ? soleProducer(producers, dataset) : null,
                 kind,
-                noticedBy,
+                unreported,
                 change.excluded ?? [],
               ),
               since: now,

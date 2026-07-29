@@ -71,7 +71,7 @@ const Body = z.object({
 });
 
 /**
- * An agent reporting that it finished IS the trigger for everything obsel does.
+ * An agent reporting that it finished is the main trigger for everything obsel does.
  * There is no polling loop and no event subscription: the agent has to tell someone
  * it is done anyway, so that report is the cheapest possible place to hang the check.
  */

@@ -31,6 +31,8 @@ import type {
   ChangeKind,
   CompletionReport,
   CoordinationResult,
+  InputObservation,
+  ObservationResult,
   OutputFingerprint,
   RestoredTask,
   StaleMark,
@@ -260,7 +262,7 @@ async function decideCompletion(
           kind,
           columns: columnChange(producer.run?.outputs[dataset]?.columns, observation.columns),
           excluded: producer.volatile?.[dataset],
-          noticedBy: finishing,
+          unreported: { noticedBy: finishing },
         });
         // Written onto every writer on record, not just the one consulted for
         // the verdict. These bytes contradict all of their claims equally, and
@@ -612,4 +614,168 @@ async function writeStaleProperties(entry: AffectedTask): Promise<void> {
     // property, so the gap reads "not measured" until the real one lands.
     [PROP.staleDetectedMs]: null,
   });
+}
+
+/**
+ * Somebody outside the swarm reports what a table currently holds.
+ *
+ * The gap this closes, stated plainly in `docs/concept.md` §9a: obsel's reader-
+ * side cross-check catches an unreported write only when some instrumented task
+ * next READS that table. Between the silent write and that read, obsel is blind,
+ * and coverage grows with reads rather than with time. A change-data-capture
+ * bridge, a cron job, or a person running a script can now close that window by
+ * reporting the bytes directly.
+ *
+ * **The trigger model is unchanged.** obsel still subscribes to nothing and
+ * polls nothing; this is one more thing reporting TO obsel, which is the only
+ * way anything here has ever happened.
+ *
+ * It reuses the completion path's machinery rather than repeating it: the same
+ * lock, the same `classifyObservation`, the same cascade, the same `observed`
+ * bookkeeping that stops the next reader raising the identical change again.
+ * The differences are all absences — no task finished, so nothing is recorded
+ * as complete, no baseline advances beyond `observed`, and `restoredBy` is not
+ * consulted, because nothing was redone.
+ */
+export async function coordinateObservation(
+  dataset: string,
+  observation: InputObservation,
+): Promise<ObservationResult> {
+  const startedAt = Date.now();
+  const release = await acquireCoordinationLock();
+  try {
+    return await decideObservation(dataset, observation, startedAt);
+  } finally {
+    release();
+  }
+}
+
+async function decideObservation(
+  dataset: string,
+  observation: InputObservation,
+  startedAt: number,
+): Promise<ObservationResult> {
+  const snapshot = await readSnapshot();
+  const producers = producersOf(snapshot);
+  const writers = producers.get(dataset) ?? [];
+  const onRecord = writers.filter(
+    (writer) => writer.observed?.[dataset] || writer.fingerprints[dataset],
+  );
+
+  emit("read", `observation of ${tableLabel(dataset)}`, `read ${snapshot.tasks.length} tasks`);
+
+  /*
+   * Nothing on record is not a finding. obsel has no claim about this table for
+   * the observation to contradict, and treating "I have never been told what
+   * this should be" as evidence of a change would flag work over a table obsel
+   * never watched.
+   */
+  if (onRecord.length === 0) {
+    emit(
+      "compare",
+      `checked ${tableLabel(dataset)}`,
+      writers.length > 0 ? "its writer has not finished, nothing to compare" : "nothing here writes it",
+    );
+    return { dataset, verdict: "no-record", affected: [], elapsedMs: Date.now() - startedAt };
+  }
+
+  // Ranked exactly as the completion path ranks them, and for the same reason:
+  // with two writers on one table, the alarm fires only when NO writer on record
+  // can account for what was observed.
+  const verdicts = onRecord.map((writer) => ({
+    producer: writer,
+    verdict: classifyObservation(writer, dataset, observation),
+  }));
+  const decided =
+    verdicts.find((entry) => entry.verdict.kind === "current") ??
+    verdicts.find((entry) => entry.verdict.kind === "superseded") ??
+    verdicts[0];
+
+  if (decided.verdict.kind === "current") {
+    emit("compare", `checked ${tableLabel(dataset)}`, "matches what was recorded");
+    return { dataset, verdict: "current", affected: [], elapsedMs: Date.now() - startedAt };
+  }
+
+  /*
+   * Superseded, and nothing to mark. The observer is looking at bytes some
+   * producer has already reported replacing, so the version it saw is one behind
+   * rather than unaccounted for. No finished work stands on it that the
+   * producer's own completion did not already judge.
+   */
+  if (decided.verdict.kind === "superseded") {
+    emit("compare", `checked ${tableLabel(dataset)}`, "an older version than the one on record");
+    return { dataset, verdict: "superseded", affected: [], elapsedMs: Date.now() - startedAt };
+  }
+
+  const recorded = decided.producer.observed?.[dataset] ?? decided.producer.fingerprints[dataset];
+  const kind = compareFingerprints(recorded, observation);
+  if (kind === null) {
+    // Unreachable through `classifyObservation`, which only returns unknown when
+    // the observation matches nothing on record. Raised rather than papered over.
+    throw new Error(
+      `observation of ${dataset} classified as unknown but compares identical to the record`,
+    );
+  }
+
+  emit(
+    "compare",
+    `checked ${tableLabel(dataset)}`,
+    "does not match what was recorded, and nothing reported a change",
+  );
+
+  const change: DatasetChange = {
+    dataset,
+    kind,
+    columns: columnChange(decided.producer.run?.outputs[dataset]?.columns, observation.columns),
+    excluded: decided.producer.volatile?.[dataset],
+    // No noticing task: an outside observer reported this, and the mark's
+    // sentence says so rather than implying a swarm member found it.
+    unreported: { noticedBy: null },
+  };
+
+  // Nothing is excluded from this cascade. The completion path excludes the
+  // reporting task because its own work is built on the version it observed;
+  // here the reporter is not in the swarm at all.
+  const affected = affectedBy(snapshot, [change], new Date().toISOString());
+
+  emit(
+    "walk",
+    `walked lineage from ${tableLabel(dataset)}`,
+    affected.length === 0
+      ? "nothing finished downstream"
+      : affected.map((entry) => `${label(entry.task)} (${hops(entry.mark.hops)})`).sort().join(", "),
+  );
+
+  await markAllStale(affected);
+
+  // Recorded on every writer whose claim these bytes contradict, so the next
+  // honest reader of this table compares clean instead of raising it again.
+  await Promise.all(
+    onRecord.map((writer) =>
+      updateTaskProperties(writer.urn, {
+        [PROP.observed]: JSON.stringify({
+          ...writer.observed,
+          [dataset]: { schema: observation.schema, content: observation.content },
+        }),
+      }),
+    ),
+  );
+
+  const elapsedMs = Date.now() - startedAt;
+  emit(
+    "done",
+    affected.length === 0 ? "nothing marked" : `marked ${affected.length} out of date`,
+    `${elapsedMs} ms end to end`,
+  );
+
+  if (affected.length > 0) {
+    await Promise.all(
+      affected.map((entry) => {
+        entry.mark.detectedMs = elapsedMs;
+        return updateTaskProperties(entry.task.urn, { [PROP.staleDetectedMs]: String(elapsedMs) });
+      }),
+    );
+  }
+
+  return { dataset, verdict: "changed", affected, elapsedMs };
 }

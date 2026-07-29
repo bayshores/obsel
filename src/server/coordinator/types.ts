@@ -477,3 +477,26 @@ export interface CoordinationResult {
   /** Wall-clock milliseconds from receiving the report to having the answer. */
   elapsedMs: number;
 }
+
+/**
+ * What obsel made of an observation reported from outside the swarm.
+ *
+ * The verdicts are the four honest answers, and `no-record` is the one worth
+ * naming: obsel holds no claim about that table, so there is nothing for the
+ * observation to contradict. Reporting it as "no change" would turn an absence
+ * of information into an all-clear.
+ */
+export interface ObservationResult {
+  dataset: string;
+  verdict:
+    /** Matches what the producer recorded. Nothing to say. */
+    | "current"
+    /** An older version than the one on record; a producer already reported past it. */
+    | "superseded"
+    /** Contradicts every claim on record, so the table changed and nothing reported it. */
+    | "changed"
+    /** Nothing in the swarm has recorded writing this table. */
+    | "no-record";
+  affected: AffectedTask[];
+  elapsedMs: number;
+}

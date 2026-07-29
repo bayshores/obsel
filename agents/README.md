@@ -72,6 +72,7 @@ were found.
 | `mcp_core.py`       | Everything obsel's MCP server decides about a swarm before it speaks: reply guards, output resolution, freshness verdicts, the completion body, tables handed over as file paths. Standard library only, so `pnpm verify` can check it. 49 self-checks. |
 | `mcp_erasure.py`    | The erasure half of the same, kept apart because this one may never default to "nothing is wrong": turning a coverage report into sorted, actionable gaps. 9 self-checks.                                                                               |
 | `mcp_server.py`     | obsel's own MCP server: the ten tools any MCP-capable agent joins through, seven for the page and three for erasure. Wiring only; covered by `tests/live/obsel-mcp.live.test.ts`.                                                                        |
+| `observe.py`        | Tells obsel what a table holds right now, for writers that never report: a cron entry, a change-data-capture bridge, a person after a hand edit. Hashes the file with the producer's registered exclusions. Covered by `tests/live/observe.live.test.ts`. |
 
 ## Joining from your own agent
 

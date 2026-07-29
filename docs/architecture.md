@@ -128,10 +128,12 @@ A DataJob URN _nests_ a DataFlow URN, so the task id is the last comma-separated
 second to last. That is a real bug that was hit and fixed during this work; both implementations
 carry a comment saying so.
 
-## 3. Completion is a push, not a poll
+## 3. Everything is a push, not a poll
 
-**An agent reporting that it finished is the trigger for everything obsel does.** There is no
-polling loop over DataHub, no scheduler, and no event subscription.
+**obsel acts only when something reports to it.** There is no polling loop over DataHub, no
+scheduler, and no event subscription. Two things report: an agent's completion, which is the main
+one and the subject of the rest of this section, and an external feed's observation of a table's
+contents through `POST /api/datasets/observe`, which is section 3a.
 
 This is the cheapest correct place to hang the check. An agent has to tell someone it is done
 anyway. Doing the work at that moment means obsel's answer is computed against the graph as it is
@@ -219,6 +221,37 @@ moved by hand would put the picture in disagreement with the record. The scroll 
 does not zoom, so the tall page stays scrollable over its largest region. `READING` and `RANGE`
 in `lineage.tsx` carry the full reasoning; `e2e/scale.spec.ts` zooms to design size, strands the
 picture with a hard pan on purpose, and asserts the fit button recovers it.
+
+## 3a. The observation door, for writers that never report
+
+obsel's reader-side cross-check (section 12) catches a write nobody reported only when an
+instrumented task next READS the changed table. Between the silent write and that read, obsel is
+blind, and its coverage grows with reads rather than with time.
+
+`POST /api/datasets/observe` closes that window without changing the trigger model. A
+change-data-capture bridge, a cron entry, or a person running a script posts what a table currently
+holds; obsel compares it against what the producer recorded writing and cascades if they disagree.
+The reference bridge is [`agents/observe.py`](../agents/observe.py), and
+`tests/live/observe.live.test.ts` drives it against a real edit to a real file.
+
+The comparison, the cascade and the `observed` bookkeeping are the completion path's, reused rather
+than repeated: `coordinateObservation` takes the same process-wide lock and calls the same
+`classifyObservation`. The differences are absences. No task finished, so nothing is recorded
+complete, no baseline advances beyond `observed`, and `restoredBy` is never consulted, because
+nothing was redone.
+
+Two limits, both inherent:
+
+- **It is fingerprint-based.** A rewrite producing identical bytes is invisible here, which is the
+  first correctness rule rather than an oversight. This must not drift toward the erasure kernel's
+  inverted rule, where any write reopens an obligation.
+- **A table nothing has recorded writing gets `no-record`.** obsel holds no claim for the
+  observation to contradict, and nothing is written. "I was never told what this should be" and
+  "nothing changed" are different answers, and the verdict keeps them apart.
+
+There is deliberately no MCP tool for this. Agents already send `inputs` with every completion,
+which is the same evidence by a better route, since they were reading the table anyway. This door
+is for the things that are not agents.
 
 ## 4. Traversal reads the graph store, never the search index
 
@@ -709,11 +742,12 @@ What has been verified directly, and what has not.
 
 ## 11. The HTTP API
 
-Fourteen routes. All of them are `force-dynamic`; nothing here is cached. They fall into three
+Fifteen routes. All of them are `force-dynamic`; nothing here is cached. They fall into three
 groups.
 
-**obsel's own protocol, seven routes.** `GET /api/swarm`, `GET /api/trace`, and the five under
-`/api/tasks/`: `register`, `start`, `complete`, `abandon`, `report`. This is the whole of what an
+**obsel's own protocol, eight routes.** `GET /api/swarm`, `GET /api/trace`, and the five under
+`/api/tasks/`: `register`, `start`, `complete`, `abandon`, `report`, plus
+`POST /api/datasets/observe`. This is the whole of what an
 agent integrating with obsel calls, and every one of obsel's ten MCP tools is a wrapper over one of
 them. `GET /api/swarm` carries the derived repair order alongside the snapshot, so a caller that
 already reads the board does not need a second route to learn what to redo first.
@@ -724,8 +758,8 @@ already reads the board does not need a second route to learn what to redo first
 the subject's identifiers out of the report before answering. With no token configured the three
 mutating routes answer 503 rather than running unauthenticated, which is the closed direction.
 
-**What the token gates, and what it deliberately does not.** `start`, `complete` and `abandon`
-carry the same gate as the erasure mutations. `complete` is the reason it exists on this side: a
+**What the token gates, and what it deliberately does not.** `start`, `complete`, `abandon` and
+`datasets/observe` carry the same gate as the erasure mutations. `complete` is the reason it exists on this side: a
 forged completion whose fingerprints match the recorded baseline reads as an identical redo, and
 `restoredBy` derives clears from those, so an open route was a way to have flags removed without
 work being redone. `register`, `report` and the two demo routes are ungated, because the page calls

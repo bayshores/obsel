@@ -298,4 +298,4 @@ export async function resetSwarm(): Promise<{ reset: string[]; tagsCleared: stri
   };
 }
 
-export { coordinateCompletion } from "./completion";
+export { coordinateCompletion, coordinateObservation } from "./completion";
