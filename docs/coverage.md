@@ -19,16 +19,15 @@ And a row names its evidence precisely enough to re-run it or look it up.
 | browser | Playwright against the built app                                       | `pnpm e2e`         |
 | run     | a dated, measured run recorded in [`verification.md`](verification.md) | see its entry      |
 
-Counts on 2026-07-28, after the details panel became a surface with three depths: 526 unit tests
-across 26 files, 183 python self-checks across 7 modules, 104 live tests across 11 files, 267
-browser checks across two viewports with one skipped. The unit figure gained
-`tests/dashboard-flow.test.ts` and `tests/schematic.test.ts`; the browser figure gained the fourteen
-in `e2e/dashboard-graph.spec.ts` → "the details surface" and two in `e2e/erasure.spec.ts`, and earlier the
-same day `e2e/dock.spec.ts`, `e2e/erasure.spec.ts` and the cascade and count-up assertions. The live
-figure is from 2026-07-26 plus the two added to
-`preflight.live.test.ts` on 2026-07-27 and the six in `removed.live.test.ts` on 2026-07-28; those two
-files are the only live ones re-run since, and nothing in the rebuild crosses a process boundary, so
-none of it needed re-running. Live runs are single observations unless their entry says otherwise.
+Counts measured on 2026-07-28 after the files were split along their seams: **531 unit tests across
+28 files, 201 python self-checks across 9 modules, 272 browser checks across two viewports with one
+skipped**, and 104 live tests across 11 files. No test was added or removed in that split — the unit
+and browser totals are the same runs redistributed, and the python total gained the nine checks
+`agents/mcp_erasure.py` took with it out of `agents/mcp_core.py`. The live figure is from 2026-07-26
+plus the two added to `preflight.live.test.ts` on 2026-07-27 and the six in `removed.live.test.ts` on
+2026-07-28; those two files are the only live ones re-run since, and nothing in the split crosses a
+process boundary, so none of it needed re-running. Live runs are single observations unless their
+entry says otherwise.
 
 Nothing in the unit or python columns uses a stand-in for a system boundary; that rule and its
 origin are in [`CLAUDE.md`](../CLAUDE.md). The browser suite replays recorded or invented
