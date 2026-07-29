@@ -453,7 +453,7 @@ readable", not as "covered by end-to-end evidence". See [Evidence](#9-evidence) 
 | Vocabulary setup                            | `agents/setup.py`                                                                                                           | shipped                                             |
 | Agent worker                                | `agents/worker.py`                                                                                                          | shipped, 16 self-checks + 6 integration             |
 | Demo command line                           | `agents/run.py` over `run_demo.py`, `run_scale.py` and `demo_output.py`                                                     | shipped, 42 self-checks + 8 integration             |
-| What an agent is told and held to           | `agents/agent_contract.py`                                                                                                  | shipped, 22 self-checks                             |
+| What an agent is told and held to           | `agents/agent_contract.py`                                                                                                  | shipped, 23 self-checks                             |
 | Which CLI runs the agents                   | `agents/runner_select.py`                                                                                                   | shipped, 9 self-checks                              |
 | The session an agent actually is            | `agents/codex_runner.py`, `agents/claude_runner.py`                                                                         | shipped, 1 real agent run per installed CLI         |
 | Demo reset                                  | `app/api/demo/reset/route.ts`, `engine.resetSwarm`                                                                          | shipped, 2 integration tests vs a live DataHub      |
@@ -590,7 +590,7 @@ What has been verified directly, and what has not.
   an instruction remembered together with the columns it produced, the pair whose separation
   reverted a rename live on 2026-07-22.
 
-- **That nothing a live agent writes is taken on trust**, by 22 self-checks over
+- **That nothing a live agent writes is taken on trust**, by 23 self-checks over
   `agents/agent_contract.py`. `validate` is the only thing between a model's output and obsel's
   fingerprint, and every rejection branch is checked against a real file: a table the agent never
   wrote, one that is not JSON, one declaring no columns, one with no rows, a row missing a declared

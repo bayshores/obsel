@@ -20,7 +20,7 @@ And a row names its evidence precisely enough to re-run it or look it up.
 | run     | a dated, measured run recorded in [`verification.md`](verification.md) | see its entry      |
 
 Counts measured on 2026-07-28 after the files were split along their seams: **531 unit tests across
-28 files, 201 python self-checks across 9 modules, 272 browser checks across two viewports with one
+28 files, 202 python self-checks across 9 modules, 272 browser checks across two viewports with one
 skipped**, and 104 live tests across 11 files. No test was added or removed in that split — the unit
 and browser totals are the same runs redistributed, and the python total gained the nine checks
 `agents/mcp_erasure.py` took with it out of `agents/mcp_core.py`. The live figure is from 2026-07-26
