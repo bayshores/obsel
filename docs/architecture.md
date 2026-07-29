@@ -366,7 +366,8 @@ properties of it are deliberate:
   input classifies as unknown and over-alarms with an unknown author, which is the direction every
   obsel rule falls, rather than under-flagging.
 
-The decisions live in [`agents/mcp_core.py`](../agents/mcp_core.py), which imports nothing outside
+The decisions live in [`agents/mcp_core.py`](../agents/mcp_core.py) and
+[`agents/mcp_erasure.py`](../agents/mcp_erasure.py), which import nothing outside
 the standard library so `pnpm verify` can check them without the virtual environment. The wiring is
 covered by [`tests/live/obsel-mcp.live.test.ts`](../tests/live/obsel-mcp.live.test.ts): a real MCP
 client, over real stdio, into the real Python server, against a real obsel and a real DataHub.
@@ -458,7 +459,7 @@ readable", not as "covered by end-to-end evidence". See [Evidence](#9-evidence) 
 | Demo reset                                  | `app/api/demo/reset/route.ts`, `engine.resetSwarm`                                                                          | shipped, 2 integration tests vs a live DataHub      |
 | Agent output contract                       | `agents/tables.py` (`canonicalise_numbers`)                                                                                 | shipped, 7 self-check properties                    |
 | Sample outputs                              | `examples/`                                                                                                                 | shipped, captured from a real run                   |
-| obsel's own MCP server                      | `agents/mcp_server.py` over `agents/mcp_core.py`                                                                            | shipped, 31 self-checks + 14 integration            |
+| obsel's own MCP server                      | `agents/mcp_server.py` over `agents/mcp_core.py` and `agents/mcp_erasure.py`                                                | shipped, 31 self-checks + 14 integration            |
 | The agent skill                             | `skills/obsel-collaboration/SKILL.md`                                                                                       | shipped, instructions rather than code              |
 
 ## 9. Evidence

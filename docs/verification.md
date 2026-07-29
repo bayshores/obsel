@@ -269,7 +269,7 @@ display-only `path` on the run detail; nothing decides on it.
   sharpest being that `_required_list` refuses a missing key rather than reading it as an empty list:
   mutating it to `reply.get(key) or []` fails six of them; the newest cover the repair's redo order
   and the refusal to read a reply that lost its `restored` key as "nothing was cleared".
-  `mcp_core.py` contributes 41 over what
+  `mcp_core.py` contributes 49, and `mcp_erasure.py` a further 9, over what
   obsel's own MCP server decides before it speaks: the same refusal of a missing key (the same
   mutation fails five of these), an output the task never declared it writes, a table with no
   registered producer reported as exactly that rather than as fresh, `217` and `217.0` reaching
@@ -1030,7 +1030,8 @@ with **373 unit tests across 17 files**; `pnpm test:live` green with **93 tests 
 `agents/mcp_server.py` now registers **nine** tools rather than six: `erasure_board`,
 `request_challenge` and `submit_attestation` sit beside the swarm's original set. Every mutation
 still goes through obsel's HTTP API, so the server holds no DataHub credentials, and the decisions
-live in `agents/mcp_core.py` where `pnpm verify` checks them with the system `python3`.
+live in `agents/mcp_core.py` and `agents/mcp_erasure.py`, where `pnpm verify` checks them with the
+system `python3`.
 
 `open_obligations` is the agent-facing work: it turns a coverage report into a sorted list of gaps,
 each with a named next step. An unattested upstream is offered before the assets built on it,

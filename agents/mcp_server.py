@@ -64,7 +64,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from agents import mcp_core, worker  # noqa: E402 -- must follow the sys.path line
+from agents import mcp_core, mcp_erasure, worker  # noqa: E402 -- must follow the sys.path line
 
 SERVER_NAME = "obsel"
 SERVER_VERSION = "0.1.0"
@@ -345,7 +345,7 @@ def build_server(obsel_url: str = OBSEL_URL) -> Any:
             scope: optional URN prefixes, e.g. ["urn:li:dataset:(urn:li:dataPlatform:snowflake,*"].
         """
         report = worker.get_json(f"{obsel_url}/api/erasure/{request}")
-        return mcp_core.open_obligations(report, scope)
+        return mcp_erasure.open_obligations(report, scope)
 
     @server.tool()
     def request_challenge(request: str, asset: str) -> dict[str, Any]:
