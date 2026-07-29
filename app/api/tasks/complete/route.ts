@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { coordinateCompletion } from "@/src/server/coordinator/engine";
+import { authorizeMutation } from "@/src/server/http/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -75,6 +76,16 @@ const Body = z.object({
  * it is done anyway, so that report is the cheapest possible place to hang the check.
  */
 export async function POST(request: Request) {
+  /*
+   * Gated like every mutating route, and on this one the gate is load-bearing
+   * for the no-clear rule: a forged completion whose fingerprints match the
+   * recorded baseline reads as an identical redo, and `restoredBy` would then
+   * derive clears from it. Without the token, "no route clears a flag" held
+   * only against callers polite enough not to lie.
+   */
+  const auth = authorizeMutation(request);
+  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
+
   let parsed;
   try {
     parsed = Body.parse(await request.json());

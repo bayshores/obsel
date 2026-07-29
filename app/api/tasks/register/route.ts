@@ -1,11 +1,15 @@
 import { NextResponse } from "next/server";
 
 import { registerTask } from "@/src/server/coordinator/engine";
+import { authorizeMutation } from "@/src/server/http/auth";
 import { RegisterBody } from "@/src/server/http/register-body";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
+  const auth = authorizeMutation(request);
+  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
+
   let parsed;
   try {
     parsed = RegisterBody.parse(await request.json());

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
+import { authorizeMutation } from "@/src/server/http/auth";
 import { runReport } from "@/src/server/runner/reporter";
 
 export const dynamic = "force-dynamic";
@@ -44,6 +45,9 @@ const Body = z.object({
  * silencing the one thing obsel is for.
  */
 export async function POST(request: Request) {
+  const auth = authorizeMutation(request);
+  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
+
   let parsed;
   try {
     parsed = Body.parse(await request.json());

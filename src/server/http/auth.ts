@@ -3,24 +3,28 @@ import "server-only";
 /**
  * Who is allowed to change something through obsel's HTTP surface.
  *
- * Until now obsel had no authentication on any route, which was defensible for
- * a demo swarm on a laptop and is not defensible for a tool whose output is
- * meant to be shown to a regulator. The erasure routes mutate a legal evidence
- * ledger, so they are gated.
+ * Every mutating route is gated: the task routes, the demo routes, and the
+ * erasure routes. Reads stay open — they change nothing, and the page polls
+ * them. The task routes are not an afterthought here: an un-gated completion
+ * report whose fingerprints match the recorded baseline reads as an identical
+ * redo, and `restoredBy` derives clears from those, so without this gate the
+ * no-clear rule held only against honest callers.
  *
- * **This is a bearer token, and it is not the interesting half of the
- * security.** An attestation is worth something because it is signed by a key
- * obsel was told out of band to trust, verified over canonical bytes, bound to
- * a challenge obsel issued. None of that depends on this token. What the token
- * does is stop an unauthenticated party from opening requests and burning
- * challenges, which is a denial-of-service problem rather than a forgery one.
- * Saying so plainly matters: a reader who mistakes the token for the trust root
- * would draw the wrong conclusion about what obsel proves.
+ * **This is a bearer token, and on the erasure side it is not the interesting
+ * half of the security.** An attestation is worth something because it is
+ * signed by a key obsel was told out of band to trust, verified over canonical
+ * bytes, bound to a challenge obsel issued. None of that depends on this token.
+ * What the token does there is stop an unauthenticated party from opening
+ * requests and burning challenges, which is a denial-of-service problem rather
+ * than a forgery one. Saying so plainly matters: a reader who mistakes the
+ * token for the trust root would draw the wrong conclusion about what obsel
+ * proves.
  *
  * Absent `OBSEL_API_TOKEN`, mutating routes refuse everything rather than
  * allowing everything. An unconfigured deployment is a closed one. The opposite
  * default is how tools ship wide open, and the failure is silent because
- * everything works.
+ * everything works. `scripts/start.sh` generates a token into `.env.local`
+ * when none is set, so the zero-config demo path stays a configured one.
  */
 
 export type AuthOutcome = { ok: true } | { ok: false; status: number; error: string };

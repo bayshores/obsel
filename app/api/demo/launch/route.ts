@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
+import { authorizeMutation } from "@/src/server/http/auth";
 import { launchStep } from "@/src/server/runner/launcher";
 
 export const dynamic = "force-dynamic";
@@ -30,6 +31,10 @@ const Body = z.object({
  * `GET /api/demo/activity` and the swarm itself.
  */
 export async function POST(request: Request) {
+  // Gated: every step this spawns mutates the swarm, and `reset` strips it.
+  const auth = authorizeMutation(request);
+  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
+
   let parsed;
   try {
     parsed = Body.parse(await request.json());

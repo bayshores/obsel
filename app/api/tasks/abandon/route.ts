@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { abandonTask } from "@/src/server/coordinator/engine";
+import { authorizeMutation } from "@/src/server/http/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +21,14 @@ const Body = z.object({ taskUrn: z.string().min(1) });
  * failure path, and a second error there would bury the first.
  */
 export async function POST(request: Request) {
+  /*
+   * Gated even though this is a failure-path convenience: un-gated, it lets any
+   * caller flip a running task's status, and a task quietly demoted out of
+   * `running` is skipped by every future cascade — hidden, not just mislabeled.
+   */
+  const auth = authorizeMutation(request);
+  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
+
   let parsed;
   try {
     parsed = Body.parse(await request.json());
