@@ -323,7 +323,7 @@ SDK's two closed-transport error shapes and safe because both tag tools are idem
 test kills the real subprocess and asserts the next apply lands, read back over GMS.
 
 A related ceiling lives on the other side of the API: every agent mutation call, in
-`agents/worker.py` and the MCP server both, waits up to `MUTATION_TIMEOUT` (300 s) rather than the
+`agents/obsel_client.py` and the MCP server both, waits up to `MUTATION_TIMEOUT` (300 s) rather than the
 60 s read default, because a completion is answered only after the whole cascade is walked,
 written and confirmed, and a slow DataHub genuinely outran a 60 s client once while the server
 finished the work. A timeout on a mutation is an unknown outcome, not a failure; the ceiling is
@@ -456,7 +456,7 @@ readable", not as "covered by end-to-end evidence". See [Evidence](#9-evidence) 
 | Which CLI runs the agents                   | `agents/runner_select.py`                                                                                                   | shipped, 9 self-checks                              |
 | The session an agent actually is            | `agents/codex_runner.py`, `agents/claude_runner.py`                                                                         | shipped, 1 real agent run per installed CLI         |
 | Demo reset                                  | `app/api/demo/reset/route.ts`, `engine.resetSwarm`                                                                          | shipped, 2 integration tests vs a live DataHub      |
-| Agent output contract                       | `agents/worker.py` (`canonicalise_numbers`)                                                                                 | shipped, 7 self-check properties                    |
+| Agent output contract                       | `agents/tables.py` (`canonicalise_numbers`)                                                                                 | shipped, 7 self-check properties                    |
 | Sample outputs                              | `examples/`                                                                                                                 | shipped, captured from a real run                   |
 | obsel's own MCP server                      | `agents/mcp_server.py` over `agents/mcp_core.py`                                                                            | shipped, 31 self-checks + 14 integration            |
 | The agent skill                             | `skills/obsel-collaboration/SKILL.md`                                                                                       | shipped, instructions rather than code              |

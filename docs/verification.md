@@ -153,7 +153,7 @@ and type-checks, not a plan.
 | The staleness rules, pure and testable                                         | `src/server/coordinator/staleness.ts`                                    |
 | Marks written back into DataHub                                                | `src/server/coordinator/engine.ts`, `src/server/datahub/mcp.ts`          |
 | Four demo agent workers, each a real Codex session                             | `agents/worker.py`, `agents/run.py`                                      |
-| The agent output contract, names and number form                               | `agents/worker.py` (`canonicalise_numbers`), with a self-check           |
+| The agent output contract, names and number form                               | `agents/tables.py` (`canonicalise_numbers`), with a self-check           |
 | The page: graph, headline, stats, step log, details                            | `app/page.tsx`, `src/features/dashboard/`                                |
 | Live agent progress on the page                                                | `src/features/dashboard/progress.ts`                                     |
 | The guide: stage derived from live state, buttons that launch the real steps   | `src/features/dashboard/guide.ts`, `guide-panel.tsx`                     |
@@ -504,7 +504,7 @@ display-only `path` on the run detail; nothing decides on it.
     60 s HTTP ceiling; the server finished the work, every mark correct, and the worker declared
     the run dead: the operator told the opposite of the truth. Verified by read-back at the time
     (nine marks at the exact expected hops with the client having reported failure). Every
-    mutation call now gets a 300 s ceiling (`MUTATION_TIMEOUT` in `agents/worker.py`, used by the
+    mutation call now gets a 300 s ceiling (`MUTATION_TIMEOUT` in `agents/obsel_client.py`, used by the
     demo runner and the MCP server both), sized so a genuine hang is the only thing left that can
     reach it. A timeout on a mutation is an unknown outcome, not a failure, and the ceiling is the
     difference between the two staying rare.
@@ -2422,7 +2422,7 @@ test ids.
   customer-name casing (fixed by pinning the instruction, see `agents/pipeline.py`), numeric
   serialisation, with `order_id` 1012's money value written `217` on three runs and `217.0` on a
   fourth, which broke `rerun-same` and made `change` report `both` instead of `schema` (handled by
-  `canonicalise_numbers` in `agents/worker.py`, which fixes the serialised form per column before
+  `canonicalise_numbers` in `agents/tables.py`, which fixes the serialised form per column before
   anything is hashed), and averaging precision, found by the first live `repair` on 2026-07-24 and
   pinned in the instruction the same day. All three were caught by the demo's own assertions rather
   than seen on camera, which is the property worth keeping. obsel itself called every one of those
