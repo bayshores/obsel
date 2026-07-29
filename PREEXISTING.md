@@ -23,11 +23,11 @@ before this project. Two things were carried in from it:
 
 - Its design tokens (colour, typography, spacing, motion) copied into `app/globals.css`.
 - Eight of its presentational components, ported from `.jsx` to `.tsx` in
-  `src/features/cockpit/mmux.tsx`: `Wordmark`, `Divider`, `Panel`, `StatCell`, `StatRibbon`,
+  `src/features/dashboard/mmux.tsx`: `Wordmark`, `Divider`, `Panel`, `StatCell`, `StatRibbon`,
   `Eyebrow`, `PulseDot`, `Badge`.
 
 They are styling only. Not one of them knows what a task, a dataset, a fingerprint or a stale mark
-is; every decision obsel makes is in `src/server/coordinator/` and `src/features/cockpit/`, all
+is; every decision obsel makes is in `src/server/coordinator/` and `src/features/dashboard/`, all
 written for this project. The port is not a verbatim copy, because it moves seven type sizes up
 mmux's own
 ladder, because obsel is watched as a compressed screen recording rather than on a desk. Each change

@@ -92,7 +92,7 @@ export interface OutputShape {
  * about any of it.
  *
  * `ms` is the agent's own measurement of its own run, taken in one process.
- * The cockpit reports it verbatim rather than subtracting `finishedAt` from
+ * The dashboard reports it verbatim rather than subtracting `finishedAt` from
  * `startedAt`: those two are stamped on different clocks, which is the mistake
  * `timing.ts` already documents having made once.
  */
@@ -108,8 +108,8 @@ export interface RunDetail {
    * Milliseconds the runner took, measured by the agent in a single process.
    *
    * **Nullable, and the null is the point.** A duration has to be measured by
-   * the thing that ran, in one process, or it is not a measurement. The cockpit
-   * bench reports a table a person typed by hand: there is no run to time, and
+   * the thing that ran, in one process, or it is not a measurement. The dashboard
+   * table form reports a table a person typed by hand: there is no run to time, and
    * any number here would be invented. obsel's rule is that it never shows a
    * figure nobody took, so the honest value is nothing — and `outputs` below
    * still arrives, which is what the board actually needs.
@@ -220,7 +220,7 @@ export interface TaskRecord {
    * ISO timestamp of when obsel moved this task to `running`, stamped by obsel.
    *
    * Deliberately obsel's own clock rather than the agent's. It exists so the
-   * cockpit can say how long work in flight has been in flight, and it is
+   * dashboard can say how long work in flight has been in flight, and it is
    * subtracted from `SwarmSnapshot.at` — which the same process stamps on the
    * same clock, so the difference is a real interval and not two machines
    * disagreeing about what time it is.
@@ -403,7 +403,7 @@ export interface CompletionReport {
   fingerprints: Record<string, OutputFingerprint>;
   finishedAt: string;
   /**
-   * What the run was like, for the cockpit. Optional, and nothing obsel decides
+   * What the run was like, for the dashboard. Optional, and nothing obsel decides
    * on: an agent that omits it still gets a correct staleness answer.
    */
   run?: RunDetail;

@@ -1,7 +1,7 @@
 import "server-only";
 
 /**
- * Runs the demo steps the cockpit's buttons ask for — the same
+ * Runs the demo steps the dashboard's buttons ask for — the same
  * `python -m agents.run <step>` commands the README documents, spawned
  * verbatim. Nothing here decides anything: the step's own process does the
  * work, prints its own assertions, and exits honestly, and this module only
@@ -57,7 +57,7 @@ function state(): LauncherState {
  * Launch one demo step. Returns the refusal instead when it cannot start.
  *
  * The child's stdout and stderr become the activity log verbatim — the step's
- * own printed assertions are the evidence the cockpit shows, not a paraphrase.
+ * own printed assertions are the evidence the dashboard shows, not a paraphrase.
  *
  * `origin` is the server's own address as the request that asked for the
  * launch saw it, and passing it down is load-bearing, found the hard way on

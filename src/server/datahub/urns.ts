@@ -90,7 +90,7 @@ export function datasetUrn(name: string): string {
 /**
  * The shape a name has to have for `datasetUrn` and `datasetName` to be inverses.
  *
- * `datasetName`, `shortName` in `src/features/cockpit/naming.ts` and
+ * `datasetName`, `shortName` in `src/features/dashboard/naming.ts` and
  * `dataset_short_name` in `agents/mcp_core.py` all recover a name by splitting on
  * commas and then on dots. So a comma or an extra dot inside the name is not
  * cosmetic: `datasetUrn("a,b")` builds a URN whose second comma-separated segment

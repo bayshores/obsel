@@ -78,7 +78,7 @@ function hops(count: number): string {
  * this run will be compared against, and clearing them would make every re-run
  * look like a first run — which reports no change and marks nothing stale.
  *
- * `startedAt` is stamped here, on obsel's clock, so the cockpit can say how long
+ * `startedAt` is stamped here, on obsel's clock, so the dashboard can say how long
  * work in flight has been in flight. Taken before the write rather than after:
  * `updateTaskProperties` polls until DataHub confirms, and billing that wait to
  * the agent would overstate every elapsed figure on screen by the confirmation
@@ -217,7 +217,7 @@ export async function readSwarm(): Promise<{
  * what DataHub held; a browser's base URL is neither of those things and would
  * outlive its meaning the moment a capture were replayed on another machine.
  *
- * Null when `DATAHUB_FRONTEND_URL` is unset, which the cockpit renders as no link
+ * Null when `DATAHUB_FRONTEND_URL` is unset, which the dashboard renders as no link
  * at all. A guessed default would produce a link that looks live and goes nowhere,
  * which is worse than its absence.
  *
@@ -652,7 +652,7 @@ async function recordCompletion(finishing: TaskRecord, report: CompletionReport)
   // Replaced wholesale, never merged, and cleared when a run reports nothing.
   // Merging would let an old runner name or row count survive beside a new one
   // and describe a run that never happened. Absent reads as "not reported" in
-  // the cockpit, which is the truthful rendering of having not been told.
+  // the dashboard, which is the truthful rendering of having not been told.
   const run = report.run;
 
   await updateTaskProperties(finishing.urn, {
@@ -662,7 +662,7 @@ async function recordCompletion(finishing: TaskRecord, report: CompletionReport)
     [PROP.previousFingerprints]: Object.keys(previous).length > 0 ? JSON.stringify(previous) : null,
     [PROP.observed]: Object.keys(observed).length > 0 ? JSON.stringify(observed) : null,
     // Each field independently, not gated on the object. A report can carry the
-    // shape and no duration — a person at the bench typed the table, so there is
+    // shape and no duration — a person at the table form typed the table, so there is
     // no run to time — and writing "0" or the runner's name in its place would
     // record a measurement nobody took.
     [PROP.runRunner]: run?.runner ?? null,
@@ -764,7 +764,7 @@ async function writeStaleProperties(entry: AffectedTask): Promise<void> {
     // figure is stamped by a second write further down that is deliberately
     // deferred so a bookkeeping failure cannot stop the flags landing. Without
     // this line a task marked by a second, later cascade keeps the FIRST
-    // cascade's measurement in the meantime — and the cockpit would report a
+    // cascade's measurement in the meantime — and the dashboard would report a
     // millisecond figure measured for a different change, which is precisely
     // the "number nobody measured" obsel refuses to display. Null removes the
     // property, so the gap reads "not measured" until the real one lands.

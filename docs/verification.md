@@ -154,20 +154,20 @@ and type-checks, not a plan.
 | Marks written back into DataHub                                                | `src/server/coordinator/engine.ts`, `src/server/datahub/mcp.ts`          |
 | Four demo agent workers, each a real Codex session                             | `agents/worker.py`, `agents/run.py`                                      |
 | The agent output contract, names and number form                               | `agents/worker.py` (`canonicalise_numbers`), with a self-check           |
-| The page: graph, headline, stats, step log, details                            | `app/page.tsx`, `src/features/cockpit/`                                  |
-| Live agent progress on the page                                                | `src/features/cockpit/progress.ts`                                       |
-| The guide: stage derived from live state, buttons that launch the real steps   | `src/features/cockpit/guide.ts`, `guide-panel.tsx`                       |
+| The page: graph, headline, stats, step log, details                            | `app/page.tsx`, `src/features/dashboard/`                                |
+| Live agent progress on the page                                                | `src/features/dashboard/progress.ts`                                     |
+| The guide: stage derived from live state, buttons that launch the real steps   | `src/features/dashboard/guide.ts`, `guide-panel.tsx`                     |
 | The demo runner: spawns `agents.run` steps, checks the machine's prerequisites | `src/server/runner/`                                                     |
 | Each task's job, stored on its DataJob in DataHub and read back onto the page  | `agents/pipeline.py`, `src/server/datahub/client.ts`                     |
-| The stale tag read back off the entity, and counted on the page                | `src/server/datahub/tags.ts`, `src/features/cockpit/timing.ts`           |
-| A link from any task to its real page in DataHub's UI                          | `src/features/cockpit/datahub-link.ts`, `inspector.tsx`                  |
+| The stale tag read back off the entity, and counted on the page                | `src/server/datahub/tags.ts`, `src/features/dashboard/timing.ts`         |
+| A link from any task to its real page in DataHub's UI                          | `src/features/dashboard/datahub-link.ts`, `inspector.tsx`                |
 | The restoration rule: which flags an identical redo provably clears            | `restoredBy` in `src/server/coordinator/staleness.ts`                    |
 | The repair loop: flagged work redone in order, restored work skipped           | `cmd_repair` in `agents/run.py`, the guide's leading flagged action      |
 | The joining panel and its four derived steps                                   | `joining.ts`, `joining-panel.tsx`, `joinCommand` on `/api/demo/activity` |
 | Registering your own task from the page, wired into DataHub                    | `mine.ts`, `mine-panel.tsx`, over the agents' own `/api/tasks/register`  |
 | The two animated captures and the script that takes them                       | `docs/images/*.gif`, `record.mjs`                                        |
-| The mark in the header and the browser tab icon                                | `src/features/cockpit/mark.tsx`, `mark-geometry.ts`, `app/icon.svg`      |
-| The header lockup, and the name it reveals on hover                            | `src/features/cockpit/brand.tsx`, `brand.module.css`                     |
+| The mark in the header and the browser tab icon                                | `src/features/dashboard/mark.tsx`, `mark-geometry.ts`, `app/icon.svg`    |
+| The header lockup, and the name it reveals on hover                            | `src/features/dashboard/brand.tsx`, `brand.module.css`                   |
 | HTTP API, thirteen routes in three groups                                      | `app/api/`, see [`docs/architecture.md`](architecture.md) section 11     |
 
 **Added 2026-07-23, the reader-side cross-check.** obsel's trigger is an agent reporting, so a
@@ -228,7 +228,7 @@ display-only `path` on the run detail; nothing decides on it.
   restored file passed all 72. The positives: the demo shape clears exactly two, a three-deep chain
   clears transitively through the fixpoint, and an input nothing in the swarm produces counts as
   stable ground.
-- **The page's own logic**, by 192 further tests across `tests/cockpit-*.test.ts`. The load-bearing
+- **The page's own logic**, by 192 further tests across `tests/dashboard-*.test.ts`. The load-bearing
   ones: graph geometry is byte-identical across every task status, so nothing moves on the frame
   three tasks flip amber; no label can overflow its box, checked against measured per-character
   advances; a six-task pipeline the layout has never seen draws correctly; amber fills a node if and
@@ -365,7 +365,7 @@ display-only `path` on the run detail; nothing decides on it.
   **8 px** on a 1280 laptop; and `fitView`, which runs once on mount, left the graph framed against
   a stale panel size, so after a resize all nine nodes sat outside a panel that clips its overflow.
   All three are fixed, each is written up in the code that fixes it, and the last is now asserted in
-  `e2e/cockpit.spec.ts` across a resize.
+  `e2e/dashboard.spec.ts` across a resize.
 - **The write-back, read back off DataHub**, on 2026-07-23 against the same live stack. From a reset
   page: `run` took **140.5 s** for four Codex sessions, then `change` was called **`schema`** and
   marked three tasks in a measured **868 ms**. `GET /api/swarm` reported
@@ -605,7 +605,7 @@ display-only `path` on the run detail; nothing decides on it.
   62px bar across the bottom row of the graph at every scroll position: mmux's surface token is
   2.5% cream, so the first attempt was transparent and the nodes read through the number, and
   making it opaque only makes the covering honest. Hiding a row of the picture to save one scroll
-  to the conclusion is the wrong way round. It is written up in `cockpit.module.css` so it is not
+  to the conclusion is the wrong way round. It is written up in `dashboard.module.css` so it is not
   tried a third time.
 
 - **The straddling-reader mark, proven live and deterministically, 2026-07-24.** Three tests
@@ -728,12 +728,12 @@ failed`. Traversal is the whole of obsel's reasoning, so obsel could do nothing,
   contents. A door its own author cannot find is not a door, and no amount of correct content
   inside it changes that.
 
-  It is `src/features/cockpit/joining-panel.tsx` now, an mmux `Panel` under the graph and above the
+  It is `src/features/dashboard/joining-panel.tsx` now, an mmux `Panel` under the graph and above the
   numbers, which is the order a judge reads in. Measured after: a **75px panel with a 13px
   heading**, a state line beside it, and a line inviting the click.
 
   What it gained is a checklist that ticks itself off, derived the way every other sentence on the
-  page is derived. `src/features/cockpit/joining.ts` recomputes four steps from the swarm snapshot
+  page is derived. `src/features/dashboard/joining.ts` recomputes four steps from the swarm snapshot
   on every poll, in the order `skills/obsel-collaboration/SKILL.md` teaches: the agent declared what
   it reads and writes, it announced before writing, it reported what it produced, and obsel answered
   a change to its data. There is no stored step anywhere.
@@ -1179,12 +1179,12 @@ against a panel that _refused to close_, and it is exactly right there. What it 
 intent, and a form is a place where the reader has intent. The fix records the fold on a successful
 registration, which is an action the reader took rather than a state obsel inferred; closing it by
 hand still hands control back to the derivation. Pinned by
-**"stays open after a registration, rather than shutting on the reader"** in `e2e/cockpit.spec.ts`,
+**"stays open after a registration, rather than shutting on the reader"** in `e2e/dashboard.spec.ts`,
 which fails on the code as first written.
 
 **The word ceiling moved, 160 to 168, and it was argued rather than raised.** The panel costs 7 words
 always painted: 4 of heading and 3 inviting the click. Two cheaper shapes were rejected and one was
-taken, all recorded at the assertion in `e2e/cockpit.spec.ts`. Nothing was excluded from the
+taken, all recorded at the assertion in `e2e/dashboard.spec.ts`. Nothing was excluded from the
 bare-identifier or em-dash guards to make this fit: both passed unchanged, which was checked rather
 than assumed.
 
@@ -1211,7 +1211,7 @@ pattern out of the real Python module and asserts it identical, the way `tests/u
 the two URN builders.
 
 The page's form keeps its own copy, because browser code here does not import server modules, and
-`tests/cockpit-mine.test.ts` holds the two together by comparing the form's verdict against
+`tests/dashboard-your-data.test.ts` holds the two together by comparing the form's verdict against
 `taskNameProblem` and `datasetNameProblem` over a shared list of names. **That comparison
 immediately found the form was too strict**: it refused any dot, while the route allows one namespace
 segment, so it would have refused `obsel_taxi.clean_trips`, a name obsel's own scale swarm registers.
@@ -1245,7 +1245,7 @@ zero, four and forty all pass a sentence written for the plural, which is how it
 **A one-task pipeline is now rendered in a browser too**, which the merged work did not cover: its tests
 are all unit-level over `guide()` and `summaryLine()`, and the state had no fixture. `justOne()` in
 `e2e/fixtures/swarm.ts` gives the three states a count of one can be in, and "a swarm of one" in
-`e2e/cockpit.spec.ts` asserts no sentence anywhere on the page says `1 agents` or `all 1`, or glues a
+`e2e/dashboard.spec.ts` asserts no sentence anywhere on the page says `1 agents` or `all 1`, or glues a
 singular noun to a plural ratio. It reads the live region's `textContent` as well as the page's
 `innerText`, because a visually-hidden sentence is the one most likely to be left plural: nothing but
 a screen reader ever reads it. Mutation: restoring the counted form in `registered()` fails that test
@@ -1329,7 +1329,7 @@ against the demo's tables while pointing at somebody else's flag.
 swarm. `reset` survives, because `resetSwarm` puts every task on the flow back to registered whoever
 registered it, so it means exactly what it says on any page. The settled line points at the bench
 instead, which is the thing on that page that does what the withheld buttons would have done. Three
-tests in `tests/cockpit-guide.test.ts` pin it, and the test that documented the old fallback now
+tests in `tests/dashboard-guide.test.ts` pin it, and the test that documented the old fallback now
 asserts the new behaviour.
 
 **The word ceiling did not move.** The bench renders inside the fold `mine.ts` already keeps closed
@@ -1443,7 +1443,7 @@ sentence a real exit instead of a hard swap.
 
 **The entrance runs on a change of act and at no other time**, and the test that proves it had to be
 rewritten twice. The page is recomputed once a second, so an entrance driven by render would replay
-once a second forever. `e2e/cockpit.spec.ts` samples `getAnimations()` under the guide every frame
+once a second forever. `e2e/dashboard.spec.ts` samples `getAnimations()` under the guide every frame
 through `requestAnimationFrame`, counting each distinct animation once: it asserts the entrance runs
 on arrival, does not run again across three polls with the stage unchanged, and runs again when the
 stage genuinely changes. The first two alone would pass for an entrance that never runs, which is why
@@ -1488,7 +1488,7 @@ to the boxes. The guide could describe the page's state and never point at it.
 > The measurement of _why_ they were too quiet is in that section, and it is the reason this one is
 > kept.
 
-**One derivation produced both halves.** `watchFor` in `src/features/cockpit/guide.ts` returned a
+**One derivation produced both halves.** `watchFor` in `src/features/dashboard/guide.ts` returned a
 `Watch` carrying one sentence and the URNs of the boxes that sentence is about. The sentence is
 painted in the guide's left column; the URNs go to `Lineage`, which rings exactly those boxes. They
 come from one object, so the line and the rings cannot end up about different boxes. Same house rule
@@ -1589,7 +1589,7 @@ which one performed that act, and the node rings were 1 px on a graph built out 
 opened from a button in the header, that teaches one thing at a time and lights the region of the
 page it is talking about.
 
-- **`src/features/cockpit/tour/steps.ts`** is the curriculum as data. Chapter one teaches the screen
+- **`src/features/dashboard/tour/steps.ts`** is the curriculum as data. Chapter one teaches the screen
   in four explanation steps, advanced by a next button. Chapter two walks the real demonstration in
   action steps, which **have no next button at all**: each quotes the real control by the label the
   guide is currently painting on it, and advances only when the page shows the thing happened. That
@@ -1674,7 +1674,7 @@ installed permanently.
 **The contradiction.** Stopping the dev server to take the timing above put the page into the state
 a judge meets whenever obsel is not running, and the owner read it off the screen. Two reads fail
 together there, and each had its own reporter that did not know about the other: `guide-panel.tsx`
-said "The page below is unaffected" and `cockpit.tsx` said "Everything below is from the last read
+said "The page below is unaffected" and `dashboard.tsx` said "Everything below is from the last read
 that worked, at 22:58:36, and may already be wrong", one paragraph apart. Both cannot be true, and
 the first is the false one. It was written for the case where only the activity read fails, which is
 real and where the sentence is correct and useful.
@@ -1790,7 +1790,7 @@ immediately left of `orders_pipeline · prod`. It is in the layout at full width
 is only ever made transparent; opacity, blur and `x` are non-layout properties or transforms, so
 none of them can reflow the line. Measured in the browser across rest, hover and back: the flow
 name's x, the tour button's x, the lockup's width and the header's height are identical to three
-decimal places in all three states. Pinned by `e2e/cockpit.spec.ts` "revealing the name moves
+decimal places in all three states. Pinned by `e2e/dashboard.spec.ts` "revealing the name moves
 nothing else in the header", which compares four bounding boxes at rest and on a settled reveal.
 
 **The bar is 10 px taller**, 38 px to 48.3 px, from the larger mark and from padding above the row
@@ -1836,7 +1836,7 @@ document, which was the graph only while the graph was the only drawing on the p
 header made it resolve to the logo, so the test compared the alert against something above it and
 reported the page covered. It names `.react-flow` now. The layout was never wrong.
 
-**Pinned by `tests/cockpit-mark.test.ts`, seven tests.** The icon and the geometry module hold
+**Pinned by `tests/dashboard-mark.test.ts`, seven tests.** The icon and the geometry module hold
 duplicate copies of the same 43 contours, because a static file convention cannot import a module,
 and a wrong favicon is silent: 16 pixels wide, cached hard, in a strip nobody watches. The tests
 assert the icon's paths equal the module's exactly and in order, that it has no path the module does
@@ -1973,7 +1973,7 @@ same reason, and now says what actually happens.
 
 **Every button in a stage looked identical.** One `.action` class, 13px, so on a flagged pipeline "Redo
 the work obsel flagged" and "Reset and start over" were the same object with different text. The
-bench's own rule, written in `bench.module.css`, is applied to the guide: at most one accented action
+bench's own rule, written in `table-form.module.css`, is applied to the guide: at most one accented action
 per stage, the one the stage's sentence is asking for, and a stage whose sentence points at the bench
 accents nothing. Spent on colour and elevation, never on size — both labels stay 13px and both details
 12px, because `docs/verification.md` already records three guides that failed by adding what mattered
@@ -1984,7 +1984,7 @@ its change; leading on the re-run made one stage teach two different lessons.
 
 `pnpm test:live` was not re-run for the page work and does not need to be: nothing in it crosses a
 process boundary. The derivation reads a field `client.ts` already parses and the live suite already
-covers, and the four existing `previousFingerprints` cases in `tests/cockpit-joining.test.ts` passing
+covers, and the four existing `previousFingerprints` cases in `tests/dashboard-joining.test.ts` passing
 unchanged is the regression guard on moving it into `fingerprints.ts`.
 
 ### The page became a canvas, and the feed stopped being a residual (2026-07-28)
@@ -2019,7 +2019,7 @@ got less room to say it.
 new files: `e2e/dock.spec.ts` (seven tests: default side, snap preview during a drag, landing side,
 persistence across a reload, resize, collapse, keyboard move; every one of them re-asserts that no
 node is clipped and neither axis scrolls), `e2e/erasure.spec.ts` (thirteen), and the new assertions
-in `e2e/cockpit.spec.ts` for the ripple's hop ordering and the count-up. `pnpm verify` is green.
+in `e2e/dashboard.spec.ts` for the ripple's hop ordering and the count-up. `pnpm verify` is green.
 
 **The animation, and what is deliberately not animated.** The cascade ripple is a flare drawn in its
 own element over each marked box, delayed by the hop count obsel recorded, plus a one-shot draw-in on
@@ -2035,7 +2035,7 @@ animation props are not passed at all, so the first frame is the finished pictur
 a reader pastes in, at five seconds. There is no list endpoint and the tab does not pretend there is
 one: `documents.ts` derives every URN and never searches, so obsel cannot enumerate its requests, and
 the empty state says so and hands over the command that opens one. A toggle recolours the dataset
-nodes by coverage state. `tests/cockpit-erasure-view.test.ts` (25 assertions) pins the vocabulary,
+nodes by coverage state. `tests/dashboard-erasure-view.test.ts` (25 assertions) pins the vocabulary,
 and `e2e/erasure.spec.ts` re-checks it against the rendered page: no "proven clean", "proof",
 "complete" or percentage anywhere, no enum spelling in any sentence, no control whose label reads as
 a way to close a gap, and no amber on the erasure view at all.
@@ -2062,7 +2062,7 @@ measured numbers pinned at the dock's foot. It now opens against whichever edge 
 and follows the dock when a reader moves it; the drag limits are worked out from where it actually
 rests rather than assuming it starts on the right.
 
-Both are pinned by new tests in `e2e/cockpit.spec.ts`: one asserts that nothing is painted outside
+Both are pinned by new tests in `e2e/dashboard.spec.ts`: one asserts that nothing is painted outside
 the lit region's box, that the ring is inset, and that no part of the region falls outside what
 clips it, across all four chapter-one steps; the other asserts the window's box does not intersect
 the dock's, with the dock on either side. Neither bug was caught by the existing suite, which
@@ -2100,7 +2100,7 @@ to the seventh.
 **Hovering while pinned does not rewrite what is pinned.** The page's edges follow the pointer, so
 a reader sees what a click would open; the panel does not move, because a panel that rewrote itself
 while the pointer crossed the page toward it could not be read. Pinned by
-`e2e/cockpit.spec.ts` → "pointing elsewhere does not rewrite what is pinned".
+`e2e/dashboard.spec.ts` → "pointing elsewhere does not rewrite what is pinned".
 
 **The table sketch, and what it is incapable of showing.** A table's panel now draws its reported
 column names over uniform blank blocks, one row of blocks per reported row up to six, with the exact
@@ -2134,11 +2134,11 @@ change — it was already untrue when written, since `obsel-dash` loops.
 
 **What was checked and how.** `pnpm verify` green: 526 unit tests, the Python self-checks, and the
 build. `pnpm e2e` green at both viewports: **267 tests, up from 233**. Sixteen are new unit tests
-(`tests/cockpit-flow.test.ts`, `tests/schematic.test.ts`), including the id-spelling agreement
+(`tests/dashboard-flow.test.ts`, `tests/schematic.test.ts`), including the id-spelling agreement
 between `flowEdgeIds` and `layoutPositions` that the cascade has for the same reason — a drifted
 spelling lights nothing and throws nothing.
 
-Fourteen new browser tests in `e2e/cockpit.spec.ts` → "the details surface": the idle hint present on
+Fourteen new browser tests in `e2e/dashboard.spec.ts` → "the details surface": the idle hint present on
 a populated page and absent on an empty one; the preview appearing on hover and carrying no
 `urn:li:`; the hint returning on leave; hovering moving no node and changing no graph dimension;
 click-to-pin and Esc-to-unpin; the preview pinning itself; hover-while-pinned; the panel naming its
@@ -2153,7 +2153,7 @@ computed once for the pinned table and handed to the surface, which also renders
 it would have printed an erasure verdict about one asset underneath another. It is now looked up per
 table shown, and gated on the page actually being coloured by coverage.
 
-**The copy sweep's details exclusion was dead, and is now live.** `e2e/cockpit.spec.ts`'s
+**The copy sweep's details exclusion was dead, and is now live.** `e2e/dashboard.spec.ts`'s
 "no internal identifier reaches the page" excludes `[aria-label="Details"]`, and nothing rendered
 that label — `Panel` maps `label` to `aria-label` and neither inspector passed one. No state in that
 loop opened the panel either, so the exclusion had never once been exercised on a panel built almost
@@ -2337,12 +2337,37 @@ what proves it, since twenty of those assert on rendered text. Documentation tha
 string was updated with it; documentation that merely uses the word "page" in prose was not, and
 that is a decision still open rather than an oversight.
 
-**Not done, and deliberately.** The code identifiers are untouched: `src/features/cockpit/`, and
-`dock`, `hud`, `rail`, `mine-panel`, `bench`, `backdrop` within it. These are the most opaque names
-in the repository and no user ever sees one; renaming the directory alone touches about 400 lines.
-`docs/` still says "page" about 400 times, and so does CLAUDE.md, which means the vocabulary is now
-inconsistent between the screen and the documents describing it. That inconsistency is real and is
-recorded here rather than quietly left.
+**The identifiers followed, later the same day.** `src/features/cockpit/` is now
+`src/features/dashboard/`; `dock/` is `panel/`; `hud.tsx` is `stats.tsx`; `mine.ts` and
+`mine-panel.tsx` are `your-data.ts` and `your-data-panel.tsx`; `bench.ts` and `bench-panel.tsx` are
+`table-form.ts` and `table-form-panel.tsx`. The exported symbols moved with them, and `Docker`
+survived untouched because whole-word matching does not see it inside `Dock`. Fourteen unit test
+files and the browser spec were renamed to match, with `git mv` so the history follows.
+
+Three names were left, each for a reason rather than by omission. `mmux.tsx` names a real external
+design system, and renaming it would hide where those components came from. `passes.ts` and `tone.ts`
+are vague, but they were not in the set that was asked about, and widening a rename unasked is how it
+stops being reviewable.
+
+`obsel.dock.v1` in local storage became `obsel.panel.v1`, which discards a saved panel position once.
+That is a storage key rather than a label anybody reads, so the cost is recorded here rather than
+avoided.
+
+**Two things this pass broke and had to fix.** A blanket lowercase replacement rewrote prose inside
+comments as camelCase, so `progress.ts` came to read "the dashboard tableForm reports a table";
+identifier renaming and comment prose are now separate passes. And the stylesheet inventory test,
+plus `.dockLeft`-style class names that a word boundary does not catch, were only found by asking
+which `styles.x` no longer resolved to a class that exists.
+
+**One test failed and it was not the rename.** `offers no hint on a page with nothing to point at`
+asserted on the bare text "No agents yet", which matches both the graph's empty line and the guide's
+headline. It passed alone and failed under the full suite, decided by which had rendered first. The
+assertion now names the graph's own sentence. Checked against `HEAD` first: the line is character for
+character what it was before this work started.
+
+**Verified.** `pnpm verify` green with 531 tests. `pnpm e2e` green with 271 browser checks, which is
+what actually proves a rename this size, because it renders the real CSS modules and clicks the real
+test ids.
 
 ## Not done
 

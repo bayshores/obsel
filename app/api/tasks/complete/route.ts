@@ -18,7 +18,7 @@ const OutputShape = z.object({
 });
 
 /**
- * Optional, and nothing obsel decides on — it is what the cockpit shows so a
+ * Optional, and nothing obsel decides on — it is what the dashboard shows so a
  * person can see what an agent actually did instead of a pulsing dot. An agent
  * that omits it still gets an identical staleness answer; the run simply reads
  * as "not reported" on screen rather than as a zero.
@@ -30,7 +30,7 @@ const OutputShape = z.object({
  * `outputs` is required; `runner` and `ms` are not.
  *
  * All three were required, and that cost more than it looked. A caller with no
- * stopwatch — the cockpit bench, where a person types the table and there is no
+ * stopwatch — the dashboard table form, where a person types the table and there is no
  * run to time — had to omit the whole object, which threw away `outputs` too.
  * That is not display material: `columnChange` in `engine.ts` diffs these
  * column lists to say which columns moved, so dropping them turned "clean

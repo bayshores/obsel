@@ -564,7 +564,7 @@ function explain(
 }
 
 /**
- * One residue reason as a sentence, exported so the cockpit says it in these
+ * One residue reason as a sentence, exported so the dashboard says it in these
  * words rather than in its own.
  *
  * `explain` above puts only the FIRST reason in the leading sentence and counts

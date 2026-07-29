@@ -1,0 +1,248 @@
+/*
+ * The erasure tab.
+ *
+ * It reports gaps, so the thing it must never look like is a scoreboard. There
+ * is no progress bar, no percentage and no green tick summarising the whole
+ * report, because every one of those invites a reader to round up to done and
+ * the assets in the remainder are the entire point of the exercise.
+ */
+
+/*
+ * `flex: 1 1 0`, because this sits inside the panel's tab pane, which is itself a
+ * flex column.
+ *
+ * Without it this box is content-sized, and the asset list below asks for
+ * `flex: 1 1 0` of a parent with no height to give: the list resolved to nothing
+ * and the report rendered as a summary line above an empty strip. The list is
+ * the report.
+ */
+.body {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  gap: var(--mm-space-sm);
+}
+
+/* The request being watched, and the field for changing it. */
+.head {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--mm-space-xs);
+  padding: var(--mm-space-md) var(--mm-space-md) 0;
+}
+
+.label {
+  color: var(--obsel-text-quiet);
+  font-family: var(--mm-font-mono);
+  font-size: var(--mm-text-cap);
+  letter-spacing: var(--mm-track-label);
+}
+
+.field {
+  display: flex;
+  gap: var(--mm-space-xs);
+}
+
+.input {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: var(--mm-space-xs) var(--mm-space-sm);
+  background: var(--mm-bg);
+  border: 1px solid var(--mm-border);
+  color: var(--mm-cream);
+  font-family: var(--mm-font-mono);
+  font-size: var(--mm-text-lg);
+}
+
+.input:focus-visible {
+  outline: 2px solid var(--obsel-focus);
+  outline-offset: 1px;
+}
+
+.button {
+  flex: 0 0 auto;
+  padding: var(--mm-space-xs) var(--mm-space-sm);
+  background: transparent;
+  border: 1px solid var(--mm-border-strong);
+  color: var(--mm-cream-dim);
+  font-family: var(--mm-font-mono);
+  font-size: var(--mm-text-lg);
+  cursor: pointer;
+  transition:
+    color var(--mm-dur-short) var(--mm-ease),
+    border-color var(--mm-dur-short) var(--mm-ease);
+}
+
+.button:hover:enabled {
+  color: var(--mm-cream);
+  border-color: var(--mm-rose);
+}
+
+.button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/*
+ * The line the report leads with: "N of M assets covered, K unattested".
+ *
+ * Set at the guide's own subline size rather than as a headline number. A large
+ * figure here would be read as a score, and the number that matters is the one
+ * after the comma.
+ */
+.summary {
+  margin: 0;
+  color: var(--mm-cream);
+  font-family: var(--mm-font-sans);
+  font-size: var(--mm-text-body);
+  line-height: var(--mm-leading-body);
+  text-wrap: pretty;
+}
+
+.assurance {
+  margin: 0;
+  color: var(--obsel-text-quiet);
+  font-family: var(--mm-font-mono);
+  font-size: var(--mm-text-cap);
+  line-height: var(--mm-leading-body);
+}
+
+/* The toggle that recolours the graph by coverage instead of by staleness. */
+.mode {
+  display: flex;
+  align-items: center;
+  gap: var(--mm-space-sm);
+  padding: var(--mm-space-xs) 0;
+  color: var(--mm-cream-dim);
+  font-family: var(--mm-font-sans);
+  font-size: var(--mm-text-lg);
+  cursor: pointer;
+}
+
+.mode input {
+  accent-color: var(--mm-rose);
+  cursor: pointer;
+}
+
+.modeReason {
+  color: var(--obsel-text-quiet);
+  font-size: var(--mm-text-md);
+}
+
+/* One row per asset, scrolling inside the tab. */
+.list {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  margin: 0;
+  padding: 0 var(--mm-space-md) var(--mm-space-md);
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--mm-space-sm);
+}
+
+.asset {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--mm-space-sm);
+  border: 1px solid var(--mm-border);
+  /*
+   * The state, down the left edge, in the same idiom the graph's agent boxes
+   * use for their status. Same shape, different vocabulary: this bar is never
+   * amber, because amber on this board means finished work went out of date.
+   */
+  border-left-width: 3px;
+  border-left-style: solid;
+  background: var(--mm-surface);
+}
+
+.assetName {
+  color: var(--mm-cream);
+  font-family: var(--mm-font-mono);
+  font-size: var(--mm-text-lg);
+  overflow-wrap: anywhere;
+}
+
+.assetState {
+  font-family: var(--mm-font-mono);
+  font-size: var(--mm-text-md);
+  letter-spacing: var(--mm-track);
+}
+
+.assetWhy {
+  margin: 0;
+  color: var(--mm-cream-dim);
+  font-family: var(--mm-font-sans);
+  font-size: var(--mm-text-md);
+  line-height: var(--mm-leading-body);
+  text-wrap: pretty;
+}
+
+/* Every residue reason, not just the first. */
+.reasons {
+  margin: var(--mm-space-2xs) 0 0;
+  padding-left: var(--mm-space-md);
+  color: var(--obsel-text-quiet);
+  font-family: var(--mm-font-sans);
+  font-size: var(--mm-text-md);
+  line-height: var(--mm-leading-body);
+}
+
+.dropped {
+  margin: 0;
+  padding: var(--mm-space-sm);
+  border: 1px solid rgba(239, 71, 111, 0.35);
+  border-left: 3px solid var(--mm-red);
+  background: rgba(239, 71, 111, 0.07);
+  color: var(--mm-cream);
+  font-family: var(--mm-font-sans);
+  font-size: var(--mm-text-md);
+  line-height: var(--mm-leading-body);
+}
+
+.droppedList {
+  margin: var(--mm-space-2xs) 0 0;
+  padding-left: var(--mm-space-md);
+  color: var(--mm-cream-dim);
+}
+
+/* Nothing to show yet, or nothing obsel holds. */
+.empty {
+  margin: 0;
+  padding: var(--mm-space-md);
+  color: var(--mm-cream-dim);
+  font-family: var(--mm-font-sans);
+  font-size: var(--mm-text-lg);
+  line-height: var(--mm-leading-body);
+  text-wrap: pretty;
+}
+
+.emptyCommand {
+  display: block;
+  margin-top: var(--mm-space-sm);
+  padding: var(--mm-space-sm);
+  background: var(--mm-surface);
+  border: 1px solid var(--mm-rose-line);
+  color: var(--mm-cream);
+  font-family: var(--mm-font-mono);
+  font-size: var(--mm-text-md);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.problem {
+  margin: 0 var(--mm-space-md);
+  padding: var(--mm-space-sm);
+  border: 1px solid rgba(239, 71, 111, 0.35);
+  border-left: 3px solid var(--mm-red);
+  background: rgba(239, 71, 111, 0.07);
+  color: var(--mm-cream);
+  font-family: var(--mm-font-sans);
+  font-size: var(--mm-text-md);
+  line-height: var(--mm-leading-body);
+}

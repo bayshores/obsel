@@ -467,7 +467,7 @@ function parseFingerprints(
  *
  * This is display-only material with one exception, so a half-written record is
  * dropped rather than raised: unlike a fingerprint or a stale mark, failing a
- * snapshot read over a cosmetic property would take the whole cockpit down.
+ * snapshot read over a cosmetic property would take the whole dashboard down.
  * Each of the three fields is judged on its own, and a missing one renders as
  * nothing at all rather than as a zero — "took 0 ms" is a measurement and "we
  * were not told" is not.
@@ -477,7 +477,7 @@ function parseFingerprints(
  * name the columns that moved, so they are the difference between a mark
  * reading "clean expenses lost amount" and one reading "the columns in clean
  * expenses changed". Requiring a runner and a duration alongside them meant a
- * reporter with no stopwatch — the cockpit bench, where a person types the
+ * reporter with no stopwatch — the dashboard table form, where a person types the
  * table and there is no run to time — lost the shape as collateral.
  *
  * Null only when nothing usable was recorded at all.
@@ -514,7 +514,7 @@ function parseRun(props: Record<string, string>): RunDetail | null {
   }
 
   // Nothing usable at all reads as never having been told, which is what an
-  // absent record means and what the cockpit renders as no line rather than an
+  // absent record means and what the dashboard renders as no line rather than an
   // empty one.
   if (runner === null && ms === null && Object.keys(outputs).length === 0) return null;
   return { runner, ms, outputs };
@@ -795,7 +795,7 @@ export async function registerTask(
       value: {
         name,
         // The agent's own one-sentence job when it declared one — real DataHub
-        // metadata, so DataHub's UI shows the same words the cockpit does.
+        // metadata, so DataHub's UI shows the same words the dashboard does.
         description: description ?? "obsel agent task",
         type: { string: "COMMAND" },
         customProperties: {

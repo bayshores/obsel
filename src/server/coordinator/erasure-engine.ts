@@ -43,7 +43,7 @@ import { emit } from "./trace";
 /**
  * The report shapes are declared in `erasure-report.ts` and re-exported here.
  *
- * This file is `server-only`, and the cockpit has to name what the erasure
+ * This file is `server-only`, and the dashboard has to name what the erasure
  * route returns. Every existing importer still reads them from the engine, so
  * the move is invisible to them; what it buys is that browser code can describe
  * a report without importing a module that holds DataHub credentials.

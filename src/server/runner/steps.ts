@@ -56,7 +56,7 @@ export function venvPython(repoRoot: string): string {
  * Split a stream chunk into whole lines, carrying the unterminated remainder.
  *
  * Pure so it is testable: a chunk boundary in the middle of a line must not
- * produce two half-lines in the log the cockpit shows.
+ * produce two half-lines in the log the dashboard shows.
  */
 export function splitLines(rest: string, chunk: string): { lines: string[]; rest: string } {
   const whole = rest + chunk;

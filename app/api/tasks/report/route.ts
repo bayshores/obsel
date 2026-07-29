@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 /**
  * One table, exactly as `agents/mcp_core.py` validates it at the MCP door.
  *
- * The shapes agree on purpose: a table typed at the bench and a table handed
+ * The shapes agree on purpose: a table typed at the table form and a table handed
  * over by an agent are the same thing to obsel, and `_validate_table` is the
  * real guard either way. What this buys is a 400 with a readable message
  * instead of a spawned process that refuses, which is faster and says the same.
@@ -32,7 +32,7 @@ const Body = z.object({
 /**
  * Report a table on behalf of the person who typed it.
  *
- * This is the bench's one write, and it is the same write an agent makes: it
+ * This is the table form's one write, and it is the same write an agent makes: it
  * spawns `agents/report.py`, which hashes through `mcp_core.completion_body`
  * and POSTs `/api/tasks/complete`. The browser never computes a fingerprint —
  * `src/server/runner/reporter.ts` records why there is exactly one

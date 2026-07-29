@@ -1,0 +1,276 @@
+/*
+ * The graph's boxes.
+ *
+ * Sizes here are the ones `graph/positions.ts` hands dagre to reserve space
+ * with, so the two files have to agree or a box overlaps a neighbour dagre
+ * thought it had cleared. `tests/dashboard-layout.test.ts` asserts they match
+ * rather than trusting a comment to keep them in step.
+ *
+ * Text is larger than the SVG version it replaces. The old graph rendered its
+ * labels at 11px and its fingerprints at 10px, which made the most important
+ * region on the board its least legible: 77 of 109 text nodes on screen were
+ * 13px or smaller, so nothing led and the eye had no entry point.
+ */
+
+.task,
+.data {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  padding: var(--mm-space-xs) var(--mm-space-sm);
+  background: var(--mm-surface);
+  border: 1px solid var(--mm-rose-line);
+  font-family: var(--mm-font-mono);
+  /*
+   * Clickable, and it has to look it.
+   *
+   * `cursor: default` was here, and the comment beside it explained that a demo
+   * board whose boxes can be dragged out of place on camera is a liability. That
+   * is still true and is not what this property was doing: dragging is switched
+   * off by `nodesDraggable={false}` on the React Flow canvas. What this actually
+   * did was hide the only affordance for the details panel, where every
+   * fingerprint, reason, tag and DataHub link on the board lives. The entire
+   * evidence layer sat behind an interaction with nothing on screen to suggest it.
+   */
+  transition:
+    background-color 120ms ease,
+    box-shadow 120ms ease,
+    /*
+     * The status colours, so a task changing state glides rather than snaps.
+     *
+     * These three are exactly the properties `nodeTone` sets, and the transition
+     * changes only how the browser gets from one of its answers to the next. The
+     * answer itself is never interpolated: at any instant the colour is either
+     * the old claim or the new one or a step between two claims obsel has both
+     * made, and 240ms after a poll it is the current one.
+     */
+    border-left-color 240ms var(--mm-ease),
+    border-top-color 240ms var(--mm-ease),
+    outline-color 240ms var(--mm-ease),
+    color 240ms var(--mm-ease);
+}
+
+/*
+ * The ripple: one flare over a box the change has just reached.
+ *
+ * Its own element, absolutely positioned over the box and inert to the pointer,
+ * for the reason `nodes.tsx` states at the point it is rendered: the box's colour
+ * is a claim, and nothing about an animation may be able to alter a claim. This
+ * draws outside the border so it cannot move the layout by a pixel either, which
+ * is the same trick the tour's highlight uses.
+ *
+ * The delay is the hop count obsel recorded, so a three-hop cascade flares three
+ * times outward in the order it actually walked.
+ */
+.flare {
+  position: absolute;
+  inset: -3px;
+  pointer-events: none;
+  border: 1px solid var(--obsel-stale);
+  opacity: 0;
+  animation: obsel-flare 620ms var(--mm-ease) calc((var(--hop, 1) - 1) * 300ms) both;
+}
+
+@keyframes obsel-flare {
+  0% {
+    opacity: 0;
+    transform: scale(1.06);
+    box-shadow: 0 0 0 0 var(--obsel-stale-line);
+  }
+  35% {
+    opacity: 1;
+    transform: scale(1);
+    box-shadow: 0 0 18px 3px var(--obsel-stale-line);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1);
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+/*
+ * Motion is a preference, and the flare is the one thing here that is purely
+ * motion: it says nothing the amber bar does not already say permanently. So it
+ * simply does not run, and ends where it would have ended, which is invisible.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .flare {
+    animation: none;
+    opacity: 0;
+  }
+}
+
+/*
+ * Both kinds now. `lineage.tsx` opens the details panel for every node: a task
+ * shows its own record, a table shows who writes it, who reads it, its columns
+ * and its row count. This rule was scoped to `.task` alone while tables were
+ * not clickable, and the key said so; both changed together.
+ *
+ * The table hover brightens from its own resting fill (`--mm-surface-2`) so the
+ * state change is visible on a chip that already sits at the agents' hover
+ * colour.
+ */
+.task {
+  cursor: pointer;
+  /* The positioning context the flare is drawn against. */
+  position: relative;
+}
+
+.task:hover {
+  background: var(--mm-surface-2);
+  box-shadow: 0 0 0 1px var(--mm-border-strong);
+}
+
+.data {
+  cursor: pointer;
+}
+
+.data:hover {
+  box-shadow: 0 0 0 1px var(--mm-border-strong);
+}
+
+/* 168 x 56, matching TASK_SIZE. */
+.task {
+  width: 168px;
+  height: 56px;
+  /* The status bar. Its colour is set inline from nodeTone and nowhere else. */
+  border-left-width: 3px;
+  border-left-style: solid;
+}
+
+.taskName {
+  color: var(--mm-cream);
+  font-size: var(--mm-text-lg);
+  line-height: 1.2;
+  /* One line. A wrapped title would grow the box past what dagre reserved. */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.taskStatus {
+  font-size: var(--mm-text-md);
+  line-height: 1.2;
+  letter-spacing: var(--mm-track);
+}
+
+/*
+ * 152 x 56, matching DATA_SIZE.
+ *
+ * This said "Ink rather than surface, so a table reads as a different kind of
+ * thing from an agent without needing a label to say so" -- an assumption about a
+ * stranger's eye, written as settled fact and never checked against one. The two
+ * fills were `--mm-ink-2` (#131118) and `--mm-surface` (2.5% cream), and against
+ * the #0b0a0e background that is a difference nobody can see. On the board both
+ * were the same dark rectangle, which left the graph's whole vocabulary, agents
+ * read tables that other agents write, resting on a distinction that did not
+ * visually exist.
+ *
+ * The difference is structural now instead of a shade: an agent is a bordered box
+ * with a coloured status bar, a table is an unbordered filled chip. Sizes are
+ * untouched, because `box-sizing: border-box` puts the border inside the
+ * footprint dagre reserved and `tests/dashboard-layout.test.ts` checks the two agree.
+ */
+.data {
+  width: 152px;
+  min-height: 56px;
+  background: var(--mm-surface-2);
+  border: none;
+}
+
+/*
+ * 176 x 84, matching DATA_SIZE_WITH_DIFF: two more lines for the column diff.
+ *
+ * `border: 2px solid`, not just a width and a colour. The base rule sets
+ * `border: none`, so a width with no style paints nothing, and this is the one
+ * box on the board that must never fail to stand out: it is the table that changed.
+ */
+.data[data-origin="true"] {
+  width: 176px;
+  min-height: 84px;
+  border: 2px solid;
+}
+
+.dataName {
+  color: var(--mm-cream-dim);
+  font-size: var(--mm-text-md);
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/*
+ * The coverage state a table is in, when the board is being read as an erasure
+ * report rather than as a staleness board.
+ *
+ * Same slot the column diff uses, because the two are never on screen together:
+ * one board answers whether finished work is still current, the other whether
+ * anybody has accounted for a subject's data, and mixing their vocabularies in
+ * one box would leave a reader unsure which question a colour was answering.
+ */
+.coverage {
+  font-size: var(--mm-text-md);
+  line-height: 1.2;
+  letter-spacing: var(--mm-track);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.diff {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  font-size: var(--mm-text-md);
+  line-height: 1.25;
+}
+
+/*
+ * What left, and what arrived.
+ *
+ * The departing column is dimmed rather than struck through: a strikethrough at
+ * this size fights the underscore in `order_total_usd` and both become mush in a
+ * compressed recording. The arriving one is amber, which is consistent with the
+ * board's one colour rule, since this is the change that put everything
+ * downstream out of date.
+ */
+.columnOut {
+  color: var(--obsel-text-quiet);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.columnIn {
+  color: var(--obsel-stale);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.changed {
+  color: var(--obsel-stale);
+  font-size: var(--mm-text-md);
+  letter-spacing: var(--mm-track);
+}
+
+.external {
+  color: var(--obsel-text-quiet);
+  font-size: var(--mm-text-cap);
+  letter-spacing: var(--mm-track);
+}
+
+/*
+ * The edge anchors, invisible.
+ *
+ * `visibility: hidden` rather than `display: none`: React Flow reads a handle's
+ * position to route its edges, and a handle that is not laid out reports the
+ * wrong one, which collapses every edge to the node's top-left corner.
+ */
+.port {
+  visibility: hidden;
+}

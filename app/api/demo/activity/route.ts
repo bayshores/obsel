@@ -12,7 +12,7 @@ export const revalidate = 0;
  * What the demo runner is doing right now: the running step, how the last one
  * ended, its own printed output, and whether the machine's prerequisites hold.
  *
- * The cockpit polls this beside `/api/swarm`. Task state itself is never in
+ * The dashboard polls this beside `/api/swarm`. Task state itself is never in
  * here — that lives in DataHub and comes back through the swarm read.
  */
 export async function GET() {

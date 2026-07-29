@@ -4,7 +4,7 @@ import {
   SCHEMATIC_ROW_CAP,
   schematicColumns,
   schematicRowCount,
-} from "@/src/features/cockpit/schematic";
+} from "@/src/features/dashboard/schematic";
 
 describe("schematicRowCount", () => {
   it("draws one block per row up to the cap", () => {

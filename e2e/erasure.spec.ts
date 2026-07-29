@@ -19,14 +19,14 @@ import type { Page } from "@playwright/test";
 
 import { finishedStep } from "./fixtures/activity";
 import { dayOne, mixed } from "./fixtures/erasure";
-import { openCockpit, openTab } from "./fixtures/mount";
+import { openDashboard, openTab } from "./fixtures/mount";
 import { cascaded } from "./fixtures/swarm";
 
 const tab = (page: Page) => page.locator('[aria-label="Erasure coverage"]');
 
 /** Open the board, serve a report, and go to the tab that reads it. */
 async function arrive(page: Page, report: ReturnType<typeof mixed> | "missing" | "fail") {
-  const handle = await openCockpit(page, cascaded(), finishedStep());
+  const handle = await openDashboard(page, cascaded(), finishedStep());
   handle.serveErasure(report);
   await openTab(page, "erasure");
   return handle;
@@ -40,7 +40,7 @@ async function watch(page: Page, request: string) {
 
 test.describe("erasure coverage on the board", () => {
   test("says there is no request rather than showing an empty report", async ({ page }) => {
-    await openCockpit(page, cascaded(), finishedStep());
+    await openDashboard(page, cascaded(), finishedStep());
     await openTab(page, "erasure");
 
     /*
@@ -196,7 +196,7 @@ test.describe("the graph read as an erasure report", () => {
   }
 
   test("cannot be switched on before a report has been read", async ({ page }) => {
-    await openCockpit(page, cascaded(), finishedStep());
+    await openDashboard(page, cascaded(), finishedStep());
     await openTab(page, "erasure");
 
     const toggle = page.getByRole("checkbox", { name: /colour the graph/i });
@@ -267,7 +267,7 @@ test.describe("the graph read as an erasure report", () => {
    * nothing about the question they were asking: the panel reported writers,
    * readers and shape, all of which are staleness vocabulary, and said nothing
    * about erasure. The field is gated on the board actually being coloured, so
-   * a report read for the dock's tab does not put an erasure verdict on a table
+   * a report read for the panel's tab does not put an erasure verdict on a table
    * a reader is inspecting for a completely different reason.
    */
   test("a table opened on the coverage board reports its coverage state", async ({ page }) => {

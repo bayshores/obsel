@@ -4,7 +4,7 @@ import "server-only";
  * The demo's prerequisites, each genuinely checked and each carrying the
  * exact command that fixes it.
  *
- * These exist so the cockpit can guide instead of erroring: "the agents'
+ * These exist so the dashboard can guide instead of erroring: "the agents'
  * Python environment does not exist — run these two commands" is guidance,
  * ENOENT three layers deep is not. Every check observes the real thing (a
  * request answered, a file present, an exit code) — none of them consults

@@ -1,7 +1,7 @@
 /**
  * How many words the board puts in front of a reader, split by how they are read.
  *
- * Shared by the four-task ceiling in `cockpit.spec.ts` and the scale-independence
+ * Shared by the four-task ceiling in `dashboard.spec.ts` and the scale-independence
  * check in `scale.spec.ts`, which is the point of pulling it out: the two have to
  * measure the same thing the same way, or comparing them proves nothing.
  *

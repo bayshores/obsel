@@ -1,5 +1,5 @@
-import { Cockpit } from "@/src/features/cockpit/cockpit";
+import { Dashboard } from "@/src/features/dashboard/dashboard";
 
 export default function Page() {
-  return <Cockpit />;
+  return <Dashboard />;
 }

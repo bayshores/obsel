@@ -1,0 +1,314 @@
+/*
+ * The table form: the table you hand obsel yourself.
+ *
+ * Same chrome as the two panels it sits inside and beside — hairline borders,
+ * square corners, monospace throughout, one rose accent on the thing that has
+ * happened. No shadows, no radius, no colour that is not a token.
+ * `tests/dashboard-tokens.test.ts` reads this directory from disk and fails on a
+ * hex literal in any stylesheet it finds, so this file is inside that gate.
+ *
+ * **No animation anywhere in here, deliberately.** The payoff for pressing
+ * report is the graph above going amber along the path the change travelled,
+ * and that is the one moving thing on the board. A table form that also animated
+ * would be competing with it for the reader's eye at precisely the second the
+ * board is finally saying something.
+ */
+
+.tableForm {
+  display: grid;
+  gap: var(--mm-space-sm);
+  /* The task list packs its children to the start, so the table form has to claim
+     the row's full width itself or it collapses to the widest input. */
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--mm-border);
+  border-radius: var(--mm-radius-none);
+  background: var(--mm-surface);
+  padding: var(--mm-space-md);
+}
+
+/* ── heading row ──────────────────────────────────────────────────── */
+
+.head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--mm-space-md);
+  flex-wrap: wrap;
+}
+
+.table {
+  font-family: var(--mm-font-mono);
+  font-size: var(--mm-text-lg);
+  color: var(--mm-cream);
+  letter-spacing: var(--mm-track-tight);
+}
+
+/*
+ * The grid's caption: rendered, one pixel, clipped away.
+ *
+ * The same clip-rect idiom as `.announce` in `dashboard.module.css`, and here for
+ * a reason specific to this table. Its column headers are text inputs, so a
+ * screen reader reaching the grid announces a row of edit fields with no
+ * statement of what table they belong to — the name is on screen two lines
+ * above, in a heading the table has no association with. Painting the caption
+ * as well would have said the table's name twice to everybody who can see it.
+ */
+.caption {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* What obsel already holds for this table, or that it holds nothing. */
+.held {
+  font-family: var(--mm-font-mono);
+  font-size: var(--mm-text-md);
+  color: var(--obsel-text-quiet);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── the grid ─────────────────────────────────────────────────────── */
+
+/*
+ * Scrolls sideways rather than wrapping or shrinking.
+ *
+ * A table with seven columns in a panel this wide has to do one of three
+ * things, and the other two are worse: wrapping turns a row into two rows and
+ * destroys the one thing a table is for, and shrinking the cells makes the
+ * values unreadable at the size this board is recorded at.
+ */
+.scroller {
+  overflow-x: auto;
+  border: 1px solid var(--mm-border);
+  background: var(--mm-surface);
+}
+
+.grid {
+  border-collapse: collapse;
+  width: 100%;
+  font-family: var(--mm-font-mono);
+  font-size: var(--mm-text-md);
+}
+
+.grid th,
+.grid td {
+  border: 1px solid var(--mm-border);
+  padding: 0;
+  text-align: left;
+  vertical-align: middle;
+}
+
+/* ── column chips ─────────────────────────────────────────────────── */
+
+.chip {
+  display: flex;
+  align-items: center;
+  gap: var(--mm-space-xs);
+  padding: var(--mm-space-2xs) var(--mm-space-xs);
+  background: var(--mm-surface-2);
+}
+
+.chipName {
+  font-family: var(--mm-font-mono);
+  font-size: var(--mm-text-md);
+  color: var(--mm-cream);
+  background: transparent;
+  border: none;
+  border-radius: var(--mm-radius-none);
+  padding: var(--mm-space-2xs) var(--mm-space-2xs);
+  /* Fills the header cell rather than reserving a fixed width. A fixed 9ch
+     truncated `expense_id` to `expense_:` in a browser — the column name is the
+     one string on this grid that must always be readable in full, because it is
+     half of what obsel hashes. */
+  width: 100%;
+  min-width: 8ch;
+}
+
+.chipName::placeholder {
+  color: var(--obsel-text-quiet);
+}
+
+/*
+ * A dropped column is struck through and dimmed, never removed.
+ *
+ * `table-form.ts` records why at more length: a reader has to be able to undo a drop
+ * they did not mean, and — the half that matters — has to be able to SEE what
+ * they took away at the moment obsel tells them what it cost. A column that
+ * vanished on click would make the flag that follows look like it came from
+ * nowhere.
+ */
+.chip[data-dropped="true"] .chipName,
+.chip[data-dropped="true"] + .cell,
+td[data-dropped="true"] .cellInput {
+  color: var(--mm-cream-mute);
+  text-decoration: line-through;
+}
+
+.chip[data-dropped="true"] {
+  background: transparent;
+}
+
+/* The drop and undo control. One button whose label says which it currently is. */
+.chipDrop {
+  font-family: var(--mm-font-mono);
+  font-size: var(--mm-text-md);
+  line-height: 1;
+  color: var(--obsel-text-quiet);
+  background: transparent;
+  border: none;
+  border-radius: var(--mm-radius-none);
+  padding: var(--mm-space-2xs);
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+
+.chipDrop:hover {
+  color: var(--mm-rose);
+}
+
+/* ── cells ────────────────────────────────────────────────────────── */
+
+.cellInput {
+  font-family: var(--mm-font-mono);
+  font-size: var(--mm-text-md);
+  color: var(--mm-cream-dim);
+  background: transparent;
+  border: none;
+  border-radius: var(--mm-radius-none);
+  padding: var(--mm-space-xs);
+  width: 100%;
+  min-width: 9ch;
+  font-variant-numeric: tabular-nums;
+}
+
+.cellInput::placeholder {
+  color: var(--mm-cream-faint);
+}
+
+/* The row's own remove control, in a narrow last column. */
+.rowDrop {
+  font-family: var(--mm-font-mono);
+  font-size: var(--mm-text-md);
+  line-height: 1;
+  color: var(--obsel-text-quiet);
+  background: transparent;
+  border: none;
+  border-radius: var(--mm-radius-none);
+  padding: var(--mm-space-xs);
+  cursor: pointer;
+}
+
+.rowDrop:hover {
+  color: var(--mm-rose);
+}
+
+.rowDrop:disabled {
+  cursor: default;
+  color: var(--mm-cream-faint);
+}
+
+/* ── controls under the grid ──────────────────────────────────────── */
+
+.controls {
+  display: flex;
+  align-items: center;
+  gap: var(--mm-space-sm);
+  flex-wrap: wrap;
+}
+
+.minor,
+.report {
+  font-family: var(--mm-font-mono);
+  font-size: var(--mm-text-md);
+  color: var(--obsel-text-quiet);
+  background: var(--mm-surface);
+  border: 1px solid var(--mm-border);
+  border-radius: var(--mm-radius-none);
+  padding: var(--mm-space-xs) var(--mm-space-sm);
+  cursor: pointer;
+}
+
+.minor:hover:not(:disabled) {
+  color: var(--mm-cream-dim);
+  border-color: var(--mm-border-strong);
+}
+
+/*
+ * The one accented control on the table form.
+ *
+ * Rose, because this is the button that writes: everything else here edits a
+ * draft nobody but the reader can see, and this hands it to obsel. Spending the
+ * board's accent on the single irreversible action in the panel is the whole of
+ * the visual hierarchy here.
+ */
+.report {
+  color: var(--mm-rose);
+  border-color: var(--mm-border-strong);
+  padding: var(--mm-space-xs) var(--mm-space-md);
+}
+
+.report:hover:not(:disabled) {
+  color: var(--mm-rose-hot);
+  background: var(--mm-rose-soft);
+}
+
+.report:disabled,
+.minor:disabled {
+  cursor: default;
+  color: var(--mm-cream-mute);
+  border-color: var(--mm-border);
+  background: var(--mm-surface);
+}
+
+/* The one focus treatment the dashboard uses, matched to `your-data.module.css`.
+   `--obsel-focus` is deliberately off the stale hue so a focused control can
+   never read as a flagged one; `dashboard-tokens.test.ts` pins that. */
+.chipName:focus-visible,
+.cellInput:focus-visible,
+.chipDrop:focus-visible,
+.rowDrop:focus-visible,
+.minor:focus-visible,
+.report:focus-visible {
+  outline: 2px solid var(--obsel-focus);
+  outline-offset: -1px;
+}
+
+/* ── what it would do, and what it did ────────────────────────────── */
+
+.line {
+  margin: 0;
+  font-family: var(--mm-font-mono);
+  font-size: var(--mm-text-md);
+  color: var(--obsel-text-quiet);
+  max-width: 68ch;
+}
+
+/* obsel's own answer. Rose when it flagged something, because that is the
+   sentence the whole board exists to produce. */
+.said {
+  margin: 0;
+  font-family: var(--mm-font-mono);
+  font-size: var(--mm-text-md);
+  color: var(--mm-cream-dim);
+  max-width: 68ch;
+}
+
+.said[data-tone="refused"] {
+  color: var(--mm-red);
+}
+
+.said[data-tone="flagged"] {
+  color: var(--mm-rose);
+}
+
+.fix {
+  font-family: var(--mm-font-mono);
+  color: var(--mm-cream-dim);
+}

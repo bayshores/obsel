@@ -357,7 +357,7 @@ machine with one CLI cannot be read as evidence about both. See
 
 ```
 app/                     routing, and the fourteen HTTP routes
-src/features/cockpit/    the page you look at
+src/features/dashboard/    the page you look at
 src/server/coordinator/  the staleness rules, and the part that talks to DataHub
 src/server/datahub/      DataHub client, tag writes, id shapes
 src/server/runner/       the demo runner behind the buttons, and the bench's reporter

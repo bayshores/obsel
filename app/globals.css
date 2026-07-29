@@ -230,7 +230,7 @@
    * divider that states the stale count. Text a viewer has to read, at 2.25:1,
    * on a compressed recording watched at half size.
    *
-   * Measured, per background actually used in the cockpit:
+   * Measured, per background actually used in the dashboard:
    *     alpha 0.28 — ink 2.25, ink-2 2.32, panel 2.31, stale wash 2.35
    *     alpha 0.48 — ink 4.50, ink-2 4.51, panel 4.52, stale wash 4.25
    *     alpha 0.52 — ink 5.11, ink-2 5.09, panel 5.10, stale wash 4.74

@@ -1,12 +1,12 @@
 /**
- * Shapes shared between the demo runner and the cockpit.
+ * Shapes shared between the demo runner and the dashboard.
  *
  * Types only — no runtime imports — so browser code can `import type` from
  * here without pulling `child_process` into a client bundle.
  */
 
 /**
- * The demo steps the cockpit may launch.
+ * The demo steps the dashboard may launch.
  *
  * Almost exactly `agents.run`'s commands. The one exception is
  * `scale-change-mid`, a step id for `scale-run --change-during` — the run
@@ -115,7 +115,7 @@ export interface DemoActivity {
    * re-run before it.
    *
    * It is a record, never a position. Nothing here says which act is current;
-   * `journey()` in `src/features/cockpit/guide.ts` derives that from this plus
+   * `journey()` in `src/features/dashboard/guide.ts` derives that from this plus
    * the board, and it re-derives on every poll like everything else the guide
    * shows. It does not survive a server restart, and the acts that board state
    * alone can see survive it anyway.
@@ -123,7 +123,7 @@ export interface DemoActivity {
   history: StepResult[];
   /**
    * Bounded tail of the running (or last) step's own stdout and stderr — the
-   * same assertions the CLI prints, so the cockpit shows the step's own
+   * same assertions the CLI prints, so the dashboard shows the step's own
    * evidence rather than a paraphrase.
    */
   log: string[];

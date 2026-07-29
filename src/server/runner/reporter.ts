@@ -1,12 +1,12 @@
 import "server-only";
 
 /**
- * Hands a table somebody typed at the bench to `agents/report.py`, and waits.
+ * Hands a table somebody typed at the table form to `agents/report.py`, and waits.
  *
  * Unlike `launchStep` beside it this is spawn-and-wait rather than
  * spawn-and-poll, and the difference is what the two are for. A demo step runs
  * real agent sessions for minutes, so the board watches it through
- * `GET /api/demo/activity`. A bench report is one hash and one POST, and the
+ * `GET /api/demo/activity`. A table form report is one hash and one POST, and the
  * person who pressed the button is looking at it, so the answer comes back on
  * the same request.
  *
@@ -16,7 +16,7 @@ import "server-only";
  * paths to one recorded fingerprint would be two answers to the question obsel
  * exists to answer. A TypeScript port would agree on the day it was written and
  * drift on some later one, and the failure would be silent: a table reported
- * from the bench and the same table reported by an agent would disagree, and
+ * from the table form and the same table reported by an agent would disagree, and
  * obsel would announce a change nobody made. About 200 ms of process start is
  * the price of there being one answer, and it is invisible behind a button.
  *
@@ -33,10 +33,10 @@ import { existsSync } from "node:fs";
 
 import { venvPython } from "./steps";
 
-/** How long a bench report may take before the browser is told it is unknown. */
+/** How long a table form report may take before the browser is told it is unknown. */
 const REPORT_TIMEOUT_MS = 300_000;
 
-/** What the bench asks for: one task, its tables, as typed. */
+/** What the table form asks for: one task, its tables, as typed. */
 export interface ReportRequest {
   taskUrn: string;
   outputs: Record<string, { columns: string[]; rows: Record<string, unknown>[] }>;
@@ -50,7 +50,7 @@ export type ReportOutcome =
  * The refusal a missing Python environment gets.
  *
  * Named rather than inlined because it is the one failure a reader can act on,
- * and the guide's prerequisite list already teaches this exact command. A bench
+ * and the guide's prerequisite list already teaches this exact command. A table form
  * offered on a machine with no venv would otherwise fail with a spawn error the
  * reader has no way to interpret.
  */

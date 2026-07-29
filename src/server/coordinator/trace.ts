@@ -12,7 +12,7 @@ import "server-only";
  * later, which is indistinguishable from a board that made it up.
  *
  * So the coordinator narrates itself here, and `GET /api/trace` hands the tail
- * of it to the cockpit.
+ * of it to the dashboard.
  *
  * **This is narration, not a decision path.** Nothing in obsel reads these
  * events back; deleting every `emit` call would change no outcome, no mark and

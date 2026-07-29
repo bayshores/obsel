@@ -1,11 +1,11 @@
 /**
- * The dock as a thing a reader arranges: which side it is on, how wide it is,
+ * The panel as a thing a reader arranges: which side it is on, how wide it is,
  * and whether it is in the way.
  *
  * These exist because the arrangement is a preference rather than a layout
  * constant, and a preference that is not remembered is a preference nobody uses
  * twice. The measurements below are all relative: what matters is that moving
- * the dock moves the graph's share of the frame and that nothing ends up clipped
+ * the panel moves the graph's share of the frame and that nothing ends up clipped
  * or scrolling, not that any of it lands on a particular pixel.
  *
  * `page.mouse` rather than a synthetic drag event. The panel is dragged by
@@ -18,20 +18,20 @@ import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
 
 import { finishedStep } from "./fixtures/activity";
-import { openCockpit } from "./fixtures/mount";
+import { openDashboard } from "./fixtures/mount";
 import { cascaded } from "./fixtures/swarm";
 
-const dock = (page: Page) => page.locator('[data-dock="left"], [data-dock="right"]');
+const panel = (page: Page) => page.locator('[data-panel="left"], [data-panel="right"]');
 
-/** Where the dock is, how wide, and how much frame the canvas has left. */
+/** Where the panel is, how wide, and how much frame the canvas has left. */
 async function geometry(page: Page) {
   return await page.evaluate(() => {
-    const panel = document.querySelector<HTMLElement>("[data-dock]");
+    const panel = document.querySelector<HTMLElement>("[data-panel]");
     const canvas = document.querySelector<HTMLElement>('[aria-label="How the work connects"]');
     const panelBox = panel?.getBoundingClientRect();
     const canvasBox = canvas?.getBoundingClientRect();
     return {
-      side: panel?.getAttribute("data-dock") ?? null,
+      side: panel?.getAttribute("data-panel") ?? null,
       width: Math.round(panelBox?.width ?? 0),
       dockLeft: Math.round(panelBox?.left ?? 0),
       canvasLeft: Math.round(canvasBox?.left ?? 0),
@@ -52,7 +52,7 @@ async function boardIsWhole(page: Page) {
   expect(page_.scrollW, "the page never scrolls sideways").toBeLessThanOrEqual(page_.clientW + 1);
   expect(page_.scrollH, "the page never scrolls vertically").toBeLessThanOrEqual(page_.clientH + 1);
 
-  // Every node inside the pane it is drawn in. A dock that took width without
+  // Every node inside the pane it is drawn in. A panel that took width without
   // the graph re-fitting would strand nodes outside the visible canvas.
   const clipped = await page.evaluate(() => {
     const pane = document.querySelector(".react-flow__pane")?.getBoundingClientRect();
@@ -67,12 +67,12 @@ async function boardIsWhole(page: Page) {
       );
     }).length;
   });
-  expect(clipped, "no node is cut off by the dock's position").toBe(0);
+  expect(clipped, "no node is cut off by the panel's position").toBe(0);
 }
 
-/** Carry the dock by its grip to an x position, and let go. */
+/** Carry the panel by its grip to an x position, and let go. */
 async function carryTo(page: Page, x: number) {
-  const grip = page.locator('[data-dock-grip="true"]');
+  const grip = page.locator('[data-panel-grip="true"]');
   const box = await grip.boundingBox();
   if (box === null) throw new Error("no grip");
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
@@ -86,9 +86,9 @@ async function carryTo(page: Page, x: number) {
   };
 }
 
-test.describe("the dock a reader arranges", () => {
+test.describe("the panel a reader arranges", () => {
   test("opens on the right, with the graph taking the rest of the frame", async ({ page }) => {
-    await openCockpit(page, cascaded(), finishedStep());
+    await openDashboard(page, cascaded(), finishedStep());
     await page.waitForSelector(".react-flow__node", { state: "attached" });
 
     const at = await geometry(page);
@@ -102,14 +102,14 @@ test.describe("the dock a reader arranges", () => {
   });
 
   test("shows where it will land before the reader commits", async ({ page }) => {
-    await openCockpit(page, cascaded(), finishedStep());
+    await openDashboard(page, cascaded(), finishedStep());
     await page.waitForSelector(".react-flow__node", { state: "attached" });
 
     const release = await carryTo(page, 120);
 
-    // The outline, and the dock reporting that it is being carried. Both only
+    // The outline, and the panel reporting that it is being carried. Both only
     // while the button is down: this is the whole point of a snap preview.
-    await expect(dock(page)).toHaveAttribute("data-dock-carrying", "true");
+    await expect(panel(page)).toHaveAttribute("data-panel-carrying", "true");
 
     const ghostLeft = () =>
       page.evaluate(() => {
@@ -133,11 +133,11 @@ test.describe("the dock a reader arranges", () => {
       .toBeLessThanOrEqual(1);
 
     await release();
-    await expect(dock(page)).toHaveAttribute("data-dock-carrying", "false");
+    await expect(panel(page)).toHaveAttribute("data-panel-carrying", "false");
   });
 
   test("lands on the side it was carried to, and the graph takes the other", async ({ page }) => {
-    await openCockpit(page, cascaded(), finishedStep());
+    await openDashboard(page, cascaded(), finishedStep());
     await page.waitForSelector(".react-flow__node", { state: "attached" });
     const before = await geometry(page);
 
@@ -154,7 +154,7 @@ test.describe("the dock a reader arranges", () => {
   });
 
   test("is still on that side when the board is opened again", async ({ page }) => {
-    await openCockpit(page, cascaded(), finishedStep());
+    await openDashboard(page, cascaded(), finishedStep());
     await page.waitForSelector(".react-flow__node", { state: "attached" });
     const release = await carryTo(page, 120);
     await release();
@@ -167,22 +167,22 @@ test.describe("the dock a reader arranges", () => {
   });
 
   test("a reader can drag its edge to give the graph more room", async ({ page }) => {
-    await openCockpit(page, cascaded(), finishedStep());
+    await openDashboard(page, cascaded(), finishedStep());
     await page.waitForSelector(".react-flow__node", { state: "attached" });
     const before = await geometry(page);
 
-    const edge = page.locator('[data-dock-resizer="true"]');
+    const edge = page.locator('[data-panel-resizer="true"]');
     const box = await edge.boundingBox();
     if (box === null) throw new Error("no resize edge");
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
     await page.mouse.down();
-    // Rightwards, which narrows a dock anchored to the right edge.
+    // Rightwards, which narrows a panel anchored to the right edge.
     await page.mouse.move(box.x + 90, box.y + box.height / 2, { steps: 10 });
     await page.mouse.up();
     await page.waitForTimeout(500);
 
     const after = await geometry(page);
-    expect(after.width, "the dock narrowed").toBeLessThan(before.width);
+    expect(after.width, "the panel narrowed").toBeLessThan(before.width);
     expect(after.canvasWidth, "the graph took the difference").toBeGreaterThan(before.canvasWidth);
     await boardIsWhole(page);
 
@@ -197,14 +197,14 @@ test.describe("the dock a reader arranges", () => {
   test("collapses to a rail that still reports whether anything is out of date", async ({
     page,
   }) => {
-    await openCockpit(page, cascaded(), finishedStep());
+    await openDashboard(page, cascaded(), finishedStep());
     await page.waitForSelector(".react-flow__node", { state: "attached" });
     const before = await geometry(page);
 
     await page.getByRole("button", { name: /hide the panel/i }).click();
     await page.waitForTimeout(500);
 
-    const rail = page.locator('[data-dock="rail"]');
+    const rail = page.locator('[data-panel="rail"]');
     await expect(rail).toBeVisible();
     // The one fact a reader must not lose by collapsing the panel.
     await expect(rail).toContainText("3 out of date");
@@ -214,12 +214,12 @@ test.describe("the dock a reader arranges", () => {
 
     await page.getByRole("button", { name: /open the panel/i }).click();
     await page.waitForTimeout(500);
-    await expect(dock(page)).toBeVisible();
+    await expect(panel(page)).toBeVisible();
     await boardIsWhole(page);
   });
 
   test("moves by keyboard, for a reader who is not dragging anything", async ({ page }) => {
-    await openCockpit(page, cascaded(), finishedStep());
+    await openDashboard(page, cascaded(), finishedStep());
     await page.waitForSelector(".react-flow__node", { state: "attached" });
 
     await page.getByRole("button", { name: /move the panel to the left/i }).click();

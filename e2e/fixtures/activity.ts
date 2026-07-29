@@ -2,7 +2,7 @@
  * Canned `GET /api/demo/activity` bodies for the browser suite.
  *
  * Typed as `DemoActivity` for the same reason the swarm fixtures are typed:
- * if the shape the cockpit reads drifts from what these describe,
+ * if the shape the dashboard reads drifts from what these describe,
  * `pnpm typecheck` fails before any browser runs.
  *
  * These are invented values. Nothing here may be screenshotted into the
@@ -156,7 +156,7 @@ export function nothingInstalled(): DemoActivity {
     preflight: {
       ...base.preflight,
       // Verbatim from `src/server/runner/preflight.ts`. If these drift, the
-      // identifier guard in `cockpit.spec.ts` is checking sentences the server
+      // identifier guard in `dashboard.spec.ts` is checking sentences the server
       // never sends, which is a guard that passes about nothing.
       vocabulary: {
         ok: false,

@@ -27,7 +27,7 @@ build time so a machine with no network would fail to build. The mmux design sys
 sheet uses a Google Fonts `@import`; obsel's copy deliberately does not.
 
 **There is no shader library.** The page's WebGL backdrop is about sixty lines of GLSL in
-`src/features/cockpit/backdrop-shader.ts`, written for this project. A commercial shader library
+`src/features/dashboard/backdrop-shader.ts`, written for this project. A commercial shader library
 was evaluated and rejected: its licence makes integration code derivative and still subject to that
 licence, which cannot be reconciled with obsel being Apache-2.0 in a public repository, and it
 renders only under WebGPU, so it would have drawn nothing at all, silently, on a judge's machine
@@ -45,7 +45,7 @@ runs continuously rather than once.
 React Flow's attribution badge is left visible in the bottom-right of the graph. The MIT licence
 does not compel that; removing it is what xyflow asks Pro subscribers to pay for, and leaving it is
 the honest position for a public hackathon entry. It is toned down in
-`src/features/cockpit/lineage.module.css` so it does not compete with the data, and it is not
+`src/features/dashboard/lineage.module.css` so it does not compete with the data, and it is not
 hidden.
 
 **The animation library is one feature's worth, and it replaced hand-written keyframes.** The

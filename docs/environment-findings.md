@@ -488,7 +488,7 @@ decoder `%` sequences it will transform again. A percent sign becomes the litera
 `{{encoded_percent}}` rather than `%25`, which looks like a bug and is how DataHub avoids
 double-decoding its own escapes.
 
-obsel reproduces the rule in `src/features/cockpit/datahub-link.ts` so the href is byte-identical to
+obsel reproduces the rule in `src/features/dashboard/datahub-link.ts` so the href is byte-identical to
 the one DataHub's own UI would generate. An obsel task URN happens to contain none of the six, so the
 raw URN would have worked by luck; the encoder makes it correct by construction instead, and
 `tests/datahub-link.test.ts` pins each case.

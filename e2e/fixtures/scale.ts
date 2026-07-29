@@ -35,7 +35,7 @@
 
 import settled from "./captures/scale-settled.json";
 import flagged from "./captures/scale-flagged.json";
-import type { SwarmResponse } from "@/src/features/cockpit/use-swarm";
+import type { SwarmResponse } from "@/src/features/dashboard/use-swarm";
 
 /**
  * Structural conformance for an imported JSON file.

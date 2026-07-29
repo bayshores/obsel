@@ -2,7 +2,7 @@
  * Canned `GET /api/swarm` bodies for the browser suite.
  *
  * Typed as `SwarmResponse`, which is the point: `tsconfig.json` includes
- * `**​/*.ts`, so if the shape the cockpit reads ever drifts from the shape these
+ * `**​/*.ts`, so if the shape the dashboard reads ever drifts from the shape these
  * describe, `pnpm typecheck` fails inside `pnpm verify` — before anyone runs a
  * browser. A fixture that has quietly stopped resembling the real payload is
  * worse than no fixture, because the suite keeps passing.
@@ -12,7 +12,7 @@
  */
 
 import { STALE_TAG_URN } from "@/src/server/datahub/urns";
-import type { SwarmResponse } from "@/src/features/cockpit/use-swarm";
+import type { SwarmResponse } from "@/src/features/dashboard/use-swarm";
 import type { OutputFingerprint, StaleMark, TaskRecord } from "@/src/server/coordinator/types";
 
 const FLOW = "urn:li:dataFlow:(obsel,orders_pipeline,prod)";
@@ -369,17 +369,22 @@ export function justOne(state: "waiting" | "finished" | "flagged"): SwarmRespons
  * the real MCP session this shape was checked against.
  */
 export function visiting(): SwarmResponse {
-  const mine = (name: string, reads: string[], writes: string[], extra: Partial<TaskRecord> = {}) =>
+  const yourData = (
+    name: string,
+    reads: string[],
+    writes: string[],
+    extra: Partial<TaskRecord> = {},
+  ) =>
     ({ ...task(name, reads, writes, extra), title: null, description: null }) satisfies TaskRecord;
 
   return wrap([
     ...calm().snapshot.tasks,
-    mine("clean_expenses", ["expenses_csv"], ["clean_expenses"], {
+    yourData("clean_expenses", ["expenses_csv"], ["clean_expenses"], {
       startedAt: AT,
       finishedAt: AT,
       fingerprints: { [ds("clean_expenses")]: print("7", "8") },
     }),
-    mine("monthly_totals", ["clean_expenses"], ["monthly_totals"], {
+    yourData("monthly_totals", ["clean_expenses"], ["monthly_totals"], {
       status: "registered",
       startedAt: null,
       finishedAt: null,

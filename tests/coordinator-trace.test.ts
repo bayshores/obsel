@@ -90,7 +90,7 @@ describe("clear", () => {
     clear();
     emit("read", "after");
 
-    // Reusing numbers would make a fresh step look like one the cockpit has
+    // Reusing numbers would make a fresh step look like one the dashboard has
     // already rendered.
     expect(read()[0].seq).toBeGreaterThan(before);
   });

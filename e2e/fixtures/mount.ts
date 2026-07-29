@@ -1,5 +1,5 @@
 /**
- * Open the cockpit against a canned snapshot, and watch for faults while it runs.
+ * Open the dashboard against a canned snapshot, and watch for faults while it runs.
  *
  * The seam is `page.route("**​/api/swarm")` — network interception in the
  * browser. It changes zero production code, which matters: a fixture flag
@@ -11,7 +11,7 @@
  * What this costs, stated plainly: intercepting the endpoint removes the entire
  * server half from these tests. `readSwarm`, `toTaskRecord`, the
  * `/relationships` paging loop and every DataHub write are not exercised here.
- * This suite verifies **the cockpit's rendering of a snapshot**, not that obsel
+ * This suite verifies **the dashboard's rendering of a snapshot**, not that obsel
  * produces the right snapshot. The pure rules are covered by `tests/`, and the
  * live path has been driven by hand — see `docs/verification.md`.
  *
@@ -28,7 +28,7 @@ import type { Page } from "@playwright/test";
 import { idle } from "./activity";
 import { noSteps } from "./trace";
 import type { PublishedErasureReport } from "@/src/server/coordinator/erasure-report";
-import type { SwarmResponse } from "@/src/features/cockpit/use-swarm";
+import type { SwarmResponse } from "@/src/features/dashboard/use-swarm";
 import type { TraceEvent } from "@/src/server/coordinator/types";
 import type { DemoActivity, DemoStep } from "@/src/server/runner/types";
 
@@ -40,7 +40,7 @@ export interface Faults {
 }
 
 /**
- * Serve `body` for every `/api/swarm` poll, load the cockpit, and wait until
+ * Serve `body` for every `/api/swarm` poll, load the dashboard, and wait until
  * the fonts have settled.
  *
  * `document.fonts.ready` matters: every layout assertion in this suite measures
@@ -57,7 +57,7 @@ export interface SeenRegistration {
 }
 
 /**
- * Put one of the dock's tabs on screen.
+ * Put one of the panel's tabs on screen.
  *
  * Three regions of the board are tabs of one column now: the activity feed and
  * the two bring-your-own panels. At any moment two of them are genuinely not
@@ -65,7 +65,7 @@ export interface SeenRegistration {
  * below the graph is what starved the feed of height in the first place.
  *
  * So a test about a tabbed panel opens its tab, the same way a reader does. It
- * is one click and it is deliberately not hidden inside `openCockpit`: which
+ * is one click and it is deliberately not hidden inside `openDashboard`: which
  * panel a test is about should be visible in the test.
  */
 export async function openTab(
@@ -88,7 +88,7 @@ export async function openTab(
   await page.locator(`#${panel}`).waitFor({ state: "visible" });
 }
 
-export async function openCockpit(
+export async function openDashboard(
   page: Page,
   body: SwarmResponse,
   activity: DemoActivity = idle(),
@@ -103,7 +103,7 @@ export async function openCockpit(
    */
   serveActivity: (next: DemoActivity | "fail") => void;
   serveTrace: (next: TraceEvent[] | "fail") => void;
-  /** Every step the cockpit asked the launcher to start, in order. */
+  /** Every step the dashboard asked the launcher to start, in order. */
   launches: DemoStep[];
   /** Every task the board asked obsel to register, in order. */
   registrations: SeenRegistration[];

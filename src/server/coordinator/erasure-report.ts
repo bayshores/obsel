@@ -2,7 +2,7 @@
  * The shape of an erasure report, in a module the browser is allowed to import.
  *
  * These interfaces lived in `erasure-engine.ts`, which is marked `server-only`
- * because it holds DataHub clients. The cockpit has to describe what
+ * because it holds DataHub clients. The dashboard has to describe what
  * `GET /api/erasure/[id]` hands it, and browser code must never import a
  * server-only module, so the shapes moved here and the engine re-exports them.
  *
@@ -56,7 +56,7 @@ export interface ErasureReport {
  * report that echoed the key it was searching for would create fresh copies of
  * the subject's identifier in the act of accounting for its removal. The route
  * has done this since it was written; what was missing was a type saying so, so
- * the cockpit was free to reach for a field that is never there.
+ * the dashboard was free to reach for a field that is never there.
  *
  * Modelled as an omission rather than a separate interface, so a field added to
  * the request appears here too and only the deliberate removal is stated.

@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
 
 import { finishedStep, idle } from "./fixtures/activity";
-import { openCockpit } from "./fixtures/mount";
+import { openDashboard } from "./fixtures/mount";
 import { markedNames, scaleFlagged, scaleSettled } from "./fixtures/scale";
 import { cascaded } from "./fixtures/swarm";
 import { manyDecisions } from "./fixtures/trace";
@@ -12,7 +12,7 @@ import { boardWords, describeWords } from "./fixtures/words";
  * The forty-task board, against two recordings of a real run.
  *
  * Everything here needs both a browser and scale. The four-task suite in
- * `cockpit.spec.ts` covers what the board says and how it behaves; this covers
+ * `dashboard.spec.ts` covers what the board says and how it behaves; this covers
  * what only breaks once a real pipeline is on it, which turned out to be a
  * short and specific list.
  *
@@ -83,7 +83,7 @@ test.describe("the graph at forty tasks", () => {
     ["flagged", scaleFlagged, 82],
   ] as const) {
     test(`no node is cut off on the ${name} board`, async ({ page }) => {
-      await openCockpit(page, board());
+      await openDashboard(page, board());
       await graphReady(page, nodes);
 
       const seen = await framing(page);
@@ -110,7 +110,7 @@ test.describe("the graph at forty tasks", () => {
     // The unit suite asserts this of dagre's own numbers at four tasks. This is
     // pixels, at forty, where the fan-out is wide enough that a packing mistake
     // has somewhere to hide.
-    await openCockpit(page, scaleFlagged());
+    await openDashboard(page, scaleFlagged());
     await graphReady(page, 82);
 
     const overlaps = await page.evaluate(() => {
@@ -145,7 +145,7 @@ test.describe("the graph at forty tasks", () => {
      * and an off-by-one in the padding either clips the left column or pushes
      * the document wider than its viewport.
      */
-    await openCockpit(page, scaleFlagged());
+    await openDashboard(page, scaleFlagged());
     await graphReady(page, 82);
 
     const box = await page.evaluate(() => ({
@@ -174,12 +174,12 @@ test.describe("the graph at forty tasks", () => {
      * from. The four-task board is measured in the same session for the same
      * reason the word counts are.
      */
-    await openCockpit(page, cascaded());
+    await openDashboard(page, cascaded());
     await page.waitForSelector(".react-flow__node", { state: "attached" });
     await page.waitForTimeout(600);
     const demo = await stripHeights(page);
 
-    await openCockpit(page, scaleFlagged());
+    await openDashboard(page, scaleFlagged());
     await graphReady(page, 82);
     const taxi = await stripHeights(page);
 
@@ -204,7 +204,7 @@ test.describe("the graph at forty tasks", () => {
      * condition the old no-interaction lock existed to protect: a stranded
      * graph used to be unrecoverable, so nothing was allowed to move it.
      */
-    await openCockpit(page, scaleFlagged());
+    await openDashboard(page, scaleFlagged());
     await graphReady(page, 82);
 
     const zoomOf = () =>
@@ -235,9 +235,9 @@ test.describe("the graph at forty tasks", () => {
      *
      * Clicked until it arrives rather than a fixed six times. The number of
      * clicks was never the property; being able to get there was. It is also no
-     * longer a constant: the canvas is the frame minus the dock, so how far
+     * longer a constant: the canvas is the frame minus the panel, so how far
      * below design size a board starts depends on how wide the reader has left
-     * the dock, and six clicks reached 0.89 at 1280 with the dock at its default.
+     * the panel, and six clicks reached 0.89 at 1280 with the panel at its default.
      * The bound is what keeps this a test rather than a loop.
      */
     const zoomIn = page.getByRole("button", { name: /zoom in/i });
@@ -267,7 +267,7 @@ test.describe("the graph at forty tasks", () => {
   });
 
   test("the graph reframes rather than clipping when the window shrinks", async ({ page }) => {
-    await openCockpit(page, scaleFlagged());
+    await openDashboard(page, scaleFlagged());
     await graphReady(page, 82);
     expect((await framing(page))?.clipped).toEqual([]);
 
@@ -291,7 +291,7 @@ test.describe("precision, where it is finally visible", () => {
      * captured snapshot, task for task, at a size where "some of them are
      * amber" would look convincing and be wrong.
      */
-    await openCockpit(page, scaleFlagged());
+    await openDashboard(page, scaleFlagged());
     await graphReady(page, 82);
 
     const painted = await page.evaluate(() => {
@@ -327,7 +327,7 @@ test.describe("precision, where it is finally visible", () => {
   });
 
   test("the board says how far the change reached, in words", async ({ page }) => {
-    await openCockpit(page, scaleFlagged());
+    await openDashboard(page, scaleFlagged());
     await graphReady(page, 82);
 
     // Derived from the capture, not from any script: nine marked of forty
@@ -343,7 +343,7 @@ test.describe("precision, where it is finally visible", () => {
   test("all three hop distances are on the board", async ({ page }) => {
     // One hop, two hops, three hops. The four-task demo reaches two and cannot
     // show that the walk keeps going, which is the part a lineage graph is for.
-    await openCockpit(page, scaleFlagged());
+    await openDashboard(page, scaleFlagged());
     await graphReady(page, 82);
 
     const hops = await page.evaluate(() =>
@@ -358,7 +358,7 @@ test.describe("precision, where it is finally visible", () => {
   });
 
   test("a three-hop mark opens its reason in full", async ({ page }) => {
-    await openCockpit(page, scaleFlagged());
+    await openDashboard(page, scaleFlagged());
     await graphReady(page, 82);
 
     // The task at the far end of the longest chain, found by its recorded hop
@@ -393,7 +393,7 @@ test.describe("precision, where it is finally visible", () => {
   test("the changed table names the column that left and the one that arrived", async ({
     page,
   }) => {
-    await openCockpit(page, scaleFlagged());
+    await openDashboard(page, scaleFlagged());
     await graphReady(page, 82);
 
     const origin = page.locator('.react-flow__node-data [data-origin="true"]');
@@ -405,7 +405,7 @@ test.describe("precision, where it is finally visible", () => {
 
 test.describe("the taxi board's own buttons", () => {
   test("settled offers the change, and the click launches the real step", async ({ page }) => {
-    const { launches } = await openCockpit(page, scaleSettled());
+    const { launches } = await openDashboard(page, scaleSettled());
     await graphReady(page, 82);
 
     await expect(
@@ -419,7 +419,7 @@ test.describe("the taxi board's own buttons", () => {
   test("flagged leads with the parallel repair, and never offers another change", async ({
     page,
   }) => {
-    const { launches } = await openCockpit(page, scaleFlagged());
+    const { launches } = await openDashboard(page, scaleFlagged());
     await graphReady(page, 82);
 
     const repair = page.getByRole("button", { name: /Redo the work obsel flagged, in parallel/ });
@@ -448,12 +448,12 @@ test.describe("the taxi board's own buttons", () => {
      * that had quietly grown as long as somebody raised the number; comparing
      * the two cannot be satisfied that way.
      */
-    await openCockpit(page, cascaded(), finishedStep(), manyDecisions());
+    await openDashboard(page, cascaded(), finishedStep(), manyDecisions());
     await page.waitForSelector(".react-flow__node", { state: "attached" });
     await page.waitForTimeout(600);
     const four = await boardWords(page);
 
-    await openCockpit(page, scaleFlagged(), finishedStep(), manyDecisions());
+    await openDashboard(page, scaleFlagged(), finishedStep(), manyDecisions());
     await graphReady(page, 82);
     const forty = await boardWords(page);
 
@@ -463,7 +463,7 @@ test.describe("the taxi board's own buttons", () => {
      * A comparison, and no absolute number any more.
      *
      * There was an `expect(forty.prose).toBeLessThan(160)` here, matching the
-     * board-wide ceiling in `cockpit.spec.ts`. Both are gone, and the comment
+     * board-wide ceiling in `dashboard.spec.ts`. Both are gone, and the comment
      * where that one stood records why: a number on the total measured the one
      * property of prose that says nothing about whether the prose is any good,
      * and it moved every time it was in the way.
@@ -503,7 +503,7 @@ test.describe("the taxi board's own buttons", () => {
   });
 
   test("no em dash, and no internal identifier, at forty either", async ({ page }) => {
-    // The two copy guards from `cockpit.spec.ts`, over the states only this
+    // The two copy guards from `dashboard.spec.ts`, over the states only this
     // pipeline produces. Node labels are the risk here: forty task titles and
     // forty-two table names all come from the recording rather than from
     // anything written for the board, so an identifier reaching the screen
@@ -513,12 +513,12 @@ test.describe("the taxi board's own buttons", () => {
       ["settled", scaleSettled],
       ["flagged", scaleFlagged],
     ] as const) {
-      await openCockpit(page, board(), idle());
+      await openDashboard(page, board(), idle());
       await graphReady(page, 82);
 
       const found = await page.evaluate(() => {
         /*
-         * The four exclusions `cockpit.spec.ts` documents, plus the header.
+         * The four exclusions `dashboard.spec.ts` documents, plus the header.
          *
          * The header names the DataFlow this board is reading, and that name is
          * the operator's own: it comes from `OBSEL_FLOW_ID`, so on this board it

@@ -6,7 +6,7 @@
  * them server-side was only half of that: the names went in checked for nothing but
  * being non-empty, and `datasetUrn` interpolates a name straight into
  * `urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_demo.<name>,PROD)` while
- * `datasetName`, `shortName` in the cockpit and `dataset_short_name` in Python all
+ * `datasetName`, `shortName` in the dashboard and `dataset_short_name` in Python all
  * recover it by splitting on commas and then dots. So `clean,orders` registered a
  * genuine DataJob whose lineage pointed at an entity every reader called
  * `clean` -- a board that draws correctly and a URN nobody can look up. Nothing

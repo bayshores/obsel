@@ -21,7 +21,7 @@ export interface TraceBuffer {
  * A buffer keeping the newest `limit` steps.
  *
  * `now` is injected so a test can pin the clock without touching global state.
- * The sequence counter deliberately survives `clear`: the cockpit tells new
+ * The sequence counter deliberately survives `clear`: the dashboard tells new
  * steps from ones it has already rendered by `seq`, and restarting the count
  * after a reset would make a fresh step look like one already seen.
  */

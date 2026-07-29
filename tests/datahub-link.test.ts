@@ -10,7 +10,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { datahubTaskUrl, encodeDataHubUrn } from "@/src/features/cockpit/datahub-link";
+import { datahubTaskUrl, encodeDataHubUrn } from "@/src/features/dashboard/datahub-link";
 import { taskUrn } from "@/src/server/datahub/urns";
 
 const BASE = "http://localhost:9002";

@@ -10,7 +10,7 @@ const Body = z.object({ taskUrn: z.string().min(1) });
 /**
  * An agent announced that it started and then died.
  *
- * Agents announce before they do their work, so the cockpit can show work in
+ * Agents announce before they do their work, so the dashboard can show work in
  * flight while it is actually in flight. That is only safe if a run that dies
  * gives the announcement back: obsel excludes `running` work from the cascade,
  * so a task abandoned at `running` would be skipped by every future traversal

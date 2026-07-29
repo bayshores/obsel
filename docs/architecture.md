@@ -167,7 +167,7 @@ The page is a separate, dumber path: it polls `GET /api/swarm` once a second and
 whatever DataHub currently says. It never computes staleness.
 
 What it _does_ compute is position and colour, and both are deliberately walled off from the
-answer. `src/features/cockpit/graph/positions.ts` hands the swarm to dagre and never passes a task's
+answer. `src/features/dashboard/graph/positions.ts` hands the swarm to dagre and never passes a task's
 status, so the layout cannot move when three tasks flip to stale. `tone.ts` decides colour from
 exactly `(status, hasMark)` and reads no timer. `graph/cascade.ts` decides which edges the change
 travelled along by reading hop counts off the marks obsel wrote, rather than re-deriving them from
@@ -204,7 +204,7 @@ picture's content changes.
 
 The failure it prevents is silent and total. The panel clips its overflow, so a graph fitted
 against a stale size sits entirely outside the visible area: nine nodes and eight edges present
-and correct in the DOM, none of them on screen, and no warning anywhere. `e2e/cockpit.spec.ts`
+and correct in the DOM, none of them on screen, and no warning anywhere. `e2e/dashboard.spec.ts`
 asserts every node stays inside the panel across a resize.
 
 Interaction is bounded rather than off, which reverses an earlier decision and records why. All
@@ -392,8 +392,8 @@ client, over real stdio, into the real Python server, against a real obsel and a
   seed_data.py the synthetic input                                     staleness.ts (pure,
                                                                         no network, no clock)
                                                                            |
-  src/features/cockpit/                                                    | writes via
-    cockpit.tsx        polls GET /api/swarm <--- app/api/swarm/ --+        v
+  src/features/dashboard/                                                  | writes via
+    dashboard.tsx      polls GET /api/swarm <--- app/api/swarm/ --+        v
     graph/positions.ts dagre layout, pure                         |   src/server/datahub/
     graph/cascade.ts   which edges lit, pure                      |
     lineage.tsx        React Flow + nodes.tsx                     |
@@ -434,17 +434,17 @@ readable", not as "covered by end-to-end evidence". See [Evidence](#9-evidence) 
 | The integration harness                     | `tests/live/`, `vitest.live.config.ts`, `tests/support/server-only.ts`                                                      | shipped, 44 tests, no stand-ins                     |
 | URN shapes                                  | `src/server/datahub/urns.ts`                                                                                                | shipped                                             |
 | HTTP API                                    | `app/api/swarm`, `app/api/trace`, `app/api/tasks/{register,start,abandon,complete}`, `app/api/demo/{reset,launch,activity}` | shipped                                             |
-| Page                                        | `app/page.tsx`, `src/features/cockpit/`                                                                                     | shipped, 133 unit + 51 browser tests                |
-| Live agent progress                         | `src/features/cockpit/progress.ts`                                                                                          | shipped, 23 passing tests, seen live                |
-| The guide                                   | `src/features/cockpit/guide.ts`, `guide-panel.tsx`                                                                          | shipped, 24 passing tests, driven live              |
-| The joining guide, four steps off the swarm | `src/features/cockpit/joining.ts`, `joining-panel.tsx`                                                                      | shipped, 24 unit + 7 browser tests                  |
-| Human names for tasks and tables            | `src/features/cockpit/naming.ts`, `staleness.ts` (`tableLabel`, `taskLabel`)                                                | shipped, 16 passing tests                           |
+| Page                                        | `app/page.tsx`, `src/features/dashboard/`                                                                                   | shipped, 133 unit + 51 browser tests                |
+| Live agent progress                         | `src/features/dashboard/progress.ts`                                                                                        | shipped, 23 passing tests, seen live                |
+| The guide                                   | `src/features/dashboard/guide.ts`, `guide-panel.tsx`                                                                        | shipped, 24 passing tests, driven live              |
+| The joining guide, four steps off the swarm | `src/features/dashboard/joining.ts`, `joining-panel.tsx`                                                                    | shipped, 24 unit + 7 browser tests                  |
+| Human names for tasks and tables            | `src/features/dashboard/naming.ts`, `staleness.ts` (`tableLabel`, `taskLabel`)                                              | shipped, 16 passing tests                           |
 | The coordinator's live trace                | `src/server/coordinator/trace.ts`, `trace-buffer.ts`, `app/api/trace`, `trace-panel.tsx`                                    | shipped, 10 tests, seen live                        |
-| Grouping the trace into decisions           | `src/features/cockpit/passes.ts`                                                                                            | shipped, 15 unit + 2 browser tests                  |
-| The lineage graph                           | `src/features/cockpit/lineage.tsx`, `nodes.tsx`, `graph/positions.ts`, `graph/cascade.ts`, on React Flow and dagre          | shipped, 33 unit + 4 browser tests                  |
+| Grouping the trace into decisions           | `src/features/dashboard/passes.ts`                                                                                          | shipped, 15 unit + 2 browser tests                  |
+| The lineage graph                           | `src/features/dashboard/lineage.tsx`, `nodes.tsx`, `graph/positions.ts`, `graph/cascade.ts`, on React Flow and dagre        | shipped, 33 unit + 4 browser tests                  |
 | Naming which columns moved                  | `src/server/coordinator/staleness.ts` (`columnChange`); `obsel.stale.columns`                                               | shipped, 9 tests, verified live                     |
 | Reading the stale tag back onto the page    | `src/server/datahub/tags.ts`, `timing.ts` (`totals`); the ribbon's write-back cell                                          | shipped, 14 unit + 6 browser tests                  |
-| The link into DataHub's own UI              | `src/features/cockpit/datahub-link.ts`, `inspector.tsx`                                                                     | shipped, 8 tests, path read from DataHub's bundle   |
+| The link into DataHub's own UI              | `src/features/dashboard/datahub-link.ts`, `inspector.tsx`                                                                   | shipped, 8 tests, path read from DataHub's bundle   |
 | Demo runner                                 | `src/server/runner/`: `steps.ts`, `launcher.ts`, `preflight.ts`                                                             | shipped, 11 tests on the pure half                  |
 | Task registration and traversal in Python   | `agents/graph.py`                                                                                                           | shipped, verified live                              |
 | Fingerprinting                              | `agents/fingerprint.py`                                                                                                     | shipped, 7 self-check properties                    |
@@ -883,7 +883,7 @@ The one that matters. An agent reporting that it finished is what triggers the w
 `run.ms` is the **agent's** measurement of its own run, taken in one process, and obsel stores it
 verbatim. It is deliberately not derived from `finishedAt` minus `startedAt`: those two are stamped
 on different clocks, a mistake this codebase has already made once and documents in
-[`timing.ts`](../src/features/cockpit/timing.ts). A completion that omits `run` clears any previous
+[`timing.ts`](../src/features/dashboard/timing.ts). A completion that omits `run` clears any previous
 detail rather than leaving it, so the page never captions a run with the last one's numbers.
 
 ```jsonc
@@ -1119,7 +1119,7 @@ compress them back out.
 A question rather than a claim, because the graph beneath it is the answer: the amber path is what
 "no longer true" looks like. It also fixes obsel's scope by what it does not ask. Not whether the work
 is good, not whether the pipeline is healthy, not whether anything should be re-run.
-`e2e/cockpit.spec.ts` asserts it is present in the flagged, settled and empty states, because a purpose
+`e2e/dashboard.spec.ts` asserts it is present in the flagged, settled and empty states, because a purpose
 that appears only once something has gone wrong is not a statement of purpose.
 
 **The inspector** shows one task's uncompressed values: full URNs, complete 64-character
@@ -1136,7 +1136,7 @@ cards carrying a status word, a human name, a code identifier, a job sentence, a
 timestamp and a line of runner metadata: 311 px and 205 words describing the same four tasks the
 graph above already drew. Every one of those facts is here instead, including the mark's `reason`,
 which is still stored on the mark, still written into DataHub, and still shown verbatim rather than
-summarised. `e2e/cockpit.spec.ts` asserts it opens in full and is neither clipped nor ellipsised, so
+summarised. `e2e/dashboard.spec.ts` asserts it opens in full and is neither clipped nor ellipsised, so
 the rule that a mark carries a traceable cause is unaffected by the move.
 
 **The trace** is titled "what obsel is doing", and it replaced a panel that diffed two `GET
@@ -1189,7 +1189,7 @@ as undifferentiated lines. That flattened the thing the demo's second half exist
 _separate_ judgements that stayed quiet are what make the fifth believable, and undivided they read as
 one long preamble in which nothing happened.
 
-`src/features/cockpit/passes.ts` groups them, purely and with its own tests. `read` is the boundary,
+`src/features/dashboard/passes.ts` groups them, purely and with its own tests. `read` is the boundary,
 which is not a convention it imposes: `coordinateCompletion` cannot decide anything before
 `readSnapshot`, so every pass begins with one. The `read` step's own message is already the trigger,
 "Orders cleaner finished", so it becomes the group's **heading** rather than its first row. A heading
@@ -1218,7 +1218,7 @@ act on. After the change, 11 rows are fully visible and the top edge shows a 2px
 previous group rather than most of a sentence.
 
 One consequence for the page's word-count guard, which is worth naming because getting it wrong
-would invert the guard's purpose: `e2e/cockpit.spec.ts` counts the log's **visible** steps, not its
+would invert the guard's purpose: `e2e/dashboard.spec.ts` counts the log's **visible** steps, not its
 DOM text. Counting all of it would make the ceiling track how much obsel narrated rather than how
 dense the page is, and the way to pass a failure would be to narrate less. A separate assertion
 holds the line directly: tripling the trace must not increase what is on screen.
