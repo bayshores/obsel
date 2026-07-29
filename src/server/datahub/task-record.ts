@@ -343,6 +343,7 @@ export function toTaskRecord(entity: DataJobEntity): TaskRecord {
           ),
         }
       : {}),
+    ...(props[PROP.volatile] ? { volatile: parseVolatile(props[PROP.volatile], entity.urn) } : {}),
     finishedAt: finishedAt ? finishedAt : null,
     startedAt: startedAt ? startedAt : null,
     run: parseRun(props),
@@ -350,4 +351,36 @@ export function toTaskRecord(entity: DataJobEntity): TaskRecord {
     tags,
     staleTagged: hasStaleTag(tags),
   };
+}
+
+/**
+ * The declared volatile columns, keyed by dataset URN.
+ *
+ * Strict, like `parseFingerprints` and unlike `parseColumns`. This decides what
+ * counts as a change: a list that silently parsed as empty would put every
+ * excluded column back into the content hash, and the next ordinary re-run
+ * would report a change nobody made and cascade on it. Worse, a reader and a
+ * producer disagreeing about the list hash one table two ways, which reads as
+ * an unreported change and blames nobody. Refusing loudly is the only safe
+ * failure here.
+ */
+function parseVolatile(raw: string, urn: string): Record<string, string[]> {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw new DataHubError(`task ${urn} has an unparseable ${PROP.volatile}`);
+  }
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+    throw new DataHubError(`task ${urn} has a ${PROP.volatile} that is not an object`);
+  }
+
+  const volatile: Record<string, string[]> = {};
+  for (const [dataset, columns] of Object.entries(parsed as Record<string, unknown>)) {
+    if (!Array.isArray(columns) || columns.some((column) => typeof column !== "string")) {
+      throw new DataHubError(`task ${urn} has a malformed column list in ${PROP.volatile}`);
+    }
+    volatile[dataset] = columns as string[];
+  }
+  return volatile;
 }

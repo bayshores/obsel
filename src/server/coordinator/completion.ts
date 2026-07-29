@@ -136,6 +136,10 @@ async function decideCompletion(
           finishing.run?.outputs[dataset]?.columns,
           report.run?.outputs[dataset]?.columns,
         ),
+        // What this comparison ignored, taken from the producer's own
+        // registration. Carried so the mark's sentence can say so; the
+        // comparison above already happened, under exactly this list.
+        excluded: finishing.volatile?.[dataset],
       });
     }
     // The comparison is the whole decision, so it is narrated whichever way it
@@ -255,6 +259,7 @@ async function decideCompletion(
           dataset,
           kind,
           columns: columnChange(producer.run?.outputs[dataset]?.columns, observation.columns),
+          excluded: producer.volatile?.[dataset],
           noticedBy: finishing,
         });
         // Written onto every writer on record, not just the one consulted for

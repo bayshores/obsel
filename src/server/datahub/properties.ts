@@ -62,6 +62,12 @@ export const PROP = {
    * explanation on file.
    */
   staleCauses: "obsel.stale.causes",
+  /**
+   * Output columns declared meaningless at registration, as JSON keyed by
+   * dataset URN. Set once and never rewritten: see the immutability rule in
+   * `registerTask`.
+   */
+  volatile: "obsel.volatile",
 } as const;
 
 /** `null` clears a key. Undefined keys are left untouched. */

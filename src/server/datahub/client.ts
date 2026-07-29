@@ -208,8 +208,45 @@ export async function registerTask(
   writes: string[],
   description?: string,
   title?: string,
+  volatile?: Record<string, string[]>,
 ): Promise<TaskRecord> {
   const urn = taskUrn(name);
+
+  /*
+   * Volatile columns are fixed at the first registration that declares them.
+   *
+   * The rule exists because the exclusion list decides what a fingerprint MEANS.
+   * Two recorded fingerprints of one table are comparable only if both were
+   * taken under the same list; change it and the next comparison is between a
+   * hash over four columns and a hash over five, which differs for a reason that
+   * has nothing to do with the data. obsel would report a change nobody made and
+   * cascade on it — and the opposite mistake is worse, since widening the list
+   * can make a real change vanish into an excluded column.
+   *
+   * Refusing is reversible: pick a new task name, or reset, which clears every
+   * baseline so nothing incomparable survives. Accepting silently is not.
+   */
+  const existing = await readTask(urn);
+  const declared = JSON.stringify(
+    Object.fromEntries(
+      Object.entries(volatile ?? {})
+        .map(([table, columns]) => [datasetUrn(table), [...columns].sort()] as const)
+        .sort(([a], [b]) => a.localeCompare(b)),
+    ),
+  );
+  const recorded = JSON.stringify(
+    Object.fromEntries(
+      Object.entries(existing?.volatile ?? {}).sort(([a], [b]) => a.localeCompare(b)),
+    ),
+  );
+  if (existing && declared !== recorded && recorded !== "{}") {
+    throw new DataHubError(
+      `task ${name} is already registered with a different set of volatile columns ` +
+        `(${recorded}, not ${declared}). Those columns decide what its recorded fingerprints ` +
+        "mean, so changing them would make the next comparison meaningless. Register under a " +
+        "new name, or reset, which clears the baselines they were taken under.",
+    );
+  }
 
   await writeDataJob({
     urn,
@@ -224,6 +261,28 @@ export async function registerTask(
           [PROP.status]: "registered",
           // Spread, so a task registered without a title carries no empty key.
           ...(title ? { [PROP.title]: title } : {}),
+          /*
+           * Which output columns are declared meaningless, keyed by the FULL
+           * dataset URN so a reader can look it up with the URN it already has.
+           *
+           * Written at registration and never again: `registerTask` refuses a
+           * re-registration whose lineage differs, and the immutability rule
+           * below extends that to this. An exclusion list that could change
+           * between runs would make two recorded fingerprints of one table
+           * incomparable, which reads as a change nobody made.
+           */
+          ...(volatile && Object.keys(volatile).length > 0
+            ? {
+                [PROP.volatile]: JSON.stringify(
+                  Object.fromEntries(
+                    Object.entries(volatile).map(([table, columns]) => [
+                      datasetUrn(table),
+                      [...columns].sort(),
+                    ]),
+                  ),
+                ),
+              }
+            : {}),
         },
       },
     },

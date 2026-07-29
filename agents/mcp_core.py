@@ -41,7 +41,7 @@ from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence
 
 from agents.fingerprint import fingerprint
-from agents.worker import canonicalise_numbers
+from agents.tables import canonicalise_numbers
 
 Table = dict[str, Any]  # {"columns": [...], "rows": [...]}
 
@@ -469,6 +469,7 @@ def completion_body(
     runner: str | None = None,
     ms: float | None = None,
     inputs: Mapping[str, Any] | None = None,
+    volatile: Mapping[str, Sequence[str]] | None = None,
 ) -> tuple[dict[str, Any], dict[str, dict[str, str]]]:
     """The body for `POST /api/tasks/complete`, and the fingerprints it carries.
 
@@ -492,7 +493,14 @@ def completion_body(
     reports: the writer sent no fingerprint, so this reader's is the one record
     of what the table holds now. Optional, and worth sending as paths — the files
     are already on disk, so observing them costs one key per table.
+
+    `volatile` is `volatile_by_dataset(tasks)`: the columns each table's producer
+    declared meaningless, keyed by dataset URN. It is applied to outputs AND to
+    input observations, and it has to be both -- a reader that hashed an input
+    without the producer's exclusions would produce a fingerprint the producer
+    never could, which obsel reads as a change nothing reported.
     """
+    exclusions = {dataset: list(columns) for dataset, columns in (volatile or {}).items()}
     tables = resolve_outputs(record, outputs)
 
     # Which outputs arrived as paths, so the shape sent for the board can say
@@ -509,7 +517,9 @@ def completion_body(
     shapes: dict[str, dict[str, Any]] = {}
     for urn, table in tables.items():
         canonical = canonicalise_numbers(table)
-        fingerprints[urn] = fingerprint(canonical["rows"], canonical["columns"])
+        fingerprints[urn] = fingerprint(
+            canonical["rows"], canonical["columns"], exclude=exclusions.get(urn, [])
+        )
         shapes[urn] = {"rows": len(canonical["rows"]), "columns": list(canonical["columns"])}
         if urn in paths:
             shapes[urn]["path"] = str(paths[urn])
@@ -540,7 +550,9 @@ def completion_body(
         for urn, table in resolve_inputs(record, inputs).items():
             canonical = canonicalise_numbers(table)
             observations[urn] = {
-                **fingerprint(canonical["rows"], canonical["columns"]),
+                **fingerprint(
+                    canonical["rows"], canonical["columns"], exclude=exclusions.get(urn, [])
+                ),
                 "columns": list(canonical["columns"]),
             }
         body["inputs"] = observations
@@ -651,6 +663,43 @@ def board_summary(swarm: Any) -> dict[str, Any]:
         "counts": counts,
         "tasks": summarised,
     }
+
+
+def volatile_by_dataset(tasks: Sequence[Any]) -> dict[str, list[str]]:
+    """Every declared volatile column list, keyed by dataset URN.
+
+    Built from the whole board rather than from one task because a READER has to
+    hash an input the same way its producer did, and the reader has no idea which
+    task wrote it. Looking the list up by dataset answers that without the reader
+    needing to resolve a producer at all.
+
+    Two writers of one table declaring different lists is refused at
+    registration, so a conflict here means the board is in a state obsel's own
+    door should have prevented. Raised rather than resolved: silently picking one
+    would have the two sides hash the table differently, which reads as an
+    unreported change and blames nobody.
+    """
+    lists: dict[str, list[str]] = {}
+    for record in tasks:
+        if not isinstance(record, dict):
+            continue
+        declared = record.get("volatile")
+        if not isinstance(declared, dict):
+            continue
+        for dataset, columns in declared.items():
+            if not isinstance(columns, list):
+                continue
+            new = sorted(str(column) for column in columns)
+            seen = lists.get(dataset)
+            if seen is not None and seen != new:
+                raise ObselReplyError(
+                    f"two tasks declare different volatile columns for {dataset} "
+                    f"({seen} and {new}). obsel refuses this at registration, so a board "
+                    "carrying both is inconsistent; hashing it either way would make one "
+                    "side's reads look like a change nobody reported."
+                )
+            lists[dataset] = new
+    return lists
 
 
 def rerun_summary(swarm: Any) -> dict[str, Any]:
@@ -1156,6 +1205,36 @@ def _self_check() -> int:
         "the board reports short table names and no fingerprints",
         summary["tasks"][0]["writes"] == ["clean_orders"] and "fingerprints" not in summary["tasks"][0],
         "a hash tells a reading agent nothing it can act on",
+    )
+
+    print()
+    print("volatile columns, and who decides them")
+
+    board = [
+        {
+            "urn": "urn:li:dataJob:(f,cleaner)",
+            "volatile": {"urn:li:dataset:(p,t,PROD)": ["loaded_at", "batch_id"]},
+        },
+        {"urn": "urn:li:dataJob:(f,reader)"},
+    ]
+    check(
+        "the lists are keyed by dataset, so a reader needs no producer lookup",
+        volatile_by_dataset(board) == {"urn:li:dataset:(p,t,PROD)": ["batch_id", "loaded_at"]},
+        "a reader hashes an input without knowing which task wrote it",
+    )
+    check(
+        "a board declaring none reads as none",
+        volatile_by_dataset([{"urn": "x"}]) == {},
+        "almost every task declares nothing, and that is not an error",
+    )
+    conflicting = [
+        {"urn": "a", "volatile": {"d": ["x"]}},
+        {"urn": "b", "volatile": {"d": ["y"]}},
+    ]
+    check(
+        "two writers disagreeing about one table is refused, not resolved",
+        raises(ObselReplyError, lambda: volatile_by_dataset(conflicting)),
+        "picking one would have producer and reader hash the same table differently",
     )
 
     print()

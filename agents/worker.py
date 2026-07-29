@@ -48,7 +48,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from agents import pipeline
+from agents import mcp_core, pipeline
 from agents.fingerprint import fingerprint
 
 # Re-exported rather than moved out of reach: every caller reaches these through
@@ -342,9 +342,22 @@ def run_task(
     # writing, the table was changed by something that never told obsel, and this
     # report is the only evidence of that anywhere. Canonicalised first, so the
     # observation uses the same definition of "changed" as every fingerprint.
+    #
+    # Each input is hashed with ITS PRODUCER'S declared volatile columns, read off
+    # the board like any other reader would. A reader that applied its own idea of
+    # what is meaningless -- or none at all -- would produce a fingerprint the
+    # producer could never produce, and obsel would read the disagreement as a
+    # change nothing reported: a false alarm with no author to name.
+    volatile = mcp_core.volatile_by_dataset(
+        read_swarm(obsel_url)["snapshot"]["tasks"]
+    )
     observed_inputs = {
         pipeline.task_dataset_urn(task, name): {
-            **fingerprint(canonical["rows"], canonical["columns"]),
+            **fingerprint(
+                canonical["rows"],
+                canonical["columns"],
+                exclude=volatile.get(pipeline.task_dataset_urn(task, name), []),
+            ),
             "columns": list(canonical["columns"]),
         }
         for name, canonical in canonical_inputs.items()
@@ -406,7 +419,12 @@ def run_task(
         _remember_run(task.name, job, list(output["columns"]), root)
 
         fingerprints = {
-            pipeline.task_dataset_urn(task, task.writes): fingerprint(output["rows"], output["columns"])
+            pipeline.task_dataset_urn(task, task.writes): fingerprint(
+                output["rows"],
+                output["columns"],
+                # This task's own declaration, for its own output.
+                exclude=volatile.get(pipeline.task_dataset_urn(task, task.writes), []),
+            )
         }
         finished_at = datetime.now(timezone.utc).isoformat()
 

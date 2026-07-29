@@ -26,6 +26,17 @@ export interface DatasetChange {
   /** Which columns moved, when known. Described, never used to decide. */
   columns?: ColumnChange | null;
   /**
+   * Columns the producer registered as volatile, which the comparison behind
+   * this change excluded.
+   *
+   * Described in the hop-one sentence, never used to decide anything: the
+   * decision was already made, by hashes taken under this exact list. It is in
+   * the sentence because a reader who knows the table carries a `loaded_at`
+   * otherwise cannot tell a real change from the clock moving, and those demand
+   * opposite responses.
+   */
+  excluded?: readonly string[];
+  /**
    * Set when this change was noticed by a reader rather than reported by the
    * task that wrote the dataset — the unreported change. The author is unknown,
    * so marks descending from it carry `causedByTask: null` instead of blaming
@@ -232,10 +243,23 @@ function reasonFor(
   viaTask: TaskRecord | null,
   kind: ChangeKind,
   noticedBy: TaskRecord | null,
+  excluded: readonly string[] = [],
 ): string {
   const table = tableLabel(changedDataset);
   if (hops === 1) {
-    const base = `read ${table}, and ${describe(kind)} after this finished`;
+    /*
+     * When the producer registered volatile columns, the sentence says so.
+     *
+     * Otherwise a reader who knows the table has a `loaded_at` in it cannot tell
+     * whether obsel is reporting a real change or the clock moving, and the two
+     * demand opposite responses. Appended only when a list exists, so every
+     * ordinary mark reads exactly as it always has.
+     */
+    const aside =
+      excluded.length > 0
+        ? `, comparing everything except ${[...excluded].sort().join(" and ")}, which it registered as changing every run`
+        : "";
+    const base = `read ${table}, and ${describe(kind)} after this finished${aside}`;
     // The unreported case earns a longer sentence, because the usual mental
     // model — the producer re-ran — is exactly wrong here, and a reader acting
     // on that model would go ask the wrong agent what it did.
@@ -444,6 +468,7 @@ export function affectedBy(
                 hops > 1 ? soleProducer(producers, dataset) : null,
                 kind,
                 noticedBy,
+                change.excluded ?? [],
               ),
               since: now,
               // Filled in by the engine once every mark from this change has been

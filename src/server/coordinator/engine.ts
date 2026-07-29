@@ -30,8 +30,9 @@ export async function registerTask(
   writes: string[],
   description?: string,
   title?: string,
+  volatile?: Record<string, string[]>,
 ): Promise<TaskRecord> {
-  const task = await writeTask(name, reads, writes, description, title);
+  const task = await writeTask(name, reads, writes, description, title, volatile);
   emit("write", `registered ${label(task)}`, `${task.reads.length} in, ${task.writes.length} out`);
   return task;
 }

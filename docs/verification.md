@@ -163,6 +163,7 @@ and type-checks, not a plan.
 | A link from any task to its real page in DataHub's UI                          | `src/features/dashboard/datahub-link.ts`, `inspector.tsx`                |
 | The restoration rule: which flags an identical redo provably clears            | `restoredBy` in `src/server/coordinator/staleness.ts`                    |
 | Every change that broke a task, not only the nearest                           | `causes` on `StaleMark`, `mergeMark` in `staleness.ts`, `obsel.stale.causes` |
+| Columns a task registers as meaningless, excluded from its content hash        | `exclude` in `agents/fingerprint.py`, `obsel.volatile`, `volatile_by_dataset` |
 | The repair loop: flagged work redone in order, restored work skipped           | `cmd_repair` in `agents/run_demo.py`, the guide's leading flagged action |
 | The repair order derived for any caller, on `/api/swarm` and over MCP          | `src/server/coordinator/rerun.ts`, `rerun_plan` in `agents/mcp_server.py` |
 | The joining panel and its four derived steps                                   | `joining.ts`, `joining-panel.tsx`, `joinCommand` on `/api/demo/activity` |

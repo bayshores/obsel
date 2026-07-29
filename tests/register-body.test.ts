@@ -144,3 +144,53 @@ describe("the HTTP door and the MCP door agree", () => {
     expect(python.namespaced).toBe(true);
   });
 });
+
+describe("volatile columns, declared at registration", () => {
+  /*
+   * The shape only. That a task may not declare exclusions for a table it does
+   * not write is a relationship between two fields rather than a shape, so the
+   * route owns it and `tests/live/` proves it against a real registration.
+   */
+  it("accepts a list keyed by a table this task writes", () => {
+    const parsed = RegisterBody.parse({
+      name: "clean_orders",
+      reads: ["raw_orders"],
+      writes: ["clean_orders"],
+      volatile: { clean_orders: ["loaded_at"] },
+    });
+    expect(parsed.volatile).toEqual({ clean_orders: ["loaded_at"] });
+  });
+
+  it("is optional, which is what almost every task registers", () => {
+    const parsed = RegisterBody.parse({
+      name: "clean_orders",
+      reads: [],
+      writes: ["clean_orders"],
+    });
+    expect(parsed.volatile).toBeUndefined();
+  });
+
+  it("refuses a table name a URN could not be recovered from", () => {
+    // Same rule as `writes`: the key is interpolated into a dataset URN, and
+    // `dataset_short_name` recovers a name by splitting on commas and dots.
+    expect(() =>
+      RegisterBody.parse({
+        name: "clean_orders",
+        reads: [],
+        writes: ["clean_orders"],
+        volatile: { "clean,orders": ["loaded_at"] },
+      }),
+    ).toThrow();
+  });
+
+  it("refuses an empty column name", () => {
+    expect(() =>
+      RegisterBody.parse({
+        name: "clean_orders",
+        reads: [],
+        writes: ["clean_orders"],
+        volatile: { clean_orders: [""] },
+      }),
+    ).toThrow();
+  });
+});

@@ -240,6 +240,21 @@ export interface TaskRecord {
    * Null when a task registered without one.
    */
   description?: string | null;
+  /**
+   * Output columns this task declared meaningless, keyed by dataset URN.
+   *
+   * A load timestamp, a batch id, a row number: values that move on every run
+   * and carry no information. They are dropped from the CONTENT hash and from
+   * nothing else, so a rename or a removal of one is still a schema change.
+   *
+   * Declared once at registration and never rewritten, because two recorded
+   * fingerprints of one table are only comparable if they were taken under the
+   * same rule. Every reader that fingerprints this table looks the list up here,
+   * on the producer, so the two sides cannot hash it differently.
+   *
+   * Absent on a task that declared none, which is almost all of them.
+   */
+  volatile?: Record<string, string[]>;
   /** Dataset URNs this task reads. `Consumes` edges. */
   reads: string[];
   /** Dataset URNs this task writes. `Produces` edges. */

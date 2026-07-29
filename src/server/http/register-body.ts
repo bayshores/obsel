@@ -39,4 +39,22 @@ export const RegisterBody = z.object({
   // also what the graph reserves box width for. Free prose, deliberately: it is
   // never interpolated into a URN, so nothing here has to parse it back out.
   title: z.string().min(1).max(60).optional(),
+  /**
+   * Columns whose values change every run and mean nothing: a load timestamp,
+   * a batch id, a row number. Keyed by short output table name.
+   *
+   * Declared once, here, rather than passed with each completion. That is the
+   * whole point of putting it on the registration: the exclusion becomes a
+   * recorded property of the task that anybody can read off DataHub, instead of
+   * a claim each run makes about itself. A task that could vary its exclusions
+   * per run could hide a change by excluding the column it happened to move.
+   *
+   * Every reader of the table applies the SAME list when it fingerprints what
+   * it read, which it looks up from the producer's record. Two sides hashing one
+   * table two ways would make every honest read look like an unreported change.
+   *
+   * `writes`-only, and validated as such by the route: excluding a column of a
+   * table this task does not produce is a claim it has no standing to make.
+   */
+  volatile: z.record(DatasetName, z.array(z.string().min(1))).optional(),
 });

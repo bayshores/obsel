@@ -80,7 +80,19 @@ def report(request: Any) -> dict[str, Any]:
     if not isinstance(obsel_url, str):
         raise mcp_core.ToolInputError("obselUrl must be a string")
 
-    record = worker.obsel_task(task_urn, obsel_url)
+    # One board read: the task's own record, and the volatile declarations every
+    # table's producer made. A table typed by hand has to hash the same way the
+    # agent that owns it would hash it, or the two disagree about one table.
+    swarm = worker.read_swarm(obsel_url)
+    tasks = mcp_core.required_list(swarm["snapshot"], "tasks", "a board read")
+    record = next(
+        (entry for entry in tasks if isinstance(entry, dict) and entry.get("urn") == task_urn),
+        None,
+    )
+    if record is None:
+        raise mcp_core.ToolInputError(
+            f"obsel has no task {task_urn}. Register it before reporting a table for it."
+        )
 
     if request.get("announce", True):
         worker.announce_start(task_urn, obsel_url)
@@ -89,7 +101,9 @@ def report(request: Any) -> dict[str, Any]:
     # a run somebody measured, and nobody measured this one: the person typed a
     # table. Inventing a duration would put a number on the board that was never
     # taken, which is the one thing this repository's copy rules forbid outright.
-    body, fingerprints = mcp_core.completion_body(record, outputs, _now())
+    body, fingerprints = mcp_core.completion_body(
+        record, outputs, _now(), volatile=mcp_core.volatile_by_dataset(tasks)
+    )
 
     # The token comes from the environment alone, never from the stdin request.
     # `obselUrl` rides stdin because the origin is per-request; the token is not,

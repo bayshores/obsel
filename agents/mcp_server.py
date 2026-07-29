@@ -149,6 +149,7 @@ def build_server(obsel_url: str = OBSEL_URL) -> Any:
         writes: list[str],
         title: str | None = None,
         description: str | None = None,
+        volatile: dict[str, list[str]] | None = None,
     ) -> dict[str, Any]:
         """Declare the work you are about to do, and what it is built on.
 
@@ -181,6 +182,17 @@ def build_server(obsel_url: str = OBSEL_URL) -> Any:
             writes: short names of the tables this task writes.
             title: a short human name for the board (60 characters).
             description: this task's standing job in one sentence (300 characters).
+            volatile: columns of YOUR OWN output tables whose values change every
+                run and mean nothing -- a load timestamp, a batch id, a row
+                number -- keyed by short table name, e.g.
+                {"clean_orders": ["loaded_at"]}. They are dropped from the
+                content hash, so a re-run that differs only there reports no
+                change and marks nothing. Their NAMES still count: renaming or
+                dropping one is still a schema change. Declared once and fixed:
+                re-registering with a different set is refused, because the
+                recorded fingerprints only mean anything under the list they
+                were taken with. Every reader of your table hashes it using
+                this list, which is why it can only name tables you write.
         """
         if not name:
             raise mcp_core.ToolInputError("a task needs a name")
@@ -210,6 +222,8 @@ def build_server(obsel_url: str = OBSEL_URL) -> Any:
             body["title"] = title
         if description:
             body["description"] = description
+        if volatile:
+            body["volatile"] = {table: list(columns) for table, columns in volatile.items()}
 
         reply = worker.post_json(
             f"{obsel_url}/api/tasks/register", body, timeout=worker.MUTATION_TIMEOUT,
@@ -290,9 +304,34 @@ def build_server(obsel_url: str = OBSEL_URL) -> Any:
             inputs: optionally, one entry per table you read, same forms as
                 `outputs`. Every table must be one this task declared it reads.
         """
-        record = worker.obsel_task(taskUrn, obsel_url)
+        # One board read, used for both the task's own record and every
+        # producer's volatile declaration. `obsel_task` would read it again.
+        swarm = worker.read_swarm(obsel_url)
+        tasks = mcp_core.required_list(swarm["snapshot"], "tasks", "a board read")
+        record = next(
+            (
+                entry
+                for entry in tasks
+                if isinstance(entry, dict) and entry.get("urn") == taskUrn
+            ),
+            None,
+        )
+        if record is None:
+            raise mcp_core.ToolInputError(
+                f"obsel has no task {taskUrn}. Register it before reporting a completion."
+            )
         body, fingerprints = mcp_core.completion_body(
-            record, outputs, _now(), runner=runner, ms=ms, inputs=inputs
+            record,
+            outputs,
+            _now(),
+            runner=runner,
+            ms=ms,
+            inputs=inputs,
+            # Each table hashed with its own producer's declared exclusions, read
+            # off the same board. A reader applying no exclusions would hash an
+            # input differently from the task that wrote it, and obsel would read
+            # that as a change nothing reported.
+            volatile=mcp_core.volatile_by_dataset(tasks),
         )
         # The mutation ceiling, not the 60 s read default: obsel answers this
         # POST only after the whole cascade is walked, written and confirmed,

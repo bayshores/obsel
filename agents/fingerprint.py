@@ -60,17 +60,50 @@ def schema_fingerprint(columns: Sequence[str]) -> str:
     return _sha256(COLUMN_SEPARATOR.join(sorted(columns)))
 
 
-def content_fingerprint(rows: Sequence[Row], columns: Sequence[str]) -> str:
-    """sha256 over the rows' values, independent of column names and row order."""
-    serialised = sorted(_serialise_row(row, columns) for row in rows)
+def content_fingerprint(
+    rows: Sequence[Row],
+    columns: Sequence[str],
+    exclude: Sequence[str] = (),
+) -> str:
+    """sha256 over the rows' values, independent of column names and row order.
+
+    `exclude` drops columns from the VALUES before hashing, and nothing else.
+    It is how a task says "this column moves on every run and means nothing":
+    a load timestamp, a batch id, a row number. Without it such a column moves
+    the content hash every time, obsel reports a change nobody made, and the
+    marks become noise people mute -- the exact failure the first correctness
+    rule exists to prevent, arriving through the data instead of through the
+    comparison.
+
+    Deliberately not applied to `schema_fingerprint`. The NAME of a volatile
+    column is still part of the table's shape, so renaming or dropping
+    `loaded_at` is still a schema change and still reported. What is excluded
+    is the claim that its values mean something.
+
+    The exclusion list is declared once at registration and recorded on the
+    task, so it is auditable and cannot vary per run. `agents/mcp_core.py`
+    threads it here; nothing invents one.
+    """
+    kept = [column for column in columns if column not in set(exclude)]
+    if not kept:
+        raise ValueError(
+            "every column was excluded as volatile, so the content hash would be a hash of "
+            "nothing and could never report a change. Exclude fewer columns, or if the whole "
+            "table is genuinely volatile, do not register it as an output obsel watches."
+        )
+    serialised = sorted(_serialise_row(row, kept) for row in rows)
     return _sha256("\n".join(serialised))
 
 
-def fingerprint(rows: Sequence[Row], columns: Sequence[str]) -> dict[str, str]:
+def fingerprint(
+    rows: Sequence[Row],
+    columns: Sequence[str],
+    exclude: Sequence[str] = (),
+) -> dict[str, str]:
     """The pair obsel stores and compares. Keys match `OutputFingerprint`."""
     return {
         "schema": schema_fingerprint(columns),
-        "content": content_fingerprint(rows, columns),
+        "content": content_fingerprint(rows, columns, exclude),
     }
 
 
@@ -156,6 +189,49 @@ def _self_check() -> int:
         "added column moves both",
         added["schema"] != base["schema"] and added["content"] != base["content"],
         "a new column changes the shape and adds a null to every row",
+    )
+
+    # Volatile columns: declared once at registration, excluded from the values
+    # and from nothing else.
+    stamped_columns = columns + ["loaded_at"]
+    stamped = [{**r, "loaded_at": "2026-07-29T01:00:00Z"} for r in rows]
+    restamped = [{**r, "loaded_at": "2026-07-29T02:00:00Z"} for r in rows]
+    check(
+        "a volatile column's value does not move content",
+        fingerprint(stamped, stamped_columns, exclude=["loaded_at"])["content"]
+        == fingerprint(restamped, stamped_columns, exclude=["loaded_at"])["content"],
+        "a load timestamp that moves every run would otherwise report a change nobody made",
+    )
+    check(
+        "and excluding it does not hide a real change beside it",
+        fingerprint(stamped, stamped_columns, exclude=["loaded_at"])["content"]
+        != fingerprint(
+            [{**r, "loaded_at": "x", "order_total": 99.0} for r in rows],
+            stamped_columns,
+            exclude=["loaded_at"],
+        )["content"],
+        "only the named column is excluded; every other value still counts",
+    )
+    check(
+        "a volatile column still counts toward the schema",
+        fingerprint(stamped, stamped_columns, exclude=["loaded_at"])["schema"]
+        != fingerprint(rows, columns, exclude=["loaded_at"])["schema"],
+        "renaming or dropping it is still a change to the table's shape",
+    )
+    check(
+        "excluding a column that is not there changes nothing",
+        fingerprint(rows, columns, exclude=["not_a_column"]) == base,
+        "a declared exclusion for a column that arrives later is not an error",
+    )
+    excluded_everything = False
+    try:
+        content_fingerprint(rows, columns, exclude=columns)
+    except ValueError:
+        excluded_everything = True
+    check(
+        "excluding every column is refused",
+        excluded_everything,
+        "a hash of nothing is identical forever, which reads as 'nothing ever changed'",
     )
 
     # Cross-process stability, run under a different string-hash seed so a

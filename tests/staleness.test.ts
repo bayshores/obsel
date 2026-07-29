@@ -1275,3 +1275,42 @@ describe("restoredBy — a redo against a task broken more than once", () => {
     expect(restoredBy(swarm, finishing, [ds("mid_a")]).map((r) => r.task.name)).toEqual(["reader"]);
   });
 });
+
+describe("affectedBy — saying what the comparison ignored", () => {
+  it("names the registered volatile columns in the hop-one sentence", () => {
+    /*
+     * A reader who knows the table carries a `loaded_at` cannot otherwise tell
+     * a real change from the clock moving, and those want opposite responses.
+     * The sentence is the only place obsel can say which it is.
+     */
+    const found = affectedBy(
+      demoSwarm(),
+      [{ dataset: ds("clean_orders"), kind: "content", excluded: ["loaded_at", "batch_id"] }],
+      NOW,
+    );
+
+    const direct = found.find((a) => a.task.name === "build_revenue");
+    expect(direct?.mark.reason).toContain("except batch_id and loaded_at");
+    expect(direct?.mark.reason).toContain("registered as changing every run");
+  });
+
+  it("says nothing extra when no columns were excluded", () => {
+    // The ordinary mark, which is almost all of them, reads exactly as before.
+    const found = affectedBy(demoSwarm(), [{ dataset: ds("clean_orders"), kind: "content" }], NOW);
+    const direct = found.find((a) => a.task.name === "build_revenue");
+    expect(direct?.mark.reason).toBe("read clean orders, and its rows changed after this finished");
+  });
+
+  it("keeps the transitive sentence clear of it", () => {
+    // Two hops out the task never read the excluded table, so naming its
+    // columns there would explain a comparison this task had no part in.
+    const found = affectedBy(
+      demoSwarm(),
+      [{ dataset: ds("clean_orders"), kind: "content", excluded: ["loaded_at"] }],
+      NOW,
+    );
+    expect(found.find((a) => a.task.name === "write_report")?.mark.reason).not.toContain(
+      "loaded_at",
+    );
+  });
+});

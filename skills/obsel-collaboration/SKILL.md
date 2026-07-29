@@ -210,7 +210,7 @@ that somebody finds out when it goes wrong.
 | Tool                                                       | When                                                       |
 | ---------------------------------------------------------- | ---------------------------------------------------------- |
 | `check_freshness(reads)`                                   | before any work, on every table you will read              |
-| `register_task(name, reads, writes, title?, description?)` | once, to declare your lineage                              |
+| `register_task(name, reads, writes, title?, description?, volatile?)` | once, to declare your lineage                              |
 | `announce_start(taskUrn)`                                  | before you write anything                                  |
 | `report_complete(taskUrn, outputs, inputs?, runner?, ms?)` | when you are done, whether or not anything changed         |
 | `abandon_task(taskUrn)`                                    | if you announced and then failed                           |
@@ -223,6 +223,14 @@ engine the only way anything is ever marked. There is deliberately no tool that 
 clears staleness: a mark comes off through redone work, and only through redone work.
 Either the flagged task re-runs and reports, or an upstream redo lands byte-identical
 and obsel clears what that provably restores, on its own.
+
+`volatile` on `register_task` names columns of YOUR OWN output tables whose values change on
+every run and mean nothing: a load timestamp, a batch id, a row number. They are left out of the
+content hash, so a re-run differing only there reports no change and marks nothing downstream.
+Their names still count, so renaming or dropping one is still a schema change. Declare it once:
+re-registering with a different set is refused, because obsel's recorded fingerprints only mean
+anything under the list they were taken with. Every reader of your table hashes it with your list,
+which is why you can only declare it for tables you write.
 
 `rerun_plan` is ordering, not permission. It answers "which flagged task should be redone
 first", because a task rebuilt from an input that is itself about to be rebuilt is wasted
