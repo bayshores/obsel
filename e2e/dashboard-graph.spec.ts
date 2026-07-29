@@ -427,9 +427,12 @@ test.describe("the write-back is reported, not asserted", () => {
 
   test("counts the tags DataHub confirms, once they have all landed", async ({ page }) => {
     await openDashboard(page, cascaded());
+    // No "tagged" after the ratio. The cell's label already says what was
+    // written and where, and the word both restated it and pushed the value
+    // onto a second line in the panel's width.
     await expect
       .poll(() => cell(page, "written into DataHub"))
-      .toMatch(/written into DataHub3 of 3tagged/);
+      .toMatch(/written into DataHub3 of 3/);
   });
 
   test("reads low while a write is in flight, without claiming a failure", async ({ page }) => {

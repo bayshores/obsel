@@ -32,7 +32,9 @@ test.describe("honesty", () => {
         });
       });
 
-    await expect.poll(readRibbon).toEqual(["118ms", "3 of 3tagged"]);
+    // No "tagged" after the ratio: the cell's own label is "written into
+    // DataHub", and the word restated it while pushing the value onto two lines.
+    await expect.poll(readRibbon).toEqual(["118ms", "3 of 3"]);
 
     serve("fail");
 

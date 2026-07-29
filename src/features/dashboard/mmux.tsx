@@ -211,14 +211,13 @@ export function StatCell({
   value,
   unit,
   accent = false,
-  glow = false,
   preserveCase = false,
 }: {
   label: ReactNode;
   value: ReactNode;
   unit?: ReactNode;
+  /** Marks a measured, confirmed figure. The cell's only emphasis. */
   accent?: boolean;
-  glow?: boolean;
   /**
    * Leave the label's capitalisation alone.
    *
@@ -232,8 +231,21 @@ export function StatCell({
    */
   preserveCase?: boolean;
 }) {
+  /*
+   * Two elements, not a wrapper: the label and the figure are placed into rows
+   * the RIBBON owns, so every cell's label shares one row and every cell's
+   * figure shares the next.
+   *
+   * The two labels are different heights — "detection time" fits one line and
+   * "written into DataHub" takes two in the panel's width — which laid out
+   * per-cell pushed one figure a line below the other. Bottom-aligning them
+   * instead fixed the common case and would have come apart again on the four
+   * states whose unit is a sentence ("nothing detected yet", "2 left over from
+   * before"), because a unit that wraps lifts the figure above it. A shared row
+   * cannot be knocked out of line by either.
+   */
   return (
-    <div style={{ display: "grid", gap: "var(--mm-space-2xs)", padding: "8px 14px" }}>
+    <>
       <span
         style={{
           color: "var(--obsel-text-quiet)",
@@ -242,32 +254,73 @@ export function StatCell({
           // are the labels a viewer has to read to know what the number means.
           fontSize: "var(--mm-text-cap)",
           letterSpacing: "var(--mm-track-label)",
+          lineHeight: 1.3,
           textTransform: preserveCase ? "none" : "lowercase",
         }}
       >
         {label}
       </span>
+      {/*
+        The figure and its unit as two items on a baseline, not one run of text.
+        A long unit — "nothing detected yet", "2 tags left over from before" —
+        wraps onto its own line beneath the figure instead of dragging the figure
+        with it, which is what produced "3 of" above "3 tagged".
+      */}
       <span
         style={{
-          color: accent ? "var(--mm-rose)" : "var(--mm-cream)",
-          fontFamily: "var(--mm-font-mono)",
-          // obsel: was --mm-text-stat (17px). These five numbers are the
-          // measured result; at half size 17px is not enough.
-          fontSize: "var(--mm-text-2xl)",
-          fontWeight: "var(--mm-weight-bold)",
-          fontVariantNumeric: "tabular-nums",
-          lineHeight: 1,
-          textShadow: glow ? "var(--mm-glow-sm)" : "none",
+          display: "flex",
+          alignItems: "baseline",
+          flexWrap: "wrap",
+          columnGap: "var(--mm-space-xs)",
         }}
       >
-        {value}
+        <span
+          style={{
+            color: accent ? "var(--mm-rose)" : "var(--mm-cream)",
+            fontFamily: "var(--mm-font-mono)",
+            /*
+             * obsel: was --mm-text-2xl (26px), set when these were five cells in
+             * a ribbon across the full width of the page. They are now two cells
+             * in a panel column whose other text is 11 to 13px, and at 26px they
+             * read as belonging to a different screen. 20px keeps the hierarchy
+             * — it is still by far the largest thing in the panel — without
+             * shouting over everything beside it, and it is what lets a value
+             * like "3 of 3" sit on one line.
+             */
+            fontSize: "var(--mm-text-xl)",
+            fontWeight: "var(--mm-weight-bold)",
+            fontVariantNumeric: "tabular-nums",
+            lineHeight: 1,
+            // A ratio is one token conceptually, so it never breaks across lines.
+            whiteSpace: "nowrap",
+            /*
+             * No text glow. Nothing else in the panel glows — the two other uses
+             * of `--mm-glow-sm` are box-shadows on the guide's active step and
+             * the tour, where the thing being lit is a container. A glowing
+             * numeral beside plain mono text was the loudest part of the cell and
+             * the clearest reason it read as pasted in from somewhere else. The
+             * accent colour still marks a measured, confirmed figure.
+             */
+          }}
+        >
+          {value}
+        </span>
         {unit !== undefined ? (
-          <span style={{ fontSize: "0.5em", color: "var(--mm-cream-dim)", marginLeft: 3 }}>
+          <span
+            style={{
+              // Fixed rather than `0.5em`: tied to the value's size it shrank
+              // with it, and a unit is a label, not a smaller number.
+              fontSize: "var(--mm-text-md)",
+              color: "var(--mm-cream-dim)",
+              fontFamily: "var(--mm-font-mono)",
+              lineHeight: 1.3,
+            }}
+          >
             {unit}
           </span>
         ) : null}
       </span>
-    </div>
+    </>
   );
 }
 
@@ -292,6 +345,14 @@ export function StatRibbon({
         display: "grid",
         gridAutoFlow: "column",
         gridAutoColumns: "1fr",
+        /*
+         * One row for the labels, one for the figures, owned here rather than by
+         * each cell. `StatCell` places its two elements straight into them
+         * through the `subgrid` below, so a label that wraps to two lines makes
+         * every label's row taller instead of pushing its own figure down out of
+         * line with the one beside it.
+         */
+        gridTemplateRows: "auto auto",
         border: "1px solid var(--mm-border)",
         background: "var(--mm-surface)",
       }}
@@ -301,7 +362,16 @@ export function StatRibbon({
           // Positional by nature: these are fixed columns of a ribbon, not a
           // list that reorders. There is no id to key on and none is wanted.
           key={i}
-          style={{ borderLeft: i === 0 ? "none" : "1px solid var(--mm-border)" }}
+          style={{
+            display: "grid",
+            // Inherit the ribbon's two rows rather than declaring its own, which
+            // is what puts every cell's label and figure on shared lines.
+            gridTemplateRows: "subgrid",
+            gridRow: "span 2",
+            rowGap: "var(--mm-space-xs)",
+            padding: "10px 14px",
+            borderLeft: i === 0 ? "none" : "1px solid var(--mm-border)",
+          }}
         >
           {child}
         </div>

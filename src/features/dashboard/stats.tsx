@@ -85,7 +85,6 @@ export function Stats({ trusted, totals }: { trusted: boolean; totals: SwarmTota
            */
           unit={trusted ? (totals.timing !== null ? "ms" : "nothing detected yet") : undefined}
           accent={trusted && totals.timing !== null}
-          glow={trusted && totals.timing !== null}
         />,
         writeBack(trusted, totals),
       ]}
@@ -128,7 +127,6 @@ function writeBack(trusted: boolean, t: SwarmTotals): React.ReactElement {
       value={value}
       unit={unit}
       accent={lit}
-      glow={lit}
     />
   );
 
@@ -139,9 +137,21 @@ function writeBack(trusted: boolean, t: SwarmTotals): React.ReactElement {
       ? cell(String(t.leftOver), `${agreeing(t.leftOver, "tag")} left over from before`)
       : cell(BLANK, "nothing to write yet");
   }
+  /*
+   * No "tagged" unit in the ordinary case. The label above it already says
+   * "written into DataHub", so the word restated on one cell what the cell is
+   * called — and it was what pushed `3 of 3 tagged` past the column's width and
+   * broke it across two lines. The left-over wording stays, because that one
+   * says something the label does not.
+   */
   return cell(
     `${t.tagged} of ${t.marked}`,
-    t.leftOver > 0 ? `tagged, ${t.leftOver} left over from before` : "tagged",
+    // The count here carries its own noun, unlike the branch above where the
+    // count IS the value: "3 of 5" beside a bare "2 left over from before"
+    // reads as two ratios rather than a ratio and a remainder.
+    t.leftOver > 0
+      ? `${t.leftOver} ${agreeing(t.leftOver, "tag")} left over from before`
+      : undefined,
     t.tagged === t.marked,
   );
 }
