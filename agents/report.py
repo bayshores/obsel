@@ -91,8 +91,13 @@ def report(request: Any) -> dict[str, Any]:
     # taken, which is the one thing this repository's copy rules forbid outright.
     body, fingerprints = mcp_core.completion_body(record, outputs, _now())
 
+    # The token comes from the environment alone, never from the stdin request.
+    # `obselUrl` rides stdin because the origin is per-request; the token is not,
+    # and `reporter.ts` already spreads the server's own environment into this
+    # process, so a second transport for a secret would add surface and no reach.
     coordination = worker.post_json(
-        f"{obsel_url}/api/tasks/complete", body, timeout=worker.MUTATION_TIMEOUT
+        f"{obsel_url}/api/tasks/complete", body, timeout=worker.MUTATION_TIMEOUT,
+        headers=worker.auth_headers(),
     )
     return {"ok": True, "coordination": coordination, "computedFingerprints": fingerprints}
 

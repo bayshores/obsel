@@ -26,6 +26,25 @@ export interface ObselServer {
 }
 
 /**
+ * The bearer token every server this helper starts is configured with, unless a
+ * caller overrides it through `extraEnv`.
+ *
+ * A fixed value, not a generated one, on purpose. The suite spawns real Python
+ * agents in separate processes, and those read `OBSEL_API_TOKEN` from their own
+ * environment — so the tests put THIS constant into every child's env, and a
+ * generated value would just be this constant with an extra step. It authorizes
+ * nothing outside the suite's own short-lived server.
+ *
+ * Set here rather than left to the repository's `.env.local` because `next
+ * start` reads that file itself: a machine where `start.sh` has generated a
+ * token would silently hand every "server without a token" scenario a token.
+ * An explicit value in the spawn env wins over the file in Next's precedence,
+ * which is what makes `OBSEL_API_TOKEN: ""` in `extraEnv` a genuinely closed
+ * server on any machine.
+ */
+export const API_TOKEN = "obsel-live-suite-token";
+
+/**
  * Start obsel on `port` with `OBSEL_FLOW_ID` set, and resolve once it answers.
  *
  * `next start`, not `next dev`, and that is forced rather than chosen. **Next 16 refuses
@@ -44,10 +63,10 @@ export async function startObsel(
   /**
    * Extra environment for this server only.
    *
-   * The erasure suite needs `OBSEL_API_TOKEN` and `OBSEL_ATTESTOR_KEYS`, and both are read
-   * at startup like `OBSEL_FLOW_ID`, so they cannot be set from inside a test any more than
-   * the flow could. Additive and optional: every existing caller passes nothing and gets
-   * exactly what it got before.
+   * The erasure suite needs its own `OBSEL_API_TOKEN` and `OBSEL_ATTESTOR_KEYS`, and both
+   * are read at startup like `OBSEL_FLOW_ID`, so they cannot be set from inside a test any
+   * more than the flow could. Spread last, so a caller's value beats the `API_TOKEN`
+   * default — including `OBSEL_API_TOKEN: ""`, which starts a server with no token at all.
    */
   extraEnv: Record<string, string> = {},
 ): Promise<ObselServer> {
@@ -56,7 +75,13 @@ export async function startObsel(
 
   const child: ChildProcess = spawn("pnpm", ["exec", "next", "start", "--port", String(port)], {
     cwd,
-    env: { ...process.env, OBSEL_FLOW_ID: flowId, PORT: String(port), ...extraEnv },
+    env: {
+      ...process.env,
+      OBSEL_FLOW_ID: flowId,
+      PORT: String(port),
+      OBSEL_API_TOKEN: API_TOKEN,
+      ...extraEnv,
+    },
     stdio: ["ignore", "pipe", "pipe"],
     // Its own process group, so the whole tree can be signalled on the way out. `next`
     // forks a worker, and killing only the parent leaves the port held and the next run

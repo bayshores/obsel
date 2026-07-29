@@ -74,22 +74,25 @@ SERVER_VERSION = "0.1.0"
 OBSEL_URL = os.environ.get("OBSEL_URL", "http://localhost:3000")
 
 
-def _erasure_headers() -> dict[str, str]:
+def _api_headers() -> dict[str, str]:
     """The bearer token, or a refusal that names what to set.
 
-    Read per call rather than at startup so an operator can set it without
-    restarting every agent, and refused loudly when absent: obsel would answer
-    503 anyway, and an error naming the variable is more use to whoever is
-    holding the terminal than a status code from two processes away.
+    Every mutating route wants it -- task, demo and erasure alike. Resolved per
+    call through `obsel_client.auth_headers()` (environment first, then the
+    repository's `.env.local`, where `scripts/start.sh` generates one), so an
+    operator can set it without restarting every agent. Refused loudly when
+    absent: obsel would answer 503 anyway, and an error naming the variable is
+    more use to whoever is holding the terminal than a status code from two
+    processes away.
     """
-    token = os.environ.get("OBSEL_API_TOKEN", "").strip()
-    if not token:
+    headers = worker.auth_headers()
+    if not headers:
         raise mcp_core.ToolInputError(
-            "the erasure routes need a bearer token and OBSEL_API_TOKEN is not set in this "
-            "server's environment. obsel refuses erasure writes without one, deliberately: an "
-            "unconfigured deployment is a closed one."
+            "obsel's mutating routes need a bearer token, and OBSEL_API_TOKEN is set neither "
+            "in this server's environment nor in the repository's .env.local. obsel refuses "
+            "writes without one, deliberately: an unconfigured deployment is a closed one."
         )
-    return {"Authorization": f"Bearer {token}"}
+    return headers
 
 
 def _now() -> str:
@@ -205,7 +208,8 @@ def build_server(obsel_url: str = OBSEL_URL) -> Any:
             body["description"] = description
 
         reply = worker.post_json(
-            f"{obsel_url}/api/tasks/register", body, timeout=worker.MUTATION_TIMEOUT
+            f"{obsel_url}/api/tasks/register", body, timeout=worker.MUTATION_TIMEOUT,
+            headers=_api_headers(),
         )
         if not isinstance(reply, dict) or "urn" not in reply:
             raise mcp_core.ObselReplyError(
@@ -227,6 +231,10 @@ def build_server(obsel_url: str = OBSEL_URL) -> Any:
         Args:
             taskUrn: the `urn` from `register_task`.
         """
+        # Validation only: `worker.announce_start` attaches the token itself,
+        # and this call exists so a missing one is refused here with a sentence
+        # naming the variable rather than surfacing as a 503 from obsel.
+        _api_headers()
         return {"task": worker.announce_start(taskUrn, obsel_url)}
 
     @server.tool()
@@ -285,7 +293,8 @@ def build_server(obsel_url: str = OBSEL_URL) -> Any:
         # and a slow DataHub has genuinely outrun a shorter client while the
         # server finished the work. See MUTATION_TIMEOUT in `agents/worker.py`.
         coordination = worker.post_json(
-            f"{obsel_url}/api/tasks/complete", body, timeout=worker.MUTATION_TIMEOUT
+            f"{obsel_url}/api/tasks/complete", body, timeout=worker.MUTATION_TIMEOUT,
+            headers=_api_headers(),
         )
         # Read the lists before returning: a reply that lost `affected` must not
         # reach the agent looking like "nothing was invalidated".
@@ -313,6 +322,8 @@ def build_server(obsel_url: str = OBSEL_URL) -> Any:
         Args:
             taskUrn: the `urn` you announced.
         """
+        # Validation only, same as `announce_start`: the wrapper attaches the token.
+        _api_headers()
         reply = worker.abandon_run(taskUrn, obsel_url)
         # Returned as obsel shaped it: `{task, reverted}` already. Wrapping it again in
         # a `task` key put the record one level deeper than the docstring above promised.
@@ -355,7 +366,8 @@ def build_server(obsel_url: str = OBSEL_URL) -> Any:
         makes your signature evidence about now rather than an answer you could
         have prepared at any time, and it is single use and expires.
 
-        Needs `OBSEL_API_TOKEN` in this server's environment.
+        Needs `OBSEL_API_TOKEN`, in this server's environment or in the
+        repository's `.env.local`, like every mutating tool here.
 
         Args:
             request: the erasure request id.
@@ -364,7 +376,7 @@ def build_server(obsel_url: str = OBSEL_URL) -> Any:
         return worker.post_json(
             f"{obsel_url}/api/erasure/challenge",
             {"request": request, "asset": asset},
-            headers=_erasure_headers(),
+            headers=_api_headers(),
         )
 
     @server.tool()
@@ -391,7 +403,7 @@ def build_server(obsel_url: str = OBSEL_URL) -> Any:
         return worker.post_json(
             f"{obsel_url}/api/erasure/proof",
             {"request": request, "envelope": envelope},
-            headers=_erasure_headers(),
+            headers=_api_headers(),
         )
 
     @server.tool()

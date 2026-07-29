@@ -37,7 +37,7 @@ import { join } from "node:path";
 
 import { beforeAll, describe, expect, it } from "vitest";
 
-import { startObsel } from "./obsel-server";
+import { API_TOKEN, startObsel } from "./obsel-server";
 import type { ObselServer } from "./obsel-server";
 import {
   requireDataHub,
@@ -169,7 +169,7 @@ function runTask(options: { root: string; env?: Record<string, string> }): RunTa
     cwd: REPO,
     encoding: "utf8",
     maxBuffer: 10 * 1024 * 1024,
-    env: { ...process.env, OBSEL_FLOW_ID: FLOW_ID, ...options.env },
+    env: { ...process.env, OBSEL_FLOW_ID: FLOW_ID, OBSEL_API_TOKEN: API_TOKEN, ...options.env },
   });
   const text = `${out.stdout ?? ""}`.trim();
   if (!text) {

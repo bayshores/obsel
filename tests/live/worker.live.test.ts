@@ -33,7 +33,7 @@ import { join } from "node:path";
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
-import { startObsel } from "./obsel-server";
+import { API_TOKEN, startObsel } from "./obsel-server";
 import type { ObselServer } from "./obsel-server";
 import { requireDataHub, requireStaleTag, requireUvx } from "./reachable";
 
@@ -73,7 +73,9 @@ function python(body: string): string {
   return execFileSync("python3", ["-c", script], {
     cwd: REPO,
     encoding: "utf8",
-    env: { ...process.env, OBSEL_URL: obselServer.url },
+    // The token explicitly, not inherited: the child reads its own environment,
+    // and the suite's server was started with exactly this value.
+    env: { ...process.env, OBSEL_URL: obselServer.url, OBSEL_API_TOKEN: API_TOKEN },
   }).trim();
 }
 

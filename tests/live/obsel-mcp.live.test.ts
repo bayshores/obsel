@@ -36,7 +36,7 @@ import {
 } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { startObsel, type ObselServer } from "./obsel-server";
+import { API_TOKEN, startObsel, type ObselServer } from "./obsel-server";
 import { requireDataHub, requireObselMcpEnv, requireStaleTag, requireUvx } from "./reachable";
 
 const { readTask } = await import("@/src/server/datahub/client");
@@ -81,7 +81,12 @@ async function connect(obselUrl: string): Promise<Client> {
     command: python,
     args: ["-m", "agents.mcp_server"],
     cwd: REPO,
-    env: { ...getDefaultEnvironment(), OBSEL_URL: obselUrl, OBSEL_FLOW_ID: FLOW_ID },
+    env: {
+      ...getDefaultEnvironment(),
+      OBSEL_URL: obselUrl,
+      OBSEL_FLOW_ID: FLOW_ID,
+      OBSEL_API_TOKEN: API_TOKEN,
+    },
   });
   await client.connect(transport, { timeout: 60_000 });
   clients.push(client);

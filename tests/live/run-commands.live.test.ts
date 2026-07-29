@@ -35,7 +35,7 @@ import { join } from "node:path";
 
 import { beforeAll, describe, expect, it } from "vitest";
 
-import { startObsel } from "./obsel-server";
+import { API_TOKEN, startObsel } from "./obsel-server";
 import type { ObselServer } from "./obsel-server";
 import { requireDataHub, requireStaleTag, requireUvx } from "./reachable";
 
@@ -69,7 +69,7 @@ function run(args: string[], env: Record<string, string> = {}): Ran {
   const result = spawnSync("python3", ["-m", "agents.run", ...args], {
     cwd: REPO,
     encoding: "utf8",
-    env: { ...process.env, OBSEL_FLOW_ID: FLOW_ID, ...env },
+    env: { ...process.env, OBSEL_FLOW_ID: FLOW_ID, OBSEL_API_TOKEN: API_TOKEN, ...env },
   });
   return {
     code: result.status ?? -1,
@@ -89,7 +89,7 @@ function callCommand(body: string): Ran {
   const result = spawnSync("python3", ["-c", script], {
     cwd: REPO,
     encoding: "utf8",
-    env: { ...process.env, OBSEL_FLOW_ID: FLOW_ID },
+    env: { ...process.env, OBSEL_FLOW_ID: FLOW_ID, OBSEL_API_TOKEN: API_TOKEN },
   });
   return {
     code: result.status ?? -1,

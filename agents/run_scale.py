@@ -99,6 +99,7 @@ def cmd_scale_register(args: argparse.Namespace) -> int:
                 "title": task.title,
             },
             timeout=worker.MUTATION_TIMEOUT,
+            headers=worker.auth_headers(),
         )
         expected = scale.task_urn(task.name)
         if record.get("urn") != expected:

@@ -78,6 +78,7 @@ def cmd_register(args: argparse.Namespace) -> int:
             },
             # A registration is a mutation: entity, edges, and confirms.
             timeout=worker.MUTATION_TIMEOUT,
+            headers=worker.auth_headers(),
         )
         elapsed = (time.perf_counter() - started) * 1000
 
@@ -548,7 +549,7 @@ def cmd_reset(args: argparse.Namespace, root: Path = REPO_ROOT) -> int:
     # against a table this machine no longer has.
     url = f"{args.obsel_url}/api/demo/reset"
     try:
-        reply = worker.post_json(url, {})
+        reply = worker.post_json(url, {}, headers=worker.auth_headers())
     except RuntimeError as error:
         print(f"  FAILED to reset obsel's task state: {error}")
         print("  Nothing local was touched, so the two halves still agree. Fix obsel and")

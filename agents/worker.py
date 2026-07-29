@@ -59,6 +59,7 @@ from agents.obsel_client import (  # noqa: F401
     OBSEL_URL,
     abandon_run,
     announce_start,
+    auth_headers,
     get_json,
     has_recorded_output,
     obsel_task,

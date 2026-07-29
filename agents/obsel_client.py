@@ -13,9 +13,60 @@ import json
 import os
 import urllib.error
 import urllib.request
+from pathlib import Path
 from typing import Any
 
 OBSEL_URL = os.environ.get("OBSEL_URL", "http://localhost:3000")
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+
+
+def auth_headers() -> dict[str, str]:
+    """The Authorization header for obsel's mutating routes, or nothing.
+
+    obsel's task, demo and erasure mutations all require a bearer token,
+    `OBSEL_API_TOKEN`. Read per call rather than once at import, so a token set
+    after this module loaded is still found.
+
+    Two places are consulted, in order:
+
+    - The environment. Server-spawned agents get it this way: `launcher.ts` and
+      `reporter.ts` spread the server's own environment into their children.
+    - `.env.local` at the repository root. `scripts/start.sh` generates the
+      token into that file, and nothing sources it into an operator's shell, so
+      the documented terminal path (`python -m agents.run ...` in a fresh
+      window) would otherwise break the moment the routes were gated. The token
+      is already on disk in that file; reading it leaks nothing new.
+
+    When neither holds one, the answer is no header at all, not an error. The
+    server's refusal names the variable and says what to do, and that sentence
+    is the authoritative one -- a second copy of it here would drift.
+    """
+    token = os.environ.get("OBSEL_API_TOKEN", "").strip()
+    if not token:
+        token = _env_local_token()
+    return {"Authorization": f"Bearer {token}"} if token else {}
+
+
+def _env_local_token(path: Path = REPO_ROOT / ".env.local") -> str:
+    """`OBSEL_API_TOKEN` from the settings file, or empty.
+
+    A deliberately narrow reader: one key, `KEY=value` lines only, first match
+    wins, quotes stripped. Anything unreadable is treated as no token, because
+    the failure that matters -- no usable token -- is answered by the server's
+    own refusal either way.
+    """
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return ""
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not stripped.startswith("OBSEL_API_TOKEN="):
+            continue
+        value = stripped.split("=", 1)[1].strip()
+        return value.strip("\"'")
+    return ""
 
 
 
@@ -54,11 +105,10 @@ def post_json(
 ) -> Any:
     """POST JSON to obsel and return the parsed reply.
 
-    `headers` is additive and optional: the swarm routes are unauthenticated and
-    every existing caller passes nothing. The erasure routes want a bearer token,
-    and it belongs on the call rather than in this module's own configuration,
-    because a worker holding a credential it never uses is a credential waiting
-    to leak into a log.
+    `headers` is additive and optional. Every mutating route wants the bearer
+    token from `auth_headers()`, and it belongs on the call rather than baked in
+    here, because this function is also how reads are made and a credential sent
+    where none is needed is a credential waiting to leak into a log.
     """
     return _send(
         urllib.request.Request(
@@ -143,7 +193,7 @@ MUTATION_TIMEOUT = 300.0
 def announce_start(task_urn: str, obsel_url: str = OBSEL_URL) -> Any:
     """Tell obsel this agent has begun. Work in flight is never marked stale."""
     return post_json(f"{obsel_url}/api/tasks/start", {"taskUrn": task_urn},
-                     timeout=MUTATION_TIMEOUT)
+                     timeout=MUTATION_TIMEOUT, headers=auth_headers())
 
 
 def abandon_run(task_urn: str, obsel_url: str = OBSEL_URL) -> Any:
@@ -155,7 +205,7 @@ def abandon_run(task_urn: str, obsel_url: str = OBSEL_URL) -> Any:
     negative, which is the one answer obsel must never give.
     """
     return post_json(f"{obsel_url}/api/tasks/abandon", {"taskUrn": task_urn},
-                     timeout=MUTATION_TIMEOUT)
+                     timeout=MUTATION_TIMEOUT, headers=auth_headers())
 
 
 def report_completion(
@@ -193,4 +243,7 @@ def report_completion(
         body["run"] = run
     if inputs is not None:
         body["inputs"] = inputs
-    return post_json(f"{obsel_url}/api/tasks/complete", body, timeout=MUTATION_TIMEOUT)
+    return post_json(
+        f"{obsel_url}/api/tasks/complete", body, timeout=MUTATION_TIMEOUT,
+        headers=auth_headers(),
+    )
