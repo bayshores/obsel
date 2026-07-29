@@ -72,6 +72,30 @@ async function connect(): Promise<Client> {
       // rather than per call.
       TOOLS_IS_MUTATION_ENABLED: "true",
       TOOLS_IS_USER_ENABLED: "true",
+      /*
+       * Off because it is the difference between a tag write taking seconds and
+       * taking most of three minutes, measured on 2026-07-28.
+       *
+       * On startup the server POSTs to `track.datahubproject.io` twice, at
+       * `/mp/engage` and `/mp/track`. Where that host is unreachable -- a
+       * firewall, an offline demo, a locked-down network -- each POST times out
+       * after 10 s and urllib3 retries it four times, and the server does not
+       * answer `initialize` until all of it has drained. Measured directly, same
+       * command, same machine, one variable changed:
+       *
+       *   telemetry on   162.5 s to answer `initialize`, at 0% CPU
+       *   telemetry off    2.5 s
+       *
+       * obsel felt this everywhere its marks are recorded, because this client is
+       * how every one of them is written: a cascade that decided in 105 ms
+       * reported 162.8 s end to end, and `pnpm test:live` paid it once per file.
+       * The number on the board was real and it was almost entirely a telemetry
+       * timeout, which is the worst kind of measurement to publish.
+       *
+       * Not a judgement about the telemetry, and reversible: DataHub documents
+       * this variable, and nothing here reads or reports what it would have sent.
+       */
+      DATAHUB_TELEMETRY_ENABLED: "false",
     },
     stderr: "pipe",
   });

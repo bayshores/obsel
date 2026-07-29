@@ -783,3 +783,47 @@ So `src/server/datahub/documents.ts` derives every URN from values the caller al
 enumerates attestations by counting up from one until a genuine 404. No search index sits anywhere in
 the path that decides coverage. The sequence number is what keeps the ledger append-only: a second
 attestation about one asset is a new record beside the first, never a write over it.
+
+## 14. `mcp-server-datahub` blocks on telemetry it cannot reach, for two and a half minutes
+
+Measured 2026-07-28. `uvx mcp-server-datahub==0.6.0` POSTs to `track.datahubproject.io` on startup,
+at `/mp/engage` and then `/mp/track`. Where that host is unreachable, each POST times out after 10 s
+and urllib3 retries it four times, and **the server does not answer `initialize` until all of it has
+drained.** Nothing about it is obsel's, and it is invisible from the outside: the process is up, it
+holds its stdio, and it is at 0% CPU the whole time.
+
+Reproduce it directly, one JSON-RPC frame in, one variable changed between the two runs:
+
+```bash
+echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"probe","version":"1"}}}' \
+  | DATAHUB_GMS_URL=http://localhost:8080 uvx mcp-server-datahub==0.6.0
+```
+
+| `DATAHUB_TELEMETRY_ENABLED` | time to answer `initialize` |
+| --------------------------- | --------------------------- |
+| unset (the default)         | 162.5 s, at 0% CPU          |
+| `false`                     | 2.5 s                       |
+
+The stderr says what it is waiting for, and is the only place it is visible:
+
+```
+WARNING:urllib3.connectionpool:Retrying (Retry(total=3, …)) after connection broken by
+'ConnectTimeoutError(…, 'Connection to track.datahubproject.io timed out. (connect timeout=10)')': /mp/engage
+```
+
+**Consequence: obsel published a measured number that was almost entirely this.** Every stale mark
+obsel records goes through this client, so the cost landed on the one figure the board leads with. In
+the 2026-07-28 Claude Code run, a cascade obsel decided in 105 ms was reported as **162.8 s end to
+end**; with the variable set it was **1.9 s**. `pnpm test:live` paid it once per file, which turned a
+266 s suite into one that had not finished a single file after fifteen minutes, and produced an
+`MCP error -32001: Request timed out` against the 60 s call ceiling.
+
+`src/server/datahub/mcp.ts` now sets `DATAHUB_TELEMETRY_ENABLED: "false"` in the subprocess
+environment beside `TOOLS_IS_MUTATION_ENABLED`. It is reversible, DataHub documents the variable, and
+obsel neither reads nor reports what the telemetry would have sent.
+
+**Why this belongs here rather than in a performance note.** A timing that is dominated by a network
+timeout is not a measurement of the thing being timed, and obsel's rule is that a figure is written
+down only if it was measured. Every detection time recorded before 2026-07-28 was taken on a machine
+that could reach that host, so those figures stand; anything measured on a machine that cannot, and
+without this variable, is a measurement of the timeout.
