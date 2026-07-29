@@ -674,7 +674,9 @@ async function decideObservation(
     emit(
       "compare",
       `checked ${tableLabel(dataset)}`,
-      writers.length > 0 ? "its writer has not finished, nothing to compare" : "nothing here writes it",
+      writers.length > 0
+        ? "its writer has not finished, nothing to compare"
+        : "nothing here writes it",
     );
     return { dataset, verdict: "no-record", affected: [], elapsedMs: Date.now() - startedAt };
   }
@@ -743,7 +745,10 @@ async function decideObservation(
     `walked lineage from ${tableLabel(dataset)}`,
     affected.length === 0
       ? "nothing finished downstream"
-      : affected.map((entry) => `${label(entry.task)} (${hops(entry.mark.hops)})`).sort().join(", "),
+      : affected
+          .map((entry) => `${label(entry.task)} (${hops(entry.mark.hops)})`)
+          .sort()
+          .join(", "),
   );
 
   await markAllStale(affected);

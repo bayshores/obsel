@@ -146,33 +146,34 @@ and type-checks, not a plan.
 
 ### Where each piece lives
 
-| Piece                                                                          | Where                                                                    |
-| ------------------------------------------------------------------------------ | ------------------------------------------------------------------------ |
-| A task is a `DataJob` with real lineage edges                                  | `agents/graph.py`, `src/server/datahub/urns.ts`                          |
-| Output fingerprinting, schema and content separately                           | `agents/fingerprint.py`                                                  |
-| The staleness rules, pure and testable                                         | `src/server/coordinator/staleness.ts`                                    |
-| Marks written back into DataHub                                                | `src/server/coordinator/engine.ts`, `src/server/datahub/mcp.ts`          |
-| Four demo agent workers, each a real Codex session                             | `agents/worker.py`, `agents/run.py`                                      |
-| The agent output contract, names and number form                               | `agents/tables.py` (`canonicalise_numbers`), with a self-check           |
-| The page: graph, headline, stats, step log, details                            | `app/page.tsx`, `src/features/dashboard/`                                |
-| Live agent progress on the page                                                | `src/features/dashboard/progress.ts`                                     |
-| The guide: stage derived from live state, buttons that launch the real steps   | `src/features/dashboard/guide.ts`, `guide-panel.tsx`                     |
-| The demo runner: spawns `agents.run` steps, checks the machine's prerequisites | `src/server/runner/`                                                     |
-| Each task's job, stored on its DataJob in DataHub and read back onto the page  | `agents/pipeline.py`, `src/server/datahub/client.ts`                     |
-| The stale tag read back off the entity, and counted on the page                | `src/server/datahub/tags.ts`, `src/features/dashboard/timing.ts`         |
-| A link from any task to its real page in DataHub's UI                          | `src/features/dashboard/datahub-link.ts`, `inspector.tsx`                |
-| The restoration rule: which flags an identical redo provably clears            | `restoredBy` in `src/server/coordinator/staleness.ts`                    |
-| Every change that broke a task, not only the nearest                           | `causes` on `StaleMark`, `mergeMark` in `staleness.ts`, `obsel.stale.causes` |
-| Columns a task registers as meaningless, excluded from its content hash        | `exclude` in `agents/fingerprint.py`, `obsel.volatile`, `volatile_by_dataset` |
-| A door for feeds that never report: an observation of a table's contents       | `POST /api/datasets/observe`, `coordinateObservation`, `agents/observe.py`   |
-| The repair loop: flagged work redone in order, restored work skipped           | `cmd_repair` in `agents/run_demo.py`, the guide's leading flagged action |
-| The repair order derived for any caller, on `/api/swarm` and over MCP          | `src/server/coordinator/rerun.ts`, `rerun_plan` in `agents/mcp_server.py` |
-| The joining panel and its four derived steps                                   | `joining.ts`, `joining-panel.tsx`, `joinCommand` on `/api/demo/activity` |
-| Registering your own task from the page, wired into DataHub                    | `mine.ts`, `mine-panel.tsx`, over the agents' own `/api/tasks/register`  |
-| The two animated captures and the script that takes them                       | `docs/images/*.gif`, `scripts/record.mjs`                                |
-| The mark in the header and the browser tab icon                                | `src/features/dashboard/mark.tsx`, `mark-geometry.ts`, `app/icon.svg`    |
-| The header lockup, and the name it reveals on hover                            | `src/features/dashboard/brand.tsx`, `brand.module.css`                   |
-| HTTP API, fifteen routes in three groups                                      | `app/api/`, see [`docs/architecture.md`](architecture.md) section 11     |
+| Piece                                                                            | Where                                                                          |
+| -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| A task is a `DataJob` with real lineage edges                                    | `agents/graph.py`, `src/server/datahub/urns.ts`                                |
+| Output fingerprinting, schema and content separately                             | `agents/fingerprint.py`                                                        |
+| The staleness rules, pure and testable                                           | `src/server/coordinator/staleness.ts`                                          |
+| Marks written back into DataHub                                                  | `src/server/coordinator/engine.ts`, `src/server/datahub/mcp.ts`                |
+| Four demo agent workers, each a real Codex session                               | `agents/worker.py`, `agents/run.py`                                            |
+| The agent output contract, names and number form                                 | `agents/tables.py` (`canonicalise_numbers`), with a self-check                 |
+| The page: graph, headline, stats, step log, details                              | `app/page.tsx`, `src/features/dashboard/`                                      |
+| Live agent progress on the page                                                  | `src/features/dashboard/progress.ts`                                           |
+| The guide: stage derived from live state, buttons that launch the real steps     | `src/features/dashboard/guide.ts`, `guide-panel.tsx`                           |
+| The demo runner: spawns `agents.run` steps, checks the machine's prerequisites   | `src/server/runner/`                                                           |
+| Each task's job, stored on its DataJob in DataHub and read back onto the page    | `agents/pipeline.py`, `src/server/datahub/client.ts`                           |
+| The stale tag read back off the entity, and counted on the page                  | `src/server/datahub/tags.ts`, `src/features/dashboard/timing.ts`               |
+| A link from any task to its real page in DataHub's UI                            | `src/features/dashboard/datahub-link.ts`, `inspector.tsx`                      |
+| The restoration rule: which flags an identical redo provably clears              | `restoredBy` in `src/server/coordinator/staleness.ts`                          |
+| Every change that broke a task, not only the nearest                             | `causes` on `StaleMark`, `mergeMark` in `staleness.ts`, `obsel.stale.causes`   |
+| Columns a task registers as meaningless, excluded from its content hash          | `exclude` in `agents/fingerprint.py`, `obsel.volatile`, `volatile_by_dataset`  |
+| A door for feeds that never report: an observation of a table's contents         | `POST /api/datasets/observe`, `coordinateObservation`, `agents/observe.py`     |
+| Coverage carried through a compaction that rewrote an asset from its own version | the self-rebuild branch in `residueFromOneRebuild`, `docs/erasure-coverage.md` |
+| The repair loop: flagged work redone in order, restored work skipped             | `cmd_repair` in `agents/run_demo.py`, the guide's leading flagged action       |
+| The repair order derived for any caller, on `/api/swarm` and over MCP            | `src/server/coordinator/rerun.ts`, `rerun_plan` in `agents/mcp_server.py`      |
+| The joining panel and its four derived steps                                     | `joining.ts`, `joining-panel.tsx`, `joinCommand` on `/api/demo/activity`       |
+| Registering your own task from the page, wired into DataHub                      | `mine.ts`, `mine-panel.tsx`, over the agents' own `/api/tasks/register`        |
+| The two animated captures and the script that takes them                         | `docs/images/*.gif`, `scripts/record.mjs`                                      |
+| The mark in the header and the browser tab icon                                  | `src/features/dashboard/mark.tsx`, `mark-geometry.ts`, `app/icon.svg`          |
+| The header lockup, and the name it reveals on hover                              | `src/features/dashboard/brand.tsx`, `brand.module.css`                         |
+| HTTP API, fifteen routes in three groups                                         | `app/api/`, see [`docs/architecture.md`](architecture.md) section 11           |
 
 **Added 2026-07-23, the reader-side cross-check.** obsel's trigger is an agent reporting, so a
 process that rewrites a shared table and never reports was invisible, and the silence read as "all
@@ -203,6 +204,28 @@ answer to a reader who cannot tell what "table" refers to. The writer's file loc
 display-only `path` on the run detail; nothing decides on it.
 
 ## Verified directly
+
+### The token gate, and the demo path through it (2026-07-29)
+
+Measured on this machine against a real DataHub, because the change most at risk of breaking the
+judge's path was the one that gates the routes the demo's agents call.
+
+`scripts/start.sh`'s new generation block was run by hand into a `.env.local` whose
+`OBSEL_API_TOKEN=` line was empty, then `pnpm dev` restarted so Next reloaded it. Before the token
+existed, pressing **Change one agent's instructions** on the board returned 200 from
+`/api/demo/launch` and the spawned step died in **369 ms** with
+`http://localhost:3000/api/tasks/start returned 503`, naming the variable — the failure mode the
+gate is supposed to produce for an unconfigured deployment. With the token generated and nothing
+typed anywhere, the same button ran the step to completion: **exit 0 in 47.7 s**, a real
+`codex-cli 0.144.4` session doing the work in 44.4 s, `clean_orders` rewritten with
+`order_total_usd`, and obsel marking **3 finished tasks stale in 2647 ms** — `build_revenue` at one
+hop, `write_report` and `write_docs` at two, neither of which ever read `clean_orders`.
+
+What this establishes: the agents inherit the token from the server's environment without an
+operator handling it, and the board's own buttons stay reachable because `register`, `report` and
+the two demo routes are deliberately ungated. What it does not: the branch that leaves an existing
+non-empty token alone, and the three new live test files, both recorded under
+[`coverage.md`](coverage.md)'s "Not covered".
 
 - **The staleness rules**, by 65 deterministic tests in `tests/staleness.test.ts`. About half assert
   that nothing happens, which is deliberate, because the failure that kills this kind of tool is a

@@ -207,15 +207,15 @@ that somebody finds out when it goes wrong.
 
 ## The tools
 
-| Tool                                                       | When                                                       |
-| ---------------------------------------------------------- | ---------------------------------------------------------- |
-| `check_freshness(reads)`                                   | before any work, on every table you will read              |
-| `register_task(name, reads, writes, title?, description?, volatile?)` | once, to declare your lineage                              |
-| `announce_start(taskUrn)`                                  | before you write anything                                  |
-| `report_complete(taskUrn, outputs, inputs?, runner?, ms?)` | when you are done, whether or not anything changed         |
-| `abandon_task(taskUrn)`                                    | if you announced and then failed                           |
-| `read_board()`                                             | to see who else is in the swarm and what state they are in |
-| `rerun_plan()`                                             | when work is flagged, to learn what to redo and in what order |
+| Tool                                                                  | When                                                          |
+| --------------------------------------------------------------------- | ------------------------------------------------------------- |
+| `check_freshness(reads)`                                              | before any work, on every table you will read                 |
+| `register_task(name, reads, writes, title?, description?, volatile?)` | once, to declare your lineage                                 |
+| `announce_start(taskUrn)`                                             | before you write anything                                     |
+| `report_complete(taskUrn, outputs, inputs?, runner?, ms?)`            | when you are done, whether or not anything changed            |
+| `abandon_task(taskUrn)`                                               | if you announced and then failed                              |
+| `read_board()`                                                        | to see who else is in the swarm and what state they are in    |
+| `rerun_plan()`                                                        | when work is flagged, to learn what to redo and in what order |
 
 `check_freshness`, `read_board` and `rerun_plan` only read. The other four write, and everything they
 write goes through obsel's own API, which is what makes the rules in obsel's staleness

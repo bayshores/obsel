@@ -408,6 +408,111 @@ describe("two attestors answering at the same instant", () => {
   }, 300_000);
 });
 
+describe("a compaction that rewrote an asset from its own prior version", () => {
+  /*
+   * The churn the self-rebuild rule exists for, exercised end to end.
+   *
+   * `CUSTOMERS` is a source table: DataHub records no upstream lineage for it,
+   * so an ordinary rebuild attestation is refused with `no-recorded-lineage` —
+   * there is nothing to cross-check a declared input set against. That makes it
+   * the sharpest demonstration available on this catalog: without the carve-out
+   * every compaction of a source table is permanently unattestable, and the
+   * asset falls back to unattested every time the warehouse tidies its files.
+   *
+   * The rule is in `docs/erasure-coverage.md` under "Self-rebuild", written
+   * before this test and before the kernel change.
+   */
+  it("carries coverage to the new version, and refuses one built on an unattested version", async () => {
+    // What stands right now, read rather than assumed: the tests above have
+    // added attestations over time and the newest names the current version.
+    const before = await api(`/api/erasure/${REQUEST}`, { method: "GET" });
+    const standing = rowFor(before.body, CUSTOMERS);
+    expect(standing?.state).toBe("ATTESTED");
+    const attestedVersion = standing?.version as string;
+    expect(attestedVersion).toBeTruthy();
+
+    const compacted = `${attestedVersion}-compacted`;
+
+    const challenge = await api("/api/erasure/challenge", {
+      method: "POST",
+      body: JSON.stringify({ request: REQUEST, asset: CUSTOMERS }),
+    });
+    expect(challenge.status).toBe(200);
+
+    const signed = signAttestation(
+      {
+        kind: "rebuild",
+        request: REQUEST,
+        asset: CUSTOMERS,
+        version: compacted,
+        materialization: "full",
+        soleProducer: true,
+        // The whole claim: nothing entered this version except the version that
+        // was already attested. No new rows, no other table.
+        inputs: [{ asset: CUSTOMERS, version: attestedVersion }],
+        attestor: ATTESTOR,
+        signatureVerified: false,
+        at: new Date().toISOString(),
+        nonce: challenge.body.nonce as string,
+      },
+      PRIVATE_PEM,
+      KEY_ID,
+    );
+
+    const accepted = await api("/api/erasure/proof", {
+      method: "POST",
+      body: JSON.stringify({ request: REQUEST, envelope: signed }),
+    });
+    expect(accepted.status).toBe(200);
+    expect(accepted.body.accepted).toBe(true);
+
+    const report = accepted.body.report as Record<string, unknown>;
+    const row = rowFor(report, CUSTOMERS);
+    // The version moved, and the coverage came with it.
+    expect(row?.version).toBe(compacted);
+    expect(row?.state).toBe("ATTESTED");
+    expect(row?.explanation).not.toContain("proven");
+
+    /*
+     * And the other half, which is what stops the carve-out being a hole: a
+     * second compaction declaring a version nobody ever attested inherits
+     * nothing, however well signed it is.
+     */
+    const nextChallenge = await api("/api/erasure/challenge", {
+      method: "POST",
+      body: JSON.stringify({ request: REQUEST, asset: CUSTOMERS }),
+    });
+    const ungrounded = signAttestation(
+      {
+        kind: "rebuild",
+        request: REQUEST,
+        asset: CUSTOMERS,
+        version: `${compacted}-again`,
+        materialization: "full",
+        soleProducer: true,
+        inputs: [{ asset: CUSTOMERS, version: "a-version-nobody-attested" }],
+        attestor: ATTESTOR,
+        signatureVerified: false,
+        at: new Date().toISOString(),
+        nonce: nextChallenge.body.nonce as string,
+      },
+      PRIVATE_PEM,
+      KEY_ID,
+    );
+
+    const refused = await api("/api/erasure/proof", {
+      method: "POST",
+      body: JSON.stringify({ request: REQUEST, envelope: ungrounded }),
+    });
+    // The signature is real, so the record is accepted into the ledger; what
+    // fails is the coverage it claims, which is the kernel's decision.
+    expect(refused.status).toBe(200);
+    const after = rowFor(refused.body.report as Record<string, unknown>, CUSTOMERS);
+    expect(after?.state).toBe("UNPROVEN");
+    expect(after?.explanation).toContain("rewritten from its own version");
+  }, 300_000);
+});
+
 describe("a key reported compromised takes its coverage back", () => {
   it("returns the asset to unattested, with no data having changed", async () => {
     /*

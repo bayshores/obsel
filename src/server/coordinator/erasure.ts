@@ -504,22 +504,57 @@ function residueFromOneRebuild(
     reasons.push({ kind: "not-sole-producer" });
   }
 
-  // CLOSED, checked against DataHub's recorded lineage rather than taken on
-  // trust. Declaring MORE than the catalog knows is allowed and is in fact
-  // stricter, because every declared input must then itself be attested;
-  // declaring LESS is a detectable inconsistency and is refused. Without this,
-  // an attestor could drop an unclean upstream from its declaration and the
-  // universal quantifier below would pass over a set chosen to make it pass.
-  const recorded = input.recordedUpstream[asset] ?? [];
-  if (recorded.length === 0) {
-    // Nothing to cross-check against. A rebuild claim over an asset whose
-    // lineage the catalog does not record cannot be verified as closed, and
-    // accepting it would be trusting the declaration on its own word.
-    reasons.push({ kind: "no-recorded-lineage" });
-  } else {
-    const declared = new Set(record.inputs.map((entry) => entry.asset));
-    const undeclared = recorded.filter((upstream) => !declared.has(upstream)).sort();
-    if (undeclared.length > 0) reasons.push({ kind: "closure-mismatch", undeclared });
+  /*
+   * A SELF-REBUILD: this version was built from exactly one input, an earlier
+   * version of this same asset. Compaction, vacuum, optimize — the maintenance a
+   * table format performs on itself.
+   *
+   * **This looks like a hole and is not.** The CLOSED check below exists to stop
+   * an attestor narrowing its declared inputs to dodge an unclean upstream. A
+   * self-rebuild declares that nothing entered this version except the previous
+   * version of the same asset, which is the strongest claim about inputs
+   * available, not the weakest. Upstream accounting is inherited rather than
+   * skipped: `V_prev` must itself be ATTESTED, recursively, down to a direct
+   * check — enforced by the per-input loop below, which needs no exception.
+   *
+   * What it does skip is the cross-check against `recordedUpstream`, and only
+   * because that describes how this asset is normally built FROM OTHER TABLES,
+   * which is a claim about a different write than this one. DataHub rarely
+   * records a self-edge, so demanding one would refuse every honest compaction
+   * on a real catalog and leave an estate under ordinary maintenance permanently
+   * unattested. `docs/erasure-coverage.md` walks the six cases.
+   *
+   * **The predicate is deliberately narrow, and this is the line a future reader
+   * will want to move.** Do not. A rebuild declaring the prior version PLUS
+   * fresh inputs is an ordinary rebuild and gets the full cross-check, with the
+   * self-edge as one more input that must be attested. And `version !== record.version`
+   * is what stops an attestation explaining itself: an input naming its own
+   * version can only be promoted by evidence requiring it to already be
+   * promoted, which the least fixpoint below never does.
+   */
+  const selfRebuild =
+    record.inputs.length === 1 &&
+    record.inputs[0].asset === asset &&
+    record.inputs[0].version !== record.version;
+
+  if (!selfRebuild) {
+    // CLOSED, checked against DataHub's recorded lineage rather than taken on
+    // trust. Declaring MORE than the catalog knows is allowed and is in fact
+    // stricter, because every declared input must then itself be attested;
+    // declaring LESS is a detectable inconsistency and is refused. Without this,
+    // an attestor could drop an unclean upstream from its declaration and the
+    // universal quantifier below would pass over a set chosen to make it pass.
+    const recorded = input.recordedUpstream[asset] ?? [];
+    if (recorded.length === 0) {
+      // Nothing to cross-check against. A rebuild claim over an asset whose
+      // lineage the catalog does not record cannot be verified as closed, and
+      // accepting it would be trusting the declaration on its own word.
+      reasons.push({ kind: "no-recorded-lineage" });
+    } else {
+      const declared = new Set(record.inputs.map((entry) => entry.asset));
+      const undeclared = recorded.filter((upstream) => !declared.has(upstream)).sort();
+      if (undeclared.length > 0) reasons.push({ kind: "closure-mismatch", undeclared });
+    }
   }
 
   // Every declared input must itself be covered, at the version this run
@@ -592,7 +627,16 @@ export function reasonSentence(reason: ResidueReason | undefined, table: string)
     case "closure-mismatch":
       return `the rebuild did not declare ${reason.undeclared.map(assetLabel).join(", ")}, which DataHub records as feeding it`;
     case "unattested-input":
-      return `it was built from ${assetLabel(reason.input)} at version ${reason.version}, which is itself unattested`;
+      /*
+       * A self-rebuild names the asset as its own input, and the generic
+       * sentence then reads "clean orders was built from clean orders", which
+       * looks like a bug in obsel rather than the fact it is. Both callers pass
+       * this asset's own label as `table`, so the two cases are distinguishable
+       * here without the formatter needing to know about rebuild kinds.
+       */
+      return assetLabel(reason.input) === table
+        ? `it was rewritten from its own version ${reason.version}, which is itself unattested`
+        : `it was built from ${assetLabel(reason.input)} at version ${reason.version}, which is itself unattested`;
     case "predicate-gap":
       return `nobody searched for ${reason.missing.join(", ")}`;
     case "unverified-signature":

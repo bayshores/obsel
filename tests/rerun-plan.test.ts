@@ -149,10 +149,7 @@ describe("rerunPlan — what to redo first", () => {
      * which tasks it involves.
      */
     const plan = rerunPlan(
-      snapshot([
-        task("a", ["from_b"], ["from_a"]),
-        task("b", ["from_a"], ["from_b"]),
-      ]),
+      snapshot([task("a", ["from_b"], ["from_a"]), task("b", ["from_a"], ["from_b"])]),
     );
 
     expect(plan.waves).toEqual([]);

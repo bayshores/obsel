@@ -1153,9 +1153,7 @@ describe("mergeMark — a second cascade onto already-flagged work", () => {
       reason: `read ${origin}, and its rows changed after this finished`,
       since: NOW,
       detectedMs: null,
-      causes: [
-        { causedBy: ds(origin), causedByTask: null, hops, changeKind: kind, since: NOW },
-      ],
+      causes: [{ causedBy: ds(origin), causedByTask: null, hops, changeKind: kind, since: NOW }],
     };
   }
 

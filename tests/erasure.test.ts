@@ -564,3 +564,214 @@ describe("what the report leads with", () => {
     expect(coverage.map((entry) => entry.asset).sort()).toEqual([CUSTOMERS, DETAILS].sort());
   });
 });
+
+describe("self-rebuild: compaction, vacuum, and the churn they cause", () => {
+  /*
+   * The rule these exercise is in `docs/erasure-coverage.md` under "Self-rebuild".
+   * It was written there first, and every case below is one of its rows.
+   *
+   * Why it exists: an attestation binds to a version, so every write reopens
+   * every obligation — including the writes a table format performs on itself
+   * for reasons that have nothing to do with the data. Under ordinary
+   * maintenance an estate converges to everything-UNPROVEN and the report stops
+   * being read, which is the same outcome as having no rule at all.
+   */
+
+  /** `DETAILS` at v2, rebuilt from nothing but its own v1. */
+  function compaction(over: Partial<RebuildAttestation> = {}): RebuildAttestation {
+    return rebuild({
+      version: "v2",
+      inputs: [{ asset: DETAILS, version: "v1" }],
+      at: "2026-07-27T02:00:00.000Z",
+      ...over,
+    });
+  }
+
+  /** v1 of DETAILS explained the ordinary way, so a chain has ground to stand on. */
+  function groundedAtV1(): RebuildAttestation[] {
+    return [rebuild()];
+  }
+
+  it("11. carries coverage forward through an honest compaction", () => {
+    /*
+     * Total, sole producer, signed, and its one declared input is the version
+     * that was attested. Nothing entered v2 that was not already accounted for
+     * in v1, which is a stronger claim about inputs than any ordinary rebuild
+     * makes — so refusing it would demand re-attestation of a fact already on
+     * file, which is the fatigue the rule exists to reduce.
+     */
+    const coverage = coverageFor(
+      input({
+        currentVersion: { [CUSTOMERS]: "v1", [DETAILS]: "v2" },
+        attestations: [direct(), ...groundedAtV1(), compaction()],
+      }),
+    );
+
+    expect(stateOf(coverage, DETAILS)).toBe("ATTESTED");
+    expect(residueKinds(coverage, DETAILS)).toEqual([]);
+  });
+
+  it("11b. does so without any recorded self-lineage, which no catalog holds", () => {
+    // The carve-out's whole point. DataHub records how a table is built from
+    // OTHER tables; demanding a self-edge would refuse every honest compaction.
+    const coverage = coverageFor(
+      input({
+        currentVersion: { [CUSTOMERS]: "v1", [DETAILS]: "v2" },
+        recordedUpstream: { [CUSTOMERS]: [], [DETAILS]: [CUSTOMERS] },
+        attestations: [direct(), ...groundedAtV1(), compaction()],
+      }),
+    );
+
+    expect(residueKinds(coverage, DETAILS)).not.toContain("closure-mismatch");
+    expect(residueKinds(coverage, DETAILS)).not.toContain("no-recorded-lineage");
+  });
+
+  it("12. refuses a compaction that also merged new rows", () => {
+    // Not TOTAL, so part of v2 is a portion this run did not write. The
+    // exclusion from the closure check does not weaken any other condition.
+    const coverage = coverageFor(
+      input({
+        currentVersion: { [CUSTOMERS]: "v1", [DETAILS]: "v2" },
+        attestations: [direct(), ...groundedAtV1(), compaction({ materialization: "merge" })],
+      }),
+    );
+
+    expect(stateOf(coverage, DETAILS)).toBe("UNPROVEN");
+    expect(residueKinds(coverage, DETAILS)).toContain("not-total");
+  });
+
+  it("12b. holds a rebuild declaring fresh inputs beside itself to the full check", () => {
+    /*
+     * A mixed input set is NOT a self-rebuild. This is the line a future reader
+     * will want to move, and moving it is how the carve-out becomes a hole: a
+     * self-edge plus a narrowed set of real upstreams would dodge the very
+     * cross-check CLOSED exists for.
+     */
+    const coverage = coverageFor(
+      input({
+        currentVersion: { [CUSTOMERS]: "v1", [DETAILS]: "v2" },
+        // The catalog says ORDERS feeds it too, and the attestation omits it.
+        recordedUpstream: { [CUSTOMERS]: [], [DETAILS]: [CUSTOMERS, ORDERS] },
+        attestations: [
+          direct(),
+          ...groundedAtV1(),
+          compaction({
+            inputs: [
+              { asset: DETAILS, version: "v1" },
+              { asset: CUSTOMERS, version: "v1" },
+            ],
+          }),
+        ],
+      }),
+    );
+
+    expect(stateOf(coverage, DETAILS)).toBe("UNPROVEN");
+    expect(residueKinds(coverage, DETAILS)).toContain("closure-mismatch");
+  });
+
+  it("13. refuses a self-rebuild whose prior version was never attested", () => {
+    // Coverage is inherited through the prior version, so there has to be
+    // something to inherit. Without v1's own explanation there is no ground.
+    const coverage = coverageFor(
+      input({
+        currentVersion: { [CUSTOMERS]: "v1", [DETAILS]: "v2" },
+        attestations: [direct(), compaction()],
+      }),
+    );
+
+    expect(stateOf(coverage, DETAILS)).toBe("UNPROVEN");
+    expect(residueKinds(coverage, DETAILS)).toContain("unattested-input");
+  });
+
+  it("13b. says the asset was rewritten from its own version, not built from itself", () => {
+    // The generic sentence reads "order details was built from order details",
+    // which looks like a defect in obsel rather than the fact it is.
+    const coverage = coverageFor(
+      input({
+        currentVersion: { [CUSTOMERS]: "v1", [DETAILS]: "v2" },
+        attestations: [direct(), compaction()],
+      }),
+    );
+
+    const entry = coverage.find((row) => row.asset === DETAILS);
+    expect(entry?.explanation).toContain("rewritten from its own version v1");
+  });
+
+  it("14. drops a chain whose grounding attestation was retracted", () => {
+    /*
+     * RETRACTED means the claim was never true, unlike SUPERSEDED. So v1's
+     * explanation falls, and with it every later version that inherited from
+     * it — recomputed by the least fixpoint rather than by a special traversal.
+     */
+    const coverage = coverageFor(
+      input({
+        currentVersion: { [CUSTOMERS]: "v1", [DETAILS]: "v3" },
+        attestations: [
+          direct(),
+          rebuild({ retracted: true }),
+          compaction(),
+          compaction({ version: "v3", inputs: [{ asset: DETAILS, version: "v2" }] }),
+        ],
+      }),
+    );
+
+    expect(stateOf(coverage, DETAILS)).toBe("UNPROVEN");
+  });
+
+  it("14b. promotes a whole chain when its ground holds", () => {
+    // The counterpart, and the reason 14 is evidence of anything: v1 direct,
+    // v2 from v1, v3 from v2. Induction over versions, one round each.
+    const coverage = coverageFor(
+      input({
+        currentVersion: { [CUSTOMERS]: "v1", [DETAILS]: "v3" },
+        attestations: [
+          direct(),
+          ...groundedAtV1(),
+          compaction(),
+          compaction({ version: "v3", inputs: [{ asset: DETAILS, version: "v2" }] }),
+        ],
+      }),
+    );
+
+    expect(stateOf(coverage, DETAILS)).toBe("ATTESTED");
+  });
+
+  it("15. refuses a chain signed by a key whose signatures do not verify", () => {
+    // Key invalidation happens before the kernel, arriving here as
+    // `signatureVerified: false`. The chain has no verified ground, so it falls.
+    const coverage = coverageFor(
+      input({
+        currentVersion: { [CUSTOMERS]: "v1", [DETAILS]: "v2" },
+        attestations: [
+          direct(),
+          rebuild({ signatureVerified: false }),
+          compaction({ signatureVerified: false }),
+        ],
+      }),
+    );
+
+    expect(stateOf(coverage, DETAILS)).toBe("UNPROVEN");
+    expect(residueKinds(coverage, DETAILS)).toContain("unverified-signature");
+  });
+
+  it("15b. never promotes a rebuild that declares its own current version as input", () => {
+    /*
+     * The degenerate edge, and the one a greatest fixpoint would certify: the
+     * attestation says v2 was built from v2. Its state starts UNPROVEN and can
+     * only be promoted by evidence requiring it to already be promoted, so the
+     * least fixpoint never moves it. Same failure as case 5, one level down.
+     */
+    const coverage = coverageFor(
+      input({
+        currentVersion: { [CUSTOMERS]: "v1", [DETAILS]: "v2" },
+        attestations: [
+          direct(),
+          ...groundedAtV1(),
+          compaction({ inputs: [{ asset: DETAILS, version: "v2" }] }),
+        ],
+      }),
+    );
+
+    expect(stateOf(coverage, DETAILS)).toBe("UNPROVEN");
+  });
+});

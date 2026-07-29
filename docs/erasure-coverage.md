@@ -119,19 +119,25 @@ affirmative certificate. **The erasure kernel gets its own default and must neve
 
 ## The counterexample table, walked
 
-| #   | Case                                                     | Required     | Rule gives   | Why                                                                   |
-| --- | -------------------------------------------------------- | ------------ | ------------ | --------------------------------------------------------------------- |
-| 1   | MERGE / dbt incremental over prior version               | UNPROVEN     | UNPROVEN     | not TOTAL; prior version is an unexplained portion of `V`             |
-| 2   | Partition overwrite, 3 of 730                            | UNPROVEN     | UNPROVEN     | not TOTAL; residue = 727 partitions                                   |
-| 3   | SCD2 snapshot                                            | UNPROVEN     | UNPROVEN     | not TOTAL, it appends; retention is its correct behaviour             |
-| 4   | Asset with no attestation of any kind                    | UNPROVEN     | UNPROVEN     | no explanation exists, so residue is all of `V`                       |
-| 4b  | Asset with no recorded upstream lineage, rebuild claimed | UNPROVEN     | UNPROVEN     | nothing to cross-check CLOSED against, so the claim is refused        |
-| 5   | Cyclic lineage A→B→A                                     | UNPROVEN     | UNPROVEN     | least fixpoint never promotes either without a grounding direct check |
-| 6   | Two writers, one clean run                               | UNPROVEN     | UNPROVEN     | no single `P` solely produced `V`, so no `P` is TOTAL w.r.t. `V`      |
-| 7   | Unproven write, identical fingerprint                    | reopens      | reopens      | attestation binds to the old version; the new version has none        |
-| 8   | Full rebuild: total, closed, attributed, inputs attested | ATTESTED     | ATTESTED     | derived coverage satisfied                                            |
-| 9   | Direct check against current version                     | ATTESTED     | ATTESTED     | direct explanation covers all of `V`                                  |
-| 10  | Attestation reports subject present                      | CONTRADICTED | CONTRADICTED | by definition                                                         |
+| #   | Case                                                                 | Required     | Rule gives   | Why                                                                   |
+| --- | -------------------------------------------------------------------- | ------------ | ------------ | --------------------------------------------------------------------- |
+| 1   | MERGE / dbt incremental over prior version                           | UNPROVEN     | UNPROVEN     | not TOTAL; prior version is an unexplained portion of `V`             |
+| 2   | Partition overwrite, 3 of 730                                        | UNPROVEN     | UNPROVEN     | not TOTAL; residue = 727 partitions                                   |
+| 3   | SCD2 snapshot                                                        | UNPROVEN     | UNPROVEN     | not TOTAL, it appends; retention is its correct behaviour             |
+| 4   | Asset with no attestation of any kind                                | UNPROVEN     | UNPROVEN     | no explanation exists, so residue is all of `V`                       |
+| 4b  | Asset with no recorded upstream lineage, rebuild claimed             | UNPROVEN     | UNPROVEN     | nothing to cross-check CLOSED against, so the claim is refused        |
+| 5   | Cyclic lineage A→B→A                                                 | UNPROVEN     | UNPROVEN     | least fixpoint never promotes either without a grounding direct check |
+| 6   | Two writers, one clean run                                           | UNPROVEN     | UNPROVEN     | no single `P` solely produced `V`, so no `P` is TOTAL w.r.t. `V`      |
+| 7   | Unproven write, identical fingerprint                                | reopens      | reopens      | attestation binds to the old version; the new version has none        |
+| 8   | Full rebuild: total, closed, attributed, inputs attested             | ATTESTED     | ATTESTED     | derived coverage satisfied                                            |
+| 9   | Direct check against current version                                 | ATTESTED     | ATTESTED     | direct explanation covers all of `V`                                  |
+| 10  | Attestation reports subject present                                  | CONTRADICTED | CONTRADICTED | by definition                                                         |
+| 11  | Honest compaction: total self-rebuild from an attested prior version | ATTESTED     | ATTESTED     | derived coverage, with the prior version as the only input            |
+| 12  | Compaction that also merged new rows                                 | UNPROVEN     | UNPROVEN     | not TOTAL, or an ordinary rebuild held to the full closure check      |
+| 13  | Self-rebuild whose prior version was never attested                  | UNPROVEN     | UNPROVEN     | the one input it declares is unattested                               |
+| 14  | Self-rebuild chained on a RETRACTED ancestor                         | UNPROVEN     | UNPROVEN     | retracted records are dropped, the ancestor falls, the chain with it  |
+| 15  | Self-rebuild signed by a key later reported compromised              | UNPROVEN     | UNPROVEN     | key invalidation runs before the kernel, so the chain has no ground   |
+| 15b | Self-rebuild declaring its OWN current version as input              | UNPROVEN     | UNPROVEN     | least fixpoint never promotes a state that requires itself            |
 
 ### Cases 1 and 2 in detail
 
@@ -167,6 +173,58 @@ The attestation for `S7` stands and is correct: `S7` really was clean. But the a
 version is `S8`, which has no explanation, so `State(R, A, S8) = UNPROVEN`. Version-keyed state gets
 this right without a special case, and it is the reason state is keyed to a version rather than to an
 asset.
+
+## Self-rebuild: compaction, vacuum, and the churn they cause
+
+Added 2026-07-29, after the rule as written met the way table formats actually behave.
+
+**The problem.** An attestation binds to a warehouse-native version, and any write produces a new
+version with no attestation covering it. That is correct and is the inverted write rule above. But
+Delta and Iceberg rewrite files constantly for reasons that have nothing to do with the data:
+compaction merges small files, vacuum drops old ones, optimize reclusters. Every one produces a new
+version, so every one reopens every obligation on that asset. An estate under ordinary maintenance
+converges to everything-`UNPROVEN`, attestors are asked to re-attest facts they attested last week,
+and the report stops being read. A rule that is sound and unusable produces the same outcome as no
+rule: nobody looks.
+
+**The rule.** A rebuild attestation `P` for asset `A` at version `V` is a **self-rebuild** when its
+declared input set is exactly one entry, that entry names `A` itself, and the version it names is
+not `V`. For a self-rebuild only, the CLOSED cross-check against recorded lineage is replaced by the
+requirement that `ATTESTED(R, A, V_prev)` holds. Everything else is unchanged: TOTAL, sole producer,
+a verified signature, and the per-input attestation requirement all still apply, and the per-input
+requirement is what carries `V_prev` into it.
+
+**Why the carve-out is not a hole.** The CLOSED condition exists to stop an attestor narrowing its
+declared inputs to dodge an unclean upstream. A self-rebuild cannot do that: it declares that
+nothing entered this version except the previous version of the same asset, which is the strongest
+possible claim about its inputs rather than the weakest. Upstream accounting is not skipped, it is
+inherited — `V_prev` is `ATTESTED` only if its own explanation held, recursively, down to a direct
+check. And the recorded lineage it would otherwise be checked against describes how `A` is normally
+built from other tables, which is a claim about a different write than this one; DataHub rarely
+records a self-edge, so requiring one would refuse every honest compaction on a real catalog.
+
+An attestor lying about having read only the prior version is the undeclared-input failure the
+section below already names. The carve-out does not widen that hole; it names where it sits, and the
+lie is signed.
+
+**A mixed input set is not a self-rebuild.** A rebuild declaring the prior version plus fresh inputs
+is an ordinary rebuild and gets the full recorded-lineage cross-check, with the self-edge simply one
+more declared input that must itself be `ATTESTED`. The predicate is deliberately narrow, and it is
+the place a future reader will want to generalize. Do not.
+
+**Why the fixpoint stays well founded.** State is keyed by `(asset, version)`, so `A@V2` and `A@V1`
+are two nodes, not one. A self-rebuild is an edge from a later version to an earlier one, and
+versions do not cycle, so a chain `V1 (direct) → V2 (self) → V3 (self)` is induction over versions
+rather than recursion into itself: the least fixpoint promotes `V1` in the first round, `V2` in the
+second, `V3` in the third. Case 15b is the degenerate edge, where an attestation names its own
+version as its input. Its state starts `UNPROVEN` and can only be promoted by evidence that requires
+it to already be promoted, so the least fixpoint never moves it. Under a greatest fixpoint it would
+certify itself, which is the same failure as case 5 one level down.
+
+**What this does not fix.** The current version a report is computed against is whatever the latest
+attestation names. An asset whose warehouse compacted an hour ago and whose attestor has not spoken
+since is still reported at the version that was attested, and the newer version has no explanation.
+The rule reduces re-attestation work; it does not remove it, and no rule keyed to versions can.
 
 ## What the rule does not catch, stated rather than hidden
 

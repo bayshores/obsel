@@ -162,9 +162,7 @@ function startable(
   const settled = (input: string, self: string): boolean =>
     (producers.get(input) ?? []).every(
       (producer) =>
-        producer.urn === self ||
-        producer.status === "complete" ||
-        producer.status === "stale",
+        producer.urn === self || producer.status === "complete" || producer.status === "stale",
     );
 
   return wave

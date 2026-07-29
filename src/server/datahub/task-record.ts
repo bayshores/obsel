@@ -297,7 +297,8 @@ function parseCauses(raw: string | undefined, urn: string): { causes?: StaleCaus
     }
     return {
       causedBy: cause.causedBy,
-      causedByTask: typeof cause.causedByTask === "string" && cause.causedByTask ? cause.causedByTask : null,
+      causedByTask:
+        typeof cause.causedByTask === "string" && cause.causedByTask ? cause.causedByTask : null,
       hops: cause.hops,
       changeKind: kind as ChangeKind,
       since: typeof cause.since === "string" ? cause.since : "",
