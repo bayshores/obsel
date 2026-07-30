@@ -175,4 +175,36 @@ test.describe("what obsel has decided", () => {
     // And no two labels ever touch, whatever the width.
     for (const gap of strip?.gaps ?? []) expect(gap).toBeGreaterThan(0);
   });
+
+  test("and still fit when the panel is dragged to its narrowest", async ({ page }) => {
+    /*
+     * The width the test above does not reach.
+     *
+     * `MIN_WIDTH` was 340 against a strip needing 346, so at the minimum
+     * "erasure" went under the panel's edge — and `.tabs` hides its scrollbar,
+     * so the tab that opens the erasure half was gone with nothing saying it
+     * was reachable. The floor is 360 now. This asserts the property at the one
+     * width where it can fail, because the default has 70px of slack and would
+     * keep passing through any regression that mattered.
+     */
+    await page.addInitScript(() => {
+      // Below the floor on purpose: `clampWidth` is what has to pull it back up.
+      window.localStorage.setItem(
+        "obsel.panel.v1",
+        JSON.stringify({ side: "right", width: 1, collapsed: false }),
+      );
+    });
+    await openDashboard(page, calm(), idle());
+
+    const strip = await page.evaluate(() => {
+      const node = document.querySelector('[role="tablist"]');
+      if (node === null) return null;
+      return { width: node.clientWidth, overflowing: node.scrollWidth > node.clientWidth };
+    });
+
+    expect(strip?.overflowing).toBe(false);
+    // The clamp actually took effect, so the assertion above is about the
+    // narrowest panel rather than about a width the store happened to keep.
+    expect(strip?.width).toBeLessThan(400);
+  });
 });

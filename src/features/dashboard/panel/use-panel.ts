@@ -50,8 +50,27 @@ const DEFAULT_SIDE: PanelSide = "right";
  */
 const DEFAULT_WIDTH = 420;
 
-/** Narrow enough that a fix command still fits on two lines. */
-const MIN_WIDTH = 340;
+/**
+ * Narrow enough that a fix command still fits on two lines, and wide enough
+ * that the tab strip cannot lose a tab.
+ *
+ * It was 340, and the five labels need 376: 320px of text, 40 of padding, 16 of
+ * gap. So at the minimum "erasure" went under the panel's edge — and `.tabs`
+ * hides its scrollbar, so the tab that opens the erasure half was gone with
+ * nothing on screen saying it was reachable.
+ *
+ * 346 is the figure the strip reports overflowing at 339, and it is the wrong
+ * one to size against: `.tab` is `flex: 1 1 auto` with `min-width: 0`, so under
+ * pressure the boxes shrink and the text spills instead. 376 is what they need
+ * before any of that starts.
+ *
+ * Raised rather than signalled. The shadow `.guide` uses for its own overflow
+ * was tried here first and is invisible on this strip: black at 0.55 over a
+ * fill that is already `--mm-bg` leaves the edge looking identical. A reader who
+ * wants the frame back has the collapse button, which gives all of it; this
+ * floor only bounds how narrow a still-readable panel gets.
+ */
+const MIN_WIDTH = 392;
 
 /**
  * The ceiling, and it is a share of the frame rather than a fixed number.
