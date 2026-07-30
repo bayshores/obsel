@@ -563,7 +563,16 @@ function causeOf(mark: StaleMark): StaleCause {
 export function mergeMark(existing: StaleMark | null, incoming: StaleMark): StaleMark {
   const causes = new Map<string, StaleCause>();
 
-  const key = (cause: StaleCause): string => `${cause.causedBy} ${cause.causedByTask ?? ""}`;
+  /*
+   * `\0` as the separator because it cannot occur in either half, so two causes
+   * cannot collide by one's suffix meeting the other's prefix.
+   *
+   * Written as the escape, not as a literal NUL byte. It was a literal one, and
+   * the cost was not in the running code: a raw NUL makes the whole file read as
+   * binary, so `grep` reported nothing in it and silently skipped the module
+   * every search of this codebase most needs to find.
+   */
+  const key = (cause: StaleCause): string => `${cause.causedBy}\0${cause.causedByTask ?? ""}`;
 
   // Existing first, incoming second, so the incoming copy of a repeated cause
   // overwrites the older one rather than being discarded by it.
