@@ -51,30 +51,40 @@ const state = await page.evaluate(() => ({
 console.log(which, JSON.stringify(state));
 
 /*
- * Which board this is, decided by the ribbon rather than by the headline.
+ * Which board this is, decided by the marks obsel holds rather than by any words.
  *
- * A first version tested the headline for "out of date", which matches BOTH states:
- * the settled headline is "all 4 finished, nothing out of date". The write-back cell
- * is derived from the marks instead of written as copy, so it cannot be ambiguous:
- * a calm board has nothing to write, and a flagged one reports "N of M tagged".
+ * Two earlier versions read the page. The first tested the headline for "out of
+ * date", which matches BOTH states, since the settled headline is "all 4 finished,
+ * nothing out of date". The second tested the ribbon's write-back cell for
+ * "tagged", on the reasoning that a count is steadier than a sentence — and then
+ * `stats.tsx` dropped the word, because "3 of 3 tagged" overflowed the column and
+ * the label above it already says "written into DataHub".
  *
- * The test is on "tagged" and not on the calm wording, which is what keeps this
- * working across a copy change. The calm cell has been reworded twice since this
- * was written; both times the flagged cell still counted tags, because that half is
- * a count rather than a sentence. Matching the calm string instead would have made
- * every rewrite of it silently save a settled board as flagged.
+ * That second failure was the dangerous one. With nothing matching "tagged" any
+ * more, a flagged board reads as calm, so `capture.mjs flagged` refuses to run and
+ * `capture.mjs settled` saves a flagged board under the settled name — the exact
+ * mislabelling this check exists to prevent, reintroduced by a copy edit that had
+ * no reason to think about it.
  *
- * Watch the one collision this has: the leftover-tag wording is "N tags left over
- * from before", which must NOT match, and does not, because it says "tags" and this
- * asks for "tagged".
+ * So it no longer reads the page. `/api/swarm` is what the page itself renders
+ * from, and a mark is a field rather than a phrase; `scripts/record.mjs` decides
+ * its moments from the same read. Copy can now be rewritten freely.
  */
-const flagged = /tagged/.test(state.written ?? "");
+const marks = await fetch("http://localhost:3000/api/swarm")
+  .then((res) => {
+    if (!res.ok) throw new Error(`swarm read failed: ${res.status}`);
+    return res.json();
+  })
+  .then((body) => body.snapshot.tasks.filter((task) => task.stale !== null).length);
+
+const flagged = marks > 0;
 if ((which === "flagged") !== flagged) {
   throw new Error(
     `refusing to save the ${flagged ? "flagged" : "settled"} board as ${which}: ` +
-      `headline "${state.headline}", ribbon "${state.written}"`,
+      `obsel holds ${marks} mark(s), headline "${state.headline}", ribbon "${state.written}"`,
   );
 }
+console.log(`${which}: ${marks} mark(s) on the board`);
 
 await page.screenshot({ path: `docs/images/${which}.png` });
 await browser.close();

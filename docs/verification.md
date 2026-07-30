@@ -2397,10 +2397,10 @@ clips it, across all four chapter-one steps; the other asserts the window's box 
 the dock's, with the dock on either side. Neither bug was caught by the existing suite, which
 checked only which region was lit and never whether the mark was visible.
 
-**Not re-captured.** The four images and two GIFs in the README, and the reference video lock, all
-show the previous layout. Every number in them is still what its run produced; the arrangement
-around those numbers is not the arrangement a judge will see. Re-shooting them is the owner's, needs
-a live DataHub and a live Codex CLI, and has not been done.
+**Not re-captured at the time.** The four images and two GIFs in the README, and the reference video
+lock, all showed the previous layout. Every number in them was still what its run produced; the
+arrangement around those numbers was not the arrangement a judge would see. The two stills and the
+two GIFs were retaken on 2026-07-30 and are recorded below. The video lock has not been re-shot.
 
 ### The details panel became a surface with three depths, and a table got a shape (2026-07-28)
 
@@ -2946,6 +2946,38 @@ dispersing. `agents/scale.py` is 998 lines, of which 423 are one literal declara
 and 233 are its self-check. Its first line states it is the forty-task counterpart of `pipeline.py`,
 data only, and that parallel is the thing worth keeping.
 
+### The four captures were retaken against the current page (2026-07-30)
+
+The two stills and the two GIFs in the README showed the pre-2026-07-28 page: a scrolling column,
+before the graph became the page and the panels became a dock. Every number in them was still true
+of the run that produced it, and every wide shot was of a layout that no longer existed.
+
+**The stills, from one run.** `run` took 117.4 s for four Codex sessions and produced `settled.png`;
+`change` renamed the money column and flagged three tasks in a measured 402 ms and produced
+`flagged.png`, with nothing between the two shots but the change. obsel called it `schema` rather
+than `both`, and the content hash `539b509722e8` was identical before and after, which is what says
+only the column name moved.
+
+**The GIFs, from a second run, and they have to be.** `change` only ever renames toward
+`order_total_usd`, so on a board that has already been changed the re-run is byte-identical, obsel
+correctly marks nothing, and the step fails its own assertion. That is what happened on the first
+attempt at the GIFs, and `record.mjs` refused to save a take of it — the guard working. A `reset`
+and `run` (125.5 s) restored the original column, and the recording drove its own `change` and
+`repair`: the cascade landed three marks in a measured 397 ms with `3 of 3` on the ribbon, and the
+repair redid one task in 28.3 s while obsel cleared the other two in 233 ms because the redone table
+came out identical. Both steps exited 0, at 61.0 s and 28.3 s.
+
+**A capture guard had already broken, silently.** `capture.mjs` decided which board it was
+photographing by testing the ribbon for the word "tagged". `stats.tsx` dropped that word, because
+`3 of 3 tagged` overflowed the column and the label above it already reads "written into DataHub".
+So a flagged board read as calm: `capture.mjs flagged` refused to run at all, and `capture.mjs
+settled` would have saved a flagged board under the settled name — the exact mislabelling the check
+exists to prevent, reintroduced by a copy edit that had no reason to think about it. It reads
+`/api/swarm` now, as `record.mjs` always has. A mark is a field rather than a phrase, so copy can be
+rewritten freely.
+
+The reference video lock is still of the old layout and still has to be re-shot.
+
 ## Not done
 
 - **The cold start ran the `datahub` CLI branch, not the `uvx` one.** This machine has that CLI
@@ -3049,5 +3081,5 @@ data only, and that parallel is the thing worth keeping.
   merely longer, since there is no page scroll to perform. `scripts/video.mjs` drives buttons rather than
   pixels so it needs no change, but the take does: the reference has to be shot again from the top
   before anything is cut from it. Nothing has been re-recorded yet.
-- **The README's images and GIFs are of that same previous layout**, and are flagged as such in the
-  README itself rather than quietly left to misdescribe the page.
+- The README's images and GIFs were of that same previous layout and were retaken on 2026-07-30
+  against the current one. The video lock is the only capture still showing the old page.

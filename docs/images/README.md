@@ -11,12 +11,12 @@ Capturing them is the owner's action, like recording the video. Nothing here is 
 
 ## The two images
 
-| File          | Page state | What has to be legible in it                                                                                                                                                                            |
-| ------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `settled.png` | settled    | Four done boxes, the headline reading `all 4 finished, nothing out of date`, and the write-back cell reading `·· nothing to write yet`.                                                                 |
-| `flagged.png` | flagged    | Three amber boxes, `- order_total` / `+ order_total_usd` on the changed table, the subline naming how many never read it, the measured detection time, and the write-back cell reading `3 of 3 tagged`. |
-| `cascade.gif` | flagging   | The moment itself, animated: three boxes turning amber, the amber path moving outward from the changed table, and the ribbon's measured figures landing.                                                |
-| `repair.gif`  | repairing  | The way back: flags coming off as one redo lands, the strip's `cleared … without a re-run` lines with their reasons, and the headline returning to nothing out of date.                                 |
+| File          | Page state | What has to be legible in it                                                                                                                                                                                            |
+| ------------- | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `settled.png` | settled    | Four done boxes, the headline reading `all 4 finished, nothing out of date`, and the write-back cell reading `·· nothing to write yet`.                                                                                 |
+| `flagged.png` | flagged    | Three amber boxes, `- order_total` / `+ order_total_usd` on the changed table, the subline naming how many never read it, the measured detection time, and the write-back cell counting the marks written into DataHub. |
+| `cascade.gif` | flagging   | The moment itself, animated: three boxes turning amber, the amber path moving outward from the changed table, and the ribbon's measured figures landing.                                                                |
+| `repair.gif`  | repairing  | The way back: flags coming off as one redo lands, the strip's `cleared … without a re-run` lines with their reasons, and the headline returning to nothing out of date.                                                 |
 
 The two GIFs exist because a still of a finished cascade shows nothing moving, which was the exact
 reason the edges were animated in the first place. Fourteen seconds each, cut around the moment a
@@ -44,30 +44,39 @@ writes the cut point beside each video.
 
 ## What is in here now
 
-The two stills exist, captured 2026-07-23 from commit `9bd695e` against a live DataHub and a live
-Codex CLI, and referenced from `README.md` and `examples/README.md`.
+All four were retaken on 2026-07-30 from commit `8a09994`, against a live DataHub and a live Codex
+CLI. The set they replaced showed the page before the 2026-07-28 rebuild, when it was a scrolling
+column rather than a graph with a panel beside it, so every wide shot in it was of a layout that no
+longer exists.
 
-The two GIFs exist, recorded 2026-07-24 in one sequence against the same live stack, from the
-working tree that became the repair-and-restoration commit. Their run's own measured numbers are
-in frame: the cascade landed its three marks with a detection time of 2444 ms and `3 of 3 tagged`
-on the ribbon, and the repair redid one task in a 30.2 s step, with obsel clearing the other two
-flags itself because the redone table came out identical, the strip showing both `cleared` lines
-with their reasons. The `change` and `repair` steps behind them exited 0 in 49.9 s and 30.2 s.
-
-They came from one run, in this order: `run` (206.0 s, four Codex sessions) which produced
-`settled.png`, then `change` which renamed a column and flagged three tasks in a measured 5399 ms,
+The stills came from one run, in this order: `run` (117.4 s, four Codex sessions) which produced
+`settled.png`, then `change` which renamed a column and flagged three tasks in a measured 402 ms,
 which produced `flagged.png`. Nothing between the two shots but the change itself. obsel called the
 change `schema` rather than `both`, and the content hash `539b509722e8` was identical before and
 after, which is the evidence that only the column name moved.
 
-`scripts/capture.mjs` does it, and it refuses to mislabel a shot: it decides which
-page it is looking at from the ribbon's write-back cell, which is derived from the marks, rather
-than from the headline. The first version tested the headline for "out of date" and would have saved
-a settled pipeline as flagged, because the settled headline reads "all 4 finished, nothing out of date".
+The GIFs are a second run, and have to be. `change` only ever renames toward `order_total_usd`, so
+on a board that has already been changed the re-run is identical, obsel correctly marks nothing, and
+the step fails its own assertion — which is what happened on the first attempt, and what
+`record.mjs` refused to save a take of. A fresh `reset` and `run` (125.5 s) put the original column
+back, and the recording performed its own `change` and `repair` as one sequence: the cascade landed
+its three marks in a measured 397 ms with `3 of 3` on the ribbon, and the repair redid one task,
+obsel clearing the other two in 233 ms because the redone table came out identical, both `cleared`
+lines with their reasons visible in the strip. The two steps exited 0 in 61.0 s and 28.3 s.
 
-The test is on the word "tagged" and not on the calm wording, which is what keeps it working across a
-copy change. The calm cell has been reworded twice; both times the flagged cell still counted tags,
-because that half is a count rather than a sentence.
+`scripts/capture.mjs` refuses to mislabel a shot, and it now decides which page it is looking at
+from `/api/swarm` rather than from anything on screen. Two earlier versions read the page and both
+broke. The first tested the headline for "out of date", which matches BOTH states, since the settled
+headline reads "all 4 finished, nothing out of date". The second tested the ribbon for "tagged", on
+the reasoning that a count is steadier than a sentence — and then `stats.tsx` dropped the word,
+because `3 of 3 tagged` overflowed the column and the label above it already says "written into
+DataHub".
+
+That second break is why it reads the API now. With nothing matching "tagged", a flagged board read
+as calm: `capture.mjs flagged` refused to run, and `capture.mjs settled` would have saved a flagged
+board under the settled name — the exact mislabelling the check exists to prevent, reintroduced by a
+copy edit that had no reason to think about it. A mark is a field rather than a phrase, so copy can
+now be rewritten freely.
 
 ## Replacing them
 

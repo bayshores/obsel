@@ -284,16 +284,16 @@ Those values were checked separately by walking the files and comparing against 
 | ------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [![The page with four agents finished and nothing out of date.](../docs/images/settled.png)](../docs/images/settled.png) | [![The page with three agents flagged, the changed table naming the column that left and the one that arrived, and an amber path running out two hops.](../docs/images/flagged.png)](../docs/images/flagged.png) |
 
-Captured 2026-07-23 from commit `9bd695e`, **both from the same run** against a live DataHub and a
-live Codex CLI: `run` took 206.0 s for four Codex sessions and left the page on the left, then one
-agent's instructions changed and obsel flagged three tasks in a measured 5399 ms, which is the page on
+Captured 2026-07-30 from commit `8a09994`, **both from the same run** against a live DataHub and a
+live Codex CLI: `run` took 117.4 s for four Codex sessions and left the page on the left, then one
+agent's instructions changed and obsel flagged three tasks in a measured 402 ms, which is the page on
 the right. Two shots from two different runs would be two different pipelines presented as one, which
 is the sort of quiet inconsistency obsel exists to catch.
 
 They do not correspond to the JSON in this directory. **The JSON** is the older artifact: it was
 captured before the tag read-back and the column diff existed, which is why `swarm-after.json`
 carries no `staleTagged` field and no `added`/`removed` column lists, while the images show both.
-The images are from 2026-07-23 UTC, the date `README.md` and `docs/images/README.md` also give.
+The images are from 2026-07-30, the date `README.md` and `docs/images/README.md` also give.
 Different runs, so the numbers differ. Nothing here claims otherwise.
 
 Be clear about what a screenshot is worth here. It shows what obsel renders from the JSON in this

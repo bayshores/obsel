@@ -80,30 +80,23 @@ The full comparison, including where obsel is genuinely not novel, is in
 
 ## See it
 
-|                                                                                                        Everything is fine                                                                                                        |                                                                                                                                                  Something changed upstream                                                                                                                                                  |
-| :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: |
-| [![Four agent boxes all showing done, the headline reporting that all four finished and nothing is out of date, and the write-back cell reporting there is nothing to write.](docs/images/settled.png)](docs/images/settled.png) | [![Three agents flagged amber. The changed table shows order_total leaving and order_total_usd arriving, an amber path runs outward from it through two hops, and the ribbon reports a measured detection time of 5399 ms beside three of three marks tagged in DataHub.](docs/images/flagged.png)](docs/images/flagged.png) |
-|                                                                        Four agents finished. Nothing they read has changed since, so obsel says nothing.                                                                         |                                                                                                        One column was renamed. Three finished agents are now out of date, and **two of them never read that table**.                                                                                                         |
+|                                                                                                        Everything is fine                                                                                                        |                                                                                                                                                   Something changed upstream                                                                                                                                                   |
+| :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: |
+| [![Four agent boxes all showing done, the headline reporting that all four finished and nothing is out of date, and the write-back cell reporting there is nothing to write.](docs/images/settled.png)](docs/images/settled.png) | [![Three agents flagged amber. The changed table shows order_total leaving and order_total_usd arriving, an amber path runs outward from it through two hops, and the ribbon reports a measured detection time of 402 ms beside three of three marks written into DataHub.](docs/images/flagged.png)](docs/images/flagged.png) |
+|                                                                        Four agents finished. Nothing they read has changed since, so obsel says nothing.                                                                         |                                                                                                         One column was renamed. Three finished agents are now out of date, and **two of them never read that table**.                                                                                                          |
 
 <div align="center"><em>Click either image for full size.</em></div>
 
-Both came out of one run on 2026-07-23, from commit `9bd695e`, against a live DataHub and a live
+Both came out of one run on 2026-07-30, from commit `8a09994`, against a live DataHub and a live
 Codex CLI. Not mockups, and not assembled from separate sessions.
-
-**These four images and the two below show the previous layout.** The page was rebuilt on
-2026-07-28: the lineage graph is now the whole page, and the guide, the activity feed and the two
-measured numbers sit in one panel beside it that a reader can move, resize or hide. Every number
-and every sentence in them is still what that run produced. They are due to be recaptured against
-the new page, and until they are, what they show is the same evidence in a different arrangement.
-See [docs/verification.md](docs/verification.md) for what the new layout is and how it was checked.
 
 | What happened                                       | Measured                                             |
 | --------------------------------------------------- | ---------------------------------------------------- |
-| Four agents did the work                            | 206.0 s of real Codex sessions                       |
+| Four agents did the work                            | 117.4 s of real Codex sessions                       |
 | One agent's instructions changed                    | `order_total` became `order_total_usd`               |
 | obsel called it a column change, not a value change | the content hash was `539b509722e8` before and after |
-| Three finished agents flagged                       | 5399 ms, one at one hop and two at two               |
-| Written back into DataHub                           | 3 of 3 tagged                                        |
+| Three finished agents flagged                       | 402 ms, one at one hop and two at two                |
+| Written back into DataHub                           | 3 of 3                                               |
 
 ### Watch it move
 
@@ -111,11 +104,11 @@ See [docs/verification.md](docs/verification.md) for what the new layout is and 
 | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: |
 | ![Three boxes turn amber as the change is detected, the amber path travels outward from the changed table, and the ribbon lands on a measured detection time.](docs/images/cascade.gif) | ![One redo lands, and the strip prints a cleared line for each of the two flags obsel took off itself, with the reason, before the headline returns to nothing out of date.](docs/images/repair.gif) |
 
-One sequence, recorded 2026-07-24 against the same live stack, with that run's own numbers in
-frame: the cascade landed in a measured 2444 ms, and the repair redid **one** of the three flagged
-tasks, obsel clearing the other two itself because the redone table came out byte-identical. A flag
-has no dismiss button. It comes off through redone work, the task's own or what an upstream redo
-proves.
+One sequence, recorded 2026-07-30 against the same live stack, with that run's own numbers in
+frame: the cascade landed in a measured 397 ms, and the repair redid **one** of the three flagged
+tasks in 28.3 s, obsel clearing the other two itself in 233 ms because the redone table came out
+byte-identical. A flag has no dismiss button. It comes off through redone work, the task's own or
+what an upstream redo proves.
 
 ---
 
