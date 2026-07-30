@@ -19,6 +19,7 @@ import { EASE } from "./motion-tokens";
 import { formatDuration } from "./progress";
 import { STEP_NAME } from "./guide";
 import type { GuideView } from "./guide";
+import type { RevealTarget } from "./guide-view";
 import type { DemoActivity, DemoStep } from "@/src/server/runner/types";
 
 import styles from "./guide.module.css";
@@ -51,12 +52,21 @@ export function GuidePanel({
   activity,
   activityError,
   boardTrusted,
+  onReveal,
 }: {
   view: GuideView;
   activity: DemoActivity | null;
   activityError: string | null;
   /** Whether the swarm read behind the board below is currently working. */
   boardTrusted: boolean;
+  /**
+   * Put one of the panel's tabs on screen.
+   *
+   * The same function the tour uses, passed in rather than reimplemented, so the
+   * empty board's door and the tour's own step cannot end up opening different
+   * things. This panel owns no tab state; it asks.
+   */
+  onReveal: (target: RevealTarget) => void;
 }) {
   const [launching, setLaunching] = useState(false);
   const [refused, setRefused] = useState<string | null>(null);
@@ -325,7 +335,7 @@ export function GuidePanel({
           <m.div className={styles.actions} key={`actions-${view.stage}`} {...revealing}>
             {view.actions.map((action) => (
               <m.button
-                key={action.step}
+                key={action.step ?? `reveal-${action.reveal}`}
                 type="button"
                 className={
                   action.primary === true
@@ -337,10 +347,25 @@ export function GuidePanel({
                  * performs the act it is asking for, and it reads the label off
                  * `view.actions` rather than writing its own, so it can never
                  * name a button this board is not offering.
+                 *
+                 * Absent on a reveal action, deliberately: the tour's acts are
+                 * things the BOARD has to do, and a reveal changes which tab is on
+                 * screen rather than anything on the board. An act pointed at one
+                 * could never complete.
                  */
                 data-tour-action={action.step}
-                disabled={launching}
-                onClick={() => void launch(action.step)}
+                /*
+                 * Only a launch is held while a step runs. A reveal spawns nothing
+                 * and touches nothing the running step touches, so disabling it
+                 * would take the door for somebody's own agent away for the two
+                 * minutes obsel's own agents are working — which is exactly when a
+                 * reader has time to go and read it.
+                 */
+                disabled={action.step !== undefined && launching}
+                onClick={() => {
+                  if (action.step !== undefined) void launch(action.step);
+                  else onReveal(action.reveal);
+                }}
                 {...rising}
               >
                 <span className={styles.actionLabel}>{action.label}</span>

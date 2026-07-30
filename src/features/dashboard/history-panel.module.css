@@ -1,0 +1,78 @@
+/*
+ * The board's change history. A scrolling list, contained like the feed beside it.
+ *
+ * `overscroll-behavior: contain` for the same reason `trace-panel.module.css`
+ * gives: a scroll gesture reaching the end of this list must not chain to the
+ * page and drag the whole dashboard.
+ */
+
+.rows {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+/*
+ * Newest first, so no scroll anchoring and no follow-the-bottom behaviour.
+ *
+ * The opposite of the activity feed, and the difference is what each list is
+ * for. The feed is a sequence being written now, so it reads top to bottom and
+ * follows its own newest step. This is a record somebody arrives to consult, and
+ * what they came for is the last thing that happened.
+ */
+.row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--mm-space-sm) var(--mm-space-md);
+  border-left: 3px solid var(--obsel-text-quiet);
+  background: var(--mm-surface);
+}
+
+.head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--mm-space-sm);
+}
+
+.headline {
+  font-size: var(--mm-text-sm);
+  color: var(--obsel-text);
+}
+
+/* Fixed width so the clocks line up down the column rather than ragging with
+   the headline lengths beside them. */
+.clock {
+  font-variant-numeric: tabular-nums;
+  font-size: var(--mm-text-xs);
+  flex: 0 0 auto;
+}
+
+.cause,
+.columns,
+.list,
+.measured {
+  font-size: var(--mm-text-xs);
+  color: var(--obsel-text-quiet);
+}
+
+/* The column diff is the one line a reader scans for, so it is the one line that
+   is not quiet. */
+.columns {
+  color: var(--obsel-text);
+}
+
+.quiet {
+  margin: 0;
+  padding: var(--mm-space-md);
+  font-size: var(--mm-text-xs);
+  color: var(--obsel-text-quiet);
+}

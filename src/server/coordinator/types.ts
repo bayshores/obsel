@@ -127,6 +127,25 @@ export interface RunDetail {
   outputs: Record<string, OutputShape>;
 }
 
+/**
+ * One MCP client's account of itself, as obsel recorded it.
+ *
+ * `at` is when the MCP door read the handshake, and may be absent on a record
+ * written by a caller that sent a name without one.
+ */
+export interface ClientStamp {
+  name: string;
+  version: string | null;
+  at: string | null;
+}
+
+/** The three moments obsel may have heard from an MCP client about one task. */
+export interface TaskClients {
+  registered: ClientStamp | null;
+  started: ClientStamp | null;
+  reported: ClientStamp | null;
+}
+
 export type TaskStatus =
   /** Declared what it will touch, not started. */
   | "registered"
@@ -284,6 +303,23 @@ export interface TaskRecord {
    * that sent no detail — obsel shows nothing rather than a zero in that case.
    */
   run: RunDetail | null;
+  /**
+   * Which MCP client obsel has heard from about this task, at each of the three
+   * moments it hears from one: the declaration, the latest announcement, the
+   * latest completion. Null at any moment nothing came through the MCP door —
+   * obsel's own workers and the page's table form are not MCP clients.
+   *
+   * Display only, and a declaration rather than a verification: the client named
+   * itself in the `initialize` handshake and obsel holds no registry to check it
+   * against. `run.runner` is the other, separate self-description — what the
+   * agent says did the work — and neither is ever derived from the other.
+   *
+   * Optional rather than required-nullable, like `staleTagged` and `observed`:
+   * every reader has to treat "no client record" and "the field is absent" as
+   * the same thing anyway, so requiring it would only make each of them say so
+   * twice.
+   */
+  client?: TaskClients;
   /**
    * An unresolved stale mark, when the task carries one.
    *
@@ -447,6 +483,17 @@ export interface CompletionReport {
    * would have caught, caught instead by the next honest read.
    */
   inputs?: Record<string, InputObservation>;
+  /**
+   * What the MCP client named itself when it connected, when the report came
+   * through that door. A separate fact from `run.runner`: this is what spoke MCP
+   * to obsel, that is what the agent says did the work. Display only, and a
+   * declaration rather than a verification — see `src/server/http/client-body.ts`.
+   *
+   * Spelled out here rather than imported from the route's schema, which is where
+   * it is validated: this file is the framework-independent domain, and the
+   * dependency runs that way round.
+   */
+  client?: { name: string; version?: string; at?: string };
 }
 
 /** The outcome of one completion, for the dashboard and for `examples/`. */

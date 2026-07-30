@@ -1,6 +1,6 @@
 ---
 name: obsel-collaboration
-description: Use when working as one agent among several on shared data, and obsel's MCP tools (check_freshness, register_task, announce_start, report_complete, abandon_task, read_board) are available. Teaches the order that makes obsel's answers trustworthy - check your inputs before working, declare what you read and write, announce before writing, report what you produced even when nothing changed, and hand the announcement back if you fail. Trigger when asked to join a swarm, register a task, check whether inputs went stale, or report completion to obsel.
+description: Use when working as one agent among several on shared data, and obsel's MCP tools (check_freshness, register_task, announce_start, report_complete, abandon_task, read_board, rerun_plan) are available. Teaches the order that makes obsel's answers trustworthy - check your inputs before working, declare what you read and write, announce before writing, report what you produced even when nothing changed, and hand the announcement back if you fail. Trigger when asked to join a swarm, register a task, check whether inputs went stale, or report completion to obsel.
 ---
 
 # Working in a swarm obsel is watching
@@ -236,3 +236,15 @@ which is why you can only declare it for tables you write.
 first", because a task rebuilt from an input that is itself about to be rebuilt is wasted
 work that gets flagged again. It makes no claim that any task is sound, and redoing a task
 still means announcing and reporting it like any other run.
+
+## What obsel records about your connection
+
+Your MCP client names itself when it connects, in the `initialize` handshake. obsel reads that
+name off the session and records it against the task at three moments: when you declare it, when
+you announce a start, and when you report a completion. You pass nothing for this and there is no
+argument to set — if the name is wrong, it is your client's own `clientInfo`.
+
+It is display material. Nothing obsel decides reads it, and it is a separate fact from `runner` on
+`report_complete`: `runner` is what you say did the work, this is what spoke MCP. Both are your own
+account of yourself. obsel keeps no registry of clients and cannot check either, so the page says
+your client **declared** itself to be this, never that it was verified.

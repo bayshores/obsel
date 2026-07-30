@@ -67,6 +67,24 @@ def _required_list(reply: dict[str, Any], key: str, where: str) -> list[Any]:
     return value
 
 
+def missing_names(board_tasks: list[Any], expected: list[tuple[str, str]]) -> list[str]:
+    """Which of `expected` obsel has no record of, in the order given.
+
+    `expected` is (name, urn) pairs; the urn is what decides, because the name is
+    the caller's word for a task and the urn is what obsel filed it under.
+
+    Pure on purpose. A run that registers what is missing has to know exactly
+    what is missing: registering a task obsel already holds re-declares it, and
+    a re-declaration sets `obsel.status` back to `registered`, which on a board
+    that has already run would discard the finished state the page reads. So the
+    set this returns is the set that gets registered, and nothing wider.
+    """
+    present = {
+        record.get("urn") for record in board_tasks if isinstance(record, dict)
+    }
+    return [name for name, urn in expected if urn not in present]
+
+
 def _demo_tasks(obsel_url: str) -> list[dict[str, Any]]:
     """obsel's record of the four demo tasks, or an error saying which is missing."""
     records = {

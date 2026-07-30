@@ -11,6 +11,10 @@ import "server-only";
 
 import { applyStaleTag, removeStaleTag } from "@/src/server/datahub/mcp";
 import { PROP, readSnapshot, updateTaskProperties } from "@/src/server/datahub/client";
+import { clientProperty } from "@/src/server/http/client-body";
+import { nextChangeSequence, writeChangeRecord } from "@/src/server/datahub/documents";
+import { FLOW_ID } from "@/src/server/datahub/urns";
+import { changeBody } from "./change-ledger";
 import {
   affectedBy,
   classifyObservation,
@@ -401,6 +405,16 @@ async function decideCompletion(
     );
   }
 
+  await recordChange({
+    source: "completion",
+    reporter: finishing,
+    changes,
+    affected: marked,
+    restored,
+    elapsedMs,
+    client: report.client,
+  });
+
   return {
     taskUrn: report.taskUrn,
     changedOutputs,
@@ -415,6 +429,54 @@ async function decideCompletion(
 }
 
 /**
+ * Append one decision to the board's history, if it decided anything.
+ *
+ * Last, after the marks, the self-mark and the clears have all landed, so the
+ * record describes what actually happened rather than what was about to. And
+ * deliberately unable to fail the completion: a history write that throws emits a
+ * traced step naming the failure and returns. The flags are the evidence and they
+ * are already in DataHub; losing the chronicle of a cascade is a worse outcome
+ * than not having it, but it is nowhere near as bad as failing a completion that
+ * had already succeeded and having the agent retry it. This is the same posture
+ * as the `detectedMs` pass above.
+ *
+ * A retried completion that failed part-way can append a second record about the
+ * same marks. Accepted: the ledger is a chronicle nothing reads back, so a
+ * duplicate entry is a reader seeing one event twice, not obsel deciding wrongly.
+ * Refusing duplicates would mean reading the history to decide whether to write
+ * it, which is exactly the dependency this design is keeping out.
+ */
+async function recordChange(input: {
+  source: "completion" | "observation";
+  reporter?: TaskRecord;
+  changes: DatasetChange[];
+  affected: AffectedTask[];
+  restored: RestoredTask[];
+  elapsedMs: number;
+  client?: { name: string; version?: string };
+}): Promise<void> {
+  const body = changeBody({ ...input, at: new Date().toISOString() });
+  if (body === null) return;
+
+  try {
+    const sequence = await nextChangeSequence(FLOW_ID);
+    await writeChangeRecord(FLOW_ID, sequence, {
+      at: body.at,
+      body: JSON.stringify(body),
+      assets: body.changes.map((change) => change.dataset),
+    });
+    emit(
+      "write",
+      `recorded change ${sequence}`,
+      `${body.affected.length} flagged, ${body.restored.length} cleared`,
+    );
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "unknown error";
+    emit("write", "could not record this change in the ledger", message);
+  }
+}
+
+/**
  * Take a mark off a task the redo proved sound, in both places it exists.
  *
  * The inverse of `markStale`, in the inverse order: the tag comes off first and
@@ -424,11 +486,22 @@ async function decideCompletion(
  * are untouched on purpose: this task's work was never redone, and its record
  * of that work is still true. Only the mark was wrong, in hindsight.
  *
- * Unlike a mark's reason, which lives on the task's properties and is shown
- * when the task is opened, a clear leaves nothing behind to carry its reason —
- * absence of a mark is the record, the same as after a task's own redo. So the
- * traced step carries the full sentence: the trace and the completion reply
- * are the only places this decision speaks.
+ * Unlike a mark's reason, which lives on the task's properties and is shown when
+ * the task is opened, a clear leaves nothing behind **on the task** to carry its
+ * reason — absence of a mark is the record of what is currently true, the same as
+ * after a task's own redo. A cleared task keeping a stale reason would read as a
+ * standing flag, so that part of the rule stands and this function still strips
+ * every stale property.
+ *
+ * What changed: that used to be the whole rule, and it left the *history*
+ * nowhere. The trace is process-local and gone on restart by its own
+ * declaration, and the completion reply reaches one caller once, so a board that
+ * had been changed and repaired read exactly like one where nothing ever
+ * happened. `change-ledger.ts` now records the decision — cause, path, what was
+ * flagged, what a redo closed — as an append-only ledger record beside the
+ * erasure evidence chain. Nothing reads it back to decide anything: a clear is
+ * still derived by `restoredBy` from task properties alone, and no route or tool
+ * can append to, edit or request one.
  */
 async function clearRestored(entry: RestoredTask): Promise<void> {
   const { task, reason } = entry;
@@ -506,6 +579,12 @@ async function recordCompletion(finishing: TaskRecord, report: CompletionReport)
     [PROP.runRunner]: run?.runner ?? null,
     [PROP.runMs]: run?.ms == null ? null : String(Math.round(run.ms)),
     [PROP.runOutputs]: run ? JSON.stringify(run.outputs) : null,
+    // Written when the report carried one, left alone when it did not. Unlike
+    // the `run` fields above, this is NOT cleared on a report without it: those
+    // describe the run being recorded now, while this records which client has
+    // spoken to obsel about this task, and a worker completing a redo of a task
+    // an MCP client declared has not made that earlier fact untrue.
+    ...(report.client ? { [PROP.clientReported]: clientProperty(report.client) } : {}),
     [PROP.staleCausedBy]: null,
     [PROP.staleCausedByTask]: null,
     [PROP.staleHops]: null,
@@ -781,6 +860,17 @@ async function decideObservation(
       }),
     );
   }
+
+  // No reporter: an outside feed observed the table, so there is no task in the
+  // swarm accountable for the change. `restored` is empty here by construction —
+  // an observation reports what a table holds and never redoes work.
+  await recordChange({
+    source: "observation",
+    changes: [change],
+    affected,
+    restored: [],
+    elapsedMs,
+  });
 
   return { dataset, verdict: "changed", affected, elapsedMs };
 }

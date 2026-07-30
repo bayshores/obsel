@@ -17,6 +17,7 @@ import "server-only";
  */
 
 import type { SwarmSnapshot, TaskRecord } from "@/src/server/coordinator/types";
+import { clientProperty, type ClientDeclaration } from "@/src/server/http/client-body";
 import { DataHubError } from "./errors";
 import { confirmWrite, gmsFetch, gmsJson, gmsUrl } from "./gms";
 import { readLineageDownstream, relationships } from "./lineage";
@@ -209,6 +210,7 @@ export async function registerTask(
   description?: string,
   title?: string,
   volatile?: Record<string, string[]>,
+  client?: ClientDeclaration,
 ): Promise<TaskRecord> {
   const urn = taskUrn(name);
 
@@ -283,6 +285,10 @@ export async function registerTask(
                 ),
               }
             : {}),
+          // What the MCP client declared itself to be, when the registration
+          // came through that door. Spread like `title`, so a task registered by
+          // anything else carries no empty key.
+          ...(client ? { [PROP.clientRegistered]: clientProperty(client) ?? "" } : {}),
         },
       },
     },

@@ -15,6 +15,12 @@
  * the first tick is that agent's own first call arriving. It is a weaker promise
  * than a setup wizard makes, and it is the only one obsel can keep.
  *
+ * One thing obsel now does see: a client that connects names itself in the MCP
+ * `initialize` handshake, and obsel records that against the task. It does not
+ * move this list, and deliberately: a name is what the client called itself, not
+ * evidence that a step happened, and every tick here stays a board fact. The
+ * name is shown once, in the details panel beside the task it belongs to.
+ *
  * The four steps are the order in `skills/obsel-collaboration/SKILL.md`, which
  * is the order that makes obsel's answers mean anything: declare, announce,
  * report, and then watch a change land. Each is a separate observable, so no

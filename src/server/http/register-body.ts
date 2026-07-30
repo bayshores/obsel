@@ -18,6 +18,7 @@
 import { z } from "zod";
 
 import { datasetNameProblem, taskNameProblem } from "@/src/server/datahub/urns";
+import { ClientBody } from "./client-body";
 
 /** A short table name, or one carrying a single namespace segment. */
 const DatasetName = z.string().superRefine((value, ctx) => {
@@ -57,4 +58,11 @@ export const RegisterBody = z.object({
    * table this task does not produce is a claim it has no standing to make.
    */
   volatile: z.record(DatasetName, z.array(z.string().min(1))).optional(),
+  /**
+   * What the MCP client declared itself to be when it connected. Sent only by
+   * `agents/mcp_server.py`; absent from every other caller, including obsel's
+   * own workers and the page's table form, which are not MCP clients of
+   * anything. Display only. See `client-body.ts`.
+   */
+  client: ClientBody.optional(),
 });

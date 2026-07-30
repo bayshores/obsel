@@ -27,6 +27,7 @@ import type { Page } from "@playwright/test";
 
 import { idle } from "./activity";
 import { noSteps } from "./trace";
+import type { ChangeHistory } from "@/src/server/coordinator/change-ledger";
 import type { PublishedErasureReport } from "@/src/server/coordinator/erasure-report";
 import type { SwarmResponse } from "@/src/features/dashboard/use-swarm";
 import type { TraceEvent } from "@/src/server/coordinator/types";
@@ -84,7 +85,7 @@ export interface SeenRegistration {
  */
 export async function openTab(
   page: Page,
-  tab: "activity" | "your agent" | "your data" | "erasure",
+  tab: "activity" | "history" | "your agent" | "your data" | "erasure",
 ) {
   const control = page.getByRole("tab", { name: tab, exact: true });
   await control.click();
@@ -131,6 +132,14 @@ export async function openDashboard(
    * connection. `"fail"` is the broken connection.
    */
   serveErasure: (next: PublishedErasureReport | "missing" | "fail") => void;
+  /**
+   * What `GET /api/changes` answers.
+   *
+   * `"fail"` is the broken read, which the panel has to render as a failure
+   * rather than as an empty history — the two look identical to a reader and one
+   * of them claims nothing ever happened.
+   */
+  serveChanges: (next: ChangeHistory | "fail") => void;
 }> {
   let current: SwarmResponse | "fail" = body;
   let currentActivity: DemoActivity | "fail" = activity;
@@ -139,6 +148,9 @@ export async function openDashboard(
   const registrations: SeenRegistration[] = [];
   let refusal: { status: number; error: string } | null = null;
   let currentErasure: PublishedErasureReport | "missing" | "fail" = "missing";
+  // An empty history by default: most tests are not about it, and an empty one is
+  // what a board nothing has happened on genuinely has.
+  let currentChanges: ChangeHistory | "fail" = { flowId: "orders_pipeline", entries: [] };
 
   const faults: Faults = { consoleErrors: [], pageErrors: [], failedRequests: [] };
   page.on("console", (message) => {
@@ -185,6 +197,29 @@ export async function openDashboard(
    * so the panel's content would be whatever this machine happened to have
    * done — a test that passes or fails on session history rather than on code.
    */
+  /*
+   * The change history. Stubbed like the rest, and with the same cost: no browser
+   * test here proves a record was written or read back. Its ledger URNs are
+   * derived from whatever flow the dev server is pointed at, so unstubbed this
+   * panel would show that machine's own history — a test that passes or fails on
+   * what somebody ran yesterday. `tests/live/change-ledger.live.test.ts` drives
+   * the real write and the real read against a real DataHub.
+   */
+  await page.route("**/api/changes", async (route) => {
+    if (currentChanges === "fail") {
+      await route.fulfill({
+        status: 500,
+        contentType: "application/json",
+        body: JSON.stringify({ error: "DataHub is not answering" }),
+      });
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(currentChanges),
+    });
+  });
   await page.route("**/api/trace", async (route) => {
     if (currentTrace === "fail") {
       await route.fulfill({ status: 500, contentType: "application/json", body: "{}" });
@@ -283,5 +318,6 @@ export async function openDashboard(
     registrations,
     refuseRegistration: (status, error) => (refusal = { status, error }),
     serveErasure: (next) => (currentErasure = next),
+    serveChanges: (next) => (currentChanges = next),
   };
 }

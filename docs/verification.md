@@ -205,6 +205,268 @@ display-only `path` on the run detail; nothing decides on it.
 
 ## Verified directly
 
+### Three live tests that passed alone and failed in the suite (2026-07-30)
+
+Worth its own entry because all three were tests this session added, all three were green when run as
+single files, and all three failed the first time `pnpm test:live` ran end to end. Each was a test
+asserting something it had not established.
+
+**Two assumed an empty board that only existed once.** The register-if-missing tests declared the
+four demo tasks into a flow of their own and asserted "obsel had no record of 4 of the 4 tasks".
+Registration is permanent and obsel deletes nothing, so the run that proved the behaviour is the run
+that made the assumption false: on the next run nothing was absent, and the announce-then-check test
+also failed, because `startTask` refuses a task the previous run had left at `running`. This is
+exactly the trap `engine.live.test.ts` records having been caught by once, arriving in a new file.
+
+Both now read what obsel holds and assert what the call did about it — the delta, which is what the
+code actually decides — and the announce test abandons the task first and again afterwards, so it
+starts and leaves the board in the state it needs. `readChangesFor`'s tests were written that way from
+the start, which is why they did not fail.
+
+**One asserted state a sibling file legitimately clears.** `obsel-mcp.live.test.ts` read
+`obsel.client.started` off a task its own `beforeAll` had announced. `resetSwarm` clears the two
+run-time client stamps — correctly, since the runs they describe are being wiped — and
+`engine.live.test.ts` resets that same shared flow. Alone the test passed; after that file it did not.
+It now makes its own announcement immediately before reading it back, and restores the baseline
+afterwards for the test below it.
+
+The lesson is the one this repository already applies to fingerprints and now applies to live state: a
+shared, append-only, never-deleted store means a test may assume nothing about what it starts from.
+
+With all three rewritten to assert the delta, `pnpm test:live` ran end to end on 2026-07-30: **153
+tests across 15 files, green, in 386 s**, one real Codex session and one real Claude Code session
+among them. That run is also the first execution of `task-auth.live.test.ts`,
+`volatile.live.test.ts` and `observe.live.test.ts`, which `coverage.md` had carried as
+written-but-unrun since 2026-07-29, and the first time every cascade-driving live file ran with the
+change ledger's writes in the completion path.
+
+### The empty board says what obsel is for, including the case it is built for (2026-07-29)
+
+A board with nothing on it offered two buttons, and both of them started obsel's own agents: the
+four-agent demo, or the forty-agent taxi swarm. The third answer — an agent somebody already has,
+joining over MCP, which is the case `README.md` opens by describing — was reachable only by noticing
+the "your agent" tab, which a reader arriving at an empty board has no reason to open.
+
+So the empty stage now carries a third button that opens that tab. `GuideAction` became a
+discriminated union: a `step` action launches a demo step on this machine, a `reveal` action puts one
+of the panel's own tabs on screen. A union rather than an optional `step`, so a stage cannot declare an
+action that does nothing, and `guide-panel.tsx` handles both or fails to compile.
+
+Three properties, each asserted:
+
+- **It launches nothing.** `e2e/dashboard.spec.ts` clicks it and asserts the launcher was asked for
+  nothing at all. That matters concretely: a step named `joining` would be refused by the launch
+  route's allowlist, and a reader would get a failure where they expected a panel.
+- **It is not the accented button.** The stage's own sentence is about the demo agents, and the rule
+  is at most one accent per stage pointing at what that sentence asks for.
+- **It appears only where the question is live.** `tests/dashboard-guide.test.ts` asserts no reveal
+  action on a registered or a settled board. There the tabs are the way in, and a fourth button
+  repeating one would be noise.
+
+`reveal` is the tour's own function, passed down rather than reimplemented, so the button and the
+tour's `yours` step cannot open different things. Its target is spelled with the tour's target names
+for the same reason: one mapping from a name to a tab.
+
+The one-pipeline-per-page decision recorded further down this document is untouched. This widens what
+the empty board _offers_; nothing here puts two pipelines on one board.
+
+`e2e/dashboard.spec.ts` is 40 green and the whole browser suite is 289. One assertion was written
+wrong and is worth recording: it looked for the fold summary "how an agent joins", which is not what
+that panel shows on a board nobody has joined — the fold opens itself there and the summary reads
+"hide this". It asserts the panel's heading instead.
+
+### A repaired board stopped reading like a board nothing happened to (2026-07-29)
+
+**This reverses a decision this repository had written down, and the owner approved the reversal.**
+`completion.ts` said, of clearing a flag: "a clear leaves nothing behind to carry its reason — absence
+of a mark is the record", with the trace and the completion reply as the only places it spoke.
+
+That is sound about task properties and it was never sound about history. A cleared task keeping a
+stale reason would read as a standing flag, so the properties still get stripped. But the trace is
+process-local and gone on restart by its own declaration, and the completion reply reaches one caller
+once — so a board that had been changed and then repaired was indistinguishable from a board where
+nothing ever happened, and "what did obsel flag here, and did a redo close it?" had no answer
+anywhere. The marks remain the evidence of what is currently wrong; this is the record of what
+happened.
+
+Each coordination decision that marked or cleared finished work now appends one record to the same
+append-only `document` ledger the erasure evidence chain uses. Three properties keep the reversal from
+becoming a mechanism, and each is asserted rather than asserted-in-prose:
+
+- **Nothing reads a record back to decide anything.** `restoredBy` still derives clears from task
+  properties alone. A wrong record misleads a reader and cannot make obsel answer wrongly.
+- **Nothing writes one but a completion that already decided something.** `tests/live/change-ledger.live.test.ts`
+  asserts `POST`, `PUT`, `PATCH` and `DELETE` on `/api/changes` all answer 405, and that
+  `/api/changes/clear`, `/api/changes/1` and `/api/history` do not exist. A writable history would let
+  a caller record "this was cleared" with no work redone, which is the one thing obsel's clearing rule
+  exists to prevent.
+- **A quiet completion records nothing.** An identical re-run marks nothing and writes nothing, so the
+  history holds decisions that changed the board rather than one row per run of every task.
+
+The record carries the column diff because `decideCompletion` is the only moment it exists:
+`recordCompletion` overwrites the previous run's shapes a few lines later, so a record built from task
+properties after the fact could say a table changed and never which columns moved.
+
+**Sequence numbers are scoped to the flow**, which is not optional. `OBSEL_FLOW_ID` is how obsel keeps
+boards apart, and an unscoped sequence would have every server on one DataHub appending into one
+stream, so a live run would interleave its records with the operator's history and both would read as
+one board's. The head is cached per flow per process and seeded by counting up to the first genuine
+404; the walk is bounded, and a board past the ceiling keeps recording above it, leaving a gap the
+reader tolerates by stopping at the first 404. A gap costs visibility of older records rather than
+correctness of newer ones, and the alternative — refusing to record — would lose the record entirely.
+
+**Measured against a real DataHub.** `tests/live/change-ledger.live.test.ts` is 11 tests green: a real
+cascade appends a record naming `clean orders`, the schema change, `order_total` leaving and
+`order_total_usd` arriving, and all three flagged tasks with `write_docs` at 2 hops; a real repair
+appends the clearance beside it and the marking record is **byte-identical afterward**, which is the
+assertion the whole design turns on; a revert is recorded as the change it is rather than as a repair,
+because `restoredBy` clears only where a redo came back identical to what is recorded and a revert is
+a second movement, not a proof; and reading one past the end returns nothing at all.
+
+Two test expectations were wrong before the code was, and both are worth recording because each named
+a real property of the engine. Reverting the origin table is not a repair — it re-flags its readers
+and clears nothing. And a decision that both flags and clears cannot be produced from single-output
+tasks at all, so that case is unit-only in `tests/change-ledger.test.ts` and says so.
+
+The failure posture is the `detectedMs` pass's: a history write that throws emits a traced step naming
+the failure and does not fail the completion. The flags are the evidence and they have already landed;
+losing a chronicle entry is worse than not having it, and nowhere near as bad as failing a completion
+that succeeded and having the agent retry it. A retried half-failed completion can therefore append a
+second record about the same marks, which is accepted and written down: the ledger is a chronicle
+nothing reads back, so a duplicate is a reader seeing one event twice rather than obsel deciding
+wrongly.
+
+**The page reads it in a fifth tab, `history`, beside `activity`.** Not a section under the feed — the
+tab strip exists because stacking regions starved the feed of height — and not a restatement of it:
+the feed is every step of the pass happening now and does not survive a restart, this is the record of
+decisions that changed the board and does. Looked at on a real page against the integration flow's own
+13 records, written by the live runs above: the header read `what obsel has decided · 13 records`, and
+the newest row read `3 tasks went out of date` / `clean orders: columns changed — reported by
+clean_orders` / `left: order_total_usd · arrived: order_total` / `out of date: build_revenue (1 hop),
+write_docs (2 hops), write_report (2 hops)` / `decided in 193 ms`. Newest first, which is the opposite
+of the feed and deliberate: a reader arriving at a history came for the last thing that happened.
+
+A record the page cannot parse renders as a row saying so rather than being dropped, because a gap in
+a history reads as "nothing happened here" — the exact answer this whole change exists to remove.
+Twelve unit tests in `tests/dashboard-history.test.ts` and seven browser tests in `e2e/history.spec.ts`
+cover that, the empty state, a failed read that is not an empty history, and an unreported change
+crediting the observation rather than the table's producer.
+
+**The fifth tab broke the tab strip, and the fix is measured.** At zero gap the four existing labels
+had room to read as four words; the fifth removed it. Measured at 1280px: the strip needed 346px of a
+339px track and rendered `activityhistoryyour agentyour dataerasure` as one run-together string with
+the last label flush against the edge. The 13px type floor is not negotiable — `panel.module.css`
+records why — so the horizontal padding paid for the fifth label, from 8px to 4px, and a 4px gap now
+keeps the words apart at any width. `e2e/history.spec.ts` asserts the strip does not overflow at the
+default panel width and that no two labels touch, at both viewports.
+
+### obsel knows which client connected, and says only that (2026-07-29)
+
+The board could not name an agent that joined. `obsel.run.runner` is what the agent says did the
+work, passed as a tool argument, and a task that registered and announced but never completed
+carried no identity at all. The joining panel inferred "your agent" by excluding the four demo
+names and the taxi namespace, which is a real signal about the board and says nothing about who
+was on the other end of the connection.
+
+An MCP client already names itself, once, in the `initialize` handshake. `agents/mcp_server.py`
+now reads that off the live session — `ctx.session.client_params.clientInfo` — and sends it with
+the registration, the announcement and the completion. Three properties record it:
+`obsel.client.registered`, `.started`, `.reported`.
+
+**Verified that the tool signatures did not change**, because that was the risk. FastMCP injects a
+`Context`-annotated parameter and excludes it from the published schema, so listing the tools off a
+built server reports `register_task` with `['description', 'name', 'reads', 'title', 'volatile',
+'writes']`, `announce_start` with `['taskUrn']`, `report_complete` with `['inputs', 'ms', 'outputs',
+'runner', 'taskUrn']`, ten tools, and `ctx` absent from every one of them. An agent's call is
+unchanged and nothing an agent writes can reach the field.
+
+One trap, met and recorded: `from __future__ import annotations` makes every annotation a string
+that FastMCP evaluates against the **module's** globals, so `Context` imported inside
+`build_server` raised `InvalidSignature` at decoration time. The SDK import has to stay inside that
+function — the module must load without the SDK for `python -m agents.mcp_core` to run — so the
+class is bound into the module namespace there, with the reason written beside it.
+
+**Measured end to end against a real DataHub**, on a flow of its own (`obsel_client_probe`) so
+nothing landed on the operator's board. A real Python MCP client spawned the real server over stdio,
+completed a real handshake, and registered and announced one task. Read back off `/api/swarm`:
+
+```
+"registered": {"name":"mcp","version":"0.1.0","at":"2026-07-30T05:55:05.648801+00:00"}
+"started":    {"name":"mcp","version":"0.1.0","at":"2026-07-30T05:55:08.935034+00:00"}
+"reported":   null
+```
+
+`mcp 0.1.0` is what that client actually declared — the Python SDK's default `clientInfo`, since the
+probe script set none — repeated verbatim, which is the whole behaviour. `reported` is null because
+the probe never completed the task. The flow holds one `probe_cleaner` task at `running`; obsel
+deletes nothing, and it is on a flow no other surface reads.
+
+In the automated suites, `tests/live/obsel-mcp.live.test.ts` is 21 green and asserts `started` and
+`reported` carry `obsel-live-test 0.0.0`, which is the `clientInfo` its own SDK client is built with
+and which nothing passes as an argument, plus that `run.runner` is still null on the same task — an
+implementation deriving one field from the other would fail there. It deliberately does not assert
+`registered`: that is written once, by the same reuse guard that fixes `title` at first registration,
+and those tasks were declared by an earlier run on a DataHub that keeps them, so the assertion would
+have been about a fresh DataHub rather than about the tool. That is why the probe above was run by
+hand and recorded here.
+
+Eight unit tests in `tests/datahub-task-record.test.ts` pin the parse on the **drop** side of that
+file's own rule: a client record obsel cannot read costs the line, never the task. A property that
+is not JSON, JSON of the wrong shape, a missing name, an empty name and a non-string version all
+return null rather than throwing, because a throw would fail `readSnapshot` and blank the board over
+a version string. Five in `tests/dashboard-progress.test.ts` cover the one line the page shows:
+`clientLine` collapses three matching stamps to one name and spells the moments out only when they
+differ, so a panel does not print one fact three times.
+
+The vocabulary is the point of the change, not decoration on it. Every surface says the client
+**declared** itself to be this. obsel reads the declaration off the session rather than off an
+argument, which is a real difference from `runner`, and it is still not a check: obsel holds no
+registry of clients and cannot refuse a name. `attestation.ts` remains the only code in obsel
+entitled to call anything verified. `joining.ts`' header comment said "obsel cannot see an agent's
+settings", which is still true and was no longer the whole truth; it now says what obsel does see and
+why that does not move any tick in the joining list.
+
+### Setting the agents up stopped being a step (2026-07-29)
+
+Two buttons became one. The empty page offered **Set up the demo agents**, then, once they were
+registered, **Start the demo agents**. Nobody ever wanted the first one done on its own: declaring
+what a task reads and writes is what has to happen before agents can run, which is obsel's business
+rather than a decision to put to a reader. The taxi swarm had the same pair.
+
+The merge is in Python, not in the page. `cmd_run` and `cmd_scale_run` now declare whatever obsel
+has no record of and then run, so a terminal and a button behave identically — `guide.ts` derives
+every stage from the board, and a page that could do something the commands could not would put the
+two out of step. The launcher also runs one step at a time and answers 409 to a second, so chaining
+two spawns from the page would have needed a queue it deliberately does not have.
+
+The set registered is computed, never assumed, and that is the whole correctness content of this
+change. A registration upserts the DataJob with `status: registered`, so re-declaring a task obsel
+already holds would discard the finished state the page reads off it. `missing_names` in
+`demo_output.py` compares the board's urns against the expected ones and returns only the absent,
+keyed on the urn rather than the name because the urn is what obsel filed the task under.
+
+`register` and `scale-register` remain, as commands and as the "set up again" button while nothing
+has run, because they anchor the walk boundaries in `guide.ts` and are what to use after changing
+what a task reads or writes. `_scale_records`' refusal is also untouched: it runs after a swarm,
+where a missing task means a run that did not do what it claimed, and this registration cannot mask
+it.
+
+Run against a real DataHub on a flow nothing had registered into, which is a genuinely empty board
+rather than a simulated one — obsel deletes nothing, so the integration flow could not be returned
+to that state. `tests/live/run-commands.live.test.ts` is 12 tests green: all four declared and read
+back at `registered` out of DataHub, a second pass declaring none and printing nothing at all, and a
+task announced through obsel's own API left at `running` with the same `startedAt` afterward. Six
+new self-checks in `agents/run.py` cover the absent set itself, including a task held under another
+flow's urn counting as absent and a malformed board entry being skipped rather than stopping a run
+that was about to fix the board.
+
+One tour act where there were two, since the second pointed at a button that no longer exists and an
+act step has no next button by design. A bookmark stored at the retired `register` id matches no
+step and falls back to the first, which restarts the walk rather than desyncing it, so the stored
+shape needs no version bump. `e2e/dashboard.spec.ts` is 38 green; its advance assertion was tightened
+while it was open, because the merged act's title ends in "let them work" and the old alternation
+would have matched the card the reader was already on and passed without anything advancing.
+
 ### The table sketch became two fields (2026-07-29)
 
 Reported by the owner as "the shape is always stuck loading". It was not loading and never had
@@ -1092,8 +1354,9 @@ with **373 unit tests across 17 files**; `pnpm test:live` green with **93 tests 
 
 ### The door an agent joins the erasure view through (2026-07-26)
 
-`agents/mcp_server.py` now registers **nine** tools rather than six: `erasure_board`,
-`request_challenge` and `submit_attestation` sit beside the swarm's original set. Every mutation
+`agents/mcp_server.py` registers **nine** tools rather than six: `erasure_board`,
+`request_challenge` and `submit_attestation` sit beside the swarm's original set. (Ten as of
+2026-07-28, when `rerun_plan` was added; the count in this entry is the one at its own date.) Every mutation
 still goes through obsel's HTTP API, so the server holds no DataHub credentials, and the decisions
 live in `agents/mcp_core.py` and `agents/mcp_erasure.py`, where `pnpm verify` checks them with the
 system `python3`.

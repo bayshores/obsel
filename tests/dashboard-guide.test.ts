@@ -194,18 +194,59 @@ describe("stage derivation", () => {
   it("an unreadable activity feed never blocks the journey — unknown is not broken", () => {
     const view = guide(input({ activity: null, tasks: [] }));
     expect(view.stage).toBe("empty");
-    expect(view.actions.map((action) => action.step)).toEqual(["register", "scale-register"]);
+    expect(view.actions.map((action) => action.step)).toEqual([
+      "run",
+      "scale-change-mid",
+      // The third door launches nothing, so it carries no step.
+      undefined,
+    ]);
   });
 
-  it("empty offers both pipelines and says what is about to be set up", () => {
+  it("empty offers both pipelines and the door for an agent somebody already has", () => {
     // The only stage with no graph on screen, so the only one that describes the
-    // pipeline in words instead of drawing it. Two setup buttons: the four-agent
-    // demo and the forty-task taxi swarm are both one press away from nothing.
+    // pipeline in words instead of drawing it. One button per pipeline: setting
+    // the agents up is not a thing anybody wants done on its own, so `run`
+    // declares whatever obsel has no record of and then runs.
     const view = guide(input({ tasks: [] }));
     expect(view.stage).toBe("empty");
-    expect(view.actions.map((action) => action.step)).toEqual(["register", "scale-register"]);
+    expect(view.actions.map((action) => action.step)).toEqual([
+      "run",
+      "scale-change-mid",
+      undefined,
+    ]);
     expect(allText(view)).toContain("No agents yet");
     expect(allText(view)).toContain("Each one reads a table that another one writes");
+    expect(allText(view)).toContain("Declares them in DataHub, then runs them");
+  });
+
+  it("offers the bring-your-own door as a reveal, not as something obsel runs", () => {
+    /*
+     * The distinction the union exists for. The two demo buttons spawn agent
+     * sessions on this machine; this one moves the reader to a panel that is
+     * already there. A `step` on it would have the launcher try to run a step
+     * called "joining", and the allowlist would refuse it.
+     */
+    const view = guide(input({ tasks: [] }));
+    const door = view.actions.find((action) => action.reveal !== undefined);
+
+    expect(door?.reveal).toBe("joining");
+    expect(door?.step).toBeUndefined();
+    // Never the accented one: the stage's sentence is about the demo agents.
+    expect(door?.primary).toBeUndefined();
+    expect(door?.label).toBe("Bring an agent you already have");
+  });
+
+  it("keeps the bring-your-own door off every stage that has a graph", () => {
+    // It is an answer to "what is obsel for", which is only a live question on the
+    // one screen with nothing on it. On a board with agents the tabs are the way
+    // there, and a fourth button repeating one would be noise.
+    for (const tasks of [
+      [task("clean_orders", { status: "registered", finishedAt: null })],
+      [task("clean_orders", { status: "complete" })],
+    ]) {
+      const view = guide(input({ tasks }));
+      expect(view.actions.some((action) => action.reveal !== undefined)).toBe(false);
+    }
   });
 
   it("registered counts the agents and points at the list rather than repeating it", () => {

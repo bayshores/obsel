@@ -199,12 +199,14 @@ fails loudly if either did not land.
 **8. Run the demo**, either from the guide's buttons or as the same commands:
 
 ```bash
-agents/.venv/bin/python -m agents.run register      # four tasks into DataHub, each with its job
-agents/.venv/bin/python -m agents.run run           # four agents finish, nothing stale
+agents/.venv/bin/python -m agents.run run           # declares any task obsel lacks, then runs four agents
 agents/.venv/bin/python -m agents.run rerun-same    # re-run produces the same table, marks nothing
 agents/.venv/bin/python -m agents.run change        # renames a column, three tasks go stale
 agents/.venv/bin/python -m agents.run reset         # back to the starting state
 ```
+
+`register` is still a command, and it re-declares all four whether or not obsel holds them. Use it
+after changing what a task reads or writes; `run` on its own is enough to start from nothing.
 
 [`agents/README.md`](../agents/README.md) explains what each command should print. The page follows
 either path identically, because the guide derives everything from what DataHub holds.
@@ -248,6 +250,11 @@ claude mcp add obsel -- "$PWD/agents/.venv/bin/python" -m agents.mcp_server
 ```
 
 Point `OBSEL_URL` at your obsel if it is not on `http://localhost:3000`.
+
+The page carries this command too, in the "your agent" tab, with this machine's own paths filled in.
+On a board with nothing on it the guide offers a third button, **Bring an agent you already have**,
+which opens that tab: an empty board is the one screen that asks what obsel is for, and this answer
+was previously behind a tab a reader had no reason to open. It launches nothing.
 
 **2. Register the two tasks, once.** Short names in, URNs out; the names become real DataJob
 entities wired with lineage:

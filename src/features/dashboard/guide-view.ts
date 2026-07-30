@@ -64,9 +64,52 @@ export type GuideStage =
   /** Finished work is marked as built on something that changed. */
   | "flagged";
 
-/** A real action: one button, one launched demo step, nothing canned. */
-export interface GuideAction {
+/**
+ * A real action: one button, and one thing that genuinely happens.
+ *
+ * Two kinds, and the discriminant is which field is present. A `step` action
+ * launches a demo step on this machine. A `reveal` action puts one of the panel's
+ * own tabs on screen, which is how the empty board offers the door for somebody
+ * else's agent beside the two that start obsel's own.
+ *
+ * A union rather than an optional `step`, so a stage cannot accidentally declare
+ * an action that does nothing: every action is exactly one of the two, and
+ * `guide-panel.tsx` handles both or fails to compile.
+ */
+export type GuideAction = GuideLaunch | GuideReveal;
+
+/** Launches a demo step on the machine obsel is running on. */
+export interface GuideLaunch extends GuideActionBase {
   step: DemoStep;
+  reveal?: never;
+}
+
+/**
+ * Opens one of the panel's tabs.
+ *
+ * Nothing is spawned and nothing is written: this moves the reader to a surface
+ * that is already there. It exists because the empty board is the one screen where
+ * a reader has to choose what obsel is for them, and two of the three answers are
+ * "start obsel's own agents" while the third is "bring your own" — which lives
+ * behind a tab a reader has no reason to have opened yet.
+ */
+export interface GuideReveal extends GuideActionBase {
+  step?: never;
+  reveal: RevealTarget;
+}
+
+/**
+ * Which surface a reveal action opens.
+ *
+ * Spelled with the tour's own target names, so `dashboard.tsx`' single `reveal`
+ * function takes one unchanged and there is one mapping from a name to a tab
+ * rather than two that can disagree. Only `joining` today: the data door stays one
+ * tab away, because three buttons on the first screen is already the most a reader
+ * should be asked to choose between.
+ */
+export type RevealTarget = "joining";
+
+interface GuideActionBase {
   label: string;
   /** What genuinely happens when pressed, one sentence. */
   detail: string;

@@ -164,13 +164,20 @@ the guide all show the same words. The command checks that the URN obsel returns
 matches the one the agents expect, and stops if they disagree, because a URN mismatch
 would make the traversal miss the task without any error.
 
+Not a step you have to run: `run` below declares whatever obsel has no record of
+before it starts. This command re-declares all four whether or not obsel holds
+them, which is what to use after changing what a task reads or writes.
+
 ### 3. `run`
 
 ```bash
 agents/.venv/bin/python -m agents.run run
 ```
 
-Runs all four agents in dependency order. For each one it prints what did the work
+Declares any of the four obsel has no record of, then runs all four in dependency
+order. Only the absent ones are declared: re-declaring a task obsel already holds
+sets its status back to `registered`, which on a board that has already run would
+discard the finished state the page reads off it. For each one it prints what did the work
 and how long it took, the table that came out with its row count and columns, its
 fingerprint, and what obsel made of it. The page shows the same figures, and
 shows an elapsed count while each agent is still working.

@@ -158,12 +158,16 @@ After that, the whole demo is buttons.
 
 | Button                                       | What happens                                                                                  |
 | -------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| **Set up the demo agents**                   | Four agents are added to DataHub. Nothing runs yet.                                           |
-| **Start the demo agents**                    | Four real agent sessions do the work. Two to three minutes.                                   |
+| **Run the demo agents**                      | Four agents are declared in DataHub, then four real agent sessions do the work.               |
 | **Run the orders cleaner again, no changes** | The same table comes out, so nothing should go out of date. obsel stays quiet.                |
 | **Change one agent's instructions**          | A column gets renamed. Three finished agents go amber, and two of them never read that table. |
 | **Redo the work obsel flagged**              | Agents redo it in order. A redo that lands identical clears the flags on work built on it.    |
 | **Reset and start over**                     | Everything goes back to up to date. The agents stay set up.                                   |
+
+Redoing the work takes the flags off, which leaves the board looking like one where nothing ever
+happened. The **history** tab is where that went: one record per decision obsel made, written into
+DataHub, saying what changed, what it flagged and what a redo closed. Nothing can write to it but a
+completion, and nothing reads it back to decide anything.
 
 ### What you need
 
@@ -178,8 +182,10 @@ After that, the whole demo is buttons.
 **Either agent CLI will do, and you need only one.** With nothing set, obsel uses whichever is
 installed and prefers Codex when both are. To pick, set `OBSEL_RUNNER=codex` or `OBSEL_RUNNER=claude`
 before starting: the setup checklist, the launcher and the workers all read it, so they cannot
-disagree about which product is doing the work. The runner is the agent's business, not obsel's. Every
-measured number below was taken against Codex.
+disagree about which product is doing the work. The runner is the agent's business, not obsel's, which
+is why an agent reporting through the MCP door names it rather than being asked: obsel records what a
+client declared itself to be and never claims to have checked it. Every measured number below was
+taken against Codex.
 
 The launcher installs `uv` if it is missing, and skips whatever is already done, so running it twice
 is safe. Docker, Node and the agent CLI sign-in need you, so it detects those and says what to do. It
@@ -228,6 +234,7 @@ from a terminal ticks it just the same.
 | `report_complete(taskUrn, outputs, inputs?, runner?, ms?)` | what I produced; obsel replies with what that broke, and with what it proved sound |
 | `abandon_task(taskUrn)`                                    | hand the announcement back if I failed                                             |
 | `read_board()`                                             | who else is in the swarm, and how they are doing                                   |
+| `rerun_plan()`                                             | when work is flagged, what to redo and in what order                               |
 | `erasure_board(request, scope?)`                           | what an erasure request still has nobody speaking for, as work to do               |
 | `request_challenge(request, asset)`                        | the one-time value my attestation must be signed over                              |
 | `submit_attestation(request, envelope)`                    | hand over a signed claim; obsel verifies it or refuses it with every reason        |

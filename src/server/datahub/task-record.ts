@@ -16,12 +16,14 @@
 
 import type {
   ChangeKind,
+  ClientStamp,
   ColumnChange,
   OutputFingerprint,
   OutputShape,
   RunDetail,
   StaleCause,
   StaleMark,
+  TaskClients,
   TaskRecord,
   TaskStatus,
 } from "@/src/server/coordinator/types";
@@ -168,6 +170,45 @@ function parseRun(props: Record<string, string>): RunDetail | null {
 
   if (runner === null && ms === null && Object.keys(outputs).length === 0) return null;
   return { runner, ms, outputs };
+}
+
+/**
+ * Read back one MCP client's account of itself, or null.
+ *
+ * Lenient on purpose, and that is the opposite of how the stale properties three
+ * functions below are read. Those throw on anything malformed, because a stale
+ * task obsel cannot explain is worse than one it cannot read at all. This is
+ * display material: a client record obsel cannot parse must cost the line on the
+ * page, never the whole task. A record that failed to parse here would otherwise
+ * make every snapshot read fail, taking the board down over a version string.
+ */
+function parseClient(raw: string | undefined): ClientStamp | null {
+  if (!raw) return null;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return null;
+  const record = parsed as Record<string, unknown>;
+  // The name is the whole point: a stamp without one identifies nothing, and
+  // rendering an empty name would put a blank client on the page.
+  if (typeof record.name !== "string" || record.name === "") return null;
+  return {
+    name: record.name,
+    version: typeof record.version === "string" && record.version !== "" ? record.version : null,
+    at: typeof record.at === "string" && record.at !== "" ? record.at : null,
+  };
+}
+
+/** Every moment obsel has heard from an MCP client about one task. */
+function parseClients(props: Record<string, string>): TaskClients {
+  return {
+    registered: parseClient(props[PROP.clientRegistered]),
+    started: parseClient(props[PROP.clientStarted]),
+    reported: parseClient(props[PROP.clientReported]),
+  };
 }
 
 /**
@@ -348,6 +389,7 @@ export function toTaskRecord(entity: DataJobEntity): TaskRecord {
     finishedAt: finishedAt ? finishedAt : null,
     startedAt: startedAt ? startedAt : null,
     run: parseRun(props),
+    client: parseClients(props),
     stale: parseStale(props, status, entity.urn),
     tags,
     staleTagged: hasStaleTag(tags),

@@ -26,28 +26,44 @@ A `DataJob` gives us identity and edges. Everything else is carried in that Data
 `dataJobInfo.customProperties`, as strings, under an `obsel.` prefix. The keys are defined once, in
 [`src/server/datahub/properties.ts`](../src/server/datahub/properties.ts) as `PROP`:
 
-| Property                   | Holds                                                | Example                                                                                      |
-| -------------------------- | ---------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| `obsel.status`             | `registered`, `running`, `complete`, or `stale`      | `stale`                                                                                      |
-| `obsel.finishedAt`         | ISO timestamp of the last completion                 | `2026-07-21T14:02:39.905Z`                                                                   |
-| `obsel.startedAt`          | ISO timestamp obsel moved the task to `running`      | `2026-07-21T14:01:56.031Z`                                                                   |
-| `obsel.fingerprints`       | JSON: dataset URN to `{schema, content}` sha256 pair | `{"urn:li:dataset:(...)":{"schema":"8c25...","content":"f521..."}}`                          |
-| `obsel.run.runner`         | what did the work, with its version                  | `codex-cli 0.144.4`, or `2.1.216 (Claude Code)`                                              |
-| `obsel.run.ms`             | ms the runner took, as the agent measured it         | `43937`                                                                                      |
-| `obsel.run.outputs`        | JSON: dataset URN to `{rows, columns}`               | `{"urn:li:dataset:(...)":{"rows":39,"columns":["order_id","customer"]}}`                     |
-| `obsel.stale.causedBy`     | dataset URN that actually moved                      | `urn:li:dataset:(...,obsel_demo.clean_orders,PROD)`                                          |
-| `obsel.stale.causedByTask` | task URN that wrote it, or empty                     | `urn:li:dataJob:(...,clean_orders)`                                                          |
-| `obsel.stale.hops`         | distance from the change, as a string                | `2`                                                                                          |
-| `obsel.stale.changeKind`   | `schema`, `content`, or `both`                       | `schema`                                                                                     |
-| `obsel.stale.columns`      | JSON: which columns left and arrived, or absent      | `{"added":["order_total_usd"],"removed":["order_total"]}`                                    |
-| `obsel.stale.reason`       | one plain-English sentence                           | `built on work from Daily revenue, which is itself out of date because clean orders changed` |
-| `obsel.stale.since`        | ISO timestamp the mark was applied                   | `2026-07-21T14:05:52.244Z`                                                                   |
+| Property                   | Holds                                                      | Example                                                                                      |
+| -------------------------- | ---------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `obsel.status`             | `registered`, `running`, `complete`, or `stale`            | `stale`                                                                                      |
+| `obsel.finishedAt`         | ISO timestamp of the last completion                       | `2026-07-21T14:02:39.905Z`                                                                   |
+| `obsel.startedAt`          | ISO timestamp obsel moved the task to `running`            | `2026-07-21T14:01:56.031Z`                                                                   |
+| `obsel.fingerprints`       | JSON: dataset URN to `{schema, content}` sha256 pair       | `{"urn:li:dataset:(...)":{"schema":"8c25...","content":"f521..."}}`                          |
+| `obsel.run.runner`         | what did the work, with its version                        | `codex-cli 0.144.4`, or `2.1.216 (Claude Code)`                                              |
+| `obsel.run.ms`             | ms the runner took, as the agent measured it               | `43937`                                                                                      |
+| `obsel.run.outputs`        | JSON: dataset URN to `{rows, columns}`                     | `{"urn:li:dataset:(...)":{"rows":39,"columns":["order_id","customer"]}}`                     |
+| `obsel.client.registered`  | what the MCP client named itself when it declared the task | `{"name":"claude-code","version":"2.1","at":"2026-07-29T10:00:00.000Z"}`                     |
+| `obsel.client.started`     | the same, at the latest announcement                       | `{"name":"claude-code","version":"2.1","at":"..."}`                                          |
+| `obsel.client.reported`    | the same, at the latest completion                         | `{"name":"claude-code","version":"2.1","at":"..."}`                                          |
+| `obsel.stale.causedBy`     | dataset URN that actually moved                            | `urn:li:dataset:(...,obsel_demo.clean_orders,PROD)`                                          |
+| `obsel.stale.causedByTask` | task URN that wrote it, or empty                           | `urn:li:dataJob:(...,clean_orders)`                                                          |
+| `obsel.stale.hops`         | distance from the change, as a string                      | `2`                                                                                          |
+| `obsel.stale.changeKind`   | `schema`, `content`, or `both`                             | `schema`                                                                                     |
+| `obsel.stale.columns`      | JSON: which columns left and arrived, or absent            | `{"added":["order_total_usd"],"removed":["order_total"]}`                                    |
+| `obsel.stale.reason`       | one plain-English sentence                                 | `built on work from Daily revenue, which is itself out of date because clean orders changed` |
+| `obsel.stale.since`        | ISO timestamp the mark was applied                         | `2026-07-21T14:05:52.244Z`                                                                   |
 
-`startedAt`, the `obsel.run.*` group and `obsel.stale.columns` are display only. `startedAt` lets the
-page say how long work in flight has been in flight; `obsel.run.*` is what an agent reports about
-its own run; `obsel.stale.columns` names which columns moved so the page can show
+`startedAt`, the `obsel.run.*` group, the `obsel.client.*` group and `obsel.stale.columns` are display
+only. `startedAt` lets the page say how long work in flight has been in flight; `obsel.run.*` is what
+an agent reports about its own run; `obsel.client.*` is which MCP client obsel has heard from about
+the task; `obsel.stale.columns` names which columns moved so the page can show
 `- order_total / + order_total_usd` instead of a sha256. obsel's staleness answer reads none of them,
 and a task carrying none of them still cascades correctly.
+
+`obsel.client.*` and `obsel.run.runner` are two different facts and neither is ever filled in from
+the other. `runner` is what the agent says did the work, passed as a tool argument. `client.*` is what
+the MCP client named itself in the `initialize` handshake, which `agents/mcp_server.py` reads off the
+live session rather than accepting as an argument — so obsel is repeating what the client said when it
+connected instead of what an agent typed into a call. That is a real difference and it is still not a
+check: obsel holds no registry of clients and cannot refuse a name, so every surface says **declared**
+rather than verified, and `attestation.ts` remains the only code in obsel entitled to call anything
+verified. All three are absent on a task obsel's own workers or the page's table form declared, none
+of which is an MCP client of anything. `client.registered` is written once, by the same reuse guard
+that fixes `title` at first registration; the other two are rewritten per announcement and per
+completion, and reset clears those two while keeping the declaration, since reset keeps the tasks.
 
 `obsel.stale.columns` describes a change rather than detecting one: `compareFingerprints` has already
 settled `changeKind` from the sha256 pair by the time it is computed. It is derived from
@@ -742,8 +758,7 @@ What has been verified directly, and what has not.
 
 ## 11. The HTTP API
 
-Fifteen routes. All of them are `force-dynamic`; nothing here is cached. They fall into three
-groups.
+Sixteen routes. All of them are `force-dynamic`; nothing here is cached. They fall into four groups.
 
 **obsel's own protocol, eight routes.** `GET /api/swarm`, `GET /api/trace`, and the five under
 `/api/tasks/`: `register`, `start`, `complete`, `abandon`, `report`, plus
@@ -757,6 +772,17 @@ already reads the board does not need a second route to learn what to redo first
 `src/server/http/auth.ts`, plus `GET /api/erasure/<id>`, which is deliberately ungated and strips
 the subject's identifiers out of the report before answering. With no token configured the three
 mutating routes answer 503 rather than running unauthenticated, which is the closed direction.
+
+**The board's change history, one route** — the fourth group, and one route is the whole of it.
+`GET /api/changes`, ungated, read-only, and it is the
+read-only part that is load bearing rather than incidental. Each coordination decision that marked or
+cleared finished work appends one append-only `document` record beside the erasure evidence chain, so
+the question "what did obsel flag here, and did a redo close it?" has an answer that outlives the
+process. Nothing reads a record back to decide anything: a clear is still derived by `restoredBy`
+from task properties alone, and there is no route or tool that appends to, edits or deletes a record.
+That absence is the point — a writable history would let a caller record "this was cleared" with no
+work redone, which is exactly what obsel's clearing rule exists to prevent, so
+`tests/live/change-ledger.live.test.ts` asserts the mutating verbs answer 405.
 
 **What the token gates, and what it deliberately does not.** `start`, `complete`, `abandon` and
 `datasets/observe` carry the same gate as the erasure mutations. `complete` is the reason it exists on this side: a

@@ -12,6 +12,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   activityNote,
+  clientLine,
   formatDuration,
   inFlightMs,
   rowsWritten,
@@ -222,5 +223,55 @@ describe("stampLabel — a running task is not dated by its last completion", ()
   it("falls back to the completion when a running task has no stamped start", () => {
     const t = task({ status: "running", startedAt: null, finishedAt: null });
     expect(stampLabel(t, clockTime)).toBe("");
+  });
+});
+
+describe("clientLine — one name, and the moments only when they differ", () => {
+  function stamp(name: string, version: string | null = null) {
+    return { name, version, at: null };
+  }
+
+  it("shows nothing for a task no MCP client ever spoke about", () => {
+    // The usual case, and the reason this returns null rather than a placeholder:
+    // obsel's own workers and the page's table form are not MCP clients, so the
+    // field is left off the panel entirely.
+    expect(clientLine(undefined)).toBeNull();
+    expect(clientLine({ registered: null, started: null, reported: null })).toBeNull();
+  });
+
+  it("names the client once when every moment names the same one", () => {
+    const one = stamp("claude-code", "2.1");
+    expect(clientLine({ registered: one, started: one, reported: one })).toBe("claude-code 2.1");
+  });
+
+  it("spells the moments out when two clients touched the same task", () => {
+    // A real situation rather than a hypothetical one: a task can be declared
+    // from one client and reported from another, and collapsing that to one name
+    // would say something untrue about who did what.
+    expect(
+      clientLine({
+        registered: stamp("claude-code", "2.1"),
+        started: null,
+        reported: stamp("codex-cli", "0.144.4"),
+      }),
+    ).toBe("claude-code 2.1 (declared), codex-cli 0.144.4 (reported)");
+  });
+
+  it("carries a client that gave no version, without an empty gap after it", () => {
+    expect(clientLine({ registered: stamp("some-agent"), started: null, reported: null })).toBe(
+      "some-agent",
+    );
+  });
+
+  it("counts a version difference as a difference", () => {
+    // The same product at two versions is two facts about one task, and the
+    // version is the whole reason to record one.
+    expect(
+      clientLine({
+        registered: stamp("claude-code", "2.0"),
+        started: null,
+        reported: stamp("claude-code", "2.1"),
+      }),
+    ).toBe("claude-code 2.0 (declared), claude-code 2.1 (reported)");
   });
 });

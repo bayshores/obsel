@@ -22,14 +22,45 @@ import { openDashboard } from "./fixtures/mount";
  */
 
 test.describe("guide", () => {
-  test("an empty swarm offers register, and the click launches the real step", async ({ page }) => {
+  test("an empty swarm offers one run, and the click launches the real step", async ({ page }) => {
     const { launches } = await openDashboard(page, empty());
 
-    const button = page.getByRole("button", { name: /Set up the demo agents/ });
+    const button = page.getByRole("button", { name: /Run the demo agents/ });
     await expect(button).toBeVisible();
     await button.click();
 
-    await expect.poll(() => launches).toEqual(["register"]);
+    // `run` declares whatever obsel has no record of before running, so an empty
+    // board needs this one step rather than a setup step before it.
+    await expect.poll(() => launches).toEqual(["run"]);
+  });
+
+  test("the empty board's third door opens the panel instead of launching a step", async ({
+    page,
+  }) => {
+    /*
+     * The one screen that asks what obsel is for. Two of its answers start
+     * obsel's own agents; this is the third, for a reader whose agents already
+     * exist, and it used to be reachable only by noticing a tab they had no
+     * reason to open.
+     *
+     * It must not launch anything: `launches` staying empty is the assertion,
+     * because a step named "joining" would be refused by the launcher's allowlist
+     * and the reader would get a failure where they expected a panel.
+     */
+    const { launches } = await openDashboard(page, empty());
+
+    const door = page.getByRole("button", { name: /Bring an agent you already have/ });
+    await expect(door).toBeVisible();
+    await door.click();
+
+    await expect(page.getByRole("tab", { name: "your agent", exact: true })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    // The panel's own heading, not its fold summary: the fold opens itself on a
+    // board nobody has joined, so the summary reads "hide this" there.
+    await expect(page.getByText("bring your own agent")).toBeVisible();
+    expect(launches).toEqual([]);
   });
 
   test("a settled swarm offers the two experiments", async ({ page }) => {
@@ -325,12 +356,12 @@ test.describe("guide", () => {
     // Straight to the first action.
     await advance(page, 4);
     await expect(
-      win(page).getByRole("heading", { name: "put the agents on the graph" }),
+      win(page).getByRole("heading", { name: "put the agents on the graph and let them work" }),
     ).toBeVisible();
 
     // It quotes the real control by the label the board is painting on it, and
     // there is no next.
-    await expect(win(page).getByText("Set up the demo agents")).toBeVisible();
+    await expect(win(page).getByText("Run the demo agents")).toBeVisible();
     await expect(win(page).getByText("press this, glowing on the page")).toBeVisible();
     await expect(win(page).getByText("waiting for you")).toBeVisible();
     await expect(win(page).getByRole("button", { name: "next", exact: true })).toHaveCount(0);
@@ -338,8 +369,11 @@ test.describe("guide", () => {
     // And the board doing the thing is what moves it on. Nobody presses anything
     // in the window: the next poll finds tasks registered and it advances itself.
     serve(calm());
+    // Named exactly, not as an alternation including this step's own title: the
+    // merged act's title ends in "let them work", so a loose pattern would match
+    // the card the reader is already on and pass without anything advancing.
     await expect(
-      win(page).getByRole("heading", { name: /let them work|now change something/ }),
+      win(page).getByRole("heading", { name: "now change something upstream" }),
     ).toBeVisible({
       timeout: 8_000,
     });

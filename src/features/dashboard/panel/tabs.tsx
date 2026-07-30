@@ -25,7 +25,7 @@ import styles from "./panel.module.css";
  * names in the markup and in the tour's own mapping, and they should read as
  * what a person would call the tab.
  */
-export type TabId = "activity" | "join" | "data" | "erasure";
+export type TabId = "activity" | "history" | "join" | "data" | "erasure";
 
 /**
  * The tabs, in the order the README introduces what they hold.
@@ -37,6 +37,17 @@ export type TabId = "activity" | "join" | "data" | "erasure";
  */
 const TABS: { id: TabId; label: string }[] = [
   { id: "activity", label: "activity" },
+  /*
+   * Second, next to the feed it is most likely to be confused with and most
+   * needs distinguishing from.
+   *
+   * The feed is what obsel is doing now, and it does not survive a restart. This
+   * is what obsel has decided here, kept in DataHub. Adjacent because a reader who
+   * has just watched a cascade go past in the feed is exactly the reader who then
+   * wants to know whether it is on the record; the labels carry the distinction —
+   * "activity" is present tense, "history" is not.
+   */
+  { id: "history", label: "history" },
   /*
    * "your agent" and "your data", rather than "join" and "data".
    *

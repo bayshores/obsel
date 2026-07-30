@@ -470,6 +470,7 @@ def completion_body(
     ms: float | None = None,
     inputs: Mapping[str, Any] | None = None,
     volatile: Mapping[str, Sequence[str]] | None = None,
+    client: Mapping[str, str] | None = None,
 ) -> tuple[dict[str, Any], dict[str, dict[str, str]]]:
     """The body for `POST /api/tasks/complete`, and the fingerprints it carries.
 
@@ -499,6 +500,12 @@ def completion_body(
     input observations, and it has to be both -- a reader that hashed an input
     without the producer's exclusions would produce a fingerprint the producer
     never could, which obsel reads as a change nothing reported.
+
+    `client` is what the MCP client named itself when it connected, which only
+    `mcp_server.py` is in a position to know. It is a separate fact from `runner`
+    and neither substitutes for the other: `runner` is what the agent says did
+    the work, `client` is what spoke MCP to obsel. Both are the caller's own
+    account of itself, and obsel decides nothing on either.
     """
     exclusions = {dataset: list(columns) for dataset, columns in (volatile or {}).items()}
     tables = resolve_outputs(record, outputs)
@@ -544,6 +551,11 @@ def completion_body(
         "ms": round(float(ms)) if ms is not None else None,
         "outputs": shapes,
     }
+    # Absent rather than null when unknown: a client that never completed the MCP
+    # handshake has told obsel nothing about itself, and an empty name recorded as
+    # though it had would be obsel inventing an identity.
+    if client:
+        body["client"] = dict(client)
 
     if inputs:
         observations: dict[str, dict[str, Any]] = {}
@@ -969,6 +981,23 @@ def _self_check() -> int:
         "a complete run detail is sent and its ms is rounded",
         with_run["run"]["runner"] == "claude-code" and with_run["run"]["ms"] == 1235,
         "obsel's schema takes an integer millisecond count",
+    )
+    check(
+        "no client key at all when the handshake said nothing",
+        "client" not in body,
+        "a null name recorded as though somebody sent it would be obsel inventing an identity",
+    )
+    named, _ = completion_body(
+        clean_task,
+        good,
+        "2026-07-23T00:00:00Z",
+        client={"name": "claude-code", "version": "2.1", "at": "2026-07-23T00:00:00Z"},
+    )
+    check(
+        "the connecting client is sent beside the run, not inside it",
+        named["client"] == {"name": "claude-code", "version": "2.1", "at": "2026-07-23T00:00:00Z"}
+        and named["run"]["runner"] is None,
+        "what spoke MCP and what did the work are two facts, and neither fills the other in",
     )
     check(
         "the run detail carries the shape that was actually hashed",

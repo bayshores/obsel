@@ -1,10 +1,13 @@
 """The four-agent demo, one command per step.
 
-    python -m agents.run register
     python -m agents.run run
     python -m agents.run rerun-same
     python -m agents.run change
     python -m agents.run repair
+
+`run` declares whatever obsel has no record of before it runs anything, so
+starting from an empty board takes one command. `register` remains for
+re-declaring all four after a change to what they read or write.
 
 `rerun-same` before `change` on purpose: it establishes that a re-run producing
 the same table marks nothing, so when `change` lights up three tasks a second
@@ -34,6 +37,7 @@ from agents.demo_output import (
     _rule,
     _short,
     ensure_seed,
+    missing_names,
 )
 
 REPO_ROOT = worker.REPO_ROOT
@@ -57,44 +61,79 @@ def cmd_setup(args: argparse.Namespace) -> int:
     return 0
 
 
+def _register_one(task: pipeline.AgentTask, args: argparse.Namespace) -> int:
+    """Declare one task to obsel and check the urn it filed it under.
+
+    Shared by `register` and by the registration `run` performs for itself, so
+    the two cannot declare the same task differently.
+    """
+    started = time.perf_counter()
+    record = worker.post_json(
+        f"{args.obsel_url}/api/tasks/register",
+        {
+            "name": task.name,
+            "reads": list(task.reads),
+            "writes": [task.writes],
+            # The one-sentence job, stored as the DataJob's own description
+            # so DataHub's UI and obsel's board show the same words.
+            "description": task.summary,
+            # The short human name the board leads with. `name` above stays
+            # the code identifier the URN is built from.
+            "title": task.title,
+        },
+        # A registration is a mutation: entity, edges, and confirms.
+        timeout=worker.MUTATION_TIMEOUT,
+        headers=worker.auth_headers(),
+    )
+    elapsed = (time.perf_counter() - started) * 1000
+
+    expected = pipeline.task_urn(task.name)
+    if record.get("urn") != expected:
+        print(f"  MISMATCH {task.name}")
+        print(f"    obsel returned {record.get('urn')}")
+        print(f"    agents expect  {expected}")
+        print("    The two sides disagree about URNs; lineage traversal would miss this task.")
+        return 1
+
+    print(f"  {task.name:<15} {record['urn']}")
+    print(
+        f"    reads {', '.join(task.reads)} -> writes {task.writes}, "
+        f"registered in {elapsed:.0f} ms"
+    )
+    return 0
+
+
 def cmd_register(args: argparse.Namespace) -> int:
     _rule("register: putting the four agent tasks into DataHub")
     ensure_seed()
     print()
     for task in pipeline.in_dependency_order():
-        started = time.perf_counter()
-        record = worker.post_json(
-            f"{args.obsel_url}/api/tasks/register",
-            {
-                "name": task.name,
-                "reads": list(task.reads),
-                "writes": [task.writes],
-                # The one-sentence job, stored as the DataJob's own description
-                # so DataHub's UI and obsel's board show the same words.
-                "description": task.summary,
-                # The short human name the board leads with. `name` above stays
-                # the code identifier the URN is built from.
-                "title": task.title,
-            },
-            # A registration is a mutation: entity, edges, and confirms.
-            timeout=worker.MUTATION_TIMEOUT,
-            headers=worker.auth_headers(),
-        )
-        elapsed = (time.perf_counter() - started) * 1000
+        code = _register_one(task, args)
+        if code != 0:
+            return code
+    return 0
 
-        expected = pipeline.task_urn(task.name)
-        if record.get("urn") != expected:
-            print(f"  MISMATCH {task.name}")
-            print(f"    obsel returned {record.get('urn')}")
-            print(f"    agents expect  {expected}")
-            print("    The two sides disagree about URNs; lineage traversal would miss this task.")
-            return 1
 
-        print(f"  {task.name:<15} {record['urn']}")
-        print(
-            f"    reads {', '.join(task.reads)} -> writes {task.writes}, "
-            f"registered in {elapsed:.0f} ms"
-        )
+def _register_missing(args: argparse.Namespace) -> int:
+    """Declare whichever of the four tasks obsel has no record of.
+
+    `run` does this itself so that running the demo is one action rather than
+    two. It registers only what is absent: re-declaring a task obsel already
+    holds sets its status back to `registered`, and on a board that has already
+    run that would throw away the finished state the page reads off it.
+    """
+    expected = [(task.name, pipeline.task_urn(task.name)) for task in pipeline.in_dependency_order()]
+    absent = missing_names(worker.read_swarm(args.obsel_url)["snapshot"]["tasks"], expected)
+    if not absent:
+        return 0
+
+    print(f"  obsel had no record of {len(absent)} of the {len(expected)} tasks; declaring them now")
+    by_name = {task.name: task for task in pipeline.in_dependency_order()}
+    for name in absent:
+        code = _register_one(by_name[name], args)
+        if code != 0:
+            return code
+    print()
     return 0
 
 
@@ -128,6 +167,9 @@ def cmd_run(args: argparse.Namespace) -> int:
     _rule("run: four agents, in dependency order")
     ensure_seed()
     print()
+    code = _register_missing(args)
+    if code != 0:
+        return code
     started = time.perf_counter()
 
     # What obsel marked while the four ran. On a first run this stays empty; run

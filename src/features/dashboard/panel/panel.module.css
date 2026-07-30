@@ -245,11 +245,22 @@
   flex: 0 0 auto;
   display: flex;
   align-items: stretch;
-  gap: 0;
+  /*
+   * A gap, where there was none.
+   *
+   * With four tabs the labels had room to read as four words at zero gap. The
+   * fifth removed it: measured at 1280px, the strip needed 346px of a 339px
+   * track, so "activity history your agent your data erasure" rendered as one
+   * run-together string with the last label flush against the edge. A gap is
+   * what makes them separate words regardless of how much room is left.
+   */
+  gap: var(--mm-space-xs);
   border-bottom: 1px solid var(--mm-border);
   background: var(--mm-surface);
-  /* Four tabs at 420px is tight but fits; below that they scroll sideways
-     rather than wrapping into a second row that would eat the feed's height. */
+  /* Five tabs at 420px do not fit, so they scroll sideways rather than wrapping
+     into a second row that would eat the feed's height. The type floor is not
+     negotiable here — 13px, for the reason `.tab` records — so the padding below
+     is what was traded for the fifth label instead. */
   overflow-x: auto;
   scrollbar-width: none;
 }
@@ -262,7 +273,10 @@
   position: relative;
   flex: 1 1 auto;
   min-width: 0;
-  padding: 7px var(--mm-space-sm);
+  /* Horizontal padding down from 8px to 4px when the fifth tab arrived. The
+     vertical padding is untouched: it sets the strip's height and the hit area,
+     and neither is what ran out of room. */
+  padding: 7px var(--mm-space-xs);
   background: transparent;
   border: none;
   color: var(--obsel-text-quiet);

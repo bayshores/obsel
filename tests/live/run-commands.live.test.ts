@@ -162,6 +162,150 @@ describe("register puts the demo's four tasks into DataHub", () => {
   });
 });
 
+describe("a run declares whatever obsel has no record of, and nothing else", () => {
+  /*
+   * The board is a flow of its own, because "obsel has no record of these tasks"
+   * cannot be produced on a flow the suite above has already registered into,
+   * and obsel deletes nothing to get back there. A fresh `OBSEL_FLOW_ID` is a
+   * genuinely empty board rather than a simulation of one.
+   *
+   * `_register_missing` directly rather than `cmd_run`: the registration is the
+   * subject, and `cmd_run` would spawn four real agent sessions to reach the
+   * same three assertions. Whole runs are covered by `codex.live.test.ts`.
+   */
+  const MERGE_FLOW = "obsel_integration_run_merge";
+  const MERGE_PORT = 3097;
+  let empty: ObselServer;
+
+  /*
+   * Built here rather than with `taskUrn`, which closes over the `OBSEL_FLOW_ID`
+   * this module was imported with. That is the demo-adjacent integration flow,
+   * not this describe's own, and asking it for a urn would quietly read the
+   * wrong board — the exact confusion the mismatch test below exists for.
+   */
+  function mergeTaskUrn(name: string): string {
+    return `urn:li:dataJob:(urn:li:dataFlow:(obsel,${MERGE_FLOW},prod),${name})`;
+  }
+
+  function registerMissing(): Ran {
+    const script = [
+      "import argparse",
+      "from agents import run_demo",
+      `args = argparse.Namespace(obsel_url=${JSON.stringify(empty.url)}, capture=None)`,
+      "raise SystemExit(run_demo._register_missing(args))",
+    ].join("\n");
+    const result = spawnSync("python3", ["-c", script], {
+      cwd: REPO,
+      encoding: "utf8",
+      env: { ...process.env, OBSEL_FLOW_ID: MERGE_FLOW, OBSEL_API_TOKEN: API_TOKEN },
+    });
+    return { code: result.status ?? -1, output: `${result.stdout ?? ""}${result.stderr ?? ""}` };
+  }
+
+  beforeAll(async () => {
+    empty = await startObsel(MERGE_PORT, MERGE_FLOW);
+    return async () => {
+      await empty.stop();
+    };
+  }, 120_000);
+
+  /*
+   * Asserted against the board as it is, never against an assumed empty one.
+   *
+   * The first version of these tests assumed this flow held nothing, which was
+   * true exactly once: registration is permanent, obsel deletes nothing, and the
+   * run that proved the behaviour is the run that made the assumption false. Both
+   * tests then failed on the next full-suite run — the same trap
+   * `engine.live.test.ts` records having been caught by, arriving here.
+   *
+   * So each test reads what obsel holds, then asserts what the call did about it.
+   * The property under test is the delta, which is what the code actually decides.
+   */
+  type DemoTask = (typeof DEMO_TASKS)[number];
+
+  async function absent(): Promise<DemoTask[]> {
+    const held = await Promise.all(
+      DEMO_TASKS.map(async (name) => ((await readTask(mergeTaskUrn(name))) === null ? name : null)),
+    );
+    return held.filter((name): name is DemoTask => name !== null);
+  }
+
+  it("declares exactly the tasks obsel has no record of, and reads them back", async () => {
+    const missing = await absent();
+    const { code, output } = registerMissing();
+
+    expect(code).toBe(0);
+    if (missing.length > 0) {
+      expect(output).toContain(`obsel had no record of ${missing.length} of the 4 tasks`);
+      for (const name of missing) expect(output).toContain(name);
+    } else {
+      // Nothing absent, so nothing said. The quiet case is the one that protects
+      // a board that has already run.
+      expect(output.trim()).toBe("");
+    }
+
+    // Either way, all four are on the board afterwards, read out of DataHub
+    // rather than trusted from the printed line.
+    for (const name of DEMO_TASKS) {
+      expect(await readTask(mergeTaskUrn(name)), `${name} must be on the board`).not.toBeNull();
+    }
+  }, 180_000);
+
+  it("declares nothing once every task is on the board, and says nothing", async () => {
+    // Runs after the test above, so the board is full whatever state it started in.
+    expect(await absent()).toEqual([]);
+
+    const { code, output } = registerMissing();
+    expect(code).toBe(0);
+    expect(output).not.toContain("obsel had no record of");
+    expect(output.trim()).toBe("");
+  }, 120_000);
+
+  it("leaves a task obsel already holds exactly as it was", async () => {
+    /*
+     * The reason the set is computed rather than blindly re-registered: a
+     * re-declaration upserts the DataJob with `status: registered`, so a
+     * registration covering a task obsel already holds would discard the state a
+     * run had put on it. Announced-and-running is the cheapest real state to
+     * prove that with, through obsel's own API.
+     *
+     * Abandoned first, and that is what makes this repeatable rather than a test
+     * that passes once: a previous run of this file left the task at `running`,
+     * and `startTask` refuses a task that is already running. Abandoning puts it
+     * back to whatever it held before it announced, which is the state this test
+     * needs to start from and is exactly what that route is for.
+     */
+    const urn = mergeTaskUrn("clean_orders");
+    const post = async (path: string) =>
+      await fetch(`${empty.url}${path}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${API_TOKEN}` },
+        body: JSON.stringify({ taskUrn: urn }),
+      });
+
+    // Not asserted: a task that was not running is left alone and reported
+    // untouched, which is a success either way.
+    await post("/api/tasks/abandon");
+
+    const answer = await post("/api/tasks/start");
+    expect(answer.ok).toBe(true);
+
+    const announced = await readTask(urn);
+    expect(announced?.status).toBe("running");
+    expect(announced?.startedAt).not.toBeNull();
+
+    expect(registerMissing().code).toBe(0);
+
+    const after = await readTask(urn);
+    expect(after?.status).toBe("running");
+    expect(after?.startedAt).toBe(announced?.startedAt);
+
+    // Left as it was found, so a later run of this file starts from a task that
+    // is not mid-announcement.
+    await post("/api/tasks/abandon");
+  }, 180_000);
+});
+
 describe("the Python and TypeScript halves have to agree about URNs", () => {
   it("stops when the two sides are pointed at different flows", () => {
     /*

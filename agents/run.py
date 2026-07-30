@@ -1,11 +1,14 @@
 """The demo, driven from one command line.
 
     python -m agents.setup        # or: python -m agents.run setup
-    python -m agents.run register
     python -m agents.run run
     python -m agents.run rerun-same
     python -m agents.run change
     python -m agents.run repair
+
+`run` declares whatever obsel has no record of before running, so this sequence
+starts from an empty board. `register` still exists and re-declares all four,
+which is what to use after changing what a task reads or writes.
 
 The four-agent steps are in `run_demo.py`, the forty-agent ones in `run_scale.py`,
 and what both print and how both read obsel's replies is in `demo_output.py`.
@@ -40,7 +43,14 @@ from pathlib import Path
 from typing import Any
 
 from agents import pipeline, scale, worker
-from agents.demo_output import Unexpected, _print_coordination, _required_list, _short, ensure_seed
+from agents.demo_output import (
+    Unexpected,
+    _print_coordination,
+    _required_list,
+    _short,
+    ensure_seed,
+    missing_names,
+)
 from agents.run_demo import (
     EXPECTED_CASCADE,
     cmd_change,
@@ -185,6 +195,54 @@ def cmd_self_check(args: argparse.Namespace) -> int:
         "a reply that is not an object at all is refused",
         "not an object" in refused(["affected"], "affected"),
         "a list where a reply was expected usually means an error body",
+    )
+
+    # ----------------------------------------------------------------------
+    # What `run` registers for itself. The set has to be exactly the absent
+    # tasks: a re-declaration puts a task back to `registered`, so registering
+    # one obsel already holds would discard a finished board's state.
+    # ----------------------------------------------------------------------
+    print()
+    print("the tasks a run declares for itself")
+
+    board = [
+        {"urn": pipeline.task_urn("clean_orders")},
+        {"urn": pipeline.task_urn("build_revenue")},
+    ]
+    every = [(task.name, pipeline.task_urn(task.name)) for task in pipeline.TASKS]
+
+    check(
+        "an empty board is missing every task",
+        missing_names([], every) == [task.name for task in pipeline.TASKS],
+        "the first run of a fresh page registers all four",
+    )
+    check(
+        "a full board is missing none",
+        missing_names([{"urn": urn} for _, urn in every], every) == [],
+        "a board that has already run must be left alone entirely",
+    )
+    check(
+        "a partial board names only what is absent",
+        missing_names(board, every) == [
+            task.name for task in pipeline.TASKS if task.name not in ("clean_orders", "build_revenue")
+        ],
+        "registering a task obsel holds would reset its status and lose its finished state",
+    )
+    check(
+        "the order asked for is the order returned",
+        missing_names([], [("b", "urn:b"), ("a", "urn:a")]) == ["b", "a"],
+        "the caller asks in dependency order and registers in the order it gets back",
+    )
+    check(
+        "a task obsel holds under a different urn counts as absent",
+        missing_names([{"urn": "urn:li:dataJob:(other,clean_orders)"}], every)
+        == [task.name for task in pipeline.TASKS],
+        "the urn is what obsel filed it under; a matching name under another urn is another task",
+    )
+    check(
+        "an entry that is not an object is skipped rather than crashing the run",
+        missing_names(["clean_orders", None], every) == [task.name for task in pipeline.TASKS],
+        "a malformed board entry must not stop a run that was about to fix the board",
     )
 
     # ----------------------------------------------------------------------

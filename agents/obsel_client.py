@@ -190,9 +190,19 @@ def has_recorded_output(task_urn: str, dataset_urn: str, obsel_url: str = OBSEL_
 MUTATION_TIMEOUT = 300.0
 
 
-def announce_start(task_urn: str, obsel_url: str = OBSEL_URL) -> Any:
-    """Tell obsel this agent has begun. Work in flight is never marked stale."""
-    return post_json(f"{obsel_url}/api/tasks/start", {"taskUrn": task_urn},
+def announce_start(
+    task_urn: str, obsel_url: str = OBSEL_URL, client: dict[str, str] | None = None
+) -> Any:
+    """Tell obsel this agent has begun. Work in flight is never marked stale.
+
+    `client` is what an MCP client named itself when it connected, passed only by
+    `mcp_server.py`, which is the one caller in a position to know it. obsel's
+    own workers leave it out: they are not an MCP client of anything.
+    """
+    body: dict[str, Any] = {"taskUrn": task_urn}
+    if client:
+        body["client"] = client
+    return post_json(f"{obsel_url}/api/tasks/start", body,
                      timeout=MUTATION_TIMEOUT, headers=auth_headers())
 
 

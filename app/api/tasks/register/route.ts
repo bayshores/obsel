@@ -45,6 +45,7 @@ export async function POST(request: Request) {
       parsed.description,
       parsed.title,
       parsed.volatile,
+      parsed.client,
     );
     return NextResponse.json(task);
   } catch (error) {

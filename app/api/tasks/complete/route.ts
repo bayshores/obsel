@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { coordinateCompletion } from "@/src/server/coordinator/engine";
 import { authorizeMutation } from "@/src/server/http/auth";
+import { ClientBody } from "@/src/server/http/client-body";
 
 export const dynamic = "force-dynamic";
 
@@ -68,6 +69,15 @@ const Body = z.object({
   finishedAt: z.string().min(1),
   run: Run.optional(),
   inputs: z.record(z.string(), Observation).optional(),
+  /**
+   * What the MCP client named itself at connection, sent only by the MCP door.
+   *
+   * Beside `run.runner` rather than inside it, because they are two different
+   * facts: `runner` is what the agent says did the work, this is what spoke MCP
+   * to obsel. They can legitimately disagree, so neither is ever derived from
+   * the other. Display only. See `client-body.ts`.
+   */
+  client: ClientBody.optional(),
 });
 
 /**

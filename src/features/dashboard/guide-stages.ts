@@ -170,16 +170,43 @@ export function empty(attention: string | null): StageView {
      * that names a count goes stale the first time somebody joins one.
      */
     actions: [
+      /*
+       * One button per pipeline, and it both declares and runs.
+       *
+       * These were two buttons each: set up, then start. Setting up was never a
+       * thing anybody wanted done on its own -- it is what has to happen before
+       * the agents can run, which is obsel's business rather than a decision to
+       * put in front of a reader. `run` and `scale-run` now declare whatever
+       * obsel has no record of and then run, so a board that has already run is
+       * untouched and a fresh one needs one press instead of two.
+       */
       {
-        step: "register",
-        label: "Set up the demo agents",
-        detail: "Adds them to DataHub. Nothing runs yet.",
+        step: "run",
+        label: "Run the demo agents",
+        detail: "Declares them in DataHub, then runs them. Takes a few minutes.",
         primary: true,
       },
       {
-        step: "scale-register",
-        label: "Set up the forty-agent taxi run instead",
-        detail: "Forty agents over a week of real taxi trips. Nothing runs yet.",
+        step: "scale-change-mid",
+        label: "Run the forty-agent taxi swarm instead",
+        detail:
+          "Forty agents over a week of real taxi trips. Partway through, one requirement changes.",
+      },
+      /*
+       * The third answer to what obsel is for, on the one screen that asks.
+       *
+       * The two above start obsel's own agents. This one is for a reader whose
+       * agents already exist, and it used to be reachable only by noticing a tab
+       * they had no reason to open — so the empty board offered a choice between
+       * two demos and said nothing about the case obsel is actually built for.
+       *
+       * Reveals rather than launches: there is nothing for obsel to run here, and
+       * the panel it opens is the one that hands over the command.
+       */
+      {
+        reveal: "joining",
+        label: "Bring an agent you already have",
+        detail: "Opens the one command an agent that speaks MCP needs to join this board.",
       },
     ],
     attention,

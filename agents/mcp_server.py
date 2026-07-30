@@ -103,6 +103,34 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _client_identity(ctx: Any) -> dict[str, str] | None:
+    """What the connected MCP client named itself, or None if it did not say.
+
+    Every hop here is optional and every one of them genuinely occurs. A tool
+    called outside a request has no context; a session that never completed the
+    `initialize` handshake has no client parameters; and `clientInfo` carries a
+    name that may be empty. So this returns None rather than a placeholder, and
+    the callers omit the field entirely -- obsel recording a name nobody sent
+    would be obsel inventing an identity.
+
+    What this is NOT: verification. It is the client's own declaration, made
+    once at connection rather than typed into each call, so obsel can say which
+    client spoke to it without claiming to have checked. That distinction is
+    load-bearing and is written the same way on every surface that shows it.
+    """
+    session = getattr(ctx, "session", None)
+    params = getattr(session, "client_params", None)
+    info = getattr(params, "clientInfo", None)
+    name = getattr(info, "name", None)
+    if not name:
+        return None
+    identity = {"name": str(name), "at": _now()}
+    version = getattr(info, "version", None)
+    if version:
+        identity["version"] = str(version)
+    return identity
+
+
 def build_server(obsel_url: str = OBSEL_URL) -> Any:
     """Wire the ten tools. Imported here so the module loads without the SDK.
 
@@ -111,7 +139,19 @@ def build_server(obsel_url: str = OBSEL_URL) -> Any:
     connection error with no cause in it; a per-call failure carries
     `worker._send`'s message, which names the URL and how to start obsel.
     """
-    from mcp.server.fastmcp import FastMCP
+    from mcp.server.fastmcp import Context, FastMCP
+
+    # A `Context` parameter is injected by FastMCP and left out of the tool's
+    # published schema, so the three tools that record who connected keep the
+    # signature they had. Nothing an agent writes reaches it.
+    #
+    # Bound into the module rather than left in this function's scope because
+    # `from __future__ import annotations` makes every annotation a string, and
+    # FastMCP evaluates those against this MODULE's globals -- a name visible
+    # only here raises `InvalidSignature` at decoration time. The SDK import
+    # stays inside this function on purpose: the module has to load without the
+    # SDK installed, which is what `python -m agents.mcp_core` relies on.
+    globals()["Context"] = Context
 
     server = FastMCP(SERVER_NAME)
 
@@ -147,6 +187,7 @@ def build_server(obsel_url: str = OBSEL_URL) -> Any:
         name: str,
         reads: list[str],
         writes: list[str],
+        ctx: Context,
         title: str | None = None,
         description: str | None = None,
         volatile: dict[str, list[str]] | None = None,
@@ -224,6 +265,9 @@ def build_server(obsel_url: str = OBSEL_URL) -> Any:
             body["description"] = description
         if volatile:
             body["volatile"] = {table: list(columns) for table, columns in volatile.items()}
+        client = _client_identity(ctx)
+        if client:
+            body["client"] = client
 
         reply = worker.post_json(
             f"{obsel_url}/api/tasks/register", body, timeout=worker.MUTATION_TIMEOUT,
@@ -238,7 +282,7 @@ def build_server(obsel_url: str = OBSEL_URL) -> Any:
         return {"task": reply, "alreadyRegistered": False}
 
     @server.tool()
-    def announce_start(taskUrn: str) -> dict[str, Any]:
+    def announce_start(taskUrn: str, ctx: Context) -> dict[str, Any]:
         """Tell obsel you have begun, before you write anything.
 
         Work in flight is never marked stale -- a task that is running will pick
@@ -255,12 +299,13 @@ def build_server(obsel_url: str = OBSEL_URL) -> Any:
         # and this call exists so a missing one is refused here with a sentence
         # naming the variable rather than surfacing as a 503 from obsel.
         _api_headers()
-        return {"task": worker.announce_start(taskUrn, obsel_url)}
+        return {"task": worker.announce_start(taskUrn, obsel_url, _client_identity(ctx))}
 
     @server.tool()
     def report_complete(
         taskUrn: str,
         outputs: dict[str, Any],
+        ctx: Context,
         runner: str | None = None,
         ms: float | None = None,
         inputs: dict[str, Any] | None = None,
@@ -332,6 +377,7 @@ def build_server(obsel_url: str = OBSEL_URL) -> Any:
             # input differently from the task that wrote it, and obsel would read
             # that as a change nothing reported.
             volatile=mcp_core.volatile_by_dataset(tasks),
+            client=_client_identity(ctx),
         )
         # The mutation ceiling, not the 60 s read default: obsel answers this
         # POST only after the whole cascade is walked, written and confirmed,

@@ -18,6 +18,7 @@ import {
   updateTaskProperties,
 } from "@/src/server/datahub/client";
 import { FLOW_URN, isTaskUrn } from "@/src/server/datahub/urns";
+import { clientProperty, type ClientDeclaration } from "@/src/server/http/client-body";
 import { rerunPlan, type RerunPlan } from "./rerun";
 import { blocked, readyToStart, taskLabel } from "./staleness";
 import { clear as clearTrace, emit } from "./trace";
@@ -31,8 +32,9 @@ export async function registerTask(
   description?: string,
   title?: string,
   volatile?: Record<string, string[]>,
+  client?: ClientDeclaration,
 ): Promise<TaskRecord> {
-  const task = await writeTask(name, reads, writes, description, title, volatile);
+  const task = await writeTask(name, reads, writes, description, title, volatile, client);
   emit("write", `registered ${label(task)}`, `${task.reads.length} in, ${task.writes.length} out`);
   return task;
 }
@@ -66,7 +68,7 @@ const label = taskLabel;
  * `progress.ts` is the only reader, and it returns an in-flight elapsed for a
  * running task without consulting `run` at all.
  */
-export async function startTask(urn: string): Promise<TaskRecord> {
+export async function startTask(urn: string, client?: ClientDeclaration): Promise<TaskRecord> {
   const task = await readTask(urn);
   if (!task) throw new Error(`cannot start ${urn}: no such task in DataHub`);
   if (task.status === "running") throw new Error(`task ${task.name} is already running`);
@@ -74,6 +76,11 @@ export async function startTask(urn: string): Promise<TaskRecord> {
   const started = await updateTaskProperties(urn, {
     [PROP.status]: "running",
     [PROP.startedAt]: new Date().toISOString(),
+    // Written only when the announcement carried one, and left untouched
+    // otherwise: `undefined` leaves the key alone where `null` would clear it,
+    // so a worker announcing a re-run does not wipe the client that declared
+    // the task.
+    ...(client ? { [PROP.clientStarted]: clientProperty(client) } : {}),
   });
   emit("write", `started ${label(started)}`, "running, never judged in flight");
   return started;
@@ -261,6 +268,11 @@ export async function resetSwarm(): Promise<{ reset: string[]; tagsCleared: stri
         [PROP.runRunner]: null,
         [PROP.runMs]: null,
         [PROP.runOutputs]: null,
+        // The two run-time client stamps go, because the runs they describe are
+        // being wiped. `clientRegistered` stays: reset keeps the tasks, so the
+        // declaration it records is still the one that put them there.
+        [PROP.clientStarted]: null,
+        [PROP.clientReported]: null,
         [PROP.staleCausedBy]: null,
         [PROP.staleCausedByTask]: null,
         [PROP.staleHops]: null,

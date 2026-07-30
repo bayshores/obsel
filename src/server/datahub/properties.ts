@@ -35,6 +35,27 @@ export const PROP = {
   runRunner: "obsel.run.runner",
   runMs: "obsel.run.ms",
   runOutputs: "obsel.run.outputs",
+  /**
+   * What the MCP client named itself when it connected, as
+   * `{"name":…,"version":…,"at":…}`, at each of the three moments obsel hears
+   * from it. Written only by the MCP door, which is the one caller that knows;
+   * obsel's own workers are not an MCP client of anything and leave all three
+   * absent.
+   *
+   * Display only, like `title`: nothing obsel decides reads these. And they are
+   * a **declaration, not a verification** -- the client names itself once in the
+   * `initialize` handshake instead of typing it into every call, which is why
+   * obsel can say which client spoke to it without claiming to have checked.
+   * `runRunner` above is a different fact: what the agent says did the work.
+   * Neither substitutes for the other.
+   *
+   * `registered` is set once and then left, because a task is declared once.
+   * The other two are overwritten per announcement and per completion, so they
+   * describe the latest run rather than accumulating a history.
+   */
+  clientRegistered: "obsel.client.registered",
+  clientStarted: "obsel.client.started",
+  clientReported: "obsel.client.reported",
   staleCausedBy: "obsel.stale.causedBy",
   staleCausedByTask: "obsel.stale.causedByTask",
   staleHops: "obsel.stale.hops",

@@ -41,6 +41,7 @@ import type { TourTarget } from "./tour/steps";
 import { useTour } from "./tour/use-tour";
 import { useActivity } from "./use-activity";
 import { useHoverIntent } from "./use-hover-intent";
+import { useChanges } from "./use-changes";
 import { useTrace } from "./use-trace";
 import { useSwarm } from "./use-swarm";
 import { clockTime, inDependencyOrder, lastReportAt, summaryLine, totals } from "./timing";
@@ -96,6 +97,16 @@ export function Dashboard() {
    */
   const [graphMode, setGraphMode] = useState(false);
   const erasure = useErasure(activeTab === "erasure" || graphMode);
+
+  /*
+   * The change history, read only while its tab is open.
+   *
+   * Same rule as the erasure report and for the same reason: this walks a ledger
+   * in DataHub, once per record, and running that behind a tab nobody has open is
+   * load obsel is putting on DataHub for no reader. History is also append-only
+   * and grows once per cascade, so nothing is missed by not watching it.
+   */
+  const changes = useChanges(activeTab === "history");
 
   /*
    * The report as a lookup the graph can use, or nothing.
@@ -457,6 +468,8 @@ export function Dashboard() {
           trusted={trusted}
           traceEvents={traceEvents}
           traceError={traceError}
+          changes={changes}
+          onReveal={reveal}
           joinView={joinView}
           mineView={mineView}
           tasks={tasks}

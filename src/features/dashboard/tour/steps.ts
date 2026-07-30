@@ -157,25 +157,24 @@ export const TOUR: readonly TourStep[] = [
     title: "the two measurements",
     body: "How long obsel took to notice the change, and how many of its marks it has written back into DataHub. Both stay blank until obsel has actually measured them, rather than showing a number from earlier.",
   },
-  {
-    id: "register",
-    chapter: 2,
-    kind: "act",
-    target: "action",
-    launches: ["register", "scale-register"],
-    title: "put the agents on the graph",
-    body: "This adds the agents to DataHub and records which tables each one reads and writes. Nothing runs yet.",
-    done: (input) => input.tasks.length > 0,
-    progress: () => null,
-  },
+  /*
+   * One act where there were two: `register` then `run`.
+   *
+   * The two buttons behind them became one, so a second act pointing at a
+   * button that no longer exists would strand a reader on a step with no way
+   * forward -- an act step has no next button by design. A bookmark stored at
+   * the retired `register` id no longer matches any step and falls back to the
+   * first, which restarts the walk rather than desyncing it, so the stored
+   * shape in `use-tour.ts` needs no version bump.
+   */
   {
     id: "run",
     chapter: 2,
     kind: "act",
     target: "action",
     launches: ["run", "scale-change-mid"],
-    title: "let them work",
-    body: "As each agent finishes, obsel writes down exactly what its table looked like at that moment. You can close this window and come back.",
+    title: "put the agents on the graph and let them work",
+    body: "This records which tables each agent reads and writes, then runs them. As each one finishes, obsel writes down exactly what its table looked like at that moment. You can close this window and come back.",
     done: allFinished,
     progress: finishedCount,
   },

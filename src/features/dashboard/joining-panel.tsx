@@ -106,7 +106,7 @@ export function JoiningPanel({ view }: { view: JoinView }) {
           <Steps view={view} />
 
           <details className={styles.tools}>
-            <summary className={styles.summary}>the nine tools obsel gives it</summary>
+            <summary className={styles.summary}>the ten tools obsel gives it</summary>
             <ul className={styles.toolList}>
               {TOOLS.map((tool) => (
                 <li key={tool.name}>

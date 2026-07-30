@@ -31,6 +31,7 @@ import { useCallback, useRef, useState } from "react";
 
 import { GuidePanel } from "../guide-panel";
 import { Stats } from "../stats";
+import { HistoryPanel } from "../history-panel";
 import { JoiningPanel } from "../joining-panel";
 import { YourDataPanel } from "../your-data-panel";
 import { EASE, SPRING } from "../motion-tokens";
@@ -41,7 +42,9 @@ import type { TabId } from "./tabs";
 import { clampWidth } from "./use-panel";
 import type { PanelSide } from "./use-panel";
 import type { GuideView } from "../guide";
+import type { RevealTarget } from "../guide-view";
 import type { JoinView } from "../joining";
+import type { ChangesState } from "../use-changes";
 import type { YourDataView } from "../your-data";
 import type { SwarmTotals } from "../timing";
 import type { DemoActivity } from "@/src/server/runner/types";
@@ -70,9 +73,21 @@ export interface PanelProps {
   activity: DemoActivity | null;
   activityError: string | null;
   trusted: boolean;
+  /** Opens one of this panel's own tabs, for the guide's reveal actions. */
+  onReveal: (target: RevealTarget) => void;
 
   traceEvents: TraceEvent[];
   traceError: string | null;
+
+  /**
+   * The board's change history, as its hook returns it.
+   *
+   * Passed as the hook's own state rather than flattened into three props,
+   * because "read failed", "not read yet" and "read, and empty" are three
+   * different things this panel has to render differently, and splitting them
+   * across sibling props is how two of them get confused.
+   */
+  changes: ChangesState;
 
   joinView: JoinView;
   mineView: YourDataView;
@@ -300,6 +315,7 @@ export function Panel(props: PanelProps) {
             activity={props.activity}
             activityError={props.activityError}
             boardTrusted={props.trusted}
+            onReveal={props.onReveal}
           />
         </div>
 
@@ -342,6 +358,14 @@ export function Panel(props: PanelProps) {
                     display: "flex",
                     flexDirection: "column",
                   }}
+                />
+              )}
+              {props.activeTab === "history" && (
+                <HistoryPanel
+                  history={props.changes.history}
+                  error={props.changes.error}
+                  everRead={props.changes.everRead}
+                  boardTrusted={props.trusted}
                 />
               )}
               {props.activeTab === "join" && (

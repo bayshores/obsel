@@ -19,7 +19,7 @@
  * measurement of zero rather than as an absence.
  */
 
-import type { TaskRecord } from "@/src/server/coordinator/types";
+import type { ClientStamp, TaskRecord } from "@/src/server/coordinator/types";
 
 /**
  * Milliseconds a task has been in flight, or null when that is not knowable.
@@ -108,6 +108,42 @@ export function runStamp(run: TaskRecord["run"]): string | null {
     (part): part is string => part !== null && part !== "",
   );
   return parts.length === 0 ? null : parts.join(" · ");
+}
+
+/**
+ * Which MCP client obsel has heard from about a task, in one line.
+ *
+ * obsel records three moments separately -- the declaration, the latest
+ * announcement, the latest completion -- because they genuinely can differ: an
+ * agent can declare a task from one client and report it from another. On
+ * ordinary boards they are the same client, so this collapses them to one name
+ * and spells the moments out only when the names disagree. Three fields all
+ * reading `claude-code 2.1` would be one fact printed three times.
+ *
+ * Null when nothing came through the MCP door, which is the usual case: obsel's
+ * own demo workers and the page's table form are not MCP clients of anything,
+ * and the field is left off the panel rather than rendered empty.
+ *
+ * Never says "verified". The name is what the client called itself in the MCP
+ * handshake, and `stamp` deliberately reads as an account rather than a check.
+ */
+export function clientLine(clients: TaskRecord["client"]): string | null {
+  if (!clients) return null;
+
+  const stamp = (client: ClientStamp): string =>
+    client.version === null ? client.name : `${client.name} ${client.version}`;
+
+  const moments: { when: string; client: ClientStamp }[] = [
+    { when: "declared", client: clients.registered },
+    { when: "announced", client: clients.started },
+    { when: "reported", client: clients.reported },
+  ].flatMap((entry) => (entry.client === null ? [] : [{ when: entry.when, client: entry.client }]));
+
+  if (moments.length === 0) return null;
+
+  const names = new Set(moments.map((moment) => stamp(moment.client)));
+  if (names.size === 1) return [...names][0];
+  return moments.map((moment) => `${stamp(moment.client)} (${moment.when})`).join(", ");
 }
 
 /**

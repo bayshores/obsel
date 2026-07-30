@@ -23,7 +23,7 @@
 import { datahubTaskUrl } from "./datahub-link";
 import { Divider, Panel } from "./mmux";
 import { datasetTitle, flowLine, taskTitle } from "./naming";
-import { activityNote, runStamp } from "./progress";
+import { activityNote, clientLine, runStamp } from "./progress";
 import { ColumnNames } from "./columns";
 import { clockTime } from "./timing";
 import { STATUS_WORD } from "./tone";
@@ -148,6 +148,24 @@ export function Inspector({
             ledger row; it belongs here, where there is room to label it as the
             agent's own account rather than obsel's measurement. */}
         {run !== null && <Field label="last run reported">{run}</Field>}
+
+        {/*
+          Which MCP client obsel has heard from about this task.
+
+          One field, not three, though obsel records the declaration, the
+          announcement and the completion separately: on almost every task they
+          are the same client, and three rows repeating one name would be the
+          rule against saying a thing twice broken three ways. `clientLine`
+          collapses them and only spells out the moments when they differ.
+
+          "declared itself" rather than "is": the name comes from the client's
+          own MCP handshake and obsel holds no registry to check it against. It
+          is beside "last run reported" because both are the caller's account of
+          itself, and neither is a measurement obsel took.
+        */}
+        {clientLine(task.client) !== null && (
+          <Field label="connected over MCP as">{clientLine(task.client)}</Field>
+        )}
 
         {/*
           The mark, in full and near the top.

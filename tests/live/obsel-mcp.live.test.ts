@@ -228,7 +228,7 @@ afterAll(async () => {
 }, 180_000);
 
 describe("the tools an agent finds when it connects", () => {
-  it("registers exactly the nine tools, verified and not assumed", async () => {
+  it("registers exactly the ten tools, verified and not assumed", async () => {
     const client = await connect(obselServer.url);
     const { tools } = await client.listTools();
     expect(tools.map((tool) => tool.name).sort()).toEqual([
@@ -240,6 +240,7 @@ describe("the tools an agent finds when it connects", () => {
       "register_task",
       "report_complete",
       "request_challenge",
+      "rerun_plan",
       "submit_attestation",
     ]);
   });
@@ -298,6 +299,65 @@ describe("an outside agent joins, works, and finishes", () => {
     expect(onBoard.names()).toEqual(expect.arrayContaining([CLEAN, AGG, REPORT]));
     // The board reports tables the way the agent named them, not as urns.
     expect(onBoard.get(CLEAN).writes).toEqual([CLEAN_OUT]);
+  }, 120_000);
+
+  it("recorded which MCP client spoke, off the real handshake", async () => {
+    /*
+     * Not passed as a tool argument anywhere. `connect` above builds its client as
+     * `{name: "obsel-live-test", version: "0.0.0"}`, the SDK sends that in the
+     * `initialize` handshake, and `mcp_server.py` reads it off the live session --
+     * so this covers the whole path from a real handshake to a real DataHub
+     * property, which is the part of this feature no unit test can reach.
+     *
+     * The announcement and the completion, not the registration. Those two are
+     * rewritten every run; the registration stamp is written once, by the reuse
+     * guard's design, and these tasks were declared by an earlier run of this
+     * suite on a DataHub that keeps them. Asserting it here would be asserting a
+     * property of a fresh DataHub rather than of the tool -- the same reason the
+     * test above declines to assert `title`. `tests/datahub-task-record.test.ts`
+     * covers the parse, and `mcp_core`'s self-check covers the body.
+     *
+     * The announcement is made HERE rather than relied on from `beforeAll`, and
+     * that is what makes this test order-independent. `resetSwarm` clears the two
+     * run-time client stamps -- correctly, since the runs they describe are being
+     * wiped -- and `engine.live.test.ts` resets this same flow. Run alone this
+     * passed; run after that file it failed, because it was asserting state a
+     * sibling had legitimately cleared.
+     *
+     * Still a declaration and not a verification: the name is whatever the client
+     * called itself, and obsel holds no registry to check it against. What this
+     * pins is that obsel repeats it accurately and invents nothing.
+     */
+    await call(agent, "abandon_task", { taskUrn: taskUrn(CLEAN) });
+    await call(agent, "announce_start", { taskUrn: taskUrn(CLEAN) });
+
+    const record = await readTask(taskUrn(CLEAN));
+
+    expect(record?.client?.started?.name).toBe("obsel-live-test");
+    expect(record?.client?.started?.version).toBe("0.0.0");
+    // Stamped by the door that read the handshake, so it is a real instant.
+    expect(Number.isNaN(Date.parse(record?.client?.started?.at ?? ""))).toBe(false);
+
+    // Put the baseline back: the next test reads this task's completion stamp,
+    // and the announcement above left it mid-run.
+    await establishBaseline(agent);
+  }, 180_000);
+
+  it("keeps the connecting client and the reported runner as separate facts", async () => {
+    // One task, two self-descriptions, and neither filled in from the other: the
+    // client is what spoke MCP, the runner is what the agent says did the work.
+    // `establishBaseline` reports these completions without naming a runner, so
+    // an implementation that derived one from the other would show it here.
+    //
+    // Reported here for the same order-independence reason as the test above: a
+    // sibling file's reset clears this stamp, and a test that read it from
+    // `beforeAll` would pass or fail on which file ran last.
+    await establishBaseline(agent);
+
+    const record = await readTask(taskUrn(CLEAN));
+
+    expect(record?.client?.reported?.name).toBe("obsel-live-test");
+    expect(record?.run?.runner).toBeNull();
   }, 120_000);
 
   it("reports a seed table as having no registered producer, not as fresh", async () => {
@@ -518,7 +578,7 @@ describe("what an agent is refused", () => {
     // The server still starts and still lists its tools. Dying at boot would hand the
     // agent's MCP client a connection error with no cause in it.
     const { tools } = await client.listTools();
-    expect(tools).toHaveLength(9);
+    expect(tools).toHaveLength(10);
 
     const message = await callError(client, "check_freshness", { reads: [CLEAN_OUT] });
     expect(message).toContain("could not reach obsel");

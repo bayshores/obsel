@@ -225,7 +225,8 @@ describe("the tour", () => {
       "numbers",
     ]);
     expect(TOUR.filter((step) => step.chapter === 2).map((step) => step.id)).toEqual([
-      "register",
+      // One act declares the agents and runs them, because the two buttons
+      // behind it became one.
       "run",
       "change",
       "reached",
@@ -251,11 +252,14 @@ describe("the tour", () => {
     }
   });
 
-  it("waits on the first action until something is actually registered", () => {
-    expect(showing(FIRST_ACT, { tasks: [] })).toBe("register");
-    // And the moment tasks exist it moves on by itself, with nobody pressing
-    // anything: the board is the only thing that can advance an action step.
+  it("waits on the first action until every agent has finished", () => {
+    // Registering is no longer a step of its own, so a board with tasks on it
+    // and nothing finished is still waiting on the same act.
+    expect(showing(FIRST_ACT, { tasks: [] })).toBe("run");
     expect(showing(FIRST_ACT, { tasks: REGISTERED })).toBe("run");
+    // And the moment the work is done it moves on by itself, with nobody
+    // pressing anything: the board is the only thing that can advance an act.
+    expect(showing(FIRST_ACT, { tasks: FOUR_COMPLETE })).toBe("change");
   });
 
   it("waits through the run and moves on when every agent has finished", () => {
@@ -340,7 +344,7 @@ describe("the tour", () => {
       tasks: [],
       activity: activity({ history: [...ran("register"), failed("run")] }),
     });
-    expect(TOUR[settledIndex(FIRST_ACT, failedRun)].id).toBe("register");
+    expect(TOUR[settledIndex(FIRST_ACT, failedRun)].id).toBe("run");
   });
 
   /*
