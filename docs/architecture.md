@@ -469,6 +469,13 @@ Directory rules: `app/` routes and composes,
 and `src/server/coordinator/` are deterministic and make no model calls, `src/server/datahub/` owns
 every DataHub call.
 
+The first of those is enforced by `eslint.config.mjs` rather than only by review. It reads the
+`import "server-only"` marker off disk and refuses a value import of any module carrying it from
+anywhere under `src/features/`. Type-only imports stay allowed, since they are erased before
+anything ships and the feature code reads the coordinator's types on every screen; the pure modules
+that carry no marker, `coordinator/erasure.ts` among them, stay importable, which is the whole
+distinction being drawn.
+
 ## 8. What exists
 
 Checked against the working tree on 2026-07-23. Treat the shipped column as "present and

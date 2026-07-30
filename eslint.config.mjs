@@ -1,6 +1,64 @@
+import { readFileSync, readdirSync } from "node:fs";
+import { join, posix, relative, sep } from "node:path";
+
 import { defineConfig, globalIgnores } from "eslint/config";
 import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTypeScript from "eslint-config-next/typescript";
+
+/**
+ * Every module that has declared itself server-only, read off the marker.
+ *
+ * Enumerated from disk rather than listed here, for the reason
+ * `tests/dashboard-tokens.test.ts` gives about its own stylesheet walk: a list
+ * written by hand covers whatever existed the day it was written, and the
+ * failure is silent, because a module missing from it is simply not checked.
+ *
+ * Returned as `**`-prefixed patterns so a relative spelling is caught as well
+ * as the `@/src/...` alias every file here actually uses.
+ */
+function serverOnlyModules(root) {
+  const patterns = [];
+  for (const entry of readdirSync(root, { withFileTypes: true, recursive: true })) {
+    if (!entry.isFile() || !/\.tsx?$/.test(entry.name)) continue;
+    const path = join(entry.parentPath, entry.name);
+    if (!readFileSync(path, "utf8").startsWith('import "server-only";')) continue;
+    const withoutExtension = relative(root, path).replace(/\.tsx?$/, "");
+    patterns.push(`**/${withoutExtension.split(sep).join(posix.sep)}`);
+  }
+  return patterns.sort();
+}
+
+/**
+ * `src/features/` is browser code and must never import a server-only module.
+ *
+ * The rule was prose in CLAUDE.md and enforced only by `pnpm build`, which
+ * catches it late and only for code the build actually reaches. Type-only
+ * imports stay allowed: they are erased before anything ships, and the feature
+ * code reads the coordinator's types on every screen.
+ *
+ * `src/server/coordinator/erasure.ts` and its pure neighbours carry no marker on
+ * purpose and stay importable. That is the distinction being enforced -- pure
+ * deterministic logic is shared, anything that does I/O is not.
+ */
+const noServerImports = {
+  files: ["src/features/**/*.{ts,tsx}"],
+  rules: {
+    "@typescript-eslint/no-restricted-imports": [
+      "error",
+      {
+        patterns: [
+          {
+            group: serverOnlyModules("src"),
+            allowTypeImports: true,
+            message:
+              "This module is marked server-only and browser code must not import its values. " +
+              "Import the type, or move the pure part into a module with no marker.",
+          },
+        ],
+      },
+    ],
+  },
+};
 
 export default defineConfig([
   ...nextVitals,
@@ -29,4 +87,5 @@ export default defineConfig([
      */
     ".claude/**",
   ]),
+  noServerImports,
 ]);

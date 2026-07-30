@@ -2894,6 +2894,20 @@ the same fold with different contents. It is `panel/fold.module.css`, composed b
 forty agents in, and it knows nothing about obsel, staleness or repair by its own declaration. The
 four files were grouped together for review; only three of them duplicated anything.
 
+**The browser/server boundary is a lint rule now, not only prose.** `src/features/` must never
+import a server-only module; that was written in CLAUDE.md and in `docs/architecture.md`, and caught
+only by `pnpm build`, late and only for code the build reaches. `eslint.config.mjs` enumerates the
+`import "server-only"` marker off disk -- not a hand-written list, for the reason the stylesheet walk
+above gives -- and refuses a value import of any of them from `src/features/`. It was proved by
+adding a real one: importing `emit` from `coordinator/trace.ts` into `hooks/use-trace.ts` fails lint
+with the module named, and the type-only imports already all over that directory still pass.
+
+**There was no `any` left in `src/` to remove.** The last one was typed in the 2026-07-28 pass; a
+search of `src/` and `app/` for the type token, and for `ts-ignore`, `ts-expect-error` and
+`eslint-disable`, returns nothing. `tsconfig.json` has `strict: true`. The single remaining `any` in
+the repository is on `call()` in `tests/live/obsel-mcp.live.test.ts`, with the reason written above
+it, and is untouched.
+
 **Two large files are deliberately left whole.** `agents/mcp_core.py` is 1345 lines, and 576 of them
 are the self-check `python -m agents.mcp_core` runs under `pnpm test:python`. Every self-checking
 module here is shaped that way, from 23% of `scale.py` to 61% of `agent_contract.py`, so splitting
