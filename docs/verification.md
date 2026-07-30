@@ -2840,6 +2840,13 @@ prompt. A `run` and a `rerun-same` against a live DataHub would settle it.
 Behaviour is unchanged throughout: no route, no export anyone imports, no test assertion and no
 pixel moved. `pnpm verify` and `pnpm e2e` are green at each step.
 
+**Confirmed against a real DataHub afterwards.** `pnpm test:live` on 2026-07-30: all 15 files and
+153 tests passed in 459.0 s, nothing skipped, against a live GMS on :8080, the real
+`uvx mcp-server-datahub`, a real obsel server and real agent CLI sessions -- the run reported both
+Codex and Claude Code having run one. That is what covers the parts of this pass no pure test
+reaches: the seven routes now answering through `http/route.ts`, the write-back half of a completion
+now living in `completion-writes.ts`, and the registration both demo scripts now share.
+
 **Dead code, found with tools rather than by eye.** `knip` over the TypeScript and `vulture` over
 the Python. Deleted as unreferenced: the `MarkState` type, `guide.ts`'s re-export of `GuideAction`,
 `GuideCheck` and `GuideStage`, `client.ts`'s type re-export line, the `REASONS` fixture export, an
