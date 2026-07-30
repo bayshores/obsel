@@ -2835,6 +2835,52 @@ byte-identical re-run property rests on `canonicalise_numbers` rather than on th
 itself — but no live run has been made since the change, so the recorded numbers describe the earlier
 prompt. A `run` and a `rerun-same` against a live DataHub would settle it.
 
+### A second structure pass (2026-07-30)
+
+Behaviour is unchanged throughout: no route, no export anyone imports, no test assertion and no
+pixel moved. `pnpm verify` and `pnpm e2e` are green at each step.
+
+**Dead code, found with tools rather than by eye.** `knip` over the TypeScript and `vulture` over
+the Python. Deleted as unreferenced: the `MarkState` type, `guide.ts`'s re-export of `GuideAction`,
+`GuideCheck` and `GuideStage`, `client.ts`'s type re-export line, the `REASONS` fixture export, an
+empty `import type {}`, `NAME` in both runner modules, and `mcp_server.SERVER_VERSION`. Six symbols
+used only inside their own file lost the `export` keyword rather than the definition:
+`readTaskEntity`, `TRACE_LIMIT`, `POLL_MS`, `READ_TIMEOUT_MS`, `explain`, `BLANK`.
+
+Three things a tool called unused are kept, each for a stated reason. `scripts/capture.mjs`,
+`record.mjs` and `video.mjs` are entry points a person runs, documented in `docs/images/README.md`;
+nothing imports them and nothing should. `tests/support/server-only.ts` is the marker package's own
+no-op, resolved through a `vitest.config.ts` alias a static tool cannot see. Roughly forty exported
+types are each used inside their own file as the shape a public function returns, so un-exporting
+them would hide the return type of an exported function.
+
+**The dashboard is a folder per concern.** 57 files sat at one level beside four folders someone had
+already started. The rest now join them — `backdrop/`, `brand/`, `details/`, `graph/`, `guide/`,
+`history/`, `hooks/`, `joining/`, `table-form/`, `trace/`, `your-data/`, with `stats.tsx` into the
+existing `panel/`. Ten files stay at the top: `dashboard.tsx` and its stylesheet, which compose the
+rest, and the eight shared modules every folder imports.
+
+That move exposed a real gap. `dashboard-tokens.test.ts` reads the dashboard directory and asserts
+no stylesheet carries a colour literal, and its own comment says reading the directory means a new
+file is covered the moment it exists. The read did not recurse, so `erasure/`, `panel/` and `tour/`
+had never been examined at all. Recursing found two hex literals in `tour.module.css`. They are
+`--obsel-window-top` and `--obsel-window-bottom` in `globals.css` now, at the same values.
+
+**`coordinator/completion.ts` 876 split into `completion.ts` 612 and `completion-writes.ts` 284.**
+The seam was already there: `recordChange`, `clearRestored`, `recordCompletion`, `markAllStale` and
+`writeStaleProperties` decide nothing. They store values the pure functions in `staleness.ts`
+already computed, and they touch none of the private state — the process-wide coordination lock —
+that the deciding half turns on.
+
+**Two large files are deliberately left whole.** `agents/mcp_core.py` is 1345 lines, and 576 of them
+are the self-check `python -m agents.mcp_core` runs under `pnpm test:python`. Every self-checking
+module here is shaped that way, from 23% of `scale.py` to 61% of `agent_contract.py`, so splitting
+that out of one module would break the convention rather than tidy it; the remaining 769 lines are
+six banner-separated sections of a single responsibility, which the module docstring argues against
+dispersing. `agents/scale.py` is 998 lines, of which 423 are one literal declaration of forty tasks
+and 233 are its self-check. Its first line states it is the forty-task counterpart of `pipeline.py`,
+data only, and that parallel is the thing worth keeping.
+
 ## Not done
 
 - **The cold start ran the `datahub` CLI branch, not the `uvx` one.** This machine has that CLI
