@@ -6,8 +6,8 @@
  * position; each function is handed the state it describes.
  */
 
-import { agreeing, datasetTitle, taskTitle } from "./naming";
-import { formatDuration, inFlightMs } from "./progress";
+import { agreeing, datasetTitle, taskTitle } from "../naming";
+import { formatDuration, inFlightMs } from "../progress";
 import { RUNNER_ROW_FALLBACK, runnerProduct, runnerRowName, lastStepProblem } from "./guide-view";
 import type { Blocker, GuideAction, GuideCheck, GuideInput, StageView } from "./guide-view";
 import type { RunnerName } from "@/src/server/runner/types";

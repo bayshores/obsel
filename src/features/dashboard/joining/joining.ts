@@ -32,8 +32,8 @@
  * guard for exactly that reason.
  */
 
-import { outputChanged } from "./fingerprints";
-import { taskTitle } from "./naming";
+import { outputChanged } from "../fingerprints";
+import { taskTitle } from "../naming";
 import type { TaskRecord } from "@/src/server/coordinator/types";
 
 /**

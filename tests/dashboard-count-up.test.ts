@@ -12,7 +12,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { COUNT_UP_MS, countUpValue } from "@/src/features/dashboard/use-count-up";
+import { COUNT_UP_MS, countUpValue } from "@/src/features/dashboard/hooks/use-count-up";
 
 describe("where the count starts and ends", () => {
   it("ends on the measured value exactly", () => {

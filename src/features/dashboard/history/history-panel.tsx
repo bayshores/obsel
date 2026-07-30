@@ -19,10 +19,10 @@
 import { m, useReducedMotion } from "motion/react";
 
 import { historyRows } from "./history";
-import { EASE } from "./motion-tokens";
-import { Panel } from "./mmux";
-import { clockTime } from "./timing";
-import { GREEN, MUTE, STALE } from "./tone";
+import { EASE } from "../motion-tokens";
+import { Panel } from "../mmux";
+import { clockTime } from "../timing";
+import { GREEN, MUTE, STALE } from "../tone";
 import type { ChangeHistory } from "@/src/server/coordinator/change-ledger";
 
 import styles from "./history-panel.module.css";

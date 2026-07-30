@@ -11,7 +11,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { historyRows } from "@/src/features/dashboard/history";
+import { historyRows } from "@/src/features/dashboard/history/history";
 import type { ChangeBody, ChangeEntry } from "@/src/server/coordinator/change-ledger";
 
 const AT = "2026-07-29T12:00:00.000Z";

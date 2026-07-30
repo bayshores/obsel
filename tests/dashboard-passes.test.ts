@@ -9,7 +9,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { passSummary, passesOf } from "@/src/features/dashboard/passes";
+import { passSummary, passesOf } from "@/src/features/dashboard/trace/passes";
 import type { TraceEvent, TracePhase } from "@/src/server/coordinator/types";
 
 let seq = 0;

@@ -222,6 +222,10 @@
   --obsel-stale-line: rgba(255, 176, 32, 0.42);
   --obsel-focus: var(--mm-rose-hot);
 
+  /* The tour window is opaque rather than a board surface; tour.module.css says why. */
+  --obsel-window-top: #17141b;
+  --obsel-window-bottom: #100e14;
+
   /*
    * 4. quiet text, raised to a legible floor.
    *

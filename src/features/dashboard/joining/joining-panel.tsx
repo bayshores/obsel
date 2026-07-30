@@ -29,7 +29,7 @@
 
 import { useRef, useState } from "react";
 
-import { Panel } from "./mmux";
+import { Panel } from "../mmux";
 import type { JoinView } from "./joining";
 
 import styles from "./joining.module.css";

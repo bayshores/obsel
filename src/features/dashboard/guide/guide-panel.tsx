@@ -14,9 +14,9 @@ import { AnimatePresence, LazyMotion, domMax, m, useReducedMotion } from "motion
 import { Fragment, useState } from "react";
 import type { ReactNode } from "react";
 
-import { PulseDot } from "./mmux";
-import { EASE } from "./motion-tokens";
-import { formatDuration } from "./progress";
+import { PulseDot } from "../mmux";
+import { EASE } from "../motion-tokens";
+import { formatDuration } from "../progress";
 import { STEP_NAME } from "./guide";
 import type { GuideView } from "./guide";
 import type { RevealTarget } from "./guide-view";

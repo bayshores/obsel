@@ -22,7 +22,7 @@ import { useCallback, useMemo, useState, useSyncExternalStore } from "react";
 
 import { TOUR, settledIndex } from "./steps";
 import type { TourStep } from "./steps";
-import type { GuideInput } from "../guide";
+import type { GuideInput } from "../guide/guide";
 
 /** One key, one small object. Bumping the version resets everyone, deliberately. */
 const STORE = "obsel.tour.v1";

@@ -2,7 +2,7 @@ import { readFileSync, readdirSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
-import { AMBER, ROSE } from "@/src/features/dashboard/backdrop-shader";
+import { AMBER, ROSE } from "@/src/features/dashboard/backdrop/backdrop-shader";
 
 /**
  * The backdrop shader is the one place in the dashboard that cannot use a token.
@@ -89,15 +89,22 @@ describe("no stray colour literals in the page's own source", () => {
    * `backdrop-shader.ts` is the one exemption, and it is exempt by name because
    * GLSL has no custom properties to reference: its colours are float triples
    * that a test elsewhere asserts against the tokens they mirror.
+   *
+   * The walk is recursive because the stylesheets live in a folder per concern.
+   * A flat read covered whichever files had not been grouped yet, which is the
+   * same silent gap in a new form.
    */
-  const FILES = readdirSync(new URL("../src/features/dashboard/", import.meta.url))
+  const FILES = readdirSync(new URL("../src/features/dashboard/", import.meta.url), {
+    recursive: true,
+  })
+    .map(String)
     .filter((name) => name.endsWith(".module.css") || name === "tone.ts")
     .sort();
 
   it("checks every stylesheet in the directory, so a new one cannot go unexamined", () => {
     expect(FILES).toContain("dashboard.module.css");
-    expect(FILES).toContain("lineage.module.css");
-    expect(FILES).toContain("nodes.module.css");
+    expect(FILES).toContain("graph/lineage.module.css");
+    expect(FILES).toContain("graph/nodes.module.css");
     expect(FILES).toContain("tone.ts");
   });
 

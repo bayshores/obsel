@@ -17,10 +17,10 @@
 
 import { useReducedMotion } from "motion/react";
 
-import { StatCell, StatRibbon } from "./mmux";
-import { agreeing } from "./naming";
-import { useCountUp } from "./use-count-up";
-import type { SwarmTotals } from "./timing";
+import { StatCell, StatRibbon } from "../mmux";
+import { agreeing } from "../naming";
+import { useCountUp } from "../hooks/use-count-up";
+import type { SwarmTotals } from "../timing";
 
 /**
  * What a withheld number reads as.

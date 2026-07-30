@@ -9,7 +9,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { guide } from "@/src/features/dashboard/guide";
+import { guide } from "@/src/features/dashboard/guide/guide";
 import type { StaleMark, TaskRecord } from "@/src/server/coordinator/types";
 import type { StepResult } from "@/src/server/runner/types";
 import {

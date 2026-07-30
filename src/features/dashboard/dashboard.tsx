@@ -22,28 +22,28 @@
 
 import { useCallback, useMemo, useState } from "react";
 
-import { Backdrop } from "./backdrop";
-import { Brand } from "./brand";
+import { Backdrop } from "./backdrop/backdrop";
+import { Brand } from "./brand/brand";
 import { Panel } from "./panel/panel";
 import type { TabId } from "./panel/tabs";
 import { usePanel } from "./panel/use-panel";
 import { ErasureTab } from "./erasure/erasure-tab";
 import { useErasure } from "./erasure/use-erasure";
-import { guide } from "./guide";
-import type { GuideInput } from "./guide";
-import { DetailsSurface } from "./details-surface";
-import { joining } from "./joining";
-import { Lineage } from "./lineage";
-import { yourData } from "./your-data";
+import { guide } from "./guide/guide";
+import type { GuideInput } from "./guide/guide";
+import { DetailsSurface } from "./details/details-surface";
+import { joining } from "./joining/joining";
+import { Lineage } from "./graph/lineage";
+import { yourData } from "./your-data/your-data";
 import { PulseDot } from "./mmux";
 import { TourPanel, TourOpener } from "./tour/tour-panel";
 import type { TourTarget } from "./tour/steps";
 import { useTour } from "./tour/use-tour";
-import { useActivity } from "./use-activity";
-import { useHoverIntent } from "./use-hover-intent";
-import { useChanges } from "./use-changes";
-import { useTrace } from "./use-trace";
-import { useSwarm } from "./use-swarm";
+import { useActivity } from "./hooks/use-activity";
+import { useHoverIntent } from "./hooks/use-hover-intent";
+import { useChanges } from "./hooks/use-changes";
+import { useTrace } from "./hooks/use-trace";
+import { useSwarm } from "./hooks/use-swarm";
 import { clockTime, inDependencyOrder, lastReportAt, summaryLine, totals } from "./timing";
 import type { TaskRecord } from "@/src/server/coordinator/types";
 

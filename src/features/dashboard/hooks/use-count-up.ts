@@ -20,7 +20,7 @@
 
 import { useEffect, useState } from "react";
 
-import { EASE } from "./motion-tokens";
+import { EASE } from "../motion-tokens";
 
 /** How long the run takes. Short enough to be over before a reader looks away. */
 export const COUNT_UP_MS = 600;

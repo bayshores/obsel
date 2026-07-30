@@ -29,7 +29,7 @@ import { idle } from "./activity";
 import { noSteps } from "./trace";
 import type { ChangeHistory } from "@/src/server/coordinator/change-ledger";
 import type { PublishedErasureReport } from "@/src/server/coordinator/erasure-report";
-import type { SwarmResponse } from "@/src/features/dashboard/use-swarm";
+import type { SwarmResponse } from "@/src/features/dashboard/hooks/use-swarm";
 import type { TraceEvent } from "@/src/server/coordinator/types";
 import type { DemoActivity, DemoStep } from "@/src/server/runner/types";
 

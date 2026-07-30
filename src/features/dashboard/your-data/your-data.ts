@@ -23,10 +23,10 @@
  * reject, so the reader is told by the form rather than by a 400.
  */
 
-import { recordedShape } from "./table-form";
-import type { RecordedShape } from "./table-form";
-import { isVisitor } from "./joining";
-import { shortName, taskTitle } from "./naming";
+import { recordedShape } from "../table-form/table-form";
+import type { RecordedShape } from "../table-form/table-form";
+import { isVisitor } from "../joining/joining";
+import { shortName, taskTitle } from "../naming";
 import type { TaskRecord } from "@/src/server/coordinator/types";
 
 /**

@@ -28,7 +28,7 @@
    * graph showing through the tour's own text is exactly the flush,
    * indistinguishable result this replaces.
    */
-  background: linear-gradient(180deg, #17141b, #100e14);
+  background: linear-gradient(180deg, var(--obsel-window-top), var(--obsel-window-bottom));
   border: 1px solid var(--mm-border-strong);
   border-radius: var(--mm-radius-none);
   /*

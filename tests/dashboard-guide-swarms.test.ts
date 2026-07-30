@@ -9,9 +9,9 @@
 
 import { describe, expect, it } from "vitest";
 
-import { STEP_NAME, guide, sinceReset } from "@/src/features/dashboard/guide";
+import { STEP_NAME, guide, sinceReset } from "@/src/features/dashboard/guide/guide";
 import { TOUR, settledIndex } from "@/src/features/dashboard/tour/steps";
-import type { GuideInput } from "@/src/features/dashboard/guide";
+import type { GuideInput } from "@/src/features/dashboard/guide/guide";
 import type { TaskRecord } from "@/src/server/coordinator/types";
 import type { RunnerCheck } from "@/src/server/runner/types";
 import {

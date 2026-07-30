@@ -20,13 +20,13 @@
  * is exactly where that distinction would be quietly lost.
  */
 
-import { datahubTaskUrl } from "./datahub-link";
-import { Divider, Panel } from "./mmux";
-import { datasetTitle, flowLine, taskTitle } from "./naming";
-import { activityNote, clientLine, runStamp } from "./progress";
+import { datahubTaskUrl } from "../datahub-link";
+import { Divider, Panel } from "../mmux";
+import { datasetTitle, flowLine, taskTitle } from "../naming";
+import { activityNote, clientLine, runStamp } from "../progress";
 import { ColumnNames } from "./columns";
-import { clockTime } from "./timing";
-import { STATUS_WORD } from "./tone";
+import { clockTime } from "../timing";
+import { STATUS_WORD } from "../tone";
 import type { ColumnChange, TaskRecord } from "@/src/server/coordinator/types";
 
 import styles from "./inspector.module.css";

@@ -32,12 +32,12 @@ import type { PointerEvent as ReactPointerEvent } from "react";
 
 import { PulseDot } from "../mmux";
 import { EASE, SPRING } from "../motion-tokens";
-import { STEP_NAME } from "../guide";
+import { STEP_NAME } from "../guide/guide";
 import { TOUR } from "./steps";
 import type { ActStep, TourStep, TourTarget } from "./steps";
 import type { TourState } from "./use-tour";
 import type { PanelSide } from "../panel/use-panel";
-import type { GuideInput, GuideView } from "../guide";
+import type { GuideInput, GuideView } from "../guide/guide";
 
 import styles from "./tour.module.css";
 

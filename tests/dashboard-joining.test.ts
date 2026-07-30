@@ -10,8 +10,13 @@ import { readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
-import { DEMO_TASKS, TAXI_NAMESPACE, isVisitor, joining } from "@/src/features/dashboard/joining";
-import type { JoinInput } from "@/src/features/dashboard/joining";
+import {
+  DEMO_TASKS,
+  TAXI_NAMESPACE,
+  isVisitor,
+  joining,
+} from "@/src/features/dashboard/joining/joining";
+import type { JoinInput } from "@/src/features/dashboard/joining/joining";
 import type { OutputFingerprint, StaleMark, TaskRecord } from "@/src/server/coordinator/types";
 
 const AT = "2026-07-24T09:00:10.000Z";

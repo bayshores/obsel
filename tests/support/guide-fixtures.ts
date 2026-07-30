@@ -5,8 +5,8 @@
  * a field added to `TaskRecord` later reaches every test at once.
  */
 
-import { guide } from "@/src/features/dashboard/guide";
-import type { GuideInput } from "@/src/features/dashboard/guide";
+import { guide } from "@/src/features/dashboard/guide/guide";
+import type { GuideInput } from "@/src/features/dashboard/guide/guide";
 import type { StaleMark, TaskRecord, TaskStatus } from "@/src/server/coordinator/types";
 import type {
   DemoActivity,

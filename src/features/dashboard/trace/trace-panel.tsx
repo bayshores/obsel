@@ -23,11 +23,11 @@
 import { m, useReducedMotion } from "motion/react";
 import { Fragment, useEffect, useRef, useState } from "react";
 
-import { EASE } from "./motion-tokens";
-import { Panel } from "./mmux";
+import { EASE } from "../motion-tokens";
+import { Panel } from "../mmux";
 import { passSummary, passesOf } from "./passes";
-import { clockTime } from "./timing";
-import { GREEN, MUTE, ROSE, STALE } from "./tone";
+import { clockTime } from "../timing";
+import { GREEN, MUTE, ROSE, STALE } from "../tone";
 import type { TraceEvent, TracePhase } from "@/src/server/coordinator/types";
 
 import styles from "./trace-panel.module.css";

@@ -34,7 +34,7 @@ import type { Variants } from "motion/react";
 import { memo, useEffect, useState } from "react";
 
 import { Mark, StillMark } from "./mark";
-import { Wordmark } from "./mmux";
+import { Wordmark } from "../mmux";
 
 import styles from "./brand.module.css";
 

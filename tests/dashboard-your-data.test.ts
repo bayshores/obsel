@@ -14,15 +14,15 @@
 
 import { describe, expect, it } from "vitest";
 
-import { DEMO_TASKS } from "@/src/features/dashboard/joining";
+import { DEMO_TASKS } from "@/src/features/dashboard/joining/joining";
 import {
   EMPTY_DRAFT,
   draftProblem,
   yourData,
   parseNames,
   registration,
-} from "@/src/features/dashboard/your-data";
-import type { YourDataDraft } from "@/src/features/dashboard/your-data";
+} from "@/src/features/dashboard/your-data/your-data";
+import type { YourDataDraft } from "@/src/features/dashboard/your-data/your-data";
 import { datasetNameProblem, taskNameProblem } from "@/src/server/datahub/urns";
 import type { TaskRecord } from "@/src/server/coordinator/types";
 

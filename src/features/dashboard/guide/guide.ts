@@ -12,7 +12,7 @@
  * `guide-view.ts`; each stage's own copy is in `guide-stages.ts`.
  */
 
-import { boardSawAChange } from "./fingerprints";
+import { boardSawAChange } from "../fingerprints";
 import { STEP_NAME, lastStepProblem } from "./guide-view";
 import type { Blocker, GuideInput, GuideView, StageView } from "./guide-view";
 import { connect, empty, flagged, prepare, registered, settled, working } from "./guide-stages";

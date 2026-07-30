@@ -28,8 +28,8 @@ import {
   withColumnRenamed,
   withRowAdded,
   withRowRemoved,
-} from "@/src/features/dashboard/table-form";
-import type { TableFormTable } from "@/src/features/dashboard/table-form";
+} from "@/src/features/dashboard/table-form/table-form";
+import type { TableFormTable } from "@/src/features/dashboard/table-form/table-form";
 
 /** A table built the way the panel builds one, so ids are real ids. */
 function tableOf(names: string[], rows: string[][]): TableFormTable {

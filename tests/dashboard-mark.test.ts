@@ -8,7 +8,7 @@ import {
   MARK_HEIGHT,
   MARK_VIEWBOX,
   MARK_WIDTH,
-} from "@/src/features/dashboard/mark-geometry";
+} from "@/src/features/dashboard/brand/mark-geometry";
 
 /**
  * The favicon and the in-app mark are the same drawing, kept in two files.

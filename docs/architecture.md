@@ -443,14 +443,14 @@ client, over real stdio, into the real Python server, against a real obsel and a
                                                                         no network, no clock)
                                                                            |
   src/features/dashboard/                                                  | writes via
-    dashboard.tsx      polls GET /api/swarm <--- app/api/swarm/ --+        v
-    graph/positions.ts dagre layout, pure                         |   src/server/datahub/
-    graph/cascade.ts   which edges lit, pure                      |
-    lineage.tsx        React Flow + nodes.tsx                     |
-    naming.ts          human names, pure                          |
-    datahub-link.ts    links out to DataHub's UI, pure             |
-    passes.ts          groups the trace by decision, pure          |
-    trace-panel.tsx    polls GET /api/trace <--- app/api/trace/ --+
+    dashboard.tsx          polls GET /api/swarm <--- app/api/swarm/ --+    v
+    graph/positions.ts     dagre layout, pure                         |   src/server/datahub/
+    graph/cascade.ts       which edges lit, pure                      |
+    graph/lineage.tsx      React Flow + graph/nodes.tsx                |
+    naming.ts              human names, pure                          |
+    datahub-link.ts        links out to DataHub's UI, pure             |
+    trace/passes.ts        groups the trace by decision, pure          |
+    trace/trace-panel.tsx  polls GET /api/trace <--- app/api/trace/ --+
                                                                   |     client.ts  GMS HTTP
                                                                   +---- mcp.ts     MCP tag writes
                                                                         tags.ts    reads globalTags
@@ -486,15 +486,15 @@ readable", not as "covered by end-to-end evidence". See [Evidence](#9-evidence) 
 | HTTP API                                    | `app/api/swarm`, `app/api/trace`, `app/api/tasks/{register,start,abandon,complete}`, `app/api/demo/{reset,launch,activity}` | shipped                                             |
 | Page                                        | `app/page.tsx`, `src/features/dashboard/`                                                                                   | shipped, 133 unit + 51 browser tests                |
 | Live agent progress                         | `src/features/dashboard/progress.ts`                                                                                        | shipped, 23 passing tests, seen live                |
-| The guide                                   | `src/features/dashboard/guide.ts`, `guide-panel.tsx`                                                                        | shipped, 24 passing tests, driven live              |
-| The joining guide, four steps off the swarm | `src/features/dashboard/joining.ts`, `joining-panel.tsx`                                                                    | shipped, 24 unit + 7 browser tests                  |
+| The guide                                   | `src/features/dashboard/guide/guide.ts`, `guide-panel.tsx`                                                                  | shipped, 24 passing tests, driven live              |
+| The joining guide, four steps off the swarm | `src/features/dashboard/joining/joining.ts`, `joining-panel.tsx`                                                            | shipped, 24 unit + 7 browser tests                  |
 | Human names for tasks and tables            | `src/features/dashboard/naming.ts`, `staleness.ts` (`tableLabel`, `taskLabel`)                                              | shipped, 16 passing tests                           |
 | The coordinator's live trace                | `src/server/coordinator/trace.ts`, `trace-buffer.ts`, `app/api/trace`, `trace-panel.tsx`                                    | shipped, 10 tests, seen live                        |
-| Grouping the trace into decisions           | `src/features/dashboard/passes.ts`                                                                                          | shipped, 15 unit + 2 browser tests                  |
-| The lineage graph                           | `src/features/dashboard/lineage.tsx`, `nodes.tsx`, `graph/positions.ts`, `graph/cascade.ts`, on React Flow and dagre        | shipped, 33 unit + 4 browser tests                  |
+| Grouping the trace into decisions           | `src/features/dashboard/trace/passes.ts`                                                                                    | shipped, 15 unit + 2 browser tests                  |
+| The lineage graph                           | `src/features/dashboard/graph/lineage.tsx`, `nodes.tsx`, `positions.ts`, `cascade.ts`, on React Flow and dagre              | shipped, 33 unit + 4 browser tests                  |
 | Naming which columns moved                  | `src/server/coordinator/staleness.ts` (`columnChange`); `obsel.stale.columns`                                               | shipped, 9 tests, verified live                     |
 | Reading the stale tag back onto the page    | `src/server/datahub/tags.ts`, `timing.ts` (`totals`); the ribbon's write-back cell                                          | shipped, 14 unit + 6 browser tests                  |
-| The link into DataHub's own UI              | `src/features/dashboard/datahub-link.ts`, `inspector.tsx`                                                                   | shipped, 8 tests, path read from DataHub's bundle   |
+| The link into DataHub's own UI              | `src/features/dashboard/datahub-link.ts`, `details/inspector.tsx`                                                           | shipped, 8 tests, path read from DataHub's bundle   |
 | Demo runner                                 | `src/server/runner/`: `steps.ts`, `launcher.ts`, `preflight.ts`                                                             | shipped, 11 tests on the pure half                  |
 | Task registration and traversal in Python   | `agents/graph.py`                                                                                                           | shipped, verified live                              |
 | Fingerprinting                              | `agents/fingerprint.py`                                                                                                     | shipped, 7 self-check properties                    |
@@ -1262,7 +1262,7 @@ as undifferentiated lines. That flattened the thing the demo's second half exist
 _separate_ judgements that stayed quiet are what make the fifth believable, and undivided they read as
 one long preamble in which nothing happened.
 
-`src/features/dashboard/passes.ts` groups them, purely and with its own tests. `read` is the boundary,
+`src/features/dashboard/trace/passes.ts` groups them, purely and with its own tests. `read` is the boundary,
 which is not a convention it imposes: `coordinateCompletion` cannot decide anything before
 `readSnapshot`, so every pass begins with one. The `read` step's own message is already the trigger,
 "Orders cleaner finished", so it becomes the group's **heading** rather than its first row. A heading

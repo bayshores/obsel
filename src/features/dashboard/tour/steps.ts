@@ -28,8 +28,8 @@
  */
 
 import { boardSawAChange } from "../fingerprints";
-import { performedSteps } from "../guide";
-import type { GuideInput } from "../guide";
+import { performedSteps } from "../guide/guide";
+import type { GuideInput } from "../guide/guide";
 import type { DemoStep } from "@/src/server/runner/types";
 
 /** Which region of the board a step points at, or nothing. */

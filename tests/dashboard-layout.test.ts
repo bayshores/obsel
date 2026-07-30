@@ -188,7 +188,7 @@ describe("layoutPositions — the sizes dagre reserves match the sizes CSS draws
 
   it("matches the pixel values in nodes.module.css", async () => {
     const css = await readFile(
-      new URL("../src/features/dashboard/nodes.module.css", import.meta.url),
+      new URL("../src/features/dashboard/graph/nodes.module.css", import.meta.url),
       "utf8",
     );
     // .task is the only rule with a fixed width AND height; the data rules use

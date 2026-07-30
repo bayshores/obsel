@@ -16,9 +16,9 @@
 
 import { Handle, Position } from "@xyflow/react";
 
-import { coverageTone, stateWord } from "./erasure/coverage-view";
-import { datasetTitle, taskTitle } from "./naming";
-import { MUTE, STALE, STATUS_WORD, nodeTone } from "./tone";
+import { coverageTone, stateWord } from "../erasure/coverage-view";
+import { datasetTitle, taskTitle } from "../naming";
+import { MUTE, STALE, STATUS_WORD, nodeTone } from "../tone";
 import type { ErasureState } from "@/src/server/coordinator/erasure";
 import type { ColumnChange, TaskRecord } from "@/src/server/coordinator/types";
 

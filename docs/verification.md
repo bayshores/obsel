@@ -156,11 +156,11 @@ and type-checks, not a plan.
 | The agent output contract, names and number form                                 | `agents/tables.py` (`canonicalise_numbers`), with a self-check                 |
 | The page: graph, headline, stats, step log, details                              | `app/page.tsx`, `src/features/dashboard/`                                      |
 | Live agent progress on the page                                                  | `src/features/dashboard/progress.ts`                                           |
-| The guide: stage derived from live state, buttons that launch the real steps     | `src/features/dashboard/guide.ts`, `guide-panel.tsx`                           |
+| The guide: stage derived from live state, buttons that launch the real steps     | `src/features/dashboard/guide/guide.ts`, `guide-panel.tsx`                     |
 | The demo runner: spawns `agents.run` steps, checks the machine's prerequisites   | `src/server/runner/`                                                           |
 | Each task's job, stored on its DataJob in DataHub and read back onto the page    | `agents/pipeline.py`, `src/server/datahub/client.ts`                           |
 | The stale tag read back off the entity, and counted on the page                  | `src/server/datahub/tags.ts`, `src/features/dashboard/timing.ts`               |
-| A link from any task to its real page in DataHub's UI                            | `src/features/dashboard/datahub-link.ts`, `inspector.tsx`                      |
+| A link from any task to its real page in DataHub's UI                            | `src/features/dashboard/datahub-link.ts`, `details/inspector.tsx`              |
 | The restoration rule: which flags an identical redo provably clears              | `restoredBy` in `src/server/coordinator/staleness.ts`                          |
 | Every change that broke a task, not only the nearest                             | `causes` on `StaleMark`, `mergeMark` in `staleness.ts`, `obsel.stale.causes`   |
 | Columns a task registers as meaningless, excluded from its content hash          | `exclude` in `agents/fingerprint.py`, `obsel.volatile`, `volatile_by_dataset`  |
@@ -171,8 +171,8 @@ and type-checks, not a plan.
 | The joining panel and its four derived steps                                     | `joining.ts`, `joining-panel.tsx`, `joinCommand` on `/api/demo/activity`       |
 | Registering your own task from the page, wired into DataHub                      | `mine.ts`, `mine-panel.tsx`, over the agents' own `/api/tasks/register`        |
 | The two animated captures and the script that takes them                         | `docs/images/*.gif`, `scripts/record.mjs`                                      |
-| The mark in the header and the browser tab icon                                  | `src/features/dashboard/mark.tsx`, `mark-geometry.ts`, `app/icon.svg`          |
-| The header lockup, and the name it reveals on hover                              | `src/features/dashboard/brand.tsx`, `brand.module.css`                         |
+| The mark in the header and the browser tab icon                                  | `src/features/dashboard/brand/mark.tsx`, `mark-geometry.ts`, `app/icon.svg`    |
+| The header lockup, and the name it reveals on hover                              | `src/features/dashboard/brand/brand.tsx`, `brand.module.css`                   |
 | HTTP API, fifteen routes in three groups                                         | `app/api/`, see [`docs/architecture.md`](architecture.md) section 11           |
 
 **Added 2026-07-23, the reader-side cross-check.** obsel's trigger is an agent reporting, so a
@@ -1055,12 +1055,12 @@ failed`. Traversal is the whole of obsel's reasoning, so obsel could do nothing,
   contents. A door its own author cannot find is not a door, and no amount of correct content
   inside it changes that.
 
-  It is `src/features/dashboard/joining-panel.tsx` now, an mmux `Panel` under the graph and above the
+  It is `src/features/dashboard/joining/joining-panel.tsx` now, an mmux `Panel` under the graph and above the
   numbers, which is the order a judge reads in. Measured after: a **75px panel with a 13px
   heading**, a state line beside it, and a line inviting the click.
 
   What it gained is a checklist that ticks itself off, derived the way every other sentence on the
-  page is derived. `src/features/dashboard/joining.ts` recomputes four steps from the swarm snapshot
+  page is derived. `src/features/dashboard/joining/joining.ts` recomputes four steps from the swarm snapshot
   on every poll, in the order `skills/obsel-collaboration/SKILL.md` teaches: the agent declared what
   it reads and writes, it announced before writing, it reported what it produced, and obsel answered
   a change to its data. There is no stored step anywhere.
@@ -1817,7 +1817,7 @@ to the boxes. The guide could describe the page's state and never point at it.
 > The measurement of _why_ they were too quiet is in that section, and it is the reason this one is
 > kept.
 
-**One derivation produced both halves.** `watchFor` in `src/features/dashboard/guide.ts` returned a
+**One derivation produced both halves.** `watchFor` in `src/features/dashboard/guide/guide.ts` returned a
 `Watch` carrying one sentence and the URNs of the boxes that sentence is about. The sentence is
 painted in the guide's left column; the URNs go to `Lineage`, which rings exactly those boxes. They
 come from one object, so the line and the rings cannot end up about different boxes. Same house rule

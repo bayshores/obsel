@@ -24,7 +24,7 @@
  * event this whole repository is about, in the one place a newcomer is looking.
  */
 
-import { agreeing } from "./naming";
+import { agreeing } from "../naming";
 import type { RunDetail } from "@/src/server/coordinator/types";
 
 /**

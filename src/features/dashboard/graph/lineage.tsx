@@ -43,14 +43,14 @@ import {
 } from "@xyflow/react";
 import type { Edge, Node } from "@xyflow/react";
 
-import { cascadeEdges } from "./graph/cascade";
-import { flowEdgeIds } from "./graph/flow";
-import { dataNodeId, layoutPositions, taskNodeId } from "./graph/positions";
-import { CAMERA_MS, FLY_MS } from "./motion-tokens";
+import { cascadeEdges } from "./cascade";
+import { flowEdgeIds } from "./flow";
+import { dataNodeId, layoutPositions, taskNodeId } from "./positions";
+import { CAMERA_MS, FLY_MS } from "../motion-tokens";
 import { DataNode, TaskNode } from "./nodes";
 import type { DataNodeData, TaskNodeData } from "./nodes";
-import { currentChange } from "./timing";
-import { STALE } from "./tone";
+import { currentChange } from "../timing";
+import { STALE } from "../tone";
 import type { ErasureState } from "@/src/server/coordinator/erasure";
 import type { StaleMark, TaskRecord } from "@/src/server/coordinator/types";
 

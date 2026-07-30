@@ -39,7 +39,7 @@ import {
   withRowRemoved,
 } from "./table-form";
 import type { TableFormTable, RecordedShape } from "./table-form";
-import { agreeing } from "./naming";
+import { agreeing } from "../naming";
 
 import styles from "./table-form.module.css";
 

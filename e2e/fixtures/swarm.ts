@@ -12,7 +12,7 @@
  */
 
 import { STALE_TAG_URN } from "@/src/server/datahub/urns";
-import type { SwarmResponse } from "@/src/features/dashboard/use-swarm";
+import type { SwarmResponse } from "@/src/features/dashboard/hooks/use-swarm";
 import type { OutputFingerprint, StaleMark, TaskRecord } from "@/src/server/coordinator/types";
 
 const FLOW = "urn:li:dataFlow:(obsel,orders_pipeline,prod)";

@@ -26,8 +26,8 @@
 
 import { useState } from "react";
 
-import { TableFormPanel } from "./table-form-panel";
-import { Panel } from "./mmux";
+import { TableFormPanel } from "../table-form/table-form-panel";
+import { Panel } from "../mmux";
 import { EMPTY_DRAFT, draftProblem, registration } from "./your-data";
 import type { YourDataDraft, YourDataTask, YourDataView } from "./your-data";
 import type { TaskRecord } from "@/src/server/coordinator/types";

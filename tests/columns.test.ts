@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { columnStates } from "@/src/features/dashboard/columns";
+import { columnStates } from "@/src/features/dashboard/details/columns";
 
 /*
  * `schematicRowCount` and its cap were tested here until the thing they sized

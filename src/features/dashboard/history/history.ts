@@ -12,7 +12,7 @@
  */
 
 import type { ChangeBody, ChangeEntry } from "@/src/server/coordinator/change-ledger";
-import { datasetTitle } from "./naming";
+import { datasetTitle } from "../naming";
 
 export interface HistoryRow {
   /** Sequence within the board, so a reader can refer to one out loud. */
