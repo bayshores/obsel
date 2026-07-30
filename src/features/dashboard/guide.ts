@@ -148,4 +148,4 @@ function failedChecks(input: GuideInput): Blocker[] {
 }
 
 export { STEP_NAME } from "./guide-view";
-export type { GuideAction, GuideCheck, GuideInput, GuideStage, GuideView } from "./guide-view";
+export type { GuideInput, GuideView } from "./guide-view";

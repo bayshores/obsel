@@ -68,7 +68,6 @@ if str(REPO_ROOT) not in sys.path:
 from agents import mcp_core, mcp_erasure, worker  # noqa: E402 -- must follow the sys.path line
 
 SERVER_NAME = "obsel"
-SERVER_VERSION = "0.1.0"
 
 #: Where obsel is listening. Read once at start, like `worker.OBSEL_URL`, so a
 #: server and the agents beside it cannot disagree about which obsel they mean.

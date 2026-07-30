@@ -15,7 +15,7 @@ import { useEffect, useState } from "react";
 import type { RerunPlan } from "@/src/server/coordinator/rerun";
 import type { SwarmSnapshot, TaskRecord } from "@/src/server/coordinator/types";
 
-export const POLL_MS = 1000;
+const POLL_MS = 1000;
 const ENDPOINT = "/api/swarm";
 
 /**
@@ -28,7 +28,7 @@ const ENDPOINT = "/api/swarm";
  * exists to prevent, so it has to be loud. Generous enough to clear a slow GMS,
  * which the server allows 20 s per call.
  */
-export const READ_TIMEOUT_MS = 8000;
+const READ_TIMEOUT_MS = 8000;
 
 /** The body of `GET /api/swarm`. */
 export interface SwarmResponse {
@@ -127,7 +127,7 @@ export function useSwarm(): SwarmState {
   return state;
 }
 
-export function explain(cause: unknown): string {
+function explain(cause: unknown): string {
   // A failed fetch throws a TypeError with a message no viewer can act on.
   if (cause instanceof TypeError) {
     return `obsel could not reach the coordinator at ${ENDPOINT}. Is the server running?`;

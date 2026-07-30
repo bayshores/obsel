@@ -371,7 +371,7 @@ def _self_check() -> int:
             diamond,
             slow,
             pool_size=4,
-            on_event=lambda e, o, c: c.cancel("head") if e.kind == "completed" and e.key == "head" else None,
+            on_event=lambda e, _o, c: c.cancel("head") if e.kind == "completed" and e.key == "head" else None,
         )
     except RuntimeError as error:
         refused = str(error)

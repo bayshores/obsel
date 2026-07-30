@@ -31,22 +31,16 @@ import type { CSSProperties } from "react";
 import { MARK_BOWL, MARK_GRAINS, MARK_HEIGHT, MARK_VIEWBOX, MARK_WIDTH } from "./mark-geometry";
 
 /**
- * The three states the mark is ever in, named once so the lockup, the bowl and
- * the fragments cannot drift apart.
- *
- * Motion propagates ONE state name down the whole tree, so the wordmark's
- * states have to be these states too. That is the reason they are named for
- * what the lockup is doing rather than for what the fragments are doing:
- * "scattered" would say nothing about a word fading in.
- */
-export type MarkState = "gathered" | "rest" | "open";
-
-/**
  * Stagger lives here rather than on the fragments.
  *
  * `staggerChildren` is a property of the parent's transition, and the mark's
  * `svg` is the parent of the 41 fragments. On the lockup it would stagger the
  * lockup's own children, which are the mark and the wordmark: two things.
+ *
+ * Motion propagates ONE state name down the whole tree, so the wordmark's
+ * states have to be these states too. That is the reason they are named for
+ * what the lockup is doing rather than for what the fragments are doing:
+ * "scattered" would say nothing about a word fading in.
  */
 const MARK_STAGGER: Variants = {
   gathered: {},

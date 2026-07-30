@@ -56,10 +56,6 @@ from agents.agent_contract import (
 # now has gone wrong in a way that waiting will not fix.
 TIMEOUT_SECONDS = 600
 
-#: What obsel records as having produced the table. `plan_source` carries the
-#: CLI's own version string alongside it.
-NAME = "claude"
-
 
 class ClaudeUnavailable(AgentUnavailable):
     """The claude CLI is not installed, or not signed in."""

@@ -30,7 +30,7 @@ import type { SwarmTotals } from "./timing";
  * because a stale "0 out of date" beside a broken connection is exactly the false
  * all-clear obsel exists to prevent. Only the character changed.
  */
-export const BLANK = "··";
+const BLANK = "··";
 
 export function Stats({ trusted, totals }: { trusted: boolean; totals: SwarmTotals }) {
   const still = useReducedMotion() === true;

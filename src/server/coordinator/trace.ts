@@ -39,7 +39,7 @@ import type { TraceBuffer } from "./trace-buffer";
  * be read after the fact, and bounded so a long-lived dev server cannot grow
  * without limit.
  */
-export const TRACE_LIMIT = 200;
+const TRACE_LIMIT = 200;
 
 // Survives Next's dev-server module reloads. Without this a recompile mid-run
 // empties the panel while the run it is narrating is still going.

@@ -392,5 +392,3 @@ export function visiting(): SwarmResponse {
     }),
   ]);
 }
-
-export const REASONS = { one: R1, two: R2 };

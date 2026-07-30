@@ -21,7 +21,6 @@ import { clientProperty, type ClientDeclaration } from "@/src/server/http/client
 import { DataHubError } from "./errors";
 import { confirmWrite, gmsFetch, gmsJson, gmsUrl } from "./gms";
 import { readLineageDownstream, relationships } from "./lineage";
-import type { LineageReach, RelationshipDirection } from "./lineage";
 import { PROP } from "./properties";
 import type { PropertyPatch } from "./properties";
 import { parseTagUrns } from "./tags";
@@ -45,7 +44,7 @@ function entityPath(urn: string): string {
  * Safe as an existence predicate, unlike `GET /entities/<urn>`: verified on this
  * instance that an invented DataJob URN returns 404 here.
  */
-export async function readTaskEntity(urn: string): Promise<DataJobEntity | null> {
+async function readTaskEntity(urn: string): Promise<DataJobEntity | null> {
   const response = await gmsFetch(entityPath(urn));
   if (response.status === 404) return null;
   if (!response.ok) {
@@ -415,4 +414,3 @@ export async function updateTaskProperties(urn: string, props: PropertyPatch): P
 }
 
 export { confirmWrite, gmsUrl, PROP, readLineageDownstream, relationships };
-export type { LineageReach, PropertyPatch, RelationshipDirection };
