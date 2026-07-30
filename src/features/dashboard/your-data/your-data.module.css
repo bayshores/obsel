@@ -1,7 +1,8 @@
 /*
- * The bring-your-own-data panel. Same chrome as the joining panel beside it:
- * hairline borders rather than shadows, square corners, monospace throughout,
- * one rose accent on the state that has happened.
+ * The bring-your-own-data panel. Same chrome as the joining panel beside it,
+ * and the fold they share is `../panel/fold.module.css`: hairline borders
+ * rather than shadows, square corners, monospace throughout, one rose accent
+ * on the state that has happened.
  *
  * Every colour is a token. `tests/dashboard-tokens.test.ts` reads this directory
  * from disk and fails on a hex literal in any stylesheet it finds, so a new file
@@ -9,36 +10,23 @@
  */
 
 .fold {
-  display: block;
+  composes: fold from "../panel/fold.module.css";
 }
 
 .summary {
-  cursor: pointer;
-  font-family: var(--mm-font-mono);
-  font-size: var(--mm-text-md);
-  color: var(--obsel-text-quiet);
-  list-style-position: inside;
-  padding: var(--mm-space-sm) var(--mm-space-lg);
+  composes: summary from "../panel/fold.module.css";
 }
 
-.summary:hover {
-  color: var(--mm-cream-dim);
-}
-
-/* Only the open body is padded; the summary carries its own, so a closed panel
-   is a heading and one line rather than a heading and a gap. */
 .body {
-  display: grid;
-  gap: var(--mm-space-md);
-  padding: 0 var(--mm-space-lg) var(--mm-space-lg);
+  composes: body from "../panel/fold.module.css";
 }
 
-.intro,
+.intro {
+  composes: intro from "../panel/fold.module.css";
+}
+
 .note {
-  margin: 0;
-  font-size: var(--mm-text-md);
-  color: var(--obsel-text-quiet);
-  max-width: 68ch;
+  composes: note from "../panel/fold.module.css";
 }
 
 /* ── the form ─────────────────────────────────────────────────────── */

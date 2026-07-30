@@ -1,8 +1,7 @@
-import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { openErasureRequest } from "@/src/server/coordinator/erasure-engine";
-import { authorizeMutation } from "@/src/server/http/auth";
+import { mutationRoute } from "@/src/server/http/mutation";
 
 export const dynamic = "force-dynamic";
 
@@ -28,21 +27,7 @@ const Body = z.object({
  * protection officer has never been handed.
  */
 export async function POST(request: Request) {
-  const auth = authorizeMutation(request);
-  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
-
-  let parsed;
-  try {
-    parsed = Body.parse(await request.json());
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "invalid body";
-    return NextResponse.json({ error: message }, { status: 400 });
-  }
-
-  try {
-    return NextResponse.json(await openErasureRequest(parsed));
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "could not open the request";
-    return NextResponse.json({ error: message }, { status: 500 });
-  }
+  return mutationRoute(request, Body, "could not open the request", (body) =>
+    openErasureRequest(body),
+  );
 }

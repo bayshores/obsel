@@ -1,15 +1,20 @@
-"""How the demo prints, and how it reads obsel's answers.
+"""How the demo prints, how it declares its tasks, and how it reads obsel's answers.
 
-Both halves are here because both are guards. Every timing printed by the demo
-is measured with `time.perf_counter()` around the thing being timed; nothing
-says "instant". And a reply obsel never sent is refused rather than read as an
-empty list, because `affected: []` means "nothing downstream was invalidated",
-which is the one wrong answer that looks exactly like everything being fine.
+All three are here because all three are guards, and because `run_demo.py` and
+`run_scale.py` must not be able to do any of them differently. Every timing
+printed by the demo is measured with `time.perf_counter()` around the thing
+being timed; nothing says "instant". A reply obsel never sent is refused rather
+than read as an empty list, because `affected: []` means "nothing downstream was
+invalidated", which is the one wrong answer that looks exactly like everything
+being fine. And a registration obsel filed under a urn the agents did not expect
+stops the caller, because lineage traversal starts from the urn and would walk
+straight past the task.
 """
 
 from __future__ import annotations
 
-from typing import Any
+import time
+from typing import Any, Callable, Sequence
 
 from pathlib import Path
 
@@ -83,6 +88,86 @@ def missing_names(board_tasks: list[Any], expected: list[tuple[str, str]]) -> li
         record.get("urn") for record in board_tasks if isinstance(record, dict)
     }
     return [name for name, urn in expected if urn not in present]
+
+
+def register_one(
+    obsel_url: str,
+    *,
+    name: str,
+    reads: list[str],
+    writes: list[str],
+    description: str,
+    title: str,
+    expected_urn: str,
+) -> tuple[int, float]:
+    """Declare one task to obsel, and check the urn it filed the task under.
+
+    Returns the exit code and the elapsed milliseconds; the caller prints its
+    own success line, because the demo has four tasks to describe in full and
+    the taxi swarm has forty to list.
+
+    The mismatch is what is shared. obsel and the agents disagreeing about a
+    URN is not a cosmetic difference: lineage traversal starts from the urn, so
+    a task filed under another one is a task a cascade walks straight past.
+    Neither caller may carry on past it, and neither may report it differently.
+    """
+    started = time.perf_counter()
+    record = worker.post_json(
+        f"{obsel_url}/api/tasks/register",
+        {
+            "name": name,
+            "reads": reads,
+            "writes": writes,
+            # The one-sentence job, stored as the DataJob's own description so
+            # DataHub's UI and obsel's board show the same words.
+            "description": description,
+            # The short human name the board leads with. `name` above stays the
+            # code identifier the URN is built from.
+            "title": title,
+        },
+        # A registration is a mutation: entity, edges, and confirms.
+        timeout=worker.MUTATION_TIMEOUT,
+        headers=worker.auth_headers(),
+    )
+    elapsed = (time.perf_counter() - started) * 1000
+
+    if record.get("urn") != expected_urn:
+        print(f"  MISMATCH {name}")
+        print(f"    obsel returned {record.get('urn')}")
+        print(f"    agents expect  {expected_urn}")
+        print("    The two sides disagree about URNs; lineage traversal would miss this task.")
+        return 1, elapsed
+
+    return 0, elapsed
+
+
+def register_missing(
+    obsel_url: str,
+    *,
+    tasks: Sequence[Any],
+    task_urn: Callable[[str], str],
+    register: Callable[[Any], int],
+) -> int:
+    """Declare whichever of `tasks` obsel has no record of, in the order given.
+
+    Both `run` and `scale-run` do this themselves so that starting a swarm is one
+    action rather than two. Only the absent ones are declared: re-declaring a task
+    obsel already holds sets its status back to `registered`, which on a board that
+    has already run would discard the finished state the page reads off it.
+    """
+    expected = [(task.name, task_urn(task.name)) for task in tasks]
+    absent = missing_names(worker.read_swarm(obsel_url)["snapshot"]["tasks"], expected)
+    if not absent:
+        return 0
+
+    print(f"  obsel had no record of {len(absent)} of the {len(expected)} tasks; declaring them now")
+    by_name = {task.name: task for task in tasks}
+    for name in absent:
+        code = register(by_name[name])
+        if code != 0:
+            return code
+    print()
+    return 0
 
 
 def _demo_tasks(obsel_url: str) -> list[dict[str, Any]]:

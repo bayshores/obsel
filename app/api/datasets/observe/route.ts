@@ -1,8 +1,7 @@
-import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { coordinateObservation } from "@/src/server/coordinator/engine";
-import { authorizeMutation } from "@/src/server/http/auth";
+import { mutationRoute } from "@/src/server/http/mutation";
 import { datasetNameProblem, datasetUrn } from "@/src/server/datahub/urns";
 
 export const dynamic = "force-dynamic";
@@ -47,27 +46,11 @@ const Body = z.object({
 });
 
 export async function POST(request: Request) {
-  const auth = authorizeMutation(request);
-  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
-
-  let parsed;
-  try {
-    parsed = Body.parse(await request.json());
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "invalid body";
-    return NextResponse.json({ error: message }, { status: 400 });
-  }
-
-  try {
-    return NextResponse.json(
-      await coordinateObservation(datasetUrn(parsed.dataset), {
-        schema: parsed.fingerprint.schema,
-        content: parsed.fingerprint.content,
-        ...(parsed.columns ? { columns: parsed.columns } : {}),
-      }),
-    );
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "could not record the observation";
-    return NextResponse.json({ error: message }, { status: 500 });
-  }
+  return mutationRoute(request, Body, "could not record the observation", (body) =>
+    coordinateObservation(datasetUrn(body.dataset), {
+      schema: body.fingerprint.schema,
+      content: body.fingerprint.content,
+      ...(body.columns ? { columns: body.columns } : {}),
+    }),
+  );
 }

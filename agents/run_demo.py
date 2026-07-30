@@ -37,7 +37,8 @@ from agents.demo_output import (
     _rule,
     _short,
     ensure_seed,
-    missing_names,
+    register_missing,
+    register_one,
 )
 
 REPO_ROOT = worker.REPO_ROOT
@@ -62,40 +63,21 @@ def cmd_setup(args: argparse.Namespace) -> int:
 
 
 def _register_one(task: pipeline.AgentTask, args: argparse.Namespace) -> int:
-    """Declare one task to obsel and check the urn it filed it under.
-
-    Shared by `register` and by the registration `run` performs for itself, so
-    the two cannot declare the same task differently.
-    """
-    started = time.perf_counter()
-    record = worker.post_json(
-        f"{args.obsel_url}/api/tasks/register",
-        {
-            "name": task.name,
-            "reads": list(task.reads),
-            "writes": [task.writes],
-            # The one-sentence job, stored as the DataJob's own description
-            # so DataHub's UI and obsel's board show the same words.
-            "description": task.summary,
-            # The short human name the board leads with. `name` above stays
-            # the code identifier the URN is built from.
-            "title": task.title,
-        },
-        # A registration is a mutation: entity, edges, and confirms.
-        timeout=worker.MUTATION_TIMEOUT,
-        headers=worker.auth_headers(),
+    """Declare one demo task, shared by `register` and by `run`'s own registration."""
+    urn = pipeline.task_urn(task.name)
+    code, elapsed = register_one(
+        args.obsel_url,
+        name=task.name,
+        reads=list(task.reads),
+        writes=[task.writes],
+        description=task.summary,
+        title=task.title,
+        expected_urn=urn,
     )
-    elapsed = (time.perf_counter() - started) * 1000
+    if code != 0:
+        return code
 
-    expected = pipeline.task_urn(task.name)
-    if record.get("urn") != expected:
-        print(f"  MISMATCH {task.name}")
-        print(f"    obsel returned {record.get('urn')}")
-        print(f"    agents expect  {expected}")
-        print("    The two sides disagree about URNs; lineage traversal would miss this task.")
-        return 1
-
-    print(f"  {task.name:<15} {record['urn']}")
+    print(f"  {task.name:<15} {urn}")
     print(
         f"    reads {', '.join(task.reads)} -> writes {task.writes}, "
         f"registered in {elapsed:.0f} ms"
@@ -115,26 +97,12 @@ def cmd_register(args: argparse.Namespace) -> int:
 
 
 def _register_missing(args: argparse.Namespace) -> int:
-    """Declare whichever of the four tasks obsel has no record of.
-
-    `run` does this itself so that running the demo is one action rather than
-    two. It registers only what is absent: re-declaring a task obsel already
-    holds sets its status back to `registered`, and on a board that has already
-    run that would throw away the finished state the page reads off it.
-    """
-    expected = [(task.name, pipeline.task_urn(task.name)) for task in pipeline.in_dependency_order()]
-    absent = missing_names(worker.read_swarm(args.obsel_url)["snapshot"]["tasks"], expected)
-    if not absent:
-        return 0
-
-    print(f"  obsel had no record of {len(absent)} of the {len(expected)} tasks; declaring them now")
-    by_name = {task.name: task for task in pipeline.in_dependency_order()}
-    for name in absent:
-        code = _register_one(by_name[name], args)
-        if code != 0:
-            return code
-    print()
-    return 0
+    return register_missing(
+        args.obsel_url,
+        tasks=pipeline.in_dependency_order(),
+        task_urn=pipeline.task_urn,
+        register=lambda task: _register_one(task, args),
+    )
 
 
 def _run_one(
@@ -221,15 +189,7 @@ def cmd_rerun_same(args: argparse.Namespace) -> int:
     print("  so nothing downstream should be touched.")
     print()
 
-    # Whatever this task last ran — the instruction AND the column contract,
-    # together, so this is a true no-change re-run at any point in the demo,
-    # including after `change`. Replaying the instruction with a contract from a
-    # different run is how this step failed live on 2026-07-22: the changed
-    # instruction said order_total_usd, the standing contract said order_total,
-    # the contract won, and the re-run reverted the rename.
-    remembered = worker.last_run(task.name) or {}
-    instruction = remembered.get("instruction") or task.instruction
-    expect_columns = tuple(remembered.get("columns") or task.output_columns)
+    instruction, expect_columns = worker.remembered_run(task)
     before = worker.load_table(task.writes, REPO_ROOT)
     result, was_first_run = _run_one(
         task, args, instruction=instruction, expect_columns=expect_columns
@@ -527,13 +487,7 @@ def cmd_repair(args: argparse.Namespace) -> int:
                 print()
                 continue
 
-            # The task's own last run, instruction and column contract together
-            # -- the same pairing rerun-same uses, and for the same reason:
-            # replaying an instruction against a contract from a different run
-            # is how a redo quietly reverts a change instead of absorbing one.
-            remembered = worker.last_run(task.name) or {}
-            instruction = remembered.get("instruction") or task.instruction
-            expect_columns = tuple(remembered.get("columns") or task.output_columns)
+            instruction, expect_columns = worker.remembered_run(task)
 
             result, _ = _run_one(
                 task, args, instruction=instruction, expect_columns=expect_columns

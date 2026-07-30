@@ -2,17 +2,14 @@ import { NextResponse } from "next/server";
 
 import { registerTask } from "@/src/server/coordinator/engine";
 import { RegisterBody } from "@/src/server/http/register-body";
+import { parseBody } from "@/src/server/http/mutation";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
-  let parsed;
-  try {
-    parsed = RegisterBody.parse(await request.json());
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "invalid body";
-    return NextResponse.json({ error: message }, { status: 400 });
-  }
+  const body = await parseBody(request, RegisterBody);
+  if (!body.ok) return body.response;
+  const parsed = body.body;
 
   /*
    * A task may only declare volatile columns on tables it writes.

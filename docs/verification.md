@@ -2872,6 +2872,28 @@ The seam was already there: `recordChange`, `clearRestored`, `recordCompletion`,
 already computed, and they touch none of the private state — the process-wide coordination lock —
 that the deciding half turns on.
 
+**Duplication, found with `jscpd` rather than by eye: eight clones, then zero.** The largest was
+seven mutating API routes, each carrying the same thirteen lines of gate, parse, run, and the copies
+had already begun to differ in the wording of their failures. It is `src/server/http/mutation.ts`
+now. Which routes are gated is unchanged: `register` and `report` are ungated for the reasons
+`auth.ts` states and use only the body parser, so a body they refuse still reads like any other.
+
+Three more, in the same pass. The three-line pairing of a task's remembered instruction with the
+column contract recorded beside it appeared in `rerun-same`, the serial repair and the pooled one,
+each carrying a comment pointing at the other two; it is `worker.remembered_run` now, which is where
+`last_run` already lived. `run_demo.py` and `run_scale.py` declared tasks to obsel through two copies
+of one POST-and-check-the-urn; that is `demo_output.register_one` and `register_missing`, and each
+script keeps its own printing, which is where the two genuinely differ. And the nine properties a
+stale mark occupies were nulled out in both places a flag comes off; they are one `NO_MARK` constant,
+because a field left out of one of those two lists survives the clear.
+
+The one CSS clone was 34 lines shared by `joining.module.css` and `your-data.module.css`, which are
+the same fold with different contents. It is `panel/fold.module.css`, composed by both.
+
+**`agents/swarm.py` is not part of that overlap.** It is the bounded pool `run_scale.py` runs the
+forty agents in, and it knows nothing about obsel, staleness or repair by its own declaration. The
+four files were grouped together for review; only three of them duplicated anything.
+
 **Two large files are deliberately left whole.** `agents/mcp_core.py` is 1345 lines, and 576 of them
 are the self-check `python -m agents.mcp_core` runs under `pnpm test:python`. Every self-checking
 module here is shaped that way, from 23% of `scale.py` to 61% of `agent_contract.py`, so splitting

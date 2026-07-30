@@ -1,8 +1,7 @@
-import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { abandonTask } from "@/src/server/coordinator/engine";
-import { authorizeMutation } from "@/src/server/http/auth";
+import { mutationRoute } from "@/src/server/http/mutation";
 
 export const dynamic = "force-dynamic";
 
@@ -20,27 +19,13 @@ const Body = z.object({ taskUrn: z.string().min(1) });
  * Idempotent, and quiet about a task that was never running — the caller is a
  * failure path, and a second error there would bury the first.
  */
+/*
+ * Gated even though this is a failure-path convenience: un-gated, it lets any
+ * caller flip a running task's status, and a task quietly demoted out of
+ * `running` is skipped by every future cascade — hidden, not just mislabeled.
+ */
 export async function POST(request: Request) {
-  /*
-   * Gated even though this is a failure-path convenience: un-gated, it lets any
-   * caller flip a running task's status, and a task quietly demoted out of
-   * `running` is skipped by every future cascade — hidden, not just mislabeled.
-   */
-  const auth = authorizeMutation(request);
-  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
-
-  let parsed;
-  try {
-    parsed = Body.parse(await request.json());
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "invalid body";
-    return NextResponse.json({ error: message }, { status: 400 });
-  }
-
-  try {
-    return NextResponse.json(await abandonTask(parsed.taskUrn));
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "could not abandon task";
-    return NextResponse.json({ error: message }, { status: 500 });
-  }
+  return mutationRoute(request, Body, "could not abandon task", (body) =>
+    abandonTask(body.taskUrn),
+  );
 }

@@ -1,0 +1,46 @@
+/*
+ * The inside of a `<details>` fold, shared by the two panels that are one.
+ *
+ * The joining panel and the bring-your-own-data panel are the same object with
+ * different contents: a summary that toggles, a padded body, and prose set to a
+ * reading measure. Both had these five rules written out, identically, and the
+ * pair is meant to be indistinguishable when a reader opens one after the other
+ * -- so a divergence here is a bug that no test would catch and no reader would
+ * be able to name.
+ *
+ * The panel's surface, header and heading come from `Panel` in `mmux.tsx`. This
+ * is only what is inside the fold.
+ */
+
+.fold {
+  display: block;
+}
+
+.summary {
+  cursor: pointer;
+  font-family: var(--mm-font-mono);
+  font-size: var(--mm-text-md);
+  color: var(--obsel-text-quiet);
+  list-style-position: inside;
+  padding: var(--mm-space-sm) var(--mm-space-lg);
+}
+
+.summary:hover {
+  color: var(--mm-cream-dim);
+}
+
+/* Only the open body is padded; the summary carries its own, so a closed panel
+   is a heading and one line rather than a heading and a gap. */
+.body {
+  display: grid;
+  gap: var(--mm-space-md);
+  padding: 0 var(--mm-space-lg) var(--mm-space-lg);
+}
+
+.intro,
+.note {
+  margin: 0;
+  font-size: var(--mm-text-md);
+  color: var(--obsel-text-quiet);
+  max-width: 68ch;
+}

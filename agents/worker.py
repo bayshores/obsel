@@ -158,6 +158,27 @@ def last_run(task_name: str, root: Path = REPO_ROOT) -> dict[str, Any] | None:
     return entry
 
 
+def remembered_run(task: pipeline.AgentTask, root: Path = REPO_ROOT) -> tuple[str, tuple[str, ...]]:
+    """What to replay for this task: its last run's instruction AND column contract.
+
+    The two are returned together and must be used together. Replaying an
+    instruction against a contract recorded by a different run is how a redo
+    quietly reverts a change instead of absorbing one: on 2026-07-22 the changed
+    instruction said `order_total_usd`, the standing contract said `order_total`,
+    the contract won, and `rerun-same` reverted the rename. A task obsel has no
+    record of falls back to its standing pair, which is the same pair.
+
+    Every caller that redoes work goes through this -- `rerun-same`, the serial
+    repair and the pooled one -- because three copies of a two-line pairing is
+    three chances for one of them to keep only half of it.
+    """
+    remembered = last_run(task.name, root) or {}
+    return (
+        remembered.get("instruction") or task.instruction,
+        tuple(remembered.get("columns") or task.output_columns),
+    )
+
+
 def _inflight_path(task_name: str, root: Path = REPO_ROOT) -> Path:
     return root / ".obsel" / "state" / "inflight" / f"{task_name}.json"
 

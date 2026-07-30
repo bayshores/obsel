@@ -13,6 +13,7 @@ import "server-only";
 import { applyStaleTag, removeStaleTag } from "@/src/server/datahub/mcp";
 import { PROP, updateTaskProperties } from "@/src/server/datahub/client";
 import { clientProperty } from "@/src/server/http/client-body";
+import type { PropertyPatch } from "@/src/server/datahub/properties";
 import { nextChangeSequence, writeChangeRecord } from "@/src/server/datahub/documents";
 import { FLOW_ID } from "@/src/server/datahub/urns";
 import { changeBody } from "./change-ledger";
@@ -20,6 +21,27 @@ import { compareFingerprints, hopLabel as hops, mergeMark, taskLabel as label } 
 import type { DatasetChange } from "./staleness";
 import { emit } from "./trace";
 import type { AffectedTask, CompletionReport, RestoredTask, TaskRecord } from "./types";
+
+/**
+ * Every field a standing mark occupies, set to null.
+ *
+ * A flag comes off two ways -- the task's own redo, and obsel restoring a task
+ * an upstream redo proved sound -- and both must strip exactly the same fields.
+ * `updateTaskProperties` merges, so a field left out of one of them survives
+ * the clear, and a task carrying half a reason reads as a standing flag whose
+ * cause has gone missing.
+ */
+const NO_MARK: PropertyPatch = {
+  [PROP.staleCausedBy]: null,
+  [PROP.staleCausedByTask]: null,
+  [PROP.staleHops]: null,
+  [PROP.staleChangeKind]: null,
+  [PROP.staleColumns]: null,
+  [PROP.staleReason]: null,
+  [PROP.staleSince]: null,
+  [PROP.staleDetectedMs]: null,
+  [PROP.staleCauses]: null,
+};
 
 /**
  * Append one decision to the board's history, if it decided anything.
@@ -103,15 +125,7 @@ export async function clearRestored(entry: RestoredTask): Promise<void> {
 
   await updateTaskProperties(task.urn, {
     [PROP.status]: "complete",
-    [PROP.staleCausedBy]: null,
-    [PROP.staleCausedByTask]: null,
-    [PROP.staleHops]: null,
-    [PROP.staleChangeKind]: null,
-    [PROP.staleColumns]: null,
-    [PROP.staleReason]: null,
-    [PROP.staleSince]: null,
-    [PROP.staleDetectedMs]: null,
-    [PROP.staleCauses]: null,
+    ...NO_MARK,
   });
 
   emit("write", `cleared ${label(task)}`, reason);
@@ -181,15 +195,7 @@ export async function recordCompletion(
     // spoken to obsel about this task, and a worker completing a redo of a task
     // an MCP client declared has not made that earlier fact untrue.
     ...(report.client ? { [PROP.clientReported]: clientProperty(report.client) } : {}),
-    [PROP.staleCausedBy]: null,
-    [PROP.staleCausedByTask]: null,
-    [PROP.staleHops]: null,
-    [PROP.staleChangeKind]: null,
-    [PROP.staleColumns]: null,
-    [PROP.staleReason]: null,
-    [PROP.staleSince]: null,
-    [PROP.staleDetectedMs]: null,
-    [PROP.staleCauses]: null,
+    ...NO_MARK,
   });
 
   // Keyed on the mark itself, not on `status`. By the time a completion arrives

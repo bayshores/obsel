@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { runReport } from "@/src/server/runner/reporter";
+import { parseBody } from "@/src/server/http/mutation";
 
 export const dynamic = "force-dynamic";
 
@@ -44,13 +45,9 @@ const Body = z.object({
  * silencing the one thing obsel is for.
  */
 export async function POST(request: Request) {
-  let parsed;
-  try {
-    parsed = Body.parse(await request.json());
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "invalid body";
-    return NextResponse.json({ error: message }, { status: 400 });
-  }
+  const body = await parseBody(request, Body);
+  if (!body.ok) return body.response;
+  const parsed = body.body;
 
   // This server's own address, from the URL Next resolved rather than a header
   // a client typed. The child reports back here; `reporter.ts` says why.

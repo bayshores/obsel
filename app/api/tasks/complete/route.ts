@@ -1,8 +1,7 @@
-import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { coordinateCompletion } from "@/src/server/coordinator/engine";
-import { authorizeMutation } from "@/src/server/http/auth";
+import { mutationRoute } from "@/src/server/http/mutation";
 import { ClientBody } from "@/src/server/http/client-body";
 
 export const dynamic = "force-dynamic";
@@ -85,29 +84,13 @@ const Body = z.object({
  * There is no polling loop and no event subscription: the agent has to tell someone
  * it is done anyway, so that report is the cheapest possible place to hang the check.
  */
+/*
+ * Gated like every mutating route, and on this one the gate is load-bearing
+ * for the no-clear rule: a forged completion whose fingerprints match the
+ * recorded baseline reads as an identical redo, and `restoredBy` would then
+ * derive clears from it. Without the token, "no route clears a flag" held
+ * only against callers polite enough not to lie.
+ */
 export async function POST(request: Request) {
-  /*
-   * Gated like every mutating route, and on this one the gate is load-bearing
-   * for the no-clear rule: a forged completion whose fingerprints match the
-   * recorded baseline reads as an identical redo, and `restoredBy` would then
-   * derive clears from it. Without the token, "no route clears a flag" held
-   * only against callers polite enough not to lie.
-   */
-  const auth = authorizeMutation(request);
-  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
-
-  let parsed;
-  try {
-    parsed = Body.parse(await request.json());
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "invalid body";
-    return NextResponse.json({ error: message }, { status: 400 });
-  }
-
-  try {
-    return NextResponse.json(await coordinateCompletion(parsed));
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "coordination failed";
-    return NextResponse.json({ error: message }, { status: 500 });
-  }
+  return mutationRoute(request, Body, "coordination failed", (body) => coordinateCompletion(body));
 }

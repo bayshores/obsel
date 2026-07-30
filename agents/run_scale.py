@@ -16,7 +16,14 @@ import time
 from typing import Any
 
 from agents import pipeline, scale, worker
-from agents.demo_output import Unexpected, _required_list, _rule, _short, missing_names
+from agents.demo_output import (
+    Unexpected,
+    _required_list,
+    _rule,
+    _short,
+    register_missing,
+    register_one,
+)
 
 REPO_ROOT = worker.REPO_ROOT
 
@@ -79,27 +86,20 @@ def _scale_records(obsel_url: str) -> dict[str, dict[str, Any]]:
 
 def _register_scale_one(task: pipeline.AgentTask, args: argparse.Namespace) -> int:
     """Declare one taxi task, shared by `scale-register` and by `scale-run`."""
-    record = worker.post_json(
-        f"{args.obsel_url}/api/tasks/register",
-        {
-            "name": task.name,
-            # Qualified with the scale namespace, which the server passes
-            # through untouched; a short name here would land the task's
-            # edges under the demo's tables.
-            "reads": [f"{scale.NAMESPACE}.{source}" for source in task.reads],
-            "writes": [f"{scale.NAMESPACE}.{task.writes}"],
-            "description": task.summary,
-            "title": task.title,
-        },
-        timeout=worker.MUTATION_TIMEOUT,
-        headers=worker.auth_headers(),
+    code, _ = register_one(
+        args.obsel_url,
+        name=task.name,
+        # Qualified with the scale namespace, which the server passes through
+        # untouched; a short name here would land the task's edges under the
+        # demo's tables.
+        reads=[f"{scale.NAMESPACE}.{source}" for source in task.reads],
+        writes=[f"{scale.NAMESPACE}.{task.writes}"],
+        description=task.summary,
+        title=task.title,
+        expected_urn=scale.task_urn(task.name),
     )
-    expected = scale.task_urn(task.name)
-    if record.get("urn") != expected:
-        print(f"  MISMATCH {task.name}")
-        print(f"    obsel returned {record.get('urn')}")
-        print(f"    agents expect  {expected}")
-        return 1
+    if code != 0:
+        return code
     print(f"  {task.name:<18} registered")
     return 0
 
@@ -126,28 +126,16 @@ def cmd_scale_register(args: argparse.Namespace) -> int:
 def _register_scale_missing(args: argparse.Namespace) -> int:
     """Declare whichever of the forty taxi tasks obsel has no record of.
 
-    `scale-run` does this itself, so starting the taxi swarm is one action. Only
-    the absent ones are declared: re-declaring a task obsel already holds sets
-    its status back to `registered`, which on a board that has already run would
-    discard the finished state the page reads off it.
-
     `_scale_records` still refuses a board with tasks missing. That check runs
     after the swarm, where an absent task means a run that did not do what it
     claimed, and this registration cannot mask it.
     """
-    expected = [(task.name, scale.task_urn(task.name)) for task in scale.in_dependency_order()]
-    absent = missing_names(worker.read_swarm(args.obsel_url)["snapshot"]["tasks"], expected)
-    if not absent:
-        return 0
-
-    print(f"  obsel had no record of {len(absent)} of the {len(expected)} tasks; declaring them now")
-    by_name = {task.name: task for task in scale.in_dependency_order()}
-    for name in absent:
-        code = _register_scale_one(by_name[name], args)
-        if code != 0:
-            return code
-    print()
-    return 0
+    return register_missing(
+        args.obsel_url,
+        tasks=scale.in_dependency_order(),
+        task_urn=scale.task_urn,
+        register=lambda task: _register_scale_one(task, args),
+    )
 
 
 def _scale_execute(task: pipeline.AgentTask, args: argparse.Namespace) -> worker.RunResult:
@@ -550,13 +538,7 @@ def cmd_scale_repair(args: argparse.Namespace) -> int:
     passes = 0
 
     def redo(task: pipeline.AgentTask) -> worker.RunResult:
-        # The task's own last run, instruction and column contract together —
-        # the same pairing the serial repair uses, and for the same reason: a
-        # redo replaying an instruction against a contract from a different
-        # run quietly reverts a change instead of absorbing one.
-        remembered = worker.last_run(task.name) or {}
-        instruction = remembered.get("instruction") or task.instruction
-        expect_columns = tuple(remembered.get("columns") or task.output_columns)
+        instruction, expect_columns = worker.remembered_run(task)
         return worker.run_task(
             task,
             instruction=instruction,

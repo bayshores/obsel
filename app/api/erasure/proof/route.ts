@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { submitAttestation } from "@/src/server/coordinator/erasure-engine";
-import { authorizeMutation } from "@/src/server/http/auth";
+import { mutationRoute } from "@/src/server/http/mutation";
 
 export const dynamic = "force-dynamic";
 
@@ -33,25 +33,10 @@ const Body = z.object({
  * signature check until something lands.
  */
 export async function POST(request: Request) {
-  const auth = authorizeMutation(request);
-  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
-
-  let parsed;
-  try {
-    parsed = Body.parse(await request.json());
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "invalid body";
-    return NextResponse.json({ error: message }, { status: 400 });
-  }
-
-  try {
-    const result = await submitAttestation(parsed.envelope, parsed.request);
-    if (!result.accepted) {
-      return NextResponse.json({ accepted: false, failures: result.failures }, { status: 422 });
-    }
-    return NextResponse.json(result);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "could not record the attestation";
-    return NextResponse.json({ error: message }, { status: 500 });
-  }
+  return mutationRoute(request, Body, "could not record the attestation", async (body) => {
+    const result = await submitAttestation(body.envelope, body.request);
+    return result.accepted
+      ? result
+      : NextResponse.json({ accepted: false, failures: result.failures }, { status: 422 });
+  });
 }

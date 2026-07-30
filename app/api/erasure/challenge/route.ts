@@ -1,8 +1,7 @@
-import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { issueChallenge } from "@/src/server/coordinator/erasure-engine";
-import { authorizeMutation } from "@/src/server/http/auth";
+import { mutationRoute } from "@/src/server/http/mutation";
 
 export const dynamic = "force-dynamic";
 
@@ -19,21 +18,7 @@ const Body = z.object({
  * whenever it was asked, for as long as the key lived.
  */
 export async function POST(request: Request) {
-  const auth = authorizeMutation(request);
-  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
-
-  let parsed;
-  try {
-    parsed = Body.parse(await request.json());
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "invalid body";
-    return NextResponse.json({ error: message }, { status: 400 });
-  }
-
-  try {
-    return NextResponse.json(await issueChallenge(parsed));
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "could not issue a challenge";
-    return NextResponse.json({ error: message }, { status: 500 });
-  }
+  return mutationRoute(request, Body, "could not issue a challenge", (body) =>
+    issueChallenge(body),
+  );
 }
