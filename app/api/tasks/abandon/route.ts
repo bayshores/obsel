@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import { abandonTask } from "@/src/server/coordinator/engine";
-import { mutationRoute } from "@/src/server/http/mutation";
+import { mutationRoute } from "@/src/server/http/route";
 
 export const dynamic = "force-dynamic";
 

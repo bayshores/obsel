@@ -4,7 +4,8 @@ import "server-only";
  * Who is allowed to change something through obsel's HTTP surface.
  *
  * Gated: the three routes only a separate agent process calls — `start`,
- * `complete`, `abandon` — and the three erasure mutations. `complete` is why
+ * `complete`, `abandon` — the three erasure mutations, and `datasets/observe`,
+ * which is a write about a table by something outside the swarm. `complete` is why
  * this exists on the task side: a forged completion whose fingerprints match
  * the recorded baseline reads as an identical redo, and `restoredBy` derives
  * clears from those, so without the gate the no-clear rule held only against

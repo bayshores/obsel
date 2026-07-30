@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import { coordinateObservation } from "@/src/server/coordinator/engine";
-import { mutationRoute } from "@/src/server/http/mutation";
+import { mutationRoute } from "@/src/server/http/route";
 import { datasetNameProblem, datasetUrn } from "@/src/server/datahub/urns";
 
 export const dynamic = "force-dynamic";

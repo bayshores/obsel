@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { runReport } from "@/src/server/runner/reporter";
-import { parseBody } from "@/src/server/http/mutation";
+import { parseBody } from "@/src/server/http/route";
 
 export const dynamic = "force-dynamic";
 

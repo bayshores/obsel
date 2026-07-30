@@ -2874,9 +2874,9 @@ that the deciding half turns on.
 
 **Duplication, found with `jscpd` rather than by eye: eight clones, then zero.** The largest was
 seven mutating API routes, each carrying the same thirteen lines of gate, parse, run, and the copies
-had already begun to differ in the wording of their failures. It is `src/server/http/mutation.ts`
-now. Which routes are gated is unchanged: `register` and `report` are ungated for the reasons
-`auth.ts` states and use only the body parser, so a body they refuse still reads like any other.
+had already begun to differ in the wording of their failures. It is `src/server/http/route.ts` now.
+Which routes are gated is unchanged: `register` and `report` are ungated for the reasons `auth.ts`
+states and use only the body parser, so a body they refuse still reads like any other.
 
 Three more, in the same pass. The three-line pairing of a task's remembered instruction with the
 column contract recorded beside it appeared in `rerun-same`, the serial repair and the pooled one,
@@ -2907,6 +2907,28 @@ search of `src/` and `app/` for the type token, and for `ts-ignore`, `ts-expect-
 `eslint-disable`, returns nothing. `tsconfig.json` has `strict: true`. The single remaining `any` in
 the repository is on `call()` in `tests/live/obsel-mcp.live.test.ts`, with the reason written above
 it, and is untouched.
+
+**One error-handling pattern at the HTTP boundary, rather than nearly one.** `src/server/http/route.ts`
+carries all three shapes now: `parseBody` for the 400, `readRoute` for the 500, and `mutationRoute`,
+which is the gate, then `parseBody`, then `readRoute`. `swarm`, `changes` and `demo/activity` took
+`readRoute`; `demo/launch` took `parseBody`. `trace` has no failure path -- it reads an in-memory
+buffer -- and keeps none.
+
+Two routes are deliberately still their own shape, and both are marked as such where they are.
+`erasure/[id]` maps a domain error to 404 by reading the message, which no shared helper should
+generalise for one caller. And `demo/reset` answers `{ ok: false, error }` where every other route
+answers a bare `{ error }`; the page reads that `ok`, so narrowing it is an API change and out of a
+structure pass.
+
+`auth.ts` listed the gated routes and omitted `datasets/observe`, which has been gated all along.
+Corrected; the code was right and the paragraph beside it was not.
+
+**Naming was surveyed and one divergence was left.** Stylesheets are named for their component where
+a folder holds several (`graph/lineage.module.css`, `details/inspector.module.css`) and for the
+concern where it holds one (`guide/guide.module.css`, `tour/tour.module.css`). `history/` and
+`trace/` hold one component each and are named for the component, so by the majority rule they would
+be `history.module.css` and `trace.module.css`. Left alone: each name is locally accurate for the
+file beside it, and renaming two stylesheets to satisfy a count is churn against no confusion.
 
 **Two large files are deliberately left whole.** `agents/mcp_core.py` is 1345 lines, and 576 of them
 are the self-check `python -m agents.mcp_core` runs under `pnpm test:python`. Every self-checking

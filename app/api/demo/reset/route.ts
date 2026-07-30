@@ -12,6 +12,8 @@ export const dynamic = "force-dynamic";
  * lineage edges are what the demo re-runs against.
  */
 export async function POST() {
+  // The one route whose failure body is not a bare `{ error }`: the page reads
+  // `ok` off it. Left as it is, because narrowing it is an API change.
   try {
     return NextResponse.json({ ok: true, ...(await resetSwarm()) });
   } catch (error) {

@@ -1,6 +1,5 @@
-import { NextResponse } from "next/server";
-
 import { readChanges } from "@/src/server/coordinator/change-history";
+import { readRoute } from "@/src/server/http/route";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -28,13 +27,5 @@ export const revalidate = 0;
  * marks already carry, in the order they happened.
  */
 export async function GET() {
-  try {
-    return NextResponse.json(await readChanges());
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "could not read the change history";
-    // 500 with the real message rather than an empty list. An empty history and a
-    // failed read look identical to a reader, and one of them is a lie: the page
-    // withholds the panel on an error instead of saying nothing ever happened.
-    return NextResponse.json({ error: message }, { status: 500 });
-  }
+  return readRoute("could not read the change history", () => readChanges());
 }

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { submitAttestation } from "@/src/server/coordinator/erasure-engine";
-import { mutationRoute } from "@/src/server/http/mutation";
+import { mutationRoute } from "@/src/server/http/route";
 
 export const dynamic = "force-dynamic";
 

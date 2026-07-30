@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { launchStep } from "@/src/server/runner/launcher";
+import { parseBody } from "@/src/server/http/route";
 
 export const dynamic = "force-dynamic";
 
@@ -30,13 +31,9 @@ const Body = z.object({
  * `GET /api/demo/activity` and the swarm itself.
  */
 export async function POST(request: Request) {
-  let parsed;
-  try {
-    parsed = Body.parse(await request.json());
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "invalid body";
-    return NextResponse.json({ error: message }, { status: 400 });
-  }
+  const body = await parseBody(request, Body);
+  if (!body.ok) return body.response;
+  const parsed = body.body;
 
   // The server's own address, from the URL Next resolved for this request,
   // never from a header a client typed. The spawned step reports here rather

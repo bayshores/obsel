@@ -1,5 +1,4 @@
-import { NextResponse } from "next/server";
-
+import { readRoute } from "@/src/server/http/route";
 import { activity } from "@/src/server/runner/launcher";
 import { preflight } from "@/src/server/runner/preflight";
 import { venvPython } from "@/src/server/runner/steps";
@@ -16,17 +15,11 @@ export const revalidate = 0;
  * here — that lives in DataHub and comes back through the swarm read.
  */
 export async function GET() {
-  try {
-    const body: DemoActivity = {
-      ...activity(),
-      preflight: await preflight(),
-      // The same interpreter the demo steps run under, by absolute path, so the
-      // command on the board works pasted verbatim on this machine.
-      joinCommand: `claude mcp add obsel -- ${venvPython(process.cwd())} -m agents.mcp_server`,
-    };
-    return NextResponse.json(body);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "unknown error reading activity";
-    return NextResponse.json({ error: message }, { status: 500 });
-  }
+  return readRoute("unknown error reading activity", async (): Promise<DemoActivity> => ({
+    ...activity(),
+    preflight: await preflight(),
+    // The same interpreter the demo steps run under, by absolute path, so the
+    // command on the board works pasted verbatim on this machine.
+    joinCommand: `claude mcp add obsel -- ${venvPython(process.cwd())} -m agents.mcp_server`,
+  }));
 }
