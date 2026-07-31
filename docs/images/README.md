@@ -100,11 +100,12 @@ node scripts/capture.mjs flagged   # after change
 the only file here that is composed rather than captured plain — so what went into it is listed the
 same way the captures are.
 
-It opens on a wall: six tiles of the app at work land one per beat, each a different region of the
-page in timelapse — the graph mid-swarm, the cascade landing, the feed clearing flags, the history
-record, the erasure walk, the bring-your-own-data door. Once the wall is full it blurs back, the
-mark assembles over it, names itself while open, comes apart again, and the wall fades out — which
-is what makes the loop seamless, since the first and last frames are both black.
+It opens on a montage: six whole windows of the app at work land one per beat, uncropped and
+overlapping like a dealt deck — the graph mid-swarm, the cascade landing, the feed clearing flags,
+the history record, the erasure walk, the bring-your-own-data door — each in timelapse, the later
+card on top. Once the pile is built it blurs back, the mark assembles over it, names itself while
+open, comes apart again, and everything fades out — which is what makes the loop seamless, since
+the first and last frames are both black.
 
 The footage is the 2026-07-30 cascade and repair takes plus three tab clips filmed live against
 the same board, and it is blurred and scrimmed behind the type on purpose: nothing in the wall is
@@ -114,4 +115,6 @@ own — geometry from `mark-geometry.ts`, every motion value transcribed from `m
 why), and the hero plays it on every cycle.
 
 `scripts/hero.mjs` remakes it from the two takes, and films the three tab clips itself, so it
-needs obsel and its board up.
+needs obsel and its board up. The whole picture is composed and stepped in one browser page —
+cards, focus pull, lockup and fade on one clock at 20 frames a second — and ffmpeg's only job is
+the palette.
