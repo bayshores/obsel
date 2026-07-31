@@ -2,10 +2,11 @@
 
 What goes in this directory, and the rules that make the images worth including.
 
-These are **not decoration**. A judge who will not start Docker currently sees the page only in
-the video, and the hackathon asks for sample outputs in `examples/` specifically "so judges can
-evaluate output quality without running the code". The images close that gap. They are the same
-category of artifact as the JSON already in `examples/`: captured from a real run, not drawn.
+These are **not decoration**, with one declared exception at the end of this page. A judge who
+will not start Docker currently sees the page only in the video, and the hackathon asks for sample
+outputs in `examples/` specifically "so judges can evaluate output quality without running the
+code". The images close that gap. They are the same category of artifact as the JSON already in
+`examples/`: captured from a real run, not drawn.
 
 Capturing them is the owner's action, like recording the video. Nothing here is generated.
 
@@ -92,3 +93,23 @@ node scripts/capture.mjs settled   # after run, before change
 ```bash
 node scripts/capture.mjs flagged   # after change
 ```
+
+## The hero, which is the one decoration
+
+`hero.gif` opens the README in place of a title. It is a brand animation, not evidence, and it is
+the only file here that is composed rather than captured plain — so what went into it is listed the
+same way the captures are.
+
+The lockup in front is the mark's own animation: the geometry is `mark-geometry.ts`, and every
+motion value — the gathered, rest and open states, both easings, the stagger, the name's ghost — is
+transcribed from `mark.tsx` and `brand.tsx`. The one liberty is the loop: the header never plays
+its entrance (`brand.tsx` records why), and the hero plays it on every cycle.
+
+Behind it, five hard-cut 1.5 s segments of real footage, sped up: the swarm working and the cascade
+landing (the 2026-07-30 cascade take), the repair clearing (the repair take), and the history and
+erasure tabs, filmed live against the same board. Hard cuts are what make the loop clean — the seam
+from last frame to first is just another cut. The footage is dimmed, blurred and scrimmed behind
+the type, so nothing in it is offered as legible evidence; the captures above are for that.
+
+`scripts/hero.mjs` remakes it from the two takes, and films the two tab clips itself, so it needs
+obsel and its board up.

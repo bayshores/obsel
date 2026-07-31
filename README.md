@@ -1,6 +1,6 @@
 <div align="center">
 
-# obsel
+![obsel](docs/images/hero.gif)
 
 **Several AI agents. One shared set of tables. Somebody has to notice when the ground moves.**
 
