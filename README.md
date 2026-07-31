@@ -2,7 +2,7 @@
 
 ![obsel](docs/images/hero.gif)
 
-**Several AI agents. One shared set of tables. Somebody has to notice when the ground moves.**
+**obsel tells you which finished agent work is now based on data that has changed since it ran.**
 
 Built for [Build with DataHub: The Agent Hackathon](https://datahub.devpost.com/) &nbsp;·&nbsp;
 Category: _Agents That Do Real Work_ &nbsp;·&nbsp; Apache-2.0
@@ -17,34 +17,33 @@ Category: _Agents That Do Real Work_ &nbsp;·&nbsp; Apache-2.0
 
 ## The problem
 
-Each agent reads a table that another agent wrote.
+Agents in a swarm read tables that other agents wrote.
 
-When one of them changes a table, everyone who already finished downstream is now working from
-something that moved. Nothing tells them. Their work sits there saying **complete**.
+When an agent changes a table, any downstream work that already finished is now based on data that
+is no longer current. Nothing reports this, so the finished work still looks complete.
 
 ## What obsel does
 
-> obsel gives every agent task a real entry in DataHub, wired to the data it reads and the data it
-> writes. When an output changes, obsel follows those wires and flags every finished task
-> downstream, with the reason and the change that caused it.
->
-> That includes work which never touched the change itself, only something built on it.
+obsel gives every agent task an entry in DataHub, linked to the data it reads and the data it
+writes. When an output changes, obsel follows those links and flags every finished downstream task,
+recording the reason and the change that caused it. That includes tasks that never read the changed
+table directly, only something built on it.
 
-It stays quiet otherwise. A re-run that produces the same table flags nothing at all, which is the
-whole reason anybody would trust it the day it does speak up.
+A re-run that produces the same table flags nothing. This matters: if identical re-runs raised
+flags, users would learn to ignore every flag.
 
-## The same wires, for erasure
+## The same lineage, for erasure
 
-Somebody exercises their right to erasure. A team deletes their rows in one system and reports it
-done. Nobody can say what happened to the twenty other places that person's data flowed into.
+When someone exercises their right to erasure, a team deletes that person's rows in one system and
+reports the request done. Nobody can say what happened in the other places the data flowed into.
 
 obsel walks the lineage DataHub already records, holds every asset it reaches as **unattested**, and
-turns green only where a **signed attestation** says the subject is absent from that exact version
-of that exact table. The list it leads with is the one nobody has spoken for.
+changes that status only where a **signed attestation** says the subject is absent from a specific
+version of a specific table. Its report leads with the assets nobody has attested to.
 
-It does not read your data and holds no warehouse credentials, so it does not claim proof. What it
-does is compose independently signed local claims into a picture no single attestor is positioned to
-assert, and refuse to round any of it up:
+obsel holds no warehouse credentials and never reads your data, so it cannot prove absence and does
+not claim to. It combines independently signed local claims into a per-asset picture that no single
+attestor could produce alone, under these rules:
 
 - An attestation binds to a **version**, never a content hash. A rewrite that produced identical
   bytes reopens the asset, because nobody has attested to the new version.
@@ -53,22 +52,22 @@ assert, and refuse to round any of it up:
 - An attestor declares what it consumed, and obsel cross-checks that against DataHub's recorded
   lineage, so leaving out an unclean upstream is detectable.
 - If the key that signed an attestation is later reported compromised, the asset goes back to
-  unattested. No data changed; what changed is who could have signed.
+  unattested, even though no data changed.
 - **No route, tool or argument marks an asset covered.** A live test asserts those endpoints do not
   exist.
 
-`docs/erasure-coverage.md` is the rule and the ten counterexamples it was checked against, written
-before the code because two earlier drafts of it were unsound.
+The rule, and the ten counterexamples it was checked against, are in `docs/erasure-coverage.md`. It
+was written before the code, because two earlier drafts of the rule were unsound.
 
 ## When you should not use this
 
 If one orchestrator owns your pipeline, it can already do this and you should use it instead.
 [Dagster](https://docs.dagster.io/guides/build/assets/asset-versioning-and-caching) marks an asset
-stale when its upstream data changed and it has not re-run since, and cascades that downstream.
+stale when its upstream data changed and it has not re-run since, and propagates that downstream.
 [dbt](https://docs.getdbt.com/docs/deploy/state-aware-about) rebuilds a model when a source has new
-data. Neither of them needed obsel to exist.
+data.
 
-obsel is for the case those tools do not cover: **nobody owns the graph.** Agents from different
+obsel is for the case those tools do not cover: no single tool owns the graph. Agents from different
 frameworks, on different machines, joining and leaving, with no shared scheduler to ask. Both tools
 above need every node declared in a project before it can take part. An agent joins obsel at runtime
 by announcing itself, and creates its own node when it does.
@@ -78,12 +77,12 @@ The full comparison, including where obsel is genuinely not novel, is in
 
 ---
 
-## See it
+## What it looks like
 
 |                                                                                                        Everything is fine                                                                                                        |                                                                                                                                                   Something changed upstream                                                                                                                                                   |
 | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: |
 | [![Four agent boxes all showing done, the headline reporting that all four finished and nothing is out of date, and the write-back cell reporting there is nothing to write.](docs/images/settled.png)](docs/images/settled.png) | [![Three agents flagged amber. The changed table shows order_total leaving and order_total_usd arriving, an amber path runs outward from it through two hops, and the ribbon reports a measured detection time of 402 ms beside three of three marks written into DataHub.](docs/images/flagged.png)](docs/images/flagged.png) |
-|                                                                        Four agents finished. Nothing they read has changed since, so obsel says nothing.                                                                         |                                                                                                         One column was renamed. Three finished agents are now out of date, and **two of them never read that table**.                                                                                                          |
+|                                                                        Four agents finished. Nothing they read has changed since, so obsel flags nothing.                                                                        |                                                                                                         One column was renamed. Three finished agents are now out of date, and **two of them never read that table**.                                                                                                          |
 
 <div align="center"><em>Click either image for full size.</em></div>
 
@@ -98,17 +97,18 @@ Codex CLI. Not mockups, and not assembled from separate sessions.
 | Three finished agents flagged                       | 402 ms, one at one hop and two at two                |
 | Written back into DataHub                           | 3 of 3                                               |
 
-### Watch it move
+### Recordings
 
-|                                                                                    The change lands                                                                                     |                                                                                        The way back to green                                                                                         |
+|                                                                                 The change is detected                                                                                  |                                                                                              The repair                                                                                              |
 | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: |
 | ![Three boxes turn amber as the change is detected, the amber path travels outward from the changed table, and the ribbon lands on a measured detection time.](docs/images/cascade.gif) | ![One redo lands, and the strip prints a cleared line for each of the two flags obsel took off itself, with the reason, before the headline returns to nothing out of date.](docs/images/repair.gif) |
 
-One sequence, recorded 2026-07-30 against the same live stack, with that run's own numbers in
-frame: the cascade landed in a measured 397 ms, and the repair redid **one** of the three flagged
-tasks in 28.3 s, obsel clearing the other two itself in 233 ms because the redone table came out
-byte-identical. A flag has no dismiss button. It comes off through redone work, the task's own or
-what an upstream redo proves.
+Both clips come from one sequence, recorded 2026-07-30 against the same live stack, with that run's
+own numbers in frame. Detection took a measured 397 ms. The repair redid **one** of the three
+flagged tasks in 28.3 s, and obsel cleared the other two itself in 233 ms because the redone table
+came out byte-identical. There is no button that dismisses a flag. A flag clears only through redone
+work: the flagged task re-runs and reports, or an upstream task re-runs, its table comes back
+identical, and obsel clears the downstream flags that redo restores.
 
 ---
 
@@ -119,7 +119,7 @@ Start Docker Desktop, then download this repository and **double-click `scripts/
 A terminal window opens and works down nine steps, saying what it is doing. You do not type
 anything. It starts DataHub, installs what is missing, registers obsel's tag, starts the app, and
 opens the page in your browser. Anything it cannot do for you, such as installing Docker or signing
-in to your agent CLI, it names with the one thing to do next.
+in to your agent CLI, it names, along with the next step to take.
 
 On Linux, and on macOS if you would rather not double-click a file:
 
@@ -143,24 +143,24 @@ Open **`http://localhost:3000`**.
 The page opens on a checklist, because those three commands are not quite everything. The demo
 agents need their own Python packages and a signed-in agent CLI, and obsel needs its tag registered
 in DataHub. Every item is checked on your machine a couple of times a second, finished ones are
-ticked, and anything missing shows you the exact command to run. Work down the list and it empties.
-The launcher above does the same work in the same order, which is why it exists: two of those steps
-only work once DataHub is answering.
+ticked, and anything missing shows you the exact command to run. Work down the list until it is
+empty. The launcher above does the same work in the same order, which is why it exists: two of those
+steps only work once DataHub is answering.
 
-After that, the whole demo is buttons.
+After that, the demo runs from five buttons.
 
 | Button                                       | What happens                                                                                  |
 | -------------------------------------------- | --------------------------------------------------------------------------------------------- |
 | **Run the demo agents**                      | Four agents are declared in DataHub, then four real agent sessions do the work.               |
-| **Run the orders cleaner again, no changes** | The same table comes out, so nothing should go out of date. obsel stays quiet.                |
+| **Run the orders cleaner again, no changes** | The same table comes out, so nothing should go out of date. obsel flags nothing.              |
 | **Change one agent's instructions**          | A column gets renamed. Three finished agents go amber, and two of them never read that table. |
 | **Redo the work obsel flagged**              | Agents redo it in order. A redo that lands identical clears the flags on work built on it.    |
 | **Reset and start over**                     | Everything goes back to up to date. The agents stay set up.                                   |
 
-Redoing the work takes the flags off, which leaves the board looking like one where nothing ever
-happened. The **history** tab is where that went: one record per decision obsel made, written into
-DataHub, saying what changed, what it flagged and what a redo closed. Nothing can write to it but a
-completion, and nothing reads it back to decide anything.
+Redoing the work removes the flags, so after a full pass the board shows nothing out of date. The
+**history** tab keeps the record: one entry per decision obsel made, written into DataHub, saying
+what changed, what was flagged, and what a redo closed. Only a completion can write to it, and
+nothing reads it back to decide anything.
 
 ### What you need
 
@@ -175,10 +175,10 @@ completion, and nothing reads it back to decide anything.
 **Either agent CLI will do, and you need only one.** With nothing set, obsel uses whichever is
 installed and prefers Codex when both are. To pick, set `OBSEL_RUNNER=codex` or `OBSEL_RUNNER=claude`
 before starting: the setup checklist, the launcher and the workers all read it, so they cannot
-disagree about which product is doing the work. The runner is the agent's business, not obsel's, which
-is why an agent reporting through the MCP door names it rather than being asked: obsel records what a
-client declared itself to be and never claims to have checked it. Every measured number below was
-taken against Codex.
+disagree about which product is doing the work. An agent reporting through MCP names its own runner
+rather than being asked, because the runner is the agent's business, not obsel's: obsel records what
+a client declared itself to be and does not claim to have checked it. Every measured number below
+was taken against Codex.
 
 The launcher installs `uv` if it is missing, and skips whatever is already done, so running it twice
 is safe. Docker, Node and the agent CLI sign-in need you, so it detects those and says what to do. It
@@ -186,7 +186,7 @@ installs DataHub `v1.5.0.6` by name, which is the version every measured number 
 against.
 
 obsel shows one page at a time. The page's header carries its name, and opening that name explains
-how to start obsel on a different one. See [`docs/setup.md`](docs/setup.md).
+how to start obsel on a different one.
 
 Every step written out in full, with a way to tell each one worked, is in
 **[`docs/setup.md`](docs/setup.md)**.
@@ -207,17 +207,17 @@ Every step written out in full, with a way to tell each one worked, is in
 
 ## Bring your own agent
 
-obsel speaks MCP in both directions. It uses DataHub's MCP server to write its tag, and it runs one
-of its own, so any MCP-capable agent can join a swarm.
+obsel is both an MCP client and an MCP server. It uses DataHub's MCP server to write its tag, and it
+runs one of its own, so any MCP-capable agent can join a swarm.
 
 ```bash
 claude mcp add obsel -- "$PWD/agents/.venv/bin/python" -m agents.mcp_server
 ```
 
-The page carries this too, in the panel beside the graph, with your machine's own copy of that command and a
-four step checklist that ticks itself off as obsel sees your agent declare itself, announce, report,
-and get its first answer. It is derived from the swarm rather than stored, so driving your agent
-from a terminal ticks it just the same.
+The panel beside the graph shows this same command with your machine's paths filled in, plus a
+four-step checklist that ticks itself off as obsel sees your agent declare itself, announce, report,
+and get its first answer. The checklist is derived from the swarm rather than stored, so driving
+your agent from a terminal ticks it just the same.
 
 | Tool                                                       | What your agent uses it for                                                        |
 | ---------------------------------------------------------- | ---------------------------------------------------------------------------------- |
@@ -235,10 +235,10 @@ from a terminal ticks it just the same.
 Reporting a table is one line: `{"clean_orders": {"path": "data/clean_orders.json"}}`. obsel reads
 and hashes the file itself, so no rows travel through the tool call.
 
-Passing `inputs` the same way is how the swarm polices itself. obsel compares what your agent read
-against what the writer recorded. If they disagree, that table was changed by something that never
-reported, and every finished task built on the old version gets flagged, with the reason saying the
-change was never reported. One silent writer cannot hide from the next honest reader.
+Passing `inputs` the same way lets obsel cross-check reads against writes. It compares what your
+agent read against what the writer recorded. If they disagree, that table was changed by something
+that never reported, and every finished task built on the old version gets flagged, with the reason
+saying the change was never reported.
 
 Two things your agent deliberately cannot do:
 
@@ -250,15 +250,16 @@ Two things your agent deliberately cannot do:
   identical, and obsel clears the flags that redo provably restores. The reply's `restored` list
   is how your agent finds out the second thing happened. It cannot ask for it.
 
-[`skills/obsel-collaboration/SKILL.md`](skills/obsel-collaboration/SKILL.md) teaches an agent the
-order that makes obsel's answers mean anything. Copy it into `.claude/skills/` to install it.
+[`skills/obsel-collaboration/SKILL.md`](skills/obsel-collaboration/SKILL.md) documents the order of
+operations an agent must follow for obsel's answers to be correct. Copy it into `.claude/skills/` to
+install it.
 
 ### Bring your own data
 
-The same door works for your own files, in a few minutes. Register a task that reads your file and
-one that builds on it, report both, change the file, and the downstream task gets flagged with the
-reason. Executed for real on 2026-07-24 with a five-row expenses CSV: a renamed column flagged the
-totals task at 1 hop in a measured 3934 ms, and the redo cleared it. The copy-paste walkthrough,
+The same MCP tools work for your own files, in a few minutes. Register a task that reads your file
+and one that builds on it, report both, change the file, and the downstream task gets flagged with
+the reason. Executed for real on 2026-07-24 with a five-row expenses CSV: a renamed column flagged
+the totals task at 1 hop in a measured 3934 ms, and the redo cleared it. The copy-paste walkthrough,
 with every reply quoted from that run, is in [`docs/setup.md`](docs/setup.md). The full matrix of
 shapes, changes and edge cases obsel has been run against is
 [`docs/coverage.md`](docs/coverage.md).
@@ -271,34 +272,34 @@ same list.
 **Reporting the work is a table on the page too.** Open a task you registered and write its table
 by hand: the columns are chips you can rename, drop or add, and the rows are cells you can type
 into. Press report and obsel hashes what you handed it and answers with what it invalidated. That
-is the whole loop without an agent CLI and without a terminal, in about fifteen seconds, and every call is
-the real one. It is the same road an agent's table goes down, because the browser never computes a
-fingerprint: the button posts to `/api/tasks/report`, which runs `agents/report.py`, which is the
-same `mcp_core.completion_body` the MCP door uses. Two implementations of the fingerprint would be
-two answers to the only question obsel exists to answer.
+is the whole loop without an agent CLI and without a terminal, in about fifteen seconds, and every
+call is the same one an agent would make. The browser never computes a fingerprint: the button posts
+to `/api/tasks/report`, which runs `agents/report.py`, which calls the same
+`mcp_core.completion_body` the MCP server uses. A second implementation of the fingerprint could
+disagree with the first about whether a table changed.
 
 You still cannot hand obsel a hash, from the page or from an agent, and there is still no button
-that clears a flag. Reporting work is offered; what obsel concludes from the report is obsel's.
+that clears a flag.
 
 ---
 
 ## Check the claims yourself
 
-Every row is one command away, and names the file that would fail if the claim were false.
+Each row is one command, and names the file that would fail if the claim were false.
 
-| Claim                                                                    | Run                                | Where it lives                                                                      |
-| ------------------------------------------------------------------------ | ---------------------------------- | ----------------------------------------------------------------------------------- |
-| A re-run producing the same table flags nothing                          | `pnpm test`                        | `tests/staleness.test.ts`, where about half the tests assert no action              |
-| Same again, through a real DataHub and through MCP                       | `pnpm test:live`                   | `engine.live.test.ts`, `obsel-mcp.live.test.ts`                                     |
-| A change reaches work that never read the table that changed             | `pnpm test:live`                   | `obsel-mcp.live.test.ts` checks one hop and two, each with its reason               |
-| Work in flight is never flagged                                          | `pnpm test`                        | `tests/staleness.test.ts`                                                           |
-| A flagged task's identical redo clears the flags downstream of it        | `pnpm test:live`                   | `engine.live.test.ts`, and over real stdio in `obsel-mcp.live.test.ts`              |
-| That clearing refuses everything it cannot prove                         | `pnpm test`                        | `tests/staleness.test.ts`: the refusal cases lead, each guard pinned by breaking it |
-| The `obsel-stale` tag really lands in DataHub, confirmed by reading back | `pnpm test:live`                   | `mcp.live.test.ts`, `obsel-mcp.live.test.ts`                                        |
-| `217` and `217.0` are not treated as a change                            | `python3 -m agents.worker`         | and again through MCP in `agents/mcp_core.py`                                       |
-| A reply obsel never sent is refused, not read as "nothing was affected"  | `python3 -m agents.run self-check` | breaking that guard fails six checks, and five more in `mcp_core.py`                |
-| Any MCP agent can join and set off a real cascade                        | `pnpm test:live`                   | `obsel-mcp.live.test.ts`, with a real client, a dead port, and the wrong server     |
-| TypeScript and Python build identical DataHub ids                        | `pnpm test`                        | `tests/urns.test.ts` runs the Python module for real                                |
+| Claim                                                                    | Run                                | Where it lives                                                                             |
+| ------------------------------------------------------------------------ | ---------------------------------- | ------------------------------------------------------------------------------------------ |
+| A re-run producing the same table flags nothing                          | `pnpm test`                        | `tests/staleness.test.ts`, where about half the tests assert no action                     |
+| Same again, through a real DataHub and through MCP                       | `pnpm test:live`                   | `engine.live.test.ts`, `obsel-mcp.live.test.ts`                                            |
+| A change reaches work that never read the table that changed             | `pnpm test:live`                   | `obsel-mcp.live.test.ts` checks one hop and two, each with its reason                      |
+| Work in flight is never flagged                                          | `pnpm test`                        | `tests/staleness.test.ts`                                                                  |
+| A flagged task's identical redo clears the flags downstream of it        | `pnpm test:live`                   | `engine.live.test.ts`, and over real stdio in `obsel-mcp.live.test.ts`                     |
+| That clearing refuses everything it cannot prove                         | `pnpm test`                        | `tests/staleness.test.ts`: the refusal cases come first, each guard checked by breaking it |
+| The `obsel-stale` tag really lands in DataHub, confirmed by reading back | `pnpm test:live`                   | `mcp.live.test.ts`, `obsel-mcp.live.test.ts`                                               |
+| `217` and `217.0` are not treated as a change                            | `python3 -m agents.worker`         | and again through MCP in `agents/mcp_core.py`                                              |
+| A reply obsel never sent is refused, not read as "nothing was affected"  | `python3 -m agents.run self-check` | breaking that guard fails six checks, and five more in `mcp_core.py`                       |
+| Any MCP agent can join and set off a real chain of flags                 | `pnpm test:live`                   | `obsel-mcp.live.test.ts`, with a real client, a dead port, and the wrong server            |
+| TypeScript and Python build identical DataHub ids                        | `pnpm test`                        | `tests/urns.test.ts` runs the Python module for real                                       |
 
 **Nothing here is tested against a stand-in.** Anything that crosses a process boundary is covered
 against a live DataHub, the real MCP server, a real obsel, and a real session of each agent CLI
@@ -322,7 +323,7 @@ The full record of what has been measured, and what has not, is in
   doing that in the browser would be a second definition of what counts as a change, so the report
   still comes from whatever runs your work.
 - **The erasure half has no page.** One request has been run end to end against a real catalog on
-  2026-07-26 — 23 assets over five platforms, one turned attested by a real Ed25519 signature — but
+  2026-07-26: 23 assets over five platforms, one turned attested by a real Ed25519 signature. But
   the coverage picture is JSON from `GET /api/erasure/<id>`. The screen shows erasure only as
   activity in the trace panel: requests opened, challenges issued, attestations accepted and
   refused. No agent yet drives that page on its own; the attestation in that run was signed by the
@@ -336,7 +337,7 @@ The full record of what has been measured, and what has not, is in
 pnpm dev         # the page at http://localhost:3000
 pnpm verify      # format, lint, typecheck, tests, Python self-checks, build
 pnpm test        # pure logic only, no Docker
-pnpm test:live   # the real thing; needs DataHub up, uvx, and an agent CLI on PATH
+pnpm test:live   # against live services; needs DataHub up, uvx, and an agent CLI on PATH
 pnpm e2e         # browser checks; builds and serves the app itself
 ```
 
@@ -357,12 +358,12 @@ machine with one CLI cannot be read as evidence about both. See
 
 ```
 app/                     routing, and the fourteen HTTP routes
-src/features/dashboard/    the page you look at
+src/features/dashboard/    the dashboard UI
 src/server/coordinator/  the staleness rules, and the part that talks to DataHub
 src/server/datahub/      DataHub client, tag writes, id shapes
 src/server/runner/       the demo runner behind the buttons, and the bench's reporter
 agents/                  the four demo agents, obsel's own MCP server, the bench's reporter
-skills/                  how an agent should work in a swarm obsel is watching
+skills/                  instructions for an agent working in a swarm obsel is watching
 docs/                    setup, concept, architecture, findings, demo script, verification
 examples/                sample outputs, so you can judge them without running anything
 tests/                   deterministic tests, no browser and no DataHub
