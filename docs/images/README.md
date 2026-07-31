@@ -100,16 +100,18 @@ node scripts/capture.mjs flagged   # after change
 the only file here that is composed rather than captured plain — so what went into it is listed the
 same way the captures are.
 
-The lockup in front is the mark's own animation: the geometry is `mark-geometry.ts`, and every
-motion value — the gathered, rest and open states, both easings, the stagger, the name's ghost — is
-transcribed from `mark.tsx` and `brand.tsx`. The one liberty is the loop: the header never plays
-its entrance (`brand.tsx` records why), and the hero plays it on every cycle.
+It opens on a wall: six tiles of the app at work land one per beat, each a different region of the
+page in timelapse — the graph mid-swarm, the cascade landing, the feed clearing flags, the history
+record, the erasure walk, the bring-your-own-data door. Once the wall is full it blurs back, the
+mark assembles over it, names itself while open, comes apart again, and the wall fades out — which
+is what makes the loop seamless, since the first and last frames are both black.
 
-Behind it, five hard-cut 1.5 s segments of real footage, sped up: the swarm working and the cascade
-landing (the 2026-07-30 cascade take), the repair clearing (the repair take), and the history and
-erasure tabs, filmed live against the same board. Hard cuts are what make the loop clean — the seam
-from last frame to first is just another cut. The footage is dimmed, blurred and scrimmed behind
-the type, so nothing in it is offered as legible evidence; the captures above are for that.
+The footage is the 2026-07-30 cascade and repair takes plus three tab clips filmed live against
+the same board, and it is blurred and scrimmed behind the type on purpose: nothing in the wall is
+offered as legible evidence, the captures above are for that. The lockup's animation is the mark's
+own — geometry from `mark-geometry.ts`, every motion value transcribed from `mark.tsx` and
+`brand.tsx`. The one liberty is the loop: the header never plays its entrance (`brand.tsx` records
+why), and the hero plays it on every cycle.
 
-`scripts/hero.mjs` remakes it from the two takes, and films the two tab clips itself, so it needs
-obsel and its board up.
+`scripts/hero.mjs` remakes it from the two takes, and films the three tab clips itself, so it
+needs obsel and its board up.
