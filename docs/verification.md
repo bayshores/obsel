@@ -4914,4 +4914,13 @@ what its author believed: a pasted token arrives at the intercepted route as
 `Bearer <value>`, no token arrives as no header at all, and a stored token survives a real page
 reload and stops being sent once forgotten. Six tests across both viewports. `pnpm test` is
 623 passing, `pnpm e2e` 297 passing with 1 skipped, `pnpm typecheck`, `pnpm lint` and `pnpm build`
-clean. The full live suite needs DataHub, `uvx` and `codex`, and has not been run for this change.
+clean.
+
+**The live suite ran for this change, 2026-08-02: 162 tests across 15 files passing in 547.9 s**
+against a real DataHub, with both Codex and Claude Code running a real session. `task-auth` is 21
+of those: each of the seven mutating routes answers 401 with no header and 401 with a wrong token,
+`register`, `report` and `demo/launch` are refused before their bodies are read, `demo/reset`
+refuses without clearing anything and keeps its `ok` field, and then works for a caller who has the
+token. `run-commands` passing is the other half of the proof: it injects `OBSEL_API_TOKEN` into the
+environment and spawns the real `cmd_reset`, so it would fail if `run_demo.py` had not started
+sending `auth_headers()`.
