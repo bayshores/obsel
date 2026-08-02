@@ -29,8 +29,8 @@ writes. When an output changes, obsel follows those links and flags every finish
 recording the reason and the change that caused it. That includes tasks that never read the changed
 table directly, only something built on it.
 
-A re-run that produces the same table flags nothing. This matters: if identical re-runs raised
-flags, users would learn to ignore every flag.
+A re-run that produces the same table flags nothing. If identical re-runs raised flags, users would
+learn to ignore every flag.
 
 ## The same lineage, for erasure
 
@@ -67,9 +67,9 @@ stale when its upstream data changed and it has not re-run since, and propagates
 [dbt](https://docs.getdbt.com/docs/deploy/state-aware-about) rebuilds a model when a source has new
 data.
 
-obsel is for the case those tools do not cover: no single tool owns the graph. Agents from different
-frameworks, on different machines, joining and leaving, with no shared scheduler to ask. Both tools
-above need every node declared in a project before it can take part. An agent joins obsel at runtime
+obsel is for the case those tools do not cover. No single tool owns the graph. Agents from different
+frameworks, on different machines, join and leave, with no shared scheduler to ask. Both tools
+above need every node declared in a project before it can take part; an agent joins obsel at runtime
 by announcing itself, and creates its own node when it does.
 
 The full comparison, including where obsel is genuinely not novel, is in
@@ -99,7 +99,7 @@ Codex CLI. Not mockups, and not assembled from separate sessions.
 
 ### Recordings
 
-The full three-minute demo is [a video on YouTube](https://youtu.be/qQNA59VADNc): the forty-agent
+The full three-minute demo, [on YouTube](https://youtu.be/qQNA59VADNc), covers the forty-agent
 run, the mid-swarm change, the repair, and the erasure report, cut from recordings of real runs.
 The two clips below are from a separate four-agent take.
 
@@ -110,11 +110,11 @@ The two clips below are from a separate four-agent take.
 Both clips come from one sequence, recorded 2026-07-30 against the same live stack, with that run's
 own numbers in frame. Detection took a measured 397 ms. The repair redid **one** of the three
 flagged tasks in 28.3 s, and obsel cleared the other two itself in 233 ms because the redone table
-came out identical. There is no button that dismisses a flag. A flag clears only through redone
-work: the flagged task re-runs and reports, or an upstream task re-runs, its table comes back
+came out identical. There is no button that dismisses a flag; a flag clears only through redone
+work. Either the flagged task re-runs and reports, or an upstream task re-runs, its table comes back
 identical, and obsel clears the downstream flags that redo restores.
 
-"Identical" is the fingerprint's word, not the file system's: rows are sorted before hashing, and
+"Identical" is the fingerprint's word, not the file system's. Rows are sorted before hashing, and
 any column the task registered as volatile is left out. Two tables that differ only in row order, or
 only in a load timestamp declared at registration, are identical to obsel and to every sentence
 about identical output in these documents. Nothing else is excluded.
@@ -153,14 +153,14 @@ The page opens on a checklist, because those three commands are not quite everyt
 agents need their own Python packages and a signed-in agent CLI, and obsel needs its tag registered
 in DataHub. Every item is checked on your machine a couple of times a second, finished ones are
 ticked, and anything missing shows you the exact command to run. Work down the list until it is
-empty. The launcher above does the same work in the same order, which is why it exists: two of those
-steps only work once DataHub is answering.
+empty. The launcher above does the same work in the same order, because two of those steps only
+work once DataHub is answering.
 
 **One thing you type in**, and the checklist asks for it like the rest. Every route that changes
 something needs a bearer token. `.env.local` holds it, `scripts/start.sh` generates one there if it
 is empty, and the page has a field at the top of its panel to paste it into. Paste it once and the
 browser keeps it. The server never hands it to the page, because anyone who can load the page could
-then read it. The agents do not need this step: obsel spawns them and they inherit the token from
+then read it. The agents skip this step, because obsel spawns them and they inherit the token from
 its environment.
 
 ```bash
@@ -178,7 +178,7 @@ After that, the demo runs from five buttons.
 | **Reset and start over**                     | Everything goes back to up to date. The agents stay set up.                                   |
 
 Redoing the work removes the flags, so after a full pass the board shows nothing out of date. The
-**history** tab keeps the record: one entry per decision obsel made, written into DataHub, saying
+**history** tab keeps the record, one entry per decision obsel made, written into DataHub, saying
 what changed, what was flagged, and what a redo closed. Only a completion can write to it, and
 nothing reads it back to decide anything.
 
@@ -194,9 +194,9 @@ nothing reads it back to decide anything.
 
 **Either agent CLI will do, and you need only one.** With nothing set, obsel uses whichever is
 installed and prefers Codex when both are. To pick, set `OBSEL_RUNNER=codex` or `OBSEL_RUNNER=claude`
-before starting: the setup checklist, the launcher and the workers all read it, so they cannot
+before starting. The setup checklist, the launcher and the workers all read it, so they cannot
 disagree about which product is doing the work. An agent reporting through MCP names its own runner
-rather than being asked, because the runner is the agent's business, not obsel's: obsel records what
+rather than being asked, because the runner is the agent's business, not obsel's. obsel records what
 a client declared itself to be and does not claim to have checked it. Every measured number below
 was taken against Codex.
 
@@ -265,10 +265,10 @@ Two things your agent deliberately cannot do:
 - **It never hashes its own output.** `report_complete` takes a file path or the real rows, and
   obsel hashes them itself. An agent that could hand obsel a hash could hand it the _previous_ hash
   and be believed.
-- **It cannot flag or unflag anything.** A flag comes off through redone work and nothing else:
-  the flagged task re-runs and reports, or a flagged upstream task re-runs, its table comes back
-  identical, and obsel clears the flags that redo provably restores. The reply's `restored` list
-  is how your agent finds out the second thing happened. It cannot ask for it.
+- **It cannot flag or unflag anything.** A flag comes off through redone work and nothing else.
+  The flagged task itself re-runs and reports, or a flagged upstream task re-runs and its table
+  comes back identical, and obsel clears the flags that redo provably restores. The reply's
+  `restored` list is how your agent finds out the second thing happened. It cannot ask for it.
 
 [`skills/obsel-collaboration/SKILL.md`](skills/obsel-collaboration/SKILL.md) documents the order of
 operations an agent must follow for obsel's answers to be correct. Copy it into `.claude/skills/` to
@@ -278,29 +278,29 @@ install it.
 
 The same MCP tools work for your own files, in a few minutes. Register a task that reads your file
 and one that builds on it, report both, change the file, and the downstream task gets flagged with
-the reason. Executed for real on 2026-07-24 with a five-row expenses CSV: a renamed column flagged
+the reason. In a real run on 2026-07-24, with a five-row expenses CSV, a renamed column flagged
 the totals task at 1 hop in a measured 3934 ms, and the redo cleared it. The copy-paste walkthrough,
 with every reply quoted from that run, is in [`docs/setup.md`](docs/setup.md). The full matrix of
 shapes, changes and edge cases obsel has been run against is
 [`docs/coverage.md`](docs/coverage.md).
 
-**Declaring those tasks is a form on the page**, under the joining panel: a name, the tables it
-reads, the tables it writes. It posts to the same `/api/tasks/register` the MCP tool calls, so a
+**Declaring those tasks is a form on the page**, under the joining panel, with a name and the
+tables it reads and writes. It posts to the same `/api/tasks/register` the MCP tool calls, so a
 task you add by hand and a task an agent registered itself are the same entity and appear in the
 same list.
 
 **Reporting the work is a table on the page too.** Open a task you registered and write its table
-by hand: the columns are chips you can rename, drop or add, and the rows are cells you can type
+by hand. The columns are chips you can rename, drop or add, and the rows are cells you can type
 into. Press report and obsel hashes what you handed it and answers with what it invalidated. That
 is the whole loop without an agent CLI and without a terminal, in about fifteen seconds, and every
-call is the same one an agent would make. The browser never computes a fingerprint: the button posts
+call is the same one an agent would make. The browser never computes a fingerprint. The button posts
 to `/api/tasks/report`, which runs `agents/report.py`, which calls the same
 `mcp_core.completion_body` the MCP server uses. A second implementation of the fingerprint could
 disagree with the first about whether a table changed.
 
-You still cannot hand obsel a hash, from the page or from an agent, and there is still no button
-that clears a flag. This route is token-gated like every other mutation, and it was not always: it
-runs `agents/report.py`, which completes the task with the server's own token, so while it was open
+Neither the page nor an agent can hand obsel a hash, and no button clears a flag. This route is
+token-gated like every other mutation, and it was not always. It runs `agents/report.py`, which
+completes the task with the server's own token, so while it was open
 anyone who could reach the port could replay a flagged task's old rows and have the completion read
 as an identical redo that cleared the flag. [`docs/architecture.md`](docs/architecture.md) records
 the whole of it.
@@ -340,18 +340,18 @@ The full record of what has been measured, and what has not, is in
   two observations each.
 - The graph has been checked in a real browser on two pipeline shapes, four tasks and forty, plus
   a joined fifth agent in the unit suite. Nothing between or beyond those.
-- The submission video is cut, rendered and [on YouTube](https://youtu.be/qQNA59VADNc): 2:59.6,
-  1920x1080 at 25 fps, from recordings of real runs against a real DataHub. It has no narration,
-  by choice, and its production project is not committed here.
+- The submission video is cut, rendered and [on YouTube](https://youtu.be/qQNA59VADNc) (2:59.6,
+  1920x1080 at 25 fps), made from recordings of real runs against a real DataHub. It has no
+  narration, by choice, and its production project is not committed here.
 - **Bringing your own data is half on the page.** Declaring tasks is a form, driven against a real
-  DataHub on 2026-07-26. Reporting a file is not: obsel takes the fingerprint from rows itself, and
+  DataHub on 2026-07-26. Reporting a file is not. obsel takes the fingerprint from rows itself, and
   doing that in the browser would be a second definition of what counts as a change, so the report
   still comes from whatever runs your work.
 - **The erasure half has a page, and no workflow behind it.** The board's erasure tab takes a
-  request id and shows the coverage report: a state and a sentence for every asset the walk
+  request id and shows the coverage report, a state and a sentence for every asset the walk
   reached, how many are covered and how many nobody has attested to, and the same graph recolored
-  by coverage. One request has been run end to end against a real catalog on 2026-07-26: 23 assets
-  over five platforms, one turned attested by a real Ed25519 signature. What is missing is
+  by coverage. One request has been run end to end against a real catalog on 2026-07-26, covering
+  23 assets over five platforms, one turned attested by a real Ed25519 signature. What is missing is
   everything around it. Opening a request is a curl command. No agent drives the tab on its own.
   The attestations in those runs were signed by the operator, not routed to the owner of each
   asset and waited for, and nothing binds an attestation to a version obsel derived from the
@@ -371,7 +371,7 @@ pnpm e2e         # browser checks; builds and serves the app itself
 
 **`pnpm verify` is the one to run first.** It needs no Docker and no browser download.
 
-Checked 2026-07-28: `pnpm verify` passes end to end, with 531 tests and 202 Python self-checks
+As of 2026-07-28, `pnpm verify` passes end to end, with 531 tests and 202 Python self-checks
 across nine modules. `pnpm e2e` passes 271 browser checks across two viewports, with one
 skipped by design, half of them against a forty-task pipeline recorded off a real run.
 
