@@ -61,6 +61,14 @@ because they give different counts:
   the nine running agents touched. `report_city` finished after the cascade on inputs that had not
   moved and was correctly left alone.
 - **The run the video is cut from.** The change marked **7 of 40**, detection **658 ms**.
+- **Five settled observations, 2026-08-02.** The forward and reverse rename alternated on a
+  settled board, each one a real agent session. All five marked **9 of 40** at three hops.
+  Detection: **minimum 473 ms, median 666 ms, maximum 4166 ms.** One machine, so it is a range
+  rather than a benchmark, but it is five observations rather than one.
+- **The same thing on Claude Code, 2026-08-02.** Forty sessions of `claude-sonnet-5` at medium
+  effort finished in **129.3 s** at peak 8, every output passing its contract and nothing marked.
+  The settled change then marked **9 of 40** at 4575 ms, and the repair redid **6 of 9 in 37.8 s**,
+  clearing the other three without re-running them.
 
 Then the repair, from the 8-flag page: obsel redoes only the flagged work, in parallel, and every
 time a redo lands identical it cancels the downstream redos that are now provably unnecessary.
@@ -90,15 +98,14 @@ that lags freshly registered tasks, are documented with reproductions in
 
 ### What is honestly not proven
 
-Forty-task detection has five observations on one machine; the other forty-task figures remain one
-or two observations on one machine. The engine never uses a model for its decisions, so the flags
-are deterministic, but the agent is a live model and its output needed pinning three times
-(documented). One forty-task Claude Code pass ran on one machine with `claude-sonnet-5` at medium
-effort. Dagster does retroactive invalidation for assets declared in its own code, and
-agent-coherence handles the in-memory half of this problem for shared artifacts inside one run; the
-prior-art survey in `docs/concept.md` names both rather than claiming novelty they would disprove.
+Forty-task detection has five observations, all on one machine. The other forty-task figures are
+still one or two observations each. The Claude Code pass at that scale is a single run, pinned to
+`claude-sonnet-5` at medium effort so it is repeatable rather than dependent on an account's
+current default.
+
 obsel's case is the one where no single orchestrator owns the graph: agents from different
 frameworks joining at runtime, each becoming a node in a metadata platform that outlives them.
+The prior-art survey is in `docs/concept.md`.
 
 ---
 

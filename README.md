@@ -197,8 +197,9 @@ installed and prefers Codex when both are. To pick, set `OBSEL_RUNNER=codex` or 
 before starting. The setup checklist, the launcher and the workers all read it, so they cannot
 disagree about which product is doing the work. An agent reporting through MCP names its own runner
 rather than being asked, because the runner is the agent's business, not obsel's. obsel records what
-a client declared itself to be and does not claim to have checked it. Every measured number below
-was taken against Codex.
+a client declared itself to be and does not claim to have checked it. Most measured numbers below
+were taken against Codex; the forty-task pipeline has also been run end to end on Claude Code once,
+recorded in [`docs/verification.md`](docs/verification.md).
 
 The launcher installs `uv` if it is missing, and skips whatever is already done, so running it twice
 is safe. Docker, Node and the agent CLI sign-in need you, so it detects those and says what to do. It
