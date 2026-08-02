@@ -99,6 +99,10 @@ Codex CLI. Not mockups, and not assembled from separate sessions.
 
 ### Recordings
 
+The full three-minute demo is [a video on YouTube](https://youtu.be/qQNA59VADNc): the forty-agent
+run, the mid-swarm change, the repair, and the erasure report, cut from recordings of real runs.
+The two clips below are from a separate four-agent take.
+
 |                                                                                 The change is detected                                                                                  |                                                                                              The repair                                                                                              |
 | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: |
 | ![Three boxes turn amber as the change is detected, the amber path travels outward from the changed table, and the ribbon lands on a measured detection time.](docs/images/cascade.gif) | ![One redo lands, and the strip prints a cleared line for each of the two flags obsel took off itself, with the reason, before the headline returns to nothing out of date.](docs/images/repair.gif) |
@@ -336,10 +340,9 @@ The full record of what has been measured, and what has not, is in
   two observations each.
 - The graph has been checked in a real browser on two pipeline shapes, four tasks and forty, plus
   a joined fifth agent in the unit suite. Nothing between or beyond those.
-- The submission video is cut and rendered: 2:59.6, 1920x1080 at 25 fps, from recordings of real
-  runs against a real DataHub. It has no narration, by choice. It is a YouTube upload linked from
-  the Devpost entry rather than a file in this repository, and the production project is not
-  committed here.
+- The submission video is cut, rendered and [on YouTube](https://youtu.be/qQNA59VADNc): 2:59.6,
+  1920x1080 at 25 fps, from recordings of real runs against a real DataHub. It has no narration,
+  by choice, and its production project is not committed here.
 - **Bringing your own data is half on the page.** Declaring tasks is a form, driven against a real
   DataHub on 2026-07-26. Reporting a file is not: obsel takes the fingerprint from rows itself, and
   doing that in the browser would be a second definition of what counts as a change, so the report
