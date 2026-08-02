@@ -17,6 +17,7 @@ import type { ReactNode } from "react";
 import { PulseDot } from "../mmux";
 import { EASE } from "../motion-tokens";
 import { formatDuration } from "../progress";
+import { TOKEN_HINT, authHeader } from "../token/use-token";
 import { STEP_NAME } from "./guide";
 import type { GuideView } from "./guide";
 import type { RevealTarget } from "./guide-view";
@@ -77,7 +78,7 @@ export function GuidePanel({
     try {
       const response = await fetch("/api/demo/launch", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...authHeader() },
         body: JSON.stringify({ step }),
         signal: AbortSignal.timeout(8000),
       });
@@ -93,7 +94,9 @@ export function GuidePanel({
           "fix" in body &&
           (body as { fix: unknown }).fix
             ? ` Run this in a terminal: \`${String((body as { fix: unknown }).fix)}\``
-            : "";
+            : response.status === 401
+              ? ` ${TOKEN_HINT}`
+              : "";
         setRefused(`${STEP_NAME[step]} could not be started: ${detail}.${fix}`);
       }
       // On success nothing is set here — the next activity poll reports the

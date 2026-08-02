@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { runReport } from "@/src/server/runner/reporter";
-import { parseBody } from "@/src/server/http/route";
+import { parseBody, refuseUnauthorized } from "@/src/server/http/route";
 
 export const dynamic = "force-dynamic";
 
@@ -43,8 +43,19 @@ const Body = z.object({
  * is the only thing offered here, and what obsel concludes from the report is
  * obsel's. A route that took a task and marked it fresh would be a route for
  * silencing the one thing obsel is for.
+ *
+ * **Gated, and it was not always.** The child this spawns completes the task
+ * with the server's own token, so an ungated `report` was a working way around
+ * the gate on `complete`: replay a flagged task's recorded rows, the
+ * fingerprints match the baseline, the completion reads as an identical redo,
+ * and `restoredBy` clears the flag and the flags below it. Anyone who could
+ * reach the port could do it. The gate on `complete` only ever held against
+ * callers who came through the front.
  */
 export async function POST(request: Request) {
+  const refusal = refuseUnauthorized(request);
+  if (refusal) return refusal;
+
   const body = await parseBody(request, Body);
   if (!body.ok) return body.response;
   const parsed = body.body;

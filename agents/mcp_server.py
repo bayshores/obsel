@@ -270,8 +270,6 @@ def build_server(obsel_url: str = OBSEL_URL) -> Any:
 
         reply = worker.post_json(
             f"{obsel_url}/api/tasks/register", body, timeout=worker.MUTATION_TIMEOUT,
-            # Sent when there is one, never required: this route is ungated, so
-            # a hard refusal here would block a registration obsel accepts.
             headers=worker.auth_headers(),
         )
         if not isinstance(reply, dict) or "urn" not in reply:

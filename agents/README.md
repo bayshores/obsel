@@ -31,13 +31,13 @@ DataHub and a signed-in Codex CLI, with every step's own assertions passing:
 | Step         | Measured                                                                        |
 | ------------ | ------------------------------------------------------------------------------- |
 | `run`        | four Codex sessions in 134.0 s; obsel confirmed 4 of 4 complete, nothing marked |
-| `rerun-same` | byte-identical output, 0 changed outputs, 0 marks, confirmed in 60 ms           |
+| `rerun-same` | identical output, 0 changed outputs, 0 marks, confirmed in 60 ms                |
 | `change`     | called `schema`; marked exactly 3 tasks at 1, 2 and 2 hops, in 2591 ms          |
 
 Later the same day the sequence was driven again, this time entirely from the
 page's guide buttons, which spawn these same commands, including the reverse
 experiment order, `change` first and then `rerun-same` on the already-flagged
-page: byte-identical output, 0 changed outputs, 0 new marks confirmed in 89 ms,
+page: identical output, 0 changed outputs, 0 new marks confirmed in 89 ms,
 and the three existing marks untouched. (That order failed on its first live
 attempt and exposed a real bug. See the `rerun-same` section below.)
 
@@ -205,7 +205,7 @@ should come out, and obsel should mark nothing, because it compares the
 fingerprint of the output rather than the fact that a write happened.
 
 The command checks all of that instead of asserting it. It fails with
-`UNEXPECTED:` and exits 1 if the table is not byte-identical to the previous one,
+`UNEXPECTED:` and exits 1 if the table is not identical to the previous one,
 if obsel reports any changed output, if obsel marks anything, or if obsel held no
 previous fingerprint for the table in the first place, because "nothing was marked"
 proves nothing when there was nothing to compare against.
@@ -224,17 +224,24 @@ the serialised value. Two things were wrong, and both are now fixed:
 
 1. **This command's own check was weaker than the evidence it was checking.** It
    compared the two tables with Python's `==`, which calls `217` and `217.0`
-   equal, so it printed `byte-identical: True` and then blamed obsel for a false
-   alarm that was a correct detection. It now compares fingerprints, the same
-   evidence obsel uses, so the two can never disagree about what "identical"
-   means. When the tables really do differ it prints both fingerprints and names
-   the agent, not obsel.
+   equal, so it called the two tables identical and then blamed obsel for a
+   false alarm that was a correct detection. It now compares fingerprints, the
+   same evidence obsel uses, so the two can never disagree about what
+   "identical" means. When the tables really do differ it prints both
+   fingerprints and names the agent, not obsel.
+
+   "Identical" throughout this file is that fingerprint's word: rows are sorted
+   before hashing and columns a task registered as volatile are left out, so two
+   tables differing only in row order or only in a load timestamp compare equal.
+   These lines said "byte-identical" until 2026-08-02, which claimed more than
+   the comparison behind them establishes.
+
 2. **The agent was writing the same number two ways.** `canonicalise_numbers` in
    [`worker.py`](worker.py) now fixes the serialised form per column before
    anything is saved or hashed, so a value that did not change cannot move the
    hash. It has its own self-check: `agents/.venv/bin/python -m agents.worker`.
 
-With both in place the step passes: byte-identical output, nothing marked,
+With both in place the step passes: identical output, nothing marked,
 confirmed by obsel in 60 ms.
 
 **And the step that failed second, later the same day.** Run for the first time
@@ -247,7 +254,7 @@ paired with a contract from another can contradict each other, so a successful
 run now remembers **both together** (`_remember_run` in `worker.py`), and
 `rerun-same` replays the pair. obsel called every run in that incident correctly,
 including flagging the accidental revert as the genuine schema change it was.
-With the pair replayed the order passes: byte-identical output, 0 new marks in
+With the pair replayed the order passes: identical output, 0 new marks in
 89 ms, and the three existing marks untouched.
 
 ### 5. `change`, the money moment
@@ -289,7 +296,7 @@ Redoes the flagged work, producers before consumers, each redo a real Codex
 session replaying what that task last ran on its current inputs. There is no
 command that clears a flag, on purpose: a flag comes off through redone work,
 either the task's own redo or obsel proving the task sound when an upstream redo
-lands byte-identical. The command re-reads the page at every turn and skips
+lands identical. The command re-reads the page at every turn and skips
 whatever obsel has already cleared, printing the reason obsel recorded.
 
 The loop runs in passes rather than once, because a live model is allowed to
@@ -312,7 +319,8 @@ agents/.venv/bin/python -m agents.run reset
 
 Puts the demo back to its pre-run state, for a second take.
 
-obsel's half goes first: `POST /api/demo/reset` puts every task back to
+obsel's half goes first: `POST /api/demo/reset`, carrying the same bearer token
+every other mutation carries. It puts every task back to
 `registered`, drops the recorded fingerprints, and removes the `obsel-stale` tag
 from DataHub (a different aspect from the properties, so it does not come off with
 them). The command prints which tasks came back and which tags were cleared. Only
@@ -380,7 +388,7 @@ obsel hears anything. A plausible-looking bad table would fingerprint as a real
 change and mark the whole chain stale for nothing.
 
 **What this costs, measured.** An earlier design asked the model for a JSON plan
-and had deterministic code apply it to every row, which made a byte-identical
+and had deterministic code apply it to every row, which made a identical
 re-run a property of the construction: same plan in, same table out. An agent
 writing the table directly gives that up, and the cost is not hypothetical.
 

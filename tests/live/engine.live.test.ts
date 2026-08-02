@@ -437,7 +437,7 @@ describe("a change nothing reported is caught by the next honest read", () => {
   it("marks the other finished reader, with no author and a reason that says so", async () => {
     await runAllWithAudit();
 
-    // build_revenue re-runs. Its output is byte-identical (s2/c2), so the output
+    // build_revenue re-runs. Its output is identical (s2/c2), so the output
     // comparison stays quiet — everything below comes from the input observation.
     await startTask(taskUrn("build_revenue"));
     const result = await coordinateCompletion(rereadReport("s1-silent"));
@@ -526,7 +526,7 @@ describe("a redo that comes out identical clears what it proves, in DataHub", ()
      * flagged after the rename: build_revenue and audit_orders read the table
      * itself, write_report and write_docs are two hops out. build_revenue
      * redoes its work on the renamed table and daily_revenue comes out
-     * byte-identical — so the two tasks built on daily_revenue were flagged
+     * identical — so the two tasks built on daily_revenue were flagged
      * for ground that never moved, and audit_orders was not: the ground under
      * it really changed, and only its own redo answers for that.
      */
@@ -755,7 +755,7 @@ describe("a reader that straddled a re-report is marked, not mistaken for a sile
     expect(change.affected.map((entry) => entry.task.name).sort()).toEqual(["audit_orders"]);
 
     // The reader finishes on the version it actually read: the one the
-    // re-report replaced. Its own output is byte-identical to its last run.
+    // re-report replaced. Its own output is identical to its last run.
     const completion = await coordinateCompletion({
       ...finished("build_revenue", "daily_revenue", "s2", "c2"),
       inputs: { [datasetUrn("clean_orders")]: { schema: "s1", content: "c1" } },

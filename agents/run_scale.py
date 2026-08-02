@@ -491,7 +491,7 @@ def cmd_scale_repair(args: argparse.Namespace) -> int:
 
     The serial `repair` redoes flagged work one task at a time. At forty tasks
     that wastes exactly what obsel knows: which redos are independent, and —
-    once a redo comes back byte-identical — which planned redos the clearing
+    once a redo comes back identical — which planned redos the clearing
     rule has just made unnecessary. So this command runs eligible redos
     concurrently in the same bounded pool the swarm ran in, and every time a
     completion's reply carries `restored` entries, the tasks they name are

@@ -84,6 +84,7 @@ export function idle(): DemoActivity {
       venv: ok("agents/.venv exists"),
       uvx: ok("uv is installed"),
       runner: { ...ok("The Codex CLI is signed in."), name: "codex" },
+      token: ok("This obsel has an API token"),
     },
     // A plausible absolute path, so the join panel renders the way it does on a
     // real machine. Invented like everything else here, and marked as such by

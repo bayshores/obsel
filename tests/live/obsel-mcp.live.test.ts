@@ -524,7 +524,7 @@ describe("a redo that comes out identical reaches the agent as restored work", (
      * Runs against the state the cascade describe left: `mcpjoin_clean` holds
      * the renamed schema, `mcpjoin_agg` is flagged at one hop and
      * `mcpjoin_report` at two. The agent redoes `mcpjoin_agg` over the renamed
-     * table and its own table comes out byte-identical — so the report task,
+     * table and its own table comes out identical — so the report task,
      * which never read the renamed table, was flagged for ground that never
      * moved, and the reply an agent reads has to carry that in the structured
      * half and in the sentences, because an agent that relays only one of them

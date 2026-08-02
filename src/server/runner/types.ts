@@ -99,6 +99,11 @@ export interface Preflight {
   venv: PreflightCheck;
   uvx: PreflightCheck;
   runner: RunnerCheck;
+  /**
+   * Whether this obsel has an `OBSEL_API_TOKEN` set. Never the value: the page
+   * is told that a token exists, and pastes in its own copy.
+   */
+  token: PreflightCheck;
 }
 
 /** The body of `GET /api/demo/activity`. */

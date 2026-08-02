@@ -49,6 +49,7 @@ describe("stage derivation", () => {
             venv: ok(),
             uvx: ok(),
             runner: runnerOk(),
+            token: ok(),
           },
         }),
       }),
@@ -118,6 +119,7 @@ describe("stage derivation", () => {
               venv: ok(),
               uvx: ok(),
               runner: row.check,
+              token: ok(),
             },
           }),
         }),
@@ -147,6 +149,7 @@ describe("stage derivation", () => {
               fix: "brew install uv",
             },
             runner: runnerOk(),
+            token: ok(),
           },
         }),
       }),
@@ -156,6 +159,61 @@ describe("stage derivation", () => {
       "uv, which obsel writes that tag through",
     );
     expect(allText(view)).toContain("brew install uv");
+  });
+
+  /*
+   * The token, whose two failures are different problems and must not both speak.
+   *
+   * The server having none means every mutating route answers 503, so nothing
+   * the guide offers can run: that is a prerequisite like uv, and it holds the
+   * board on prepare. This browser not having been given one breaks only the
+   * writes -- every read still works and the graph is still true -- so it is an
+   * attention line on whatever stage the swarm is actually in, never a setup
+   * screen in front of a board that is working.
+   */
+  it("prepare asks for a token when this obsel has none, with the command that makes one", () => {
+    const view = guide(
+      input({
+        tasks: FOUR_COMPLETE,
+        hasToken: false,
+        activity: activity({
+          preflight: {
+            datahub: ok(),
+            vocabulary: ok(),
+            venv: ok(),
+            uvx: ok(),
+            runner: runnerOk(),
+            token: {
+              ok: false,
+              detail: "every route that changes something needs one",
+              fix: "openssl rand -hex 24",
+            },
+          },
+        }),
+      }),
+    );
+    expect(view.stage).toBe("prepare");
+    expect(view.checks.find((check) => check.name === "An API token in .env.local")?.done).toBe(
+      false,
+    );
+    expect(allText(view)).toContain("openssl rand -hex 24");
+    // The server's problem, alone. Telling a reader to paste a token that does
+    // not exist yet is the second direction this must not send them in.
+    expect(view.attention).toBe(null);
+  });
+
+  it("a browser without the token is told so without the board being called broken", () => {
+    const view = guide(input({ tasks: FOUR_COMPLETE, hasToken: false, activity: activity() }));
+    // The swarm's own stage, because the swarm is fine. A settled board held on
+    // a setup screen would be describing it by a fault that is not its.
+    expect(view.stage).toBe("settled");
+    expect(view.attention).toContain("Paste it into the token field above");
+  });
+
+  it("a board with the token on both sides says nothing about it", () => {
+    const view = guide(input({ tasks: FOUR_COMPLETE, hasToken: true, activity: activity() }));
+    expect(view.stage).toBe("settled");
+    expect(allText(view)).not.toContain("token");
   });
 
   it("prepare offers setup as a button only when the venv can actually launch it", () => {
@@ -169,6 +227,7 @@ describe("stage derivation", () => {
       venv: ok(),
       uvx: ok(),
       runner: runnerOk(),
+      token: ok(),
     };
     const withVenv = guide(input({ activity: activity({ preflight: missingVocabulary }) }));
     expect(withVenv.actions.map((action) => action.step)).toEqual(["setup"]);

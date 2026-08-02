@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { launchStep } from "@/src/server/runner/launcher";
-import { parseBody } from "@/src/server/http/route";
+import { parseBody, refuseUnauthorized } from "@/src/server/http/route";
 
 export const dynamic = "force-dynamic";
 
@@ -29,8 +29,14 @@ const Body = z.object({
  * Launch one demo step on this machine — the same command the README
  * documents, spawned verbatim. Answers immediately; progress is read from
  * `GET /api/demo/activity` and the swarm itself.
+ *
+ * Gated: the allowlist bounds which command runs, not who may run it, and the
+ * commands behind it write to a real DataHub and spend real model time.
  */
 export async function POST(request: Request) {
+  const refusal = refuseUnauthorized(request);
+  if (refusal) return refusal;
+
   const body = await parseBody(request, Body);
   if (!body.ok) return body.response;
   const parsed = body.body;

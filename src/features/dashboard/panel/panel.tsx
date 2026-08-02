@@ -37,6 +37,7 @@ import { YourDataPanel } from "../your-data/your-data-panel";
 import { EASE, SPRING } from "../motion-tokens";
 import { TracePanel } from "../trace/trace-panel";
 import { SnapPreview } from "./snap-preview";
+import { TokenField } from "../token/token-field";
 import { Tabs, panelId } from "./tabs";
 import type { TabId } from "./tabs";
 import { clampWidth } from "./use-panel";
@@ -308,6 +309,13 @@ export function Panel(props: PanelProps) {
             </button>
           </span>
         </div>
+
+        {/*
+          Above the tabs because it is not one tab's business: the guide's
+          steps, the registration form and the table form all mutate, and all
+          three carry this token.
+        */}
+        <TokenField />
 
         <div className={styles.guide}>
           <GuidePanel

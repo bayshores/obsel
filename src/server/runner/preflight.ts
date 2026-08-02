@@ -162,6 +162,36 @@ function checkVenv(): PreflightCheck {
 }
 
 /**
+ * Whether this obsel has a token at all.
+ *
+ * Server-side and about the server: `authorizeMutation` answers 503 to
+ * everyone, including a caller holding the right value, when this is unset. It
+ * is the checklist's business because every guide button is a gated mutation,
+ * so without it the demo path is buttons that all refuse.
+ *
+ * The value is never read out and never sent to the page. The check is whether
+ * one exists, and the page's own half — whether a reader has pasted it into the
+ * token field — is a separate question this server cannot answer.
+ */
+function checkToken(): PreflightCheck {
+  const token = process.env.OBSEL_API_TOKEN?.trim() ?? "";
+  return token !== ""
+    ? {
+        ok: true,
+        detail: "This obsel has an API token, so its mutations can be authorized.",
+        fix: null,
+      }
+    : {
+        ok: false,
+        detail:
+          "Every route that changes something needs a bearer token, so without one obsel refuses " +
+          "every button here. Set it in .env.local and restart, then paste the same value into " +
+          "the token field at the top of this panel.",
+        fix: `printf 'OBSEL_API_TOKEN=%s\\n' "$(openssl rand -hex 24)" >> .env.local`,
+      };
+}
+
+/**
  * The tool obsel's own tag write runs through.
  *
  * `mcp.ts` spawns DataHub's MCP server as bare `uvx`, resolved through PATH at
@@ -308,5 +338,7 @@ export async function preflight(): Promise<Preflight> {
     cached("uvx", checkUvx),
   ]);
   const vocabulary = await cached(`vocabulary:${datahub.ok}`, () => checkVocabulary(datahub.ok));
-  return { datahub, vocabulary, venv: checkVenv(), uvx, runner };
+  // Not cached: reading one environment variable is cheaper than the map lookup
+  // that would hide a restart with a token newly set in it.
+  return { datahub, vocabulary, venv: checkVenv(), uvx, runner, token: checkToken() };
 }

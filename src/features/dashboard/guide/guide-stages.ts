@@ -91,6 +91,7 @@ const CHECK_ORDER: readonly { key: Blocker["name"] | "datahub"; name: string }[]
   { key: "venv", name: "Python packages for the demo agents" },
   { key: "vocabulary", name: "obsel's tag in DataHub" },
   { key: "uvx", name: "uv, which obsel writes that tag through" },
+  { key: "token", name: "An API token in .env.local" },
   { key: "runner", name: RUNNER_ROW_FALLBACK },
 ];
 

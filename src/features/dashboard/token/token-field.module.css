@@ -1,0 +1,71 @@
+/*
+ * One slim row under the grip. Everything it takes comes out of the guide and
+ * the feed below it, which is why it is a single line at the tab strip's own
+ * text size rather than a labelled block.
+ */
+.row {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: var(--mm-space-xs);
+  padding: var(--mm-space-2xs) var(--mm-space-md);
+  border-bottom: 1px solid var(--mm-border);
+  background: var(--mm-surface);
+}
+
+.input {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 2px var(--mm-space-xs);
+  background: var(--mm-bg);
+  border: 1px solid var(--mm-border);
+  color: var(--mm-cream);
+  font-family: var(--mm-font-mono);
+  font-size: var(--mm-text-cap);
+}
+
+.input:focus-visible {
+  outline: 2px solid var(--obsel-focus);
+  outline-offset: 1px;
+}
+
+.set {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--obsel-text-quiet);
+  font-family: var(--mm-font-mono);
+  font-size: var(--mm-text-cap);
+  letter-spacing: var(--mm-track-label);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.button {
+  flex: 0 0 auto;
+  padding: 2px var(--mm-space-xs);
+  background: transparent;
+  border: 1px solid var(--mm-border-strong);
+  color: var(--mm-cream-dim);
+  font-family: var(--mm-font-mono);
+  font-size: var(--mm-text-cap);
+  cursor: pointer;
+  transition:
+    color var(--mm-dur-short) var(--mm-ease),
+    border-color var(--mm-dur-short) var(--mm-ease);
+}
+
+.button:hover:not(:disabled) {
+  color: var(--mm-cream);
+  border-color: var(--mm-cream-dim);
+}
+
+.button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.button:focus-visible {
+  outline: 2px solid var(--obsel-focus);
+  outline-offset: 1px;
+}

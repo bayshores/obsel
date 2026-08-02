@@ -209,16 +209,21 @@ def cmd_rerun_same(args: argparse.Namespace) -> int:
     # equal, because 217 == 217.0. The fingerprint does not, because it hashes the
     # serialised value, and `217` and `217.0` are different bytes.
     #
-    # So this check reported "byte-identical: True" for a table that was not, and
-    # then blamed obsel for a false alarm that was in fact a correct detection.
+    # So this check called the two tables identical when they were not, and then
+    # blamed obsel for a false alarm that was in fact a correct detection.
     # A check that is looser than the property it verifies does not verify it; it
     # manufactures a failure and points at the wrong component.
+    #
+    # "Identical" below is therefore the fingerprint's word: sorted rows, and
+    # columns registered as volatile left out. It is not byte equality, and the
+    # line printed "byte-identical" until 2026-08-02, which claimed more than
+    # this comparison establishes.
     before_print = fingerprint(before["rows"], before["columns"])
     after_print = fingerprint(after["rows"], after["columns"])
     identical = before_print == after_print
 
     print()
-    print(f"  output byte-identical to the previous run: {identical}")
+    print(f"  output identical to the previous run: {identical}")
     if not identical:
         for label, prints in (("before", before_print), ("after", after_print)):
             print(f"    {label:<7}schema {prints['schema'][:12]} content {prints['content'][:12]}")
@@ -425,7 +430,7 @@ def cmd_repair(args: argparse.Namespace) -> int:
 
     There is no tool that clears a flag, on purpose. The only two ways a flag
     comes off are the task's own redo, and obsel proving the task sound when an
-    upstream redo lands byte-identical. This command drives the first and
+    upstream redo lands identical. This command drives the first and
     reports the second, so the board ends green through real work rather than
     through a reset.
     """
@@ -545,7 +550,7 @@ def cmd_reset(args: argparse.Namespace, root: Path = REPO_ROOT) -> int:
     # against a table this machine no longer has.
     url = f"{args.obsel_url}/api/demo/reset"
     try:
-        reply = worker.post_json(url, {})
+        reply = worker.post_json(url, {}, headers=worker.auth_headers())
     except RuntimeError as error:
         print(f"  FAILED to reset obsel's task state: {error}")
         print("  Nothing local was touched, so the two halves still agree. Fix obsel and")

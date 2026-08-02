@@ -27,7 +27,7 @@ not installed or not signed in, the run fails and says so. A demo that quietly
 fakes the model is worse than one that does not run.
 
 An earlier design asked the model for a JSON plan and applied it with
-deterministic code, which made a byte-identical re-run a property of the
+deterministic code, which made a identical re-run a property of the
 construction. An agent writing the table directly gives that up, which is why
 step 4 exists: the agent decides what the numbers are, and the worker decides how
 they are written down, so the same table twice hashes the same twice.
@@ -288,7 +288,7 @@ def _snapshot_inputs(
     The canonical form is written, because the canonical form is what was
     hashed. Published tables are already canonical (every writer canonicalises
     before saving), so for tables written by these workers the copies are
-    byte-identical to the originals anyway.
+    identical to the originals anyway.
     """
     directory = work_dir(task.name, root)
     if directory.exists():

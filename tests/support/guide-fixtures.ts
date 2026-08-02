@@ -94,7 +94,14 @@ export function activity(overrides: Partial<DemoActivity> = {}): DemoActivity {
     lastResult: null,
     log: [],
     history: [],
-    preflight: { datahub: ok(), vocabulary: ok(), venv: ok(), uvx: ok(), runner: runnerOk() },
+    preflight: {
+      datahub: ok(),
+      vocabulary: ok(),
+      venv: ok(),
+      uvx: ok(),
+      runner: runnerOk(),
+      token: ok(),
+    },
     joinCommand: "claude mcp add obsel -- /tmp/x/agents/.venv/bin/python -m agents.mcp_server",
     ...overrides,
   };
@@ -124,6 +131,10 @@ export function input(overrides: Partial<GuideInput> = {}): GuideInput {
     tasks: [],
     snapshotAt: AT,
     activity: activity(),
+    // A board whose operator has pasted the token, so a test about anything else
+    // is not also a test about the token blocker. The blocker's own tests set it
+    // false explicitly.
+    hasToken: true,
     ...overrides,
   };
 }

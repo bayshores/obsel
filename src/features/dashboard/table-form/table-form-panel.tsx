@@ -40,6 +40,7 @@ import {
 } from "./table-form";
 import type { TableFormTable, RecordedShape } from "./table-form";
 import { agreeing } from "../naming";
+import { TOKEN_HINT, authHeader } from "../token/use-token";
 
 import styles from "./table-form.module.css";
 
@@ -94,7 +95,7 @@ export function TableFormPanel({
     try {
       const response = await fetch("/api/tasks/report", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...authHeader() },
         body: JSON.stringify({ taskUrn, outputs: { [tableName]: payload(table) } }),
         // The mutation ceiling `agents/worker.py` explains, not a read timeout:
         // obsel answers a completion only once the whole traversal is written
@@ -110,9 +111,13 @@ export function TableFormPanel({
       };
 
       if (!response.ok) {
+        const refusal = read("error") ?? `obsel answered ${response.status}`;
         setSaid({
           tone: "refused",
-          text: read("error") ?? `obsel answered ${response.status}`,
+          // obsel's own sentence says a token is required; the hint says where
+          // the board keeps one, which obsel has no way to know. It is not a
+          // `fix`: that field renders as a command to run in a terminal.
+          text: response.status === 401 ? `${refusal}. ${TOKEN_HINT}` : refusal,
           fix: read("fix"),
         });
         return;

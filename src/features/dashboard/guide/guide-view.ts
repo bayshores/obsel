@@ -232,6 +232,15 @@ export interface GuideInput {
   snapshotAt: string | null;
   /** The demo runner's report, or null when it could not be read. */
   activity: DemoActivity | null;
+  /**
+   * Whether this browser holds the API token every guide button needs.
+   *
+   * The page's own half of the gate, and the server cannot answer it: the token
+   * is pasted into this browser and never travels the other way. Without it
+   * every button below answers 401, so it belongs on the checklist beside the
+   * prerequisites an operator installs.
+   */
+  hasToken: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -239,7 +248,7 @@ export interface GuideInput {
 // ---------------------------------------------------------------------------
 
 export interface Blocker {
-  name: "venv" | "runner" | "vocabulary" | "uvx";
+  name: "venv" | "runner" | "vocabulary" | "uvx" | "token";
   check: DemoActivity["preflight"]["venv"];
 }
 

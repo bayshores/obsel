@@ -152,7 +152,14 @@ describe("the run button says which agent product is about to start", () => {
       input({
         tasks: REGISTERED,
         activity: activity({
-          preflight: { datahub: ok(), vocabulary: ok(), venv: ok(), uvx: ok(), runner },
+          preflight: {
+            datahub: ok(),
+            vocabulary: ok(),
+            venv: ok(),
+            uvx: ok(),
+            runner,
+            token: ok(),
+          },
         }),
       }),
     );
@@ -234,8 +241,9 @@ describe("the tour", () => {
       "yours",
       // The erasure tab, last, because it asks a different question of the same
       // graph and needs the graph the previous ten steps taught the reader to
-      // read. A `read` step: opening a request writes to the ledger with a token
-      // the browser does not hold, so an act here could never complete.
+      // read. A `read` step: the board offers no control that opens a request,
+      // for the reasons `erasure-tab.tsx` records, so an act here could never
+      // complete.
       "erasure",
     ]);
   });

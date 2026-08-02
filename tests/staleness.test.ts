@@ -619,7 +619,7 @@ describe("restoredBy — clearing only what a redo has proven", () => {
 
   it("clears the two tasks downstream of a redo that came out identical", () => {
     // The whole feature: build_revenue redid its work on the renamed table and
-    // daily_revenue came out byte-identical, so the report and the docs were
+    // daily_revenue came out identical, so the report and the docs were
     // flagged for ground that never moved. One redo, not three.
     const { swarm, finishing } = flaggedSwarm();
     const restored = restoredBy(swarm, finishing, [ds("daily_revenue")]);

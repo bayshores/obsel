@@ -28,6 +28,7 @@ import { useState } from "react";
 
 import { TableFormPanel } from "../table-form/table-form-panel";
 import { Panel } from "../mmux";
+import { TOKEN_HINT, authHeader } from "../token/use-token";
 import { EMPTY_DRAFT, draftProblem, registration } from "./your-data";
 import type { YourDataDraft, YourDataTask, YourDataView } from "./your-data";
 import type { TaskRecord } from "@/src/server/coordinator/types";
@@ -67,7 +68,7 @@ export function YourDataPanel({ view, tasks }: { view: YourDataView; tasks: Task
     try {
       const response = await fetch("/api/tasks/register", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...authHeader() },
         body: JSON.stringify(registration(draft)),
         signal: AbortSignal.timeout(30_000),
       });
@@ -77,7 +78,8 @@ export function YourDataPanel({ view, tasks }: { view: YourDataView; tasks: Task
           typeof body === "object" && body !== null && "error" in body
             ? String((body as { error: unknown }).error)
             : `obsel answered ${response.status}`;
-        setSaid({ tone: "refused", text: `obsel would not register it: ${detail}` });
+        const hint = response.status === 401 ? ` ${TOKEN_HINT}` : "";
+        setSaid({ tone: "refused", text: `obsel would not register it: ${detail}.${hint}` });
         return;
       }
       /*

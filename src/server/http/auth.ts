@@ -3,24 +3,30 @@ import "server-only";
 /**
  * Who is allowed to change something through obsel's HTTP surface.
  *
- * Gated: the three routes only a separate agent process calls — `start`,
- * `complete`, `abandon` — the three erasure mutations, and `datasets/observe`,
- * which is a write about a table by something outside the swarm. `complete` is why
- * this exists on the task side: a forged completion whose fingerprints match
- * the recorded baseline reads as an identical redo, and `restoredBy` derives
- * clears from those, so without the gate the no-clear rule held only against
- * honest callers.
+ * Every mutating route is gated: `start`, `complete`, `abandon`, `register`,
+ * `report`, the two demo routes, `datasets/observe`, and the three erasure
+ * mutations. `complete` is why this exists on the task side: a forged
+ * completion whose fingerprints match the recorded baseline reads as an
+ * identical redo, and `restoredBy` derives clears from those, so without the
+ * gate the no-clear rule held only against honest callers.
  *
- * **Ungated, deliberately: the routes the board itself calls** — `register`,
- * `report`, and the two demo routes. A token cannot protect those. The browser
- * has no environment to read one from, so either a human pastes it before any
- * button works, or the server hands it to the page and anyone who can load the
- * page can read it. The second is theatre, and the first costs every operator a
- * manual step to guard routes that create a node, hash a table somebody typed,
- * or run a demo step from a twelve-literal allowlist. None of those can clear a
- * flag, which is the failure that matters. This is a real limit and it belongs
- * written down rather than implied: obsel bound to a reachable interface trusts
- * its own network for those four routes.
+ * **Four of these were ungated until 2026-08-02, and the reasoning was wrong.**
+ * The argument was that a token cannot protect the routes the board itself
+ * calls, since the browser has no environment to read one from, and that none
+ * of those four could clear a flag anyway. The second half was false.
+ * `report` spawns `agents/report.py` with the server's environment, and the
+ * child completes the task with the server's own `OBSEL_API_TOKEN`. So an
+ * unauthenticated caller could replay a flagged task's recorded rows, have the
+ * fingerprints match, and watch the completion read as an identical redo that
+ * cleared the flag and the flags below it. The gate on `complete` held only
+ * against callers who came through the front. Reviewed and reported by a reader
+ * of this file, which is the argument for writing the reasoning down next to
+ * the code: it was checkable, and it did not survive being checked.
+ *
+ * The cost the old note was avoiding is real and is now paid: the operator
+ * pastes the token from `.env.local` into the board's token field once, and the
+ * page sends it on the mutations it makes. The alternative, a server that hands
+ * the page a token anyone loading the page can read, would be theatre.
  *
  * **This is a bearer token, and on the erasure side it is not the interesting
  * half of the security.** An attestation is worth something because it is

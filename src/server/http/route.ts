@@ -9,9 +9,10 @@ import "server-only";
  * from work obsel attempted and could not finish.
  *
  * Ten routes had these written out by hand and the copies had already begun to
- * differ in the wording of their failures. Which routes are gated and which are
- * deliberately not is `auth.ts`'s decision and is unchanged here: a route that
- * does not call `mutationRoute` does not acquire a gate by using this module.
+ * differ in the wording of their failures. Every mutating route is gated, but a
+ * route does not acquire the gate by importing this module: it either composes
+ * `mutationRoute` or calls `refuseUnauthorized` itself. `auth.ts` is where the
+ * decision lives and why.
  */
 
 import { NextResponse } from "next/server";
@@ -20,11 +21,24 @@ import type { ZodType } from "zod";
 import { authorizeMutation } from "./auth";
 
 /**
+ * The refusal a caller without a valid token gets, or `null` to carry on.
+ *
+ * For the routes that cannot compose `mutationRoute`: `register` and `report`
+ * do their own work between parsing and running, and `demo/reset` answers in a
+ * shape of its own. Each one gates through here so the four refusals read
+ * identically and none of them can drift.
+ */
+export function refuseUnauthorized(request: Request): NextResponse | null {
+  const auth = authorizeMutation(request);
+  return auth.ok ? null : NextResponse.json({ error: auth.error }, { status: auth.status });
+}
+
+/**
  * One request body against one schema, or the 400 to return instead.
  *
- * Separate from `mutationRoute` because `register` and `report` are ungated and
- * do their own work between parsing and running, and a body they refused should
- * still read identically to one any other route refused.
+ * Separate from `mutationRoute` because `register` and `report` do their own
+ * work between parsing and running, and a body they refused should still read
+ * identically to one any other route refused.
  */
 export async function parseBody<T>(
   request: Request,
@@ -71,8 +85,8 @@ export async function mutationRoute<T>(
   whenItFails: string,
   handler: (body: T) => Promise<unknown>,
 ): Promise<NextResponse> {
-  const auth = authorizeMutation(request);
-  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
+  const refusal = refuseUnauthorized(request);
+  if (refusal) return refusal;
 
   const parsed = await parseBody(request, schema);
   if (!parsed.ok) return parsed.response;

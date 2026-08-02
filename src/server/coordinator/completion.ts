@@ -109,7 +109,7 @@ async function decideCompletion(
   emit("read", `${label(finishing)} finished`, `read ${snapshot.tasks.length} tasks from DataHub`);
 
   const changedOutputs: DatasetChange[] = [];
-  // Outputs that came back byte-identical to the recorded baseline. Only these
+  // Outputs that came back identical to the recorded baseline. Only these
   // can restore anything: a first run has no baseline to have matched, so it
   // proves nothing about work built on "the previous version".
   const unchangedOutputs: string[] = [];

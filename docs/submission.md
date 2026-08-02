@@ -32,9 +32,11 @@ DataHub's own UI beside obsel's page.
 
 The rules that make the flags trustworthy:
 
-- A re-run that produces identical bytes marks nothing. Staleness is decided by fingerprint
-  comparison, never by "a write happened". Proven at forty tasks: a byte-identical re-run marked
-  zero of 40.
+- A re-run that produces the same output marks nothing. Staleness is decided by fingerprint
+  comparison, never by "a write happened". "The same" is the fingerprint's word: rows are sorted
+  before hashing and columns the task registered as volatile are excluded, so a re-run differing
+  only in row order or only in a load timestamp counts as identical. Proven at forty tasks: an
+  identical re-run marked zero of 40.
 - Work in flight is never judged. A mid-swarm change marked 8 finished tasks in a measured
   13,349 ms while 9 agents were still running, and none of the nine was touched.
 - Flags clear only through redone work. There is no route and no tool that clears a flag, because
@@ -47,10 +49,22 @@ The rules that make the flags trustworthy:
 
 Forty real Codex agent sessions build a pipeline over one week of real NYC yellow-taxi trips
 (2,100 rows, sha256-pinned, provenance documented), concurrently, peak 8 at once, 252.6 s wall
-clock. One agent re-runs with a renamed column mid-swarm. obsel marks exactly the nine downstream
-tasks, out to three hops, and the thirty tasks on other ground stay green. Then the repair: obsel
-redoes only the flagged work, in parallel, and every time a redo lands identical it cancels the
-downstream redos that are now provably unnecessary. Measured: 5 of 8 redone in 42.4 s against
+clock. One agent re-runs with a renamed column, and how much that reaches depends on how much has
+finished, which is the product rather than a caveat about it. Three measured runs, each named
+because they give different counts:
+
+- **Settled board, 2026-07-24.** `daily_trips` renamed its column with every task complete: **9 of
+  40** marked out to three hops in **3968 ms**, the other 31 untouched, all nine tags confirmed in
+  DataHub.
+- **Mid-swarm, the same day.** The same rename while **9 agents were still in flight**: **8 of 40**
+  finished tasks marked in **13,349 ms**, five direct readers and three transitive, and not one of
+  the nine running agents touched. `report_city` finished after the cascade on inputs that had not
+  moved and was correctly left alone.
+- **The run the video is cut from.** The change marked **7 of 40**, detection **658 ms**.
+
+Then the repair, from the 8-flag page: obsel redoes only the flagged work, in parallel, and every
+time a redo lands identical it cancels the downstream redos that are now provably unnecessary.
+Measured: 5 of 8 redone in 42.4 s against
 roughly 188 s to redo everything, that baseline estimated from each task's own last measured run
 and labeled as an estimate everywhere it appears.
 
@@ -88,11 +102,12 @@ metadata platform that outlives them.
 
 ---
 
-## 2. Upstream issue comment draft
+## 2. Upstream issue comment, posted 2026-08-01
 
-For [datahub-project/datahub#18497](https://github.com/datahub-project/datahub/issues/18497),
-which documents the symptom without the cause. Full detail with reproductions in
-[`upstream-contributions.md`](upstream-contributions.md).
+Posted on [datahub-project/datahub#18497](https://github.com/datahub-project/datahub/issues/18497),
+which documented the symptom without the cause; the matching fix is open as
+[PR #18810](https://github.com/datahub-project/datahub/pull/18810). Full detail with reproductions
+in [`upstream-contributions.md`](upstream-contributions.md).
 
 > Root cause and a one-line fix, found while using the CLI from an AI agent.
 >

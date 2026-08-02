@@ -2,11 +2,14 @@ import { NextResponse } from "next/server";
 
 import { registerTask } from "@/src/server/coordinator/engine";
 import { RegisterBody } from "@/src/server/http/register-body";
-import { parseBody } from "@/src/server/http/route";
+import { parseBody, refuseUnauthorized } from "@/src/server/http/route";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
+  const refusal = refuseUnauthorized(request);
+  if (refusal) return refusal;
+
   const body = await parseBody(request, RegisterBody);
   if (!body.ok) return body.response;
   const parsed = body.body;

@@ -175,7 +175,7 @@ describe("a real cascade writes itself into the ledger", () => {
 
     /*
      * The repair, as the demo performs it: the flagged task nearest the change
-     * re-runs and its own table comes back byte-identical, so obsel clears the
+     * re-runs and its own table comes back identical, so obsel clears the
      * flags on the work built on it without those tasks running at all.
      *
      * `build_revenue` rather than `clean_orders`. Reverting the origin table would

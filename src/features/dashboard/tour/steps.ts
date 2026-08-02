@@ -277,9 +277,9 @@ export const TOUR: readonly TourStep[] = [
    * asked of them.
    *
    * A `read` step. Every act in this tour waits on the board genuinely changing,
-   * and opening an erasure request is an operator action that writes to the
-   * ledger with a token the browser does not hold. An act that could never
-   * complete would strand a reader at the end of the tour.
+   * and opening an erasure request is kept an operator action for the reasons
+   * `erasure-tab.tsx` records. An act the board offers no control for could
+   * never complete, and would strand a reader at the end of the tour.
    *
    * The wording is held to the same rule as the panel itself: what somebody
    * attested, never what is true.

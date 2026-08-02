@@ -53,9 +53,9 @@ test.describe("erasure coverage on the board", () => {
     await expect(body).toContainText("which of the assets their data reached");
     await expect(tab(page)).toHaveCount(0);
 
-    // The way to open one, as a command rather than a button. Opening a request
-    // writes to the ledger and the browser holds no token for that, so a button
-    // here could not work.
+    // The way to open one, as a command rather than a button. The board could
+    // offer one now that it holds a pasted token and deliberately does not;
+    // `erasure-tab.tsx` records the two reasons.
     await expect(body.locator("code")).toContainText("/api/erasure");
   });
 

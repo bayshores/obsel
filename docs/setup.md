@@ -118,6 +118,22 @@ agent CLI, and obsel needs its tag registered in DataHub. Each item is genuinely
 machine every couple of seconds, the ones already done are ticked, and anything missing shows the
 exact command to run. Work down the list and it empties.
 
+**One value you paste in.** Every route that changes something wants a bearer token, so the buttons
+below need one. `cp .env.example .env.local` leaves `OBSEL_API_TOKEN` empty; put a value there,
+restart the app, and paste the same value into the field at the top of the page's panel. The page
+keeps it. `scripts/start.sh` fills the file in for you, and either way the value stays something you
+carry across rather than something the server hands the browser: a route that answered with the
+token would mean anyone who can load the page can read it.
+
+```bash
+# a token, if the file's line is still empty
+printf 'OBSEL_API_TOKEN=%s\n' "$(openssl rand -hex 24)" >> .env.local
+grep OBSEL_API_TOKEN .env.local        # then paste this value into the page
+```
+
+The demo agents need no such step. obsel spawns them, and they inherit the token from its
+environment; a terminal run of `python -m agents.run` finds it in `.env.local`.
+
 Once it does, the whole demo is buttons: set up the demo agents, put them to work, re-run one
 identically, change a requirement upstream, reset. Each button runs the same `agents.run` command
 listed in step 8 below, verbatim, and streams that step's own output onto the page.
@@ -231,7 +247,9 @@ flagged with the columns named — no agent CLI, no terminal, about fifteen seco
 The browser still hashes nothing. The button posts to `/api/tasks/report`, which runs
 `agents/report.py`, which calls the same `mcp_core.completion_body` the MCP door calls, which hashes
 through `agents/fingerprint.py`. A second implementation of that in the browser would be a second
-definition of what counts as a change. What the bench does not do is read a file: you type the rows,
+definition of what counts as a change. That chain is also why the route is token-gated: the child it
+spawns completes the task with the server's own token, so an open route was a way to have a flag
+cleared by replaying a task's recorded rows. What the bench does not do is read a file: you type the rows,
 so there is no CSV to parse. For your real files, reporting stays with whatever runs your work,
 which is what the rest of this section covers.
 

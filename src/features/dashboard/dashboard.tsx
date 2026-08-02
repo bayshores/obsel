@@ -36,6 +36,7 @@ import { joining } from "./joining/joining";
 import { Lineage } from "./graph/lineage";
 import { yourData } from "./your-data/your-data";
 import { PulseDot } from "./mmux";
+import { useToken } from "./token/use-token";
 import { TourPanel, TourOpener } from "./tour/tour-panel";
 import type { TourTarget } from "./tour/steps";
 import { useTour } from "./tour/use-tour";
@@ -97,6 +98,9 @@ export function Dashboard() {
    */
   const [graphMode, setGraphMode] = useState(false);
   const erasure = useErasure(activeTab === "erasure" || graphMode);
+  // Read here rather than in the guide panel, because the guide's view is a pure
+  // function of one input object and this is one of the facts it decides on.
+  const { token } = useToken();
 
   /*
    * The change history, read only while its tab is open.
@@ -154,6 +158,7 @@ export function Dashboard() {
     tasks,
     snapshotAt: data?.snapshot.at ?? null,
     activity,
+    hasToken: token !== null,
   };
   const guideView = guide(guideInput);
 

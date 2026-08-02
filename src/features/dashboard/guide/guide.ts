@@ -96,7 +96,7 @@ export function guide(input: GuideInput): GuideView {
 }
 
 function stageOf(input: GuideInput, walked: boolean): StageView {
-  const attention = lastStepProblem(input.activity);
+  const attention = tokenToPaste(input) ?? lastStepProblem(input.activity);
   const running = input.activity?.running ?? null;
 
   // While a launched step is live, the buttons go away rather than grey out. The
@@ -129,6 +129,32 @@ function stageOf(input: GuideInput, walked: boolean): StageView {
 }
 
 /**
+ * The line a board shows when the server has a token and this browser does not.
+ *
+ * An `attention` line rather than a blocker, and the difference is deliberate.
+ * The four prerequisites in `failedChecks` are about this machine being unable
+ * to run the demo at all, so they replace the stage: there is nothing else to
+ * report. A missing token in the browser breaks only the writes. Every read
+ * still works, the graph is still true, and the flags on it still mean what
+ * they say, so holding a settled board on a setup screen would be describing
+ * the swarm by a fault that is not the swarm's.
+ *
+ * It is on every stage, which is what `attention` is for, and it is silent when
+ * the server has no token: `preflight.token` is already saying so from the
+ * checklist, and setting it there is what makes pasting here possible. Two
+ * sentences pointing different directions is the failure `checkVocabulary`
+ * avoids the same way.
+ */
+function tokenToPaste(input: GuideInput): string | null {
+  const preflight = input.activity?.preflight;
+  if (!preflight?.token.ok || input.hasToken) return null;
+  return (
+    "This obsel has an API token and this browser has not been given it, so every button here " +
+    "would be refused. Paste it into the token field above."
+  );
+}
+
+/**
  * Prerequisite failures that would block the user's next move.
  *
  * DataHub itself is absent from this list: if it were down, the swarm read
@@ -144,6 +170,13 @@ function failedChecks(input: GuideInput): Blocker[] {
   if (!preflight.runner.ok) blockers.push({ name: "runner", check: preflight.runner });
   if (!preflight.vocabulary.ok) blockers.push({ name: "vocabulary", check: preflight.vocabulary });
   if (!preflight.uvx.ok) blockers.push({ name: "uvx", check: preflight.uvx });
+  /*
+   * The server having no token is a blocker like the four above: every mutating
+   * route answers 503, so nothing the guide offers can run. The browser not
+   * having been given one is NOT here, on purpose — see `tokenToPaste`.
+   */
+  if (!preflight.token.ok) blockers.push({ name: "token", check: preflight.token });
+
   return blockers;
 }
 

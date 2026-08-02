@@ -10,7 +10,10 @@ Nothing in this file is filed upstream without explicit owner approval.
 
 ## 1. `datahub datapack` CLI crashes in non-TTY contexts, root cause identified
 
-**Status:** root cause identified locally. Upstream issue already exists; no fix proposed there yet.
+**Status:** filed upstream 2026-08-01 with owner approval. The root-cause analysis is posted as
+[a comment on #18497](https://github.com/datahub-project/datahub/issues/18497#issuecomment-5155140930),
+and the one-line fix plus regression test is open as
+[datahub-project/datahub#18810](https://github.com/datahub-project/datahub/pull/18810).
 
 **Upstream issue:** [datahub-project/datahub#18497](https://github.com/datahub-project/datahub/issues/18497),
 titled "`datahub datapack` fails: missing packaged resource `DATAPACK_AGENT_CONTEXT.md`
@@ -99,9 +102,9 @@ the code path that reads it fires only when stdout is not a TTY, which is exactl
 invokes the CLI. The failure is therefore invisible to a human at a terminal and guaranteed for the
 audience the file was written for.
 
-### Owner action required
+### Owner action
 
-Filing a PR against `datahub-project/datahub` is an outward-facing action and has not been taken.
+Taken 2026-08-01: the owner approved filing, and the PR above is open.
 
 ---
 
@@ -211,3 +214,24 @@ made the synthetic-overlay contribution look worthwhile. It no longer applies to
   `SOC2 Auditable`, `Email Address`, `Phone Number`, `First Name`, `Last Name`. obsel cannot mint
   tags at runtime (see `environment-findings.md` §6.2), so knowing which vocabulary already exists
   matters; the write round-trip was performed against one of these real tags.
+
+---
+
+## 4. Issues filed from the environment findings, 2026-08-01
+
+Filed with owner approval, each from a dated reproduction in
+[`environment-findings.md`](environment-findings.md):
+
+- [datahub-project/datahub#18808](https://github.com/datahub-project/datahub/issues/18808):
+  `GET /entities/<urn>` returns a fabricated snapshot for URNs that were never written (§1).
+- [datahub-project/datahub#18809](https://github.com/datahub-project/datahub/issues/18809):
+  `searchAcrossLineage` returns empty, not an error, for entities the search index has not
+  indexed yet (§7).
+- [acryldata/mcp-server-datahub#167](https://github.com/acryldata/mcp-server-datahub/issues/167):
+  `uvx mcp-server-datahub@latest` resolves to a read-only 0.4.0 that silently ignores
+  `TOOLS_IS_MUTATION_ENABLED` (§2, §3).
+- [Comment on acryldata/mcp-server-datahub#152](https://github.com/acryldata/mcp-server-datahub/issues/152#issuecomment-5155145052):
+  the telemetry stall also blocks `initialize` for a measured 162.5 s, with a one-frame
+  reproduction (§14).
+
+All six links are in the Devpost submission's contributions field.

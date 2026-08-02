@@ -47,7 +47,7 @@ def build_prompt(
 
     The same words go to every runner. A prompt tuned per CLI would make the two
     runners' outputs incomparable, and the demo's whole quiet case is that a
-    re-run produces byte-identical work.
+    re-run produces identical work.
 
     **The last paragraph is a security control, not advice.** The tables an agent
     reads here are not obsel's: the taxi seeds are third-party public data, and

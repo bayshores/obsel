@@ -126,13 +126,23 @@ the others mean something.
   button.
 - **Restoration: an identical redo clears what it proves.** The semantics change this required was
   approved by the owner on 2026-07-24. When a _flagged_ task redoes its work and an output comes
-  back byte-identical, the tasks downstream of that output were flagged for ground that never
+  back identical, the tasks downstream of that output were flagged for ground that never
   moved, and the engine clears them itself: properties nulled, the DataHub tag removed, a reason
   recorded in the trace and in the completion reply's new `restored` list. The rule is one pure
   function, `restoredBy` in `staleness.ts`, and it prefers a kept flag to a wrong clear: the
   producer must be settled, no reader observation may be standing, the mark must not name that very
   table, and the producer's previous report must predate the reader's finish. Nothing can request
   it. No route and no MCP tool takes a task to clear.
+
+  **"Identical" throughout this file means equal fingerprints, not equal bytes.**
+  `agents/fingerprint.py` sorts the serialised rows before hashing and excludes every column the
+  producing task registered as volatile, so two tables differing only in row order, or only in a
+  load timestamp declared at registration, compare identical. A renamed or dropped volatile column
+  still moves the schema fingerprint. These entries said "byte-identical" until 2026-08-02, which
+  claimed more than the comparison behind them establishes; where a claim really is about bytes
+  the word is kept, and it is always about a stored record or a rendered string rather than about
+  a table.
+
 - **The joining panel.** A panel under the graph carrying a four-step checklist that ticks itself
   off from the swarm as a visiting agent declares, announces, reports and gets an answer, plus the
   `claude mcp add obsel …` command with this machine's real absolute path (served by the activity
@@ -522,10 +532,12 @@ typed anywhere, the same button ran the step to completion: **exit 0 in 47.7 s**
 hop, `write_report` and `write_docs` at two, neither of which ever read `clean_orders`.
 
 What this establishes: the agents inherit the token from the server's environment without an
-operator handling it, and the board's own buttons stay reachable because `register`, `report` and
-the two demo routes are deliberately ungated. What it does not: the branch that leaves an existing
-non-empty token alone, and the three new live test files, both recorded under
-[`coverage.md`](coverage.md)'s "Not covered".
+operator handling it. What it does not: the branch that leaves an existing non-empty token alone,
+and the three new live test files, both recorded under [`coverage.md`](coverage.md)'s "Not covered".
+
+The second half of that run has since changed. `register`, `report` and the two demo routes were
+ungated when it was taken, and are gated now; the board carries the token an operator pastes into
+its token field. See "The gate the board's own routes did not have" below.
 
 - **The staleness rules**, by 65 deterministic tests in `tests/staleness.test.ts`. About half assert
   that nothing happens, which is deliberate, because the failure that kills this kind of tool is a
@@ -644,7 +656,7 @@ non-empty token alone, and the three new live test files, both recorded under
     step; the averaging precision is now pinned in `pipeline.py`, the third instruction pinned for
     the same class of reason.
   - **The second, after the pin, is the money moment.** One Codex session redid `build_revenue`
-    over the renamed table, the output came back byte-identical, and obsel cleared the other two
+    over the renamed table, the output came back identical, and obsel cleared the other two
     itself, each with its reason: `redid 1 of the 3 flagged task(s) in 30.0 s`,
     `obsel cleared 2 without a re-run: write_docs, write_report`, restoration confirmed end to end
     in a measured 1035 ms, the step exiting 0 in 30.2 s. Both runs' closing claims were read back
@@ -655,7 +667,7 @@ non-empty token alone, and the three new live test files, both recorded under
   with `3 of 3 tagged`; the repair GIF holds the strip's two `cleared` lines with their reasons.
   The `change` and `repair` steps behind them exited 0 in 49.9 s and 30.2 s.
 - **The cascade, end to end against a live DataHub** on 2026-07-21. A schema-only change posted to
-  `POST /api/tasks/complete`, with content byte-identical and schema moved, marked exactly
+  `POST /api/tasks/complete`, with content identical and schema moved, marked exactly
   `build_revenue` (1 hop), `write_report` and `write_docs` (2 hops), each with its reason, in a
   measured **6867 ms** including the bounded-poll confirmation of every DataHub write. Re-posting
   the identical fingerprint returned `changedOutputs: []`, marked nothing new, and left all three
@@ -729,7 +741,7 @@ non-empty token alone, and the three new live test files, both recorded under
   - `run`, four Codex sessions in **134.0 s**, then `GET /api/swarm` read back to confirm 4 of 4
     complete with no marks. obsel held no previous fingerprint for any output, so it correctly
     marked nothing.
-  - `rerun-same`, where `clean_orders` re-ran, produced a byte-identical table, and obsel reported
+  - `rerun-same`, where `clean_orders` re-ran, produced a identical table, and obsel reported
     **0 changed outputs and 0 marks**, confirmed in **60 ms**. This is the negative case the whole
     product rests on: a tool that flags the pipeline on every scheduled re-run is a tool people mute.
   - `change`, where one column was renamed, `order_total` → `order_total_usd`. obsel called it
@@ -790,7 +802,7 @@ non-empty token alone, and the three new live test files, both recorded under
   Run while recording the browser fixtures, which is why it is here: these are observations from
   work with another purpose, not a benchmark set up to produce them.
   - **An identical re-run at forty tasks marked nothing.** `scale-change` was run against a page
-    already carrying the rename. The agent produced a byte-identical table, obsel reported zero
+    already carrying the rename. The agent produced a identical table, obsel reported zero
     changed outputs and **zero marks across all 40**, and the producer's recorded previous
     fingerprint stayed at the version before the rename rather than collapsing to equal the
     current one. That is the documented behaviour of both rules, seen at scale without being
@@ -2586,7 +2598,7 @@ All four steps exited 0.
 | Step         | Measured                                                                            |
 | ------------ | ----------------------------------------------------------------------------------- |
 | `run`        | four agents in **132.6 s**; 56.0 s, 29.2 s, 23.7 s, 23.5 s each                     |
-| `rerun-same` | output **byte-identical**, 0 changed outputs, 0 marks                               |
+| `rerun-same` | output **identical**, 0 changed outputs, 0 marks                                    |
 | `change`     | called `schema`, marked exactly 3: 1 hop, 2 hops, 2 hops; 3 of 3 tagged in DataHub  |
 | `repair`     | 1 redone identical in 32.1 s, and obsel cleared the other 2 without re-running them |
 
@@ -2596,7 +2608,7 @@ passed through unchanged.
 Three things worth naming separately, because they are the properties that are hard rather than the
 ones that are visible:
 
-- **`clean_orders` came out byte-identical across two live Claude Code sessions**, content hash
+- **`clean_orders` came out identical across two live Claude Code sessions**, content hash
   `539b509722e8` both times, so obsel stayed silent. That is the quiet case working against a live
   model, and it is the same content hash the Codex runs produced, because the hash is taken over a
   canonicalised table built from a fixed seed.
@@ -2831,7 +2843,7 @@ dropped it would otherwise change nothing a test could see. `pnpm verify` green.
 
 **Not measured.** Every timing and fingerprint in this document was produced by runs made before this
 sentence existed. The instruction is about how to treat input, not about what to compute, and the
-byte-identical re-run property rests on `canonicalise_numbers` rather than on the model repeating
+identical re-run property rests on `canonicalise_numbers` rather than on the model repeating
 itself — but no live run has been made since the change, so the recorded numbers describe the earlier
 prompt. A `run` and a `rerun-same` against a live DataHub would settle it.
 
@@ -2882,8 +2894,9 @@ that the deciding half turns on.
 **Duplication, found with `jscpd` rather than by eye: eight clones, then zero.** The largest was
 seven mutating API routes, each carrying the same thirteen lines of gate, parse, run, and the copies
 had already begun to differ in the wording of their failures. It is `src/server/http/route.ts` now.
-Which routes are gated is unchanged: `register` and `report` are ungated for the reasons `auth.ts`
-states and use only the body parser, so a body they refuse still reads like any other.
+`register`, `report` and `demo/reset` cannot compose the whole of it — the first two do their own
+work between parsing and running, and the third answers in a shape of its own — so each gates
+through `refuseUnauthorized` from the same module, which is what keeps the four refusals identical.
 
 Three more, in the same pass. The three-line pairing of a task's remembered instruction with the
 column contract recorded beside it appeared in `rerun-same`, the serial repair and the pooled one,
@@ -2959,7 +2972,7 @@ than `both`, and the content hash `539b509722e8` was identical before and after,
 only the column name moved.
 
 **The GIFs, from a second run, and they have to be.** `change` only ever renames toward
-`order_total_usd`, so on a board that has already been changed the re-run is byte-identical, obsel
+`order_total_usd`, so on a board that has already been changed the re-run is identical, obsel
 correctly marks nothing, and the step fails its own assertion. That is what happened on the first
 attempt at the GIFs, and `record.mjs` refused to save a take of it — the guard working. A `reset`
 and `run` (125.5 s) restored the original column, and the recording drove its own `change` and
@@ -3021,7 +3034,7 @@ The reference video lock is still of the old layout and still has to be re-shot.
   guaranteed identical between runs. See the next point for the instances already found and fixed,
   and expect the possibility of others in categories nobody has hit yet.
 - **Restoration has fired live exactly once.** The rule is proven deterministically and against the
-  real DataHub in the suites, but the on-camera version, a live Codex redo landing byte-identical
+  real DataHub in the suites, but the on-camera version, a live Codex redo landing identical
   and two flags coming off without re-runs, has one observation behind it, from the run the repair
   GIF shows. The other path, a redo landing different and the repair absorbing the new cascade, also
   has one. The demo script says what to do when either happens on the day, and neither is a broken
@@ -3083,3 +3096,1822 @@ The reference video lock is still of the old layout and still has to be re-shot.
   before anything is cut from it. Nothing has been re-recorded yet.
 - The README's images and GIFs were of that same previous layout and were retaken on 2026-07-30
   against the current one. The video lock is the only capture still showing the old page.
+
+### The submission video is cut in Remotion, and two cuts of it broke the three-minute rule (2026-07-30)
+
+**What is built.** `video/` is a Remotion composition and `scripts/` carries the four steps that
+feed it: `video.mjs` records the take, `datahub-broll.mjs` records DataHub's own interface,
+`term-render.mjs` replays asciinema casts of the real startup commands through xterm.js, and
+`trailer-assets.mjs` stages all of it into a working directory outside the repository.
+`trailer-finish.mjs` stamps the colour tags and refuses a file that breaks a submission rule.
+The rendered video was **2:54.3** on this date, measured by ffprobe. It is longer now; the
+current runtime and what has and has not been measured on it are in the 2026-07-31 entry below.
+
+**Two earlier cuts were over the cap and were not caught by anything.** `hackathon.md` requires
+the video under three minutes and `docs/demo-script.md` targets 2:55; both cuts assembled by the
+previous ffmpeg pipeline ran **3:09**, because the timeline was built around the music's opening
+section rather than around the rule. Nothing in that pipeline checked. `trailer-finish.mjs` now
+does, and its own gate is the reason the cut on this date ended where it did: 174.229 s is a beat
+of the measured grid, 88 beats after the second drop, and a phrase boundary with several seconds
+of headroom under the cap. The owner's later call was that headroom nobody asked for is not worth
+a phrase, and the end moved to 179.861 s, the phrase the track actually ends on under the cap.
+
+**The camera is the reason for the rewrite.** The ffmpeg version expressed a close-up as a fixed
+`crop` per segment, so the only transition between two framings was a cut and every push-in
+arrived already arrived. In Remotion the camera is a keyframed rectangle interpolated per frame
+and applied as one transform, so a move eases and can begin in one shot and finish in the next.
+It also made a single frame renderable in about twenty seconds instead of a ten-minute pass,
+which is how the next two entries were found at all.
+
+**One defect that got past the still-frame loop and into a delivered file.** The three terminal
+shots index into a rendered frame sequence by a `fromCast`/`toCast` pair, and the first version
+carried placeholders: `0 → 1`, then `1 → 0`, then `0 → 0`. Rendered exactly as written, that is
+the whole two-minute quickstart in two seconds, then the same footage **backwards**, then two
+seconds frozen on an empty prompt — 8.4 seconds of the opening. Every still sampled during the
+build happened to fall inside the first shot, where the mapping looks plausible, so nothing
+caught it until a frame was pulled from the finished file at 16 s. `term-render.mjs` now writes
+a `meta.json` beside its frames carrying `preludeFraction`, the point where the typed command
+ends, because that arithmetic lives there and a consumer that re-derived it would drift silently.
+The plan refuses a cast reporting no prelude at all.
+
+**Three defects the still-frame loop caught before any full render.**
+
+1. `trimBefore` on `OffthreadVideo` counts frames of the **composition**, not of the file. The
+   recordings are 25 fps and the composition is 30, so converting at 25 looked obviously correct
+   and seeked the cascade **27 seconds early** — a board that rendered perfectly and showed the
+   wrong minute of the run. Caught by reading one still against what the dock's log said.
+2. A cue ended before it started, because the board shot had been given three seconds and needed
+   two lines. The plan refuses that outright rather than rendering a cue of negative length.
+3. At a zoom ceiling of 2.1 the board's 13 px labels were visibly soft. The source is 1920 wide
+   and so is the composition, so every close-up is an upscale; the ceiling is now 1.5.
+
+**The cascade lands on the drop because the repaint is measured, not assumed.** `timeline.json`
+records `marksMs`, the moment the API first reported a mark. The graph turns amber **440 ms**
+later on this take, after the poll behind it and the board's own render.
+`trailer-assets.mjs` finds the repaint by scanning raw RGB out of ffmpeg for a warm-tone onset
+(amber has R > G > B, which separates it from obsel's rose and green without depending on an
+exact value surviving the downscale) and writes `amberPaintedMs`. A hand scan at 40 ms
+resolution put it at 164.72 s and the script reports 164.71 s. Aimed at `marksMs`, the single
+moment the edit is built around sat a beat and a half late.
+
+**What was measured on the delivered file of this date**, by `scripts/trailer-finish.mjs`:
+duration 174.3 s
+against the 180 s cap, all four colour fields `tv,bt709,bt709,bt709` (Remotion's
+`--color-space=bt709` sets the matrix and the range and leaves primaries and transfer unset, so
+they are restamped through a bitstream filter that copies the video rather than re-encoding it),
+integrated loudness **-14.03 LUFS**, and both a video and an audio stream present.
+
+**Built against Remotion's own agent skills, installed 2026-07-30** (`npx skills add
+remotion-dev/skills`, into `.agents/skills/`). Three things changed to follow them: `<Video>` and
+`<Audio>` from `@remotion/media` in place of `OffthreadVideo`, `loadFont` from `@remotion/fonts`
+in place of a hand-rolled `FontFace` and `delayRender` pair, and the camera's `scale`/`translate`
+CSS properties in place of a `transform` string. `loadFont` is called at module scope and
+deliberately not awaited: it takes its own `delayRender` handle, and the bundler targets
+chrome85, where top-level await is a build error.
+
+**One difference between the two media backends, measured and left alone.** At the drop frame,
+`OffthreadVideo` reproduces ffmpeg's decode of the intermediate exactly, pixel for pixel, and
+`@remotion/media` renders it about **2/255 lighter** on every channel. Tagging the intermediate
+bt709/tv does not reconcile them, so the difference is in the decoder rather than in missing
+metadata. The tags were kept anyway, because an intermediate that describes its own colour is
+worth having; `@remotion/media` was kept because it is what Remotion's own skill prescribes and
+its seeking lands the cascade on the right frame. On a board whose background is `#0b0a0e` the
+lift is two levels and below visible.
+
+**Not claimed.** The cut has not been reviewed by the owner, is not uploaded, and
+`docs/demo-script.md`'s shot table still describes the narrated cut this one does not follow.
+The take under `out/take5/` is this run: the change marked **7 of 40**, detection **658 ms**,
+`6 of 6` written into DataHub, both steps exit 0.
+
+### A dissolve out of a timelapse put two moments of the same screen on screen at once (2026-07-31)
+
+**The report.** The owner watched the cut and described "a weird hiccup moment at around 2:27
+where there's just a lot of things happening at once".
+
+**What it was.** `Trailer.tsx` crossfades by keeping the outgoing shot mounted for the overlap
+with its source **still playing**, while the incoming shot fades up over it. That is correct
+between two shots running at the same rate: they separate only by whatever the cut skipped, which
+is the thing the dissolve exists to soften. `lateEnd` joined a **15.2x** timelapse to a **1x**
+shot of footage that continues into it. Over the 0.8 s overlap the outgoing copy travelled 12.2
+source seconds — through the recorder's own zoom of the board and the details panel opening —
+against 0.8 s for the incoming copy, so the frame carried two different minutes of the same page
+at two different app zoom levels, superimposed. A frame pulled at 2:27.5 shows both, and the
+board's node labels are legible at both sizes at once.
+
+**It was in the cut twice.** `repairEnd` had the same shape at 7.1x against 1x, 4.9 s of
+divergence. Nothing distinguished either boundary from the ones that are correct, because the
+`fades` list records _where_ a dissolve goes and said nothing about what is on either side.
+
+**The rule now checked in `buildPlan`.** A dissolve may not join two moving pictures whose speeds
+differ by more than 0.25x. The error names both shots, both rates, and the seconds of source they
+separate by. Both boundaries were arithmetically continuous in the first place, so there was no
+seam for a dissolve to hide; the dissolve was inventing one.
+
+**What replaced them.** A `timelapse()` helper returns a sped-up stretch as several shots: the
+body, then two beats each slower than the last, geometrically, so the stretch **decelerates into
+life speed** and the cut to 1x carries no change of velocity at all. The body speed is solved by
+bisection rather than chosen, because the run must still cover exactly the same source span or
+the next shot no longer continues from where this one left off — so the taper makes the body
+faster, not the stretch shorter. Every boundary is a real beat off the measured grid, so the
+deceleration is in time with the track and the existing "no cut off the grid" check passes
+unchanged. Measured on the rebuilt plan: **17.0x → 6.6x → 2.6x → 1x** at 2:27, and
+**7.9x → 4.0x → 2.0x → 1x** at 2:45.
+
+**Two camera faults found in the same pass, both at the same boundary.**
+
+1. The camera arrived at 1.03x exactly on `lateEnd` and then pulled back out to 1.01x before
+   pushing in again — a reversal of direction on the one frame that already carried the cut and
+   the speed change. It is now one unbroken push across the whole timelapse and on into the panel.
+2. Leaving the details panel for the repair button was a 0.2 s move covering about 660 composition
+   pixels, and it ran **underneath** the `reasonEnd` dissolve, so both pictures smeared at once. It
+   now starts 0.9 s earlier, while the panel is still the subject, and lands on the cut.
+
+**One caption moved for the same reason.** The line at `reasonEnd` faded in word by word 0.1 s
+into that dissolve. It now starts after the dissolve has finished, and was shortened so the later
+start still leaves it above its reading time without running past the next cut.
+
+**How the defect was found and confirmed.** A script builds the plan and reports every dissolve
+whose two sides move at different rates, and every moment where three or more edit events land
+inside 0.6 s. It named 2:27.13 and 2:45.43 before anything was rendered. A 91-frame slice at half
+scale confirmed the double exposure, and the same slice after the change shows a single picture
+on every frame with the cut invisible. The check now in `buildPlan` fails the build rather than
+the eye.
+
+**Measured on the preview render:** 179.584 s by ffprobe, at `--scale=0.5`.
+
+**Not measured.** No final-quality render has been made of this cut, so nothing in the paragraph
+above about colour tags or loudness has been re-measured since 2026-07-30; those figures belong
+to the 174.3 s file. `trailer-finish.mjs` has not been run on it.
+
+### The camera's depth reversed twenty-three times, and none of them was authored (2026-07-31)
+
+**The report.** The owner, for the second time in the project, asked for a pulsing effect to stop:
+"I hate this stupid pulsing animation where the depth goes back and forward." The first time it was
+read as being about a break, and a scale oscillation there was removed. It was in two places.
+
+**The one that was obvious.** `Interlude` carried a scale oscillation of one cycle per bar, 1.2 %
+peak to peak. Removed, along with the only `Math.sin` in `video/`. Every animation in `Screens.tsx`
+is now one-way: something arrives and stays.
+
+**The one that was not, and was much larger.** `hold()` ends every held framing with a `drift` that
+pushes about 3 % IN, so nothing is ever quite frozen. The next framing then arrives at its own base
+depth, which is the same or wider, so the sequence reads **in, out, in**. A script that walks the
+camera track and reports every change of zoom direction found **23** of them, up to 0.063x per turn.
+None was written down anywhere; they were a by-product of the helper.
+
+**The rule now checked in `buildPlan`.** A drift may change depth only when the move that follows it
+continues in the same direction, in which case it is a wind-up into that move. Otherwise its depth
+change is dropped and it becomes a lateral lean toward wherever the camera goes next, so the hold
+still moves but the depth is monotone from arrival to departure. Turning the drift _outward_ instead
+was tried first and only relocated the fault to the arrival, at the same count. Where a lean would
+carry a highlight out of shot the hold stops still instead, which the existing containment check
+detects: the two run counters sit two pixels off the page's bottom edge and any motion at all around
+them puts their bracket over the boundary.
+
+**Result, measured on the rebuilt plan: 23 reversals down to 7.** All seven are the same shape — the
+camera arrives wide and then creeps in between 0.5 % and 2.6 % over six seconds or more — and all
+seven sit on an arrival, where the motion changes anyway.
+
+**A third one, in the geometry rather than the motion.** The left-to-right travel across the board
+framed each third of the graph on its own content, and the two thirds are not the same width, so a
+4 % depth change sat in the middle of what should be a pure lateral pan. Both are now taken at the
+wider of the two depths, so only the position changes.
+
+**Moves that were fast enough to strobe.** The same script reports peak framing speed in composition
+pixels per frame. Five moves were over 50, the worst a **74 px/frame lateral pan** across a board of
+13 px labels. A pan and a push of the same measured speed do not read the same — in a push the
+picture's centre barely moves and only the edges travel — so the pans were the ones worth slowing.
+Every move in the cut is now **at or under 46 px/frame**, by lengthening five of them between 0.3 and
+0.7 seconds. Two highlights moved with their camera, so that each appears only once its framing has
+landed rather than during the travel.
+
+**One thing checked and deliberately left alone.** Both recordings are genuinely 25 fps — the
+Chromium screencast captures at 25, so there are only 25 distinct pictures per second of real time —
+against a 30 fps composition, which is a 5:6 cadence and a real source of judder. Rendering the
+composition at 25 would fix it for 1x footage and make every camera move 20 % faster per frame,
+which is the dominant motion in this video. Measured on the delivered file with `mpdecimate` over
+three windows: **180 of 180, 179 of 179, and 120 of 120 frames differ from the one before**. The
+camera's per-frame transform changes on every frame and dithers the cadence, so the composition
+never emits a duplicate frame. Left at 30.
+
+**Also verified on this pass, with no defect found:** no two caption lines ever occupy the same band
+at once, all four chapter labels cover their sections without a gap, and every cue is above its
+reading time.
+
+**Measured on the preview render:** 179.584 s by ffprobe, at `--scale=0.5`. Nothing final-quality has
+been rendered, and `trailer-finish.mjs` has still not been run on this cut.
+
+### The app is a card lying on a backdrop, and the backdrop is scenery rather than a border (2026-07-31)
+
+**What changed.** The app sits as a rounded card on an animated backdrop, the way a screen
+recording is usually presented. The generated screens — the title, the three breaks, the end card —
+are deliberately **not** on it: they are full bleed on the void, because a break is where the product
+leaves the screen and it cannot do that while still sitting in the product's frame. Verified by
+sampling the corner and the left edge of five frames in the delivered file: the title and all three
+breaks read `#0a0a0f`, and a wide board shot reads a lit rose.
+
+**The first implementation was wrong, and the owner named it.** The card was pinned to the viewport,
+inset an even 34 px, with the camera zooming inside it. That keeps an identical band of backdrop
+showing at every framing, including a 1.85x close-up of one node, which is not how looking at
+anything works. The correct model is that the backdrop and the card are **scenery**: both live inside
+the camera, in page coordinates, and the camera travels over them exactly as it travels over the
+board. The widest framing takes in the card and a band of backdrop; every other framing in the plan
+is a rectangle inside the page, so the backdrop leaves the frame on its own as the camera pushes in.
+No shot has to opt in or out.
+
+**Measured across the cut.** Fourteen sample points spanning the video, each compared against the
+plan's own zoom at that instant:
+
+| zoom             | 0.969–0.976 | 1.13 | 1.20 | 1.40 | 1.44 | 1.50 | 1.57 | 1.64 | 1.85 |
+| ---------------- | ----------- | ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- |
+| backdrop visible | 56–64 px    | 0    | 0    | 0    | 0    | 0    | 0    | 0    | 0    |
+
+**The band is not the same width on all four sides.** At the widest framing it measures **61 px top
+and bottom, 30 px left and right**. That is geometry, not an oversight: the page is 1.939:1 and the
+frame is 16:9, so a 16:9 rectangle taking in the page's full width has spare height above and below.
+Forcing an even band means either cropping the page's sides at the widest framing or padding the card
+out to 16:9, and the second costs 20 % of the board's size at every wide shot.
+
+**The cost, stated.** At the widest framing the board renders at **0.966x** where it rendered at
+1.09x, so the 13 px node labels are about 11 % smaller there. Nothing else changes: every close-up is
+a rectangle inside the page and is back at its full 1.50x or 1.85x, which the pinned-card version had
+also scaled down.
+
+**A shadow that hid the thing it was meant to lift.** The card first carried the shadow a screen
+recording usually has, `0 34px 100px` at two thirds opacity. Against their much larger padding that is
+right; against a 30 px band it filled the whole band with near-black. Sampling the frame showed the
+backdrop present, correctly positioned, and invisible. It is now `0 8px 22px` at 0.55.
+
+**The backdrop does not cycle.** Its three lights travel straight paths driven by position through
+the whole video, so each crosses once in three minutes and none returns. Same rule as the camera's: a
+backdrop that drifted out and back would be the largest pulsing object on screen.
+
+**Banding was checked rather than assumed.** A large smooth gradient in the 30–60 luma range is where
+h264 bands. Margin strips pulled from the encoded preview at `crf=30` and half scale — the worst case
+the pipeline produces — and amplified 9x show smooth gradation with only faint block noise, no
+stepping. No dither was added.
+
+**A check added with it.** The backdrop is drawn from `-SCENE_BLEED` to the page grown by the same,
+and `buildPlan` refuses any camera rectangle reaching past that. Without it a framing wider than the
+backdrop would show the composition's own flat background beside the card, which reads as the
+backdrop having a straight edge in mid-air.
+
+**Not done, and why.** A one-off shot of the app on a laptop screen with the camera panning into it
+was asked about. It is not in this cut: a convincing laptop needs a real rendered or photographed
+asset, and a bezel drawn in CSS would be the one cheap-looking object in the video. The board's
+existing entrance already performs that move — it arrives as a window and expands to fill the card.
+
+### A double border, a break not worth its length, and two clicks nobody could hear (2026-07-31)
+
+**A hairline rectangle standing clear of the terminal it framed.** `term-render.mjs` renders each
+asciinema cast as a bordered window centred on an ink field **1920x990** — the window spans x 160 to
+1759, so 160 px of ink sit either side of it inside the picture. `TerminalShot` then squashed that
+whole picture, padding included, into a 1584x817 box and drew a **second** 1 px border round it. The
+result was a stray outline with a band of ink between it and the terminal. The cast frame is now
+shown at the page's own size with no frame of its own; the window it already contains carries it.
+
+**"658 ms / detection time" is gone.** The owner's call was that the number is not impressive enough
+to carry a break, and that it sat static for four seconds. The number is still in the video at its
+right proportion: the camera pushes onto the run's own counters a few seconds earlier and a caption
+names what they are. The break now carries the thing the cascade could **not** show, because there
+was nothing to see — **"nothing failed."**, then "all seven of those jobs reported success." That is
+why the failure mode is invisible without obsel, and it is the one claim in that stretch a viewer
+cannot read off the screen. The caption at `d2 + 3 beats` was reworded off "reported success" so the
+break owns the phrase.
+
+**Two clicks, placed by arithmetic and levelled by measurement.** The recorder presses two buttons in
+the whole video and both were silent. `plan.clicks` derives each from the same arithmetic the shots
+were cut with — the launch click is what the board shot is cut to land on, and the repair click sits
+400 ms before its shot ends because that is how that shot's source range was built — so neither is
+placed by ear.
+
+The sound is synthesised by `trailer-assets.mjs` rather than sourced: three decaying oscillators and
+a noise transient, so there is no third-party asset to licence or attribute for a tenth of a second.
+
+Levelling it took four measured attempts, and the first three were wrong:
+
+| click gain      | isolated click | window peak | verdict                              |
+| --------------- | -------------- | ----------- | ------------------------------------ |
+| 0.42            | −13.8 dB       | −5.3 dB     | inaudible; adds 0.1 dB to the mix    |
+| 0.7             | −13.8 dB       | −5.0 dB     | still 10 dB under the bed's own peak |
+| 1.6             | 0.0 dB         | **0.0 dB**  | clips                                |
+| 0.9 + 5 dB duck | **−7.0 dB**    | −3.5 dB     | kept                                 |
+
+The click was isolated by differencing the mixed audio against the same render without it; a control
+window with no click differences to −91 dB, which is what makes the other rows trustworthy. The bed
+peaks about −3.5 dBFS where the first click lands and the click's own file has only 2.1 dB of
+headroom, so raising it far enough to clear the music sums past full scale — hence `duckUnderClicks`,
+five decibels out of the bed for a tenth of a second. Delivered file: **−14.0 LUFS integrated, −2.4
+dBFS peak**, both unchanged from before the clicks existed.
+
+**The cursor is a dot, and this cut cannot fix it.** Chromium's screencast does not capture the OS
+pointer, so `video.mjs` injects one into the page — a 14 px rose dot with a glow, which reads as a
+highlight sitting on the interface rather than as somebody using it. It is **baked into the take at
+capture time**, so no change in the edit can alter it. `video.mjs` now draws an ordinary arrow
+pointer instead — white with a dark keyline so it survives both the near-black board and DataHub's
+light pages, with its tip rather than its centre on the pointer's coordinates. **This has no effect
+until the take is shot again**, which is a five-to-seven minute run of real Codex sessions and
+re-measures every timestamp the edit is built on. That is the owner's call, not a fix already made.
+
+### The backdrop is the product's own colour, and the middle break no longer shows the logo (2026-07-31)
+
+**The backdrop was violet, which matched nothing.** It was chosen rather than derived, and the
+owner's note was that it was "a bit too distinct". `app/globals.css` states the product's palette in
+its own words — "one luminous rose" — and names it: `--mm-rose #e85d92`, `--mm-rose-muted #a64d79`,
+`--mm-rose-deep #6a1e55`, with `--mm-lantern #ffd3a6` as the warm one. The backdrop is now those,
+darkened, so it belongs to the thing lying on it. Measured at the frame corners of a wide shot: hue
+inverted from blue-dominant to red-dominant, and luma came **down** from 26–48 to 22–40, against the
+board's own ink at 10. Less loud and still nowhere near black.
+
+**The middle break was the logo, and read as the video ending.** The owner's note: the mark appears
+three times in the cut — title, this break, end card — and meeting it in the middle suggests the end
+has arrived. It was also the least informative of the three breaks.
+
+**What replaced it.** The three things obsel does not have, struck through one per beat, then what it
+does instead: `timers`, `polling`, `subscriptions`, then "obsel runs when an agent reports." All
+three are architecture this repository states outright — no scheduler, no polling, no event
+subscription; it acts only when something reports to it. It is now the only break that **moves**
+rather than assembles, which keeps the three breaks from being one device used three times: a strike,
+a number, a claim.
+
+**Timed to the track, and checked frame by frame.** Each rule is drawn across its word exactly on a
+beat, with the word arriving three tenths ahead so the strike is what lands. A first version put them
+at 0.35 s plus a beat, which is a beat's rhythm sitting a third of a beat off it. Pulled from the
+delivered file at 3.55 fps: the board dissolves out at 65.0 s, `timers` struck at 65.56, `polling` at
+66.13, `subscriptions` at 66.97, the closing line in at 67.54, all four holding to 70.36.
+
+**The break grew from six beats to eight,** because it now carries four lines and the last needs to
+stay up after the third strike. The runtime did not change: `swarmLocked` subtracts the break's length
+from the swarm's, so the extra bar comes out of the sped-up footage's ratio rather than the clock.
+Still 179.584 s.
+
+**One caption removed with it.** "No timers, no polling. obsel waits for reports." was a cue over the
+old break. The break now states this itself, larger and on the beat, and a caption repeating it would
+be the same fact twice on one surface.
+
+**Also in this pass.** The speed label sat at 40 px from the top of the frame, which at the widest
+framing is inside the 61 px backdrop band — a plate floating in the margin beside the app rather than
+on it. Moved to 86. Two stale comments corrected: one still described the interlude as breathing, and
+one justified the window's entrance scale by a 1.09x page magnification that the card geometry
+replaced.
+
+### The video assumed its viewer already knew what it was showing (2026-07-31, overnight)
+
+The owner's note on the previous cut: the click still could not be heard, and the video is hard to
+follow — a judge "will have a hard time figuring out what's going on." Two reviews were run against
+the actual cut, both simulating a cold first watch against extracted frames and the full solved
+timeline, one from a judge's perspective and one from a demo-editor's. They converged on the same
+finding: the video never states what obsel is, what a card on the board is, or what a flag means,
+before using all three. A cold viewer runs behind the video for most of its runtime and finishes
+assembling the missing sentence around the two-minute mark — at the end card, which was the only
+place the definition appeared.
+
+**The definition moved from the last frame to the first fifteen seconds.** The two terminal captions
+now read "obsel records every agent's task in DataHub." and "It flags finished work whose inputs
+changed."; the board reveal names what the pixels are: "A week of taxi analytics. Each card: one
+agent, the tables it reads and writes." — said while the bracket is pointing at exactly one agent
+and its two tables. The setup-is-two-commands fact those captions used to carry is still on screen:
+the commands themselves, and the "2 min of docker, sped up" label.
+
+**One word per concept.** The captions said "stale" and "marked" while the board's own cards say
+"out of date"; and "marked" carried two opposite senses — flagged at the first drop ("nothing
+marked"), shown-as-done at the second ("the board still marked it done"). Both reviews hit the
+collision. The captions now use "out of date" and "flag" and nothing else, matching the pixels.
+Other rewrites for the same reason: "Producers finish. Readers build on them." was the code's
+vocabulary and is now "The first agents finish. Others build on what they wrote."; "Watch these two.
+They have read nothing all run." made two setups collide in one pronoun ("these two" sounded like
+agents, and two agents are the payoff of a different setup) and now quotes the counters it points
+at: "These two counters: nothing detected, nothing written yet."; "Flagged work is redone in
+dependency order." contradicted the on-screen button that says "in parallel" and now quotes the
+panel instead: "Independent redos run at once."; "clears the flags it restored" was compressed past
+what a viewer decodes at speed and is now "One table came back _identical_, so its downstream flags
+cleared."; and "Detection and write-back, measured on this run." had no verb and no number and is
+now "Flagged in 658 ms, written back into DataHub." — 658 ms being what the detection counter on
+screen reads.
+
+**The middle break now teaches the mechanism instead of posing a riddle.** Both reviews called the
+struck-out "timers / polling / subscriptions" the least legible five seconds in the cut: three
+struck words with no verb, at the exact midpoint where a viewer most needs the mental model. It is
+replaced by a three-node schematic in the board's own card idiom: agents A, B, C, all done; "its
+output changes" under A; B flips to "out of date · 1 hop" on a beat, C to "out of date · 2 hops" on
+the next, each arrow recoloring as the flag passes; then "C never read A. obsel flags it anyway." —
+the exact concept the real forty-node cascade demonstrates eighty seconds later, and the one the
+"never read that table" caption depends on. Every state change arrives once, one-way. The
+no-scheduler fact survives in the caption "Seven flags wait. Nothing re-runs on its own." The break
+grew from eight beats to twelve, paid for by the swarm's speed (1.9x to 2.0x), not the runtime.
+
+**The thesis break got the time its sentence needs.** "nothing failed." carried a second line that
+arrived on beat three of a six-beat break and could not be read in the time left. The break is now
+eight beats, taking the two the cascade could spare (thirty to twenty-eight, all four of its
+captions still over their reading time), and the line now states the stake outright: "every job
+exited clean. seven results are out of date."
+
+**Signposting.** Each chapter label now enters a third larger and near full cream and settles to its
+corner over 1.5 s, once, one-way — at a constant 24 px and 58 % it was legible on the black breaks
+and invisible over the board, which is everywhere a viewer needs it. Four index dots after the text
+fill up to the current chapter, so "part 2 of 4" is readable without a word; a dot never empties.
+The re-entry from the first break held wide and captionless for 3.5 s, the worst place for dead air;
+the camera now lands on the dock feed 1.4 s after the break and the Codex-session caption follows at
+2.1 s. The end card gained the run's own numbers and an address: "40 agents · 7 flagged · 7 cleared
+by redone work" (forty from the b-roll's "Contains 40 Tasks", seven from `staleNodes` in the
+measured timeline) and `github.com/seanesla/obsel`.
+
+**The click was rebuilt from a measurement of why it failed, not turned up.** The previous click
+measured -7 dB in the mix and was still inaudible: a 2.35 kHz tick with a 3 ms decay, in a band the
+music already fills, is energy the ear assigns to the music. The new one is a knock at 210 Hz with a
+17 ms decay under a 1.05 kHz tap and a 3.2 kHz tick, still synthesised in `trailer-assets.mjs` with
+nothing to license, and the bed now steps aside 9 dB for a third of a second instead of 5 dB for a
+tenth. Measured in the delivered preview: the first click peaks -2.3 dBFS against a bed peaking
+-13.4 before it, the second -2.0 against -4.0, each the loudest transient in its own window, file
+peak -2.0 dBFS, no clipping.
+
+**Checked, not assumed.** The plan's own gates all pass on the new cut: every one of the 25 captions
+over its reading time, no dissolve joining mismatched speeds, no depth reversal, no cropped
+highlight, every cut on the beat grid. Rendered stills verified the schematic's five states, the
+counters caption against the counters' own text, the caption-vs-button wording at the repair click
+(the dock beside it prints "redo the flagged work in parallel" in the same frame), and the end
+card's four lines. The preview measures 179.584 s, -14.0 LUFS integrated, -2.0 dBFS peak.
+
+### The video was graded, then given two sequences that carry the argument (2026-07-31)
+
+The owner compared the cut against a reference film and the verdict on the first attempt was
+accurate: "it just looks like you did some color correction. That was about it." It was. The rim
+light, lens falloff and scene tilt in that pass are all real and all below the threshold at which
+anyone notices. What was missing was **composition and motion**, and the second half of the owner's
+note is the constraint that shaped the answer: the reference is spectacular and leaves a viewer
+unable to say what the product does, so an effect here has to earn its place by explaining
+something.
+
+**What the reference actually does, measured rather than described.** Downloaded and analysed frame
+by frame: 10 hard cuts in 57 s, so it is essentially one continuous camera move through a rendered
+3D world with the product as a texture inside it. Two numbers explain the whole perceived gap.
+Luminance, sampled at five points each: the reference runs a median of 1–3 with a 99th percentile of
+140–181; obsel's cut ran a median of 9–12 with a 90th percentile of 22–38, meaning ninety per cent of
+every frame lived inside a twenty-level band. Motion: median per-frame change 1.01 against obsel's
+0.12, eight times stiller, with obsel's 95th percentile equal to the reference's 75th.
+
+**The grade is fitted to a histogram, not chosen.** Over the card's interior at the wide framing the
+board is three populations: the ink field at luminance **10**, which is 51 % of all pixels; the card
+fills at **17** and **21–23**; and text from **72** at the 99th percentile to **245**. The whole
+board lived in eleven levels, so "background" and "a card" differed by six levels out of 255. The
+curve puts ink at 2 and opens those eleven levels into twenty-two. Measured on the board interior,
+p50 10.6 → 3.5 and p99 71.6 → 99.9 at the wide framing, 86.6 → 128.3 at the close: the dynamic range
+roughly quadruples. CSS `contrast()` cannot do this, because it pivots at 128 and any useful amount
+drives the entire board to black. Lens falloff verified separately: corner-to-centre sharpness 0.67 →
+0.44 while the centre gets _sharper_, 22.3 → 29.7. No banding — 1,589 distinct levels in the backdrop
+band, largest adjacent step 0.72. The whole grade costs 11 s over 600 frames.
+
+**The lineage flythrough** replaces the flat three-node schematic in the middle break. Hop count is
+depth: the changed job at the front, its five one-hop readers a plane behind, the two-hop and
+three-hop jobs behind them, and the flag is a light that visibly travels edge to edge while the
+camera walks alongside. "obsel walked the lineage" stops being a caption. Every value is measured —
+the eight jobs, titles and hop counts (1,1,1,1,1,2,3) from `timeline.json` — and **the edges come
+from the board's own decision log**, which prints "marked rider_overview, built on work from Weekday
+profile", because hop counts alone cannot say which parent and a line to the wrong one would be a
+picture of a graph obsel did not walk. The projection is written by hand rather than left to CSS 3D,
+which is what makes the depth of field real: each card's blur is computed from its distance to the
+focal plane.
+
+**The board assembly** replaces a window scaling up under a caption reading "forty agents". 82 cards
+fly in from depth onto the exact measured positions of the recorded ones, staggered left to right so
+the assembly runs the direction the pipeline runs, with the footage held behind a scrim until they
+land and each card dissolving into its own recorded pixels. A first version had no scrim and the
+cards landed on a board already fully drawn underneath: motion with nothing revealed by it.
+
+**The cascade** now shows the walk rather than only its result. Light travels the real board's real
+edges in page coordinates, hop by hop, timed from the measured repaint frame — the same light as the
+flythrough, on the actual graph forty seconds later, so the abstract sequence and the recorded one
+are visibly the same event.
+
+**Framing is now checked, not eyeballed.** The owner found a fault that stills structurally cannot
+catch: the camera aimed low and cropped the upper cards, in a sequence whose contact sheets had
+already been reviewed. `video/lineage-geometry.ts` holds the projection, the layout and the camera
+path with no React in it, and `tests/video-lineage.test.ts` sweeps all 254 frames. It caught, on its
+first run, two faults invisible in every still: "Daily totals" leaving the left edge and "Weekday
+profile" dropping past the bottom margin. The rules it enforces are that no card is cropped during
+its own moment or in the closing composition, no two cards overlap once both are readable, no card
+exceeds 62 % of frame width, none passes behind the lens, the camera holds its near clamp, each
+pulse lands before the flag it causes, every edge steps exactly one hop, every flagged job is
+reachable, and the closing line clears its own reading time. The safe area is a function of the beat
+because the bottom 200 px belongs to the closing line only once that line is up; a fixed margin
+failed the flight, and the compensating change is what cropped the top in the first place.
+
+**The closing composition was solved, not authored.** Three hand-picked pull-backs each failed: the
+first cropped two cards, and widening far enough to fix it shrank them to 111 px, too small to read a
+hop count. A grid search over camera position and look point, maximising card size subject to a 34 px
+margin, landed on 40 px clear at the tightest edge with cards at 0.79–0.91 of unit scale. Separately,
+cards within a hop plane keep the board's ORDER but not its spacing: the board puts "Weekend summary"
+and "Weekday profile" 40 px apart where its other rows are 80, and reproducing that faithfully drew
+the two touching at poster size.
+
+**One regression the grade introduced, found and fixed.** DataHub's b-roll is a white page at
+luminance 235. Run through a curve fitted to a near-black board it went to 247 and sat far above the
+bloom threshold, so the highlight pass spread the page over its own text and left "Contains 40 Tasks"
+barely legible — the one shot that is a judge's evidence. It now renders outside the graded subtree
+entirely. That costs the rose backdrop for seven seconds, which is the right trade and arguably the
+right reading: the cutaway is a visit to a different tool.
+
+Delivered preview: 179.584 s, -14.0 LUFS, -2.0 dBFS peak, `pnpm typecheck`, `pnpm lint` and 619 unit
+tests clean. **Not adopted:** everything above is behind a `treatment` prop, default off, so both
+looks render from one bundle and can be compared frame against frame. No final-quality render has
+been made and nothing is committed.
+
+### Four faults the owner found in the graded cut (2026-07-31)
+
+**The lens falloff was hiding content, which is worse than not having it.** Its sharp region was
+pinned to the frame's middle, and the edit points at things near the frame edge constantly: the two
+counters sit in the page's bottom-right corner, the details panel is off to the right, and the
+flagged chain runs along the bottom. So the effect blurred exactly the thing a highlight had just
+been drawn around. It now projects the active highlight through the camera — the same rectangle
+`Camera` transforms the pixels with — and centres the sharp region on it, taking the union when more
+than one is lit so the falloff cannot land between two brackets. Weaker and wider as well: blur 5
+rather than 7, clear region to 52 % of the radius rather than 42 %. Verified at the counters (1:34)
+and the details panel: the subject is sharp and the far corners fall off.
+
+**The chapter indicator was invisible.** Four full stops in a row read as punctuation, not as
+position, and at 24 px and 58 % cream the label only resolved on the black breaks. It is now four
+segments, one per chapter, filling left to right — a bar has a length and a length can be partly
+full, which is legible at a glance without asking anyone to count. Kept to 152 px of a 1920 px frame
+in the corner the label already occupies, because the brief was noticeable and not intrusive and a
+full-width bar across the picture is the intrusive version. The label is 27 px at 74 % resting, with
+a shadow so it survives the board behind it. The segments are centre-aligned rather than
+baseline-aligned: on the baseline they hung under the type and read as an underline.
+
+**A click was missing, and the other two were still too quiet.** The owner heard one of them, at
+2:37. There were only two in the plan, and the recording contains a third: the pointer goes down at
+2:28.6 to open the details panel, and nothing was heard. It is now derived like the others, by
+carrying `zoomMs` through the shot that plays it, rather than placed by ear.
+
+Three versions of this sound have been too quiet and each time the fix was the wrong one. Level was
+never the problem — **duration and spectrum were.** A 3 ms tick at 2.35 kHz is energy the ear assigns
+to the music however loud it is. The click is now 260 ms, four times the first version: a 140 Hz
+knock with a 60 ms decay to give it a body long enough to be a separate event, a 2.6 kHz tick and a
+6 kHz snap sitting above where this track holds most of its energy, and a 3 ms noise transient for
+the attack. The duck went from 5 dB over a tenth of a second, to 9 over a third, to **14 over half a
+second**: the bed genuinely steps aside, and the hole is as much of what makes the click register as
+the click is. Measured in the delivered file, the first click stands **+12.3 dB** over the bed before
+it; the other two land inside a 14 dB duck.
+
+Click gain is 0.85 rather than 0.92 because `trailer-finish.mjs` **checks** integrated loudness and
+does not normalise, so whatever peak the render produces is the peak that ships. At 0.92 the clicks
+were the loudest thing in the file at -1.1 dBFS, and a lossy encode's true peak can sit half a
+decibel above the sample peak.
+
+**The outro was the third black screen in a row.** The closing claim break and the end card were both
+flat ink, and the frame a judge is most likely to pause on had the least in it. The lockup now sits
+in light built from the same three tokens as the backdrop, opening outward as the mark assembles, one
+way. The run's three numbers are set larger and brighter than the rest of the block, because they are
+the line a judge is there for; the caption, the address and the entry name stay at the old weight.
+
+**Also in this pass.** The `remotion-markup` skill flags `<CanvasImage>` over `<Img>`; `TerminalShot`
+still uses `<Img>` and has not been changed, because it renders correctly and the swap is untested
+here. Noted rather than done.
+
+**Not done in this pass.** A "finished N of 40" progress readout over the long run was considered
+and dropped: no per-agent completion timestamps exist in the measured timeline, and a counter not
+sourced from the run would be an invented number. The cursor in the recording is still the old dot;
+the arrow pointer in `video.mjs` still takes effect only on a re-record, which is the owner's call.
+No final-quality render has been made of this cut.
+
+### The best thing the product does was on screen for three frames (2026-07-31)
+
+The owner asked what could be added beyond captions to lift the look or explain more. Working
+through it turned up a defect first, and it is the reason this section is mostly not about effects.
+
+**`restoredBy` was in the cut and effectively invisible.** obsel's most distinctive behavior is that
+a redo which comes back identical clears the flags downstream of it, on work that was never
+re-run. It happens on camera exactly once, at 370.8 s of the take: `Weekday profile` finishes its
+redo and `Rider overview` and `Rider report` — one and two hops further out, untouched — go from
+`out of date` to `done` in the same frame. That whole transition sat inside a single 7.9x timelapse,
+so it lasted **under three frames**, and the camera did not arrive on the chain until 0.8 s after it
+was over. The cut had a caption explaining a thing the picture never showed.
+
+The repair is now four shots instead of two, and the clear plays at **1x for 2.11 s** with the
+camera already on the three cards before it happens. The eighteen-beat budget is unchanged, taken
+from the redo storm (8.5x rather than 7.9x) and from the settle, both of which are one thing
+happening slowly; nothing downstream of it moved and the runtime is still 2:59.52.
+
+**Which three cards, measured rather than assumed.** Sampling every flagged card's own box for warm
+pixels across the repair gives four different clear times, not one: `Weekday profile`, `Rider
+overview` and `Rider report` all drop in the same frame, and `Weekend summary`, `City week`, `Mart
+docs` and `Fare summary` clear separately, six to thirty-nine seconds later, as their own redos
+land. Only the first three are a restoration; the rest are ordinary redos. `RESTORED` in `plan.ts`
+is that list, and keeping the other four out of it is what stops the shot claiming a restoration for
+work that simply redid itself.
+
+**The graphic snaps rather than travels, and that is the measurement.** The plan had been to mirror
+the cascade's travelling light with a second one in green. The frame-by-frame scan says no: all
+three cards lose their amber in the same frame, so there is no order to draw, and a pulse crossing
+those two edges would assert a sequence the recording contradicts. The cascade earns its travelling
+light because the board genuinely staggers by hop — the flash reaches one hop at 164.72 s, two at
+164.92, three at 165.20, which is 200 and 280 ms against the 235 ms the pulse already used. So the
+restoration is drawn as two links lighting at once, with an arrowhead saying which end did the work.
+The contrast is worth more than a matching effect: a flag spreads outward one hop at a time and
+comes off in one step across the whole chain, which is exactly the asymmetry in the product.
+
+`firstClearPaintedMs` joins `amberPaintedMs` in asset staging, measured the same way and for the
+same reason: the API reported the clear at 370.745 s and the board repainted at **370.825**, 80 ms
+later. That is three frames of a graphic drawn on a board that has not changed yet, and it only
+matters now because this moment plays at 1x.
+
+**Two faults the render found, both shipped in the cut before it.**
+
+- **Six captions had a space before their punctuation.** Each word rendered as an inline-block with
+  a trailing space _inside_ it, so a word carrying the sentence's punctuation came out as `out of
+date .` and `identical , so`. It affected every cue with emphasis before punctuation, including
+  the first line of the video. The fix puts the space between words as an ordinary text node and
+  splits a word into emphasis runs, so `*identical*,` stays one word for wrapping and staggering
+  while only `identical` is italic. `tests/video-caption.test.ts` asserts it on the six real lines.
+- **A bracket enclosed a card it did not name.** The three restored cards were highlighted with the
+  union of their boxes, and `Weekend summary` sits inside that rectangle without being part of the
+  chain — it stays flagged for another six seconds. The outline pointed at four cards while the
+  caption said three, and the extra one behaves the opposite of the claim. One bracket each now. The
+  union is still right for the two counters, which genuinely are a pair.
+
+**The cascade now travels the board's own wiring.** The pulse traces were straight lines between
+card centres, so `Daily totals` feeding five children stacked over 240 px drew a fan of diagonals
+cutting across every card and table box between them, two pixels from the board's own orthogonal
+dashed connectors. Both the cascade and the restoration now route out of a card's right edge, along
+to a turn, across, and into the next card's left edge. The light is visibly using the wires.
+
+**The falloff follows how fast the picture is moving.** Depth is driven by the on-screen speed of
+the camera, sampled by projecting the frame's corners at this frame and the one before and averaging
+over four frames. It rests at blur 5 and reaches 8.5 at the speed of the fastest move left in the
+cut. Measured over all 5,386 frames: **92.9 % sit at the resting value**, 1.2 % reach maximum, and
+the maximum spans run 0.10 s to 0.37 s. A cut or a snap reports an enormous displacement that is not
+motion, so samples above 160 px/frame are dropped; verified at all eight hard re-framings, none of
+which now carries any added blur. This is a legibility fix rather than a flourish — the board's
+labels are 13 px and strobe on a fast pan, which is why `plan.ts` already slowed three moves by name.
+
+**Considered and rejected.**
+
+- **Film grain.** Justifiable only against banding, and there is none: scanning three horizontal
+  profiles across the widest gradients gives 782–1,589 distinct levels, a maximum step of 2.3 in the
+  glows, and **zero banding plateaus**. Adding it would have been decoration, and at the wrong
+  opacity it reads as compression noise.
+- **A comet trail on the pulse.** Unnecessary once the pulse follows an elbow route: the trace it
+  leaves behind is the trail, and it is the board's own path rather than a preset.
+- **`CameraMotionBlur`.** Multiplies the render by its sample count, and everything it would wrap
+  decodes video.
+- **A rolling real-elapsed clock on the timelapses.** It would be a second text surface in the
+  corner the speed label already owns, for a fact the label and the word hits already carry.
+- **Voiceover.** The owner's call: a voice changes what the piece is.
+
+**The three clicks, finally measured in a delivered file.** The gain was dropped from 0.92 to 0.85
+in the previous pass and never checked. Measured in the 0.5-scale render of this cut, high-passed
+above 4 kHz to separate the click from the bed, all three carry an identical **-13.0 dB** transient
+**32 ms** into the file, and frame quantization puts each within 15 ms of its planned time. Against
+the ducked bed they land at **+18.4, +6.6 and +18.0 dB**. The middle one is not quieter — it is the
+same sample at the same level, falling where the music is 13 dB louder, so it is less prominent by
+where it sits rather than by how it was mixed. File peak is **-1.8 dBFS**, and clicks one and three
+are what set it.
+
+One correction to the previous pass's note, which recorded the first click at "+12.3 dB over the bed
+before it": measured against the bed the click actually lands in — the ducked one — it is +18.4 dB.
+The two numbers measure different things and the second is the one that describes audibility.
+
+**Not done in this pass.** `pnpm verify` fails `format:check` on four files this work did not touch
+— `pnpm-lock.yaml`, `pnpm-workspace.yaml`, `scripts/video.mjs` and `THIRD_PARTY_NOTICES.md` — and
+that failure predates it. Everything under `video/`, the new scripts and the new tests are
+formatted. `firstClearPaintedMs` was computed by running the new block in `trailer-assets.mjs`
+verbatim against the staged take, because the source recordings are not on this machine; the next
+full asset build recomputes it.
+
+A 0.5-scale preview render of this cut exists and every number above is measured from it: 5,386
+frames, **179.58 s**, under the three-minute cap. **No final-quality render has been made.**
+
+### The generated screens were the only part of the video not in the scene (2026-07-31)
+
+The owner pointed at the "nothing failed." break and said it looks boring: black background, white
+text, grey subtext, nothing happening, no relationship to the beat. The note was that this was one
+example and there would be others.
+
+There were three. Every full-bleed screen except the end card was flat ink with type on it: the
+title, the quiet break and the closing claim. The end card had already been fixed for exactly this
+reason and the fix was never generalised.
+
+**The diagnosis is not that they needed decoration.** The board sits as a card on a lit rose
+backdrop for two and a half minutes and then the picture cuts to a different world made of black.
+`BreakLight` in `Screens.tsx` is the end card's treatment made shared, built from the same three
+tokens `Wallpaper` uses, so a break is lit by the same lamps as the app it interrupts. It opens once
+and stays; nothing here breathes. Each screen takes a different amount and puts it in a different
+place, because three breaks lit identically would be one idea used three times: the title at 0.5,
+the quiet break at 0.45, the closing claim at 0.3 so the end card that follows is the brightest
+frame in the video rather than the second brightest.
+
+A first pass ran them at full strength and it was wrong: rendered, it was a magenta wash rather than
+light, because these screens are inside the graded subtree and the bloom pass spreads what it is
+given. Halving it is what makes it read as a lit room.
+
+**The quiet break now counts its own claim.** "every job exited clean. seven results are out of
+date." was two numbers a viewer had no way to check, on black. Forty marks now arrive green while
+"nothing failed." is on screen, and seven of them ring amber as the line naming them appears, so
+each half of the sentence is confirmed as it is read. The forty are derived in `plan.ts` by the
+board's own naming convention, a job titled like a name and a table like an identifier, which
+splits the 82 measured boxes into 40 and 42 -- the forty the end card claims and the b-roll's
+"Contains 40 Tasks". It is derived there rather than in the component so it can be **checked**: if
+any flagged job falls outside the derived set, or the split fails to separate anything, `buildPlan`
+throws. A miscount that renders confidently is worse than a build that fails, because the failure
+mode is a judge counting along and finding it wrong.
+
+The first arrangement placed each mark at its measured position normalised to a band, on the
+reasoning that the board's shape would be recognisable. Rendered, it was six ragged columns: the
+board clusters jobs into pipeline stages, so normalising spreads them into stripes with wide gaps,
+and the one thing the picture had to do -- let a viewer count forty and seven -- was the one thing
+it could not. It is a ten by four grid now, in the board's own left-to-right pipeline order, so the
+flagged marks still fall where they fall rather than being spread evenly for looks.
+
+**The click is now seen as well as heard.** Three rebuilds of the sound and it was still the
+owner catching it late, and the reason it stayed hard to notice is that sound was the only channel
+carrying it: a viewer watching the board has nothing drawing their eye to the corner where a button
+was pressed, so the click arrives with no referent and reads as part of the music. `ClickRipple`
+draws the control's own outline growing outward once, in page coordinates inside the camera, gone
+in 0.46 s.
+
+Two of the three clicks get one. The third opens the details panel after the app has zoomed itself,
+and no box measured at open says where that pointer went down, so it keeps its sound and gets no
+ring: a ring at a guessed position is a drawing of a click that did not happen there.
+
+A first version drew an ellipse and it read as a lasso thrown over the panel, because the launch
+button is 395x76 and an ellipse round it is two and a half times wider than tall. A rounded
+rectangle is what the button is, and it is the figure the highlight brackets already use, so the
+ripple reads as the bracket letting go.
+
+**The scene gets brighter at each drop and never gets darker.** A cycling brightness was refused
+twice and rightly, because a value that goes out and comes back is a wobble. A step is the opposite
+shape. Measured on the delivered frames, all three at the wide framing: the backdrop's top band
+reads **20.35** before the first drop, **23.03** after it and **27.94** after the second, so the
+last third of the video sits 37 % brighter than the opening and nothing ever moves backwards. The
+drops come from the grid's own anchors by way of the plan, so this is the one thing in the picture
+that agrees with the track without being timed by ear.
+
+**Five sounds, none of them placed by ear.** The video had exactly one designed sound in a cut that
+types three commands on camera, drops twice, lights a graph hop by hop and takes three flags off at
+once. Measured first: the track builds into its **first** drop on its own, the low band climbing
+34 dB over the second before it, and into the **second** drop it does not, because the breakdown is
+already loud and simply cuts. So the moment the whole video is built around had the least
+preparation under it.
+
+Synthesised in `trailer-assets.mjs` alongside the click, for the same reason: no licence, nothing to
+attribute, same bytes every run. Each is mounted at a frame the plan derives from a measured moment.
+
+- **key**, one per character of a typed command, at the fixed 45 ms `term-render.mjs` types at.
+- **riser**, 2.4 s, placed to END on the frame the board paints amber rather than to start on it.
+- **tick**, one per hop, on the flashes measured off the recording at 164.72, 164.92 and 165.20 s.
+- **resolve**, on the frame the restored chain drops its flags.
+- **swell**, half a second before each drop, under the two thrown camera moves.
+
+None of them is ducked. The duck exists to open a hole for the click, and ducking the bed under its
+own riser would take the build away exactly where it is arriving.
+
+**A bug the arithmetic caught before the render did.** The keystroke times divided the shot's
+length by the typed prelude's length, which is right for "quickstart typed" -- cut to end where the
+typing does -- and wrong for "pnpm dev", which plays the whole cast because the command answers in
+under two seconds. Every dev keystroke would have landed at 2.3 times its real spacing. The shot's
+own `fromCast`/`toCast` now give the cast time it covers, and the cast's length comes from the
+prelude and its fraction of the whole. Measured after the fix: 33 keystrokes at 0.031 s and 0.054 s,
+one rate per shot.
+
+**Six captions reworded for a first-time reader.** These are comprehension faults rather than style:
+"what was recorded before" hid who recorded it and reads as the agent recording itself; "Every
+decision is logged: what it read" pointed "it" at the decision, which reads nothing; "Five of these
+agents read the table Daily totals writes" is a garden path, because the agent's name lands
+mid-sentence as ordinary words and parses as three nouns; and the same agent was called "Daily
+totals" in one line and "the daily-totals agent" in the next, against the repository's own rule that
+one concept gets one word. The plan's reading-time check refused all five rewrites as too long for
+their slots, which is the check working: the words were fitted to the time rather than the cut moved.
+
+One is a deliberate departure. The repair caption quoted the panel's own "Independent redos run at
+once"; on the owner's call it now says "in parallel where possible", which is clearer to a
+first-time viewer and matches the button rather than the panel.
+
+**Not done in this pass.** `pnpm verify` still fails `format:check` on four files this work did not
+touch. `docs/demo-script.md` describes a 2:55 cut that does not match the built trailer and is
+stale. No final-quality render has been made.
+
+### Two hiccups the owner felt, located by measurement, and a click that earns its drama (2026-07-31)
+
+**2:50 was a camera self-collision.** Per-frame difference energy over the delivered preview showed a
+single-frame change of 7.6 at 169.67 s, the second-largest in the cut, exactly where the owner felt
+a hiccup. The cause was `hold(settleEnd, END, WIDE, 0.99)`: `hold` opens with a cut, and the drift
+before it had already taken the camera to 98 %, so the camera jumped 2 % outward in one frame under
+the dissolve into the closing break. One continuing drift to `END` replaces it. Re-measured: the
+largest single-frame change in that span is now 2.68, and it is the take's own content.
+
+**2:41, first attempt: the entrance, which was only half of it.** The second before the clear is deliberately the
+stillest passage in the video, so the eye gets a frozen frame and then three single-frame events in
+half a second: the board drops the flags (one frame, measured 3.9), the green link appeared (three
+frames), the labels flip green (one frame, 3.3). The two board repaints are the recording and stay;
+the link was ours and now DRAWS instead of appearing -- both edges at once, out of the card that
+re-ran, over a third of a second, with the arrowheads held until the line lands. Both edges together
+because the clear is one event; a stagger would contradict the measurement the component exists to
+respect.
+
+**The drop reveal was never a move.** The camera keys put `wider(V.launch, 1.02)` and `WIDE` at the
+same instant, so the "snap" easing had a zero-length segment and the reveal was an invisible cut.
+On the owner's ask for a more dramatic click: the camera now arrives at the button at the tight
+ceiling (1.85x, `V.launchTight`), the recoil drift is 6 % rather than 2 % and begins on the click,
+and the pull-back to the whole board is a real move, 1.85x to 0.97x over a beat and a half with the
+snap's fast-out curve, starting ON the drop. The board arrives still expanding as "forty" lands.
+The plan's containment checks pass unchanged, which is what says the launch bracket still fits
+inside the tighter framing.
+
+### 2:41 again: the camera was frozen, and that was the whole fault (2026-07-31)
+
+The owner reported the hiccup at 2:41 a second time after the link's entrance was rebuilt, which
+meant the entrance had not been the cause. Measuring the camera directly rather than the rendered
+frames found it: across the clear the camera moved **0.015 composition pixels a frame**, which is
+frozen, and its zoom was constant at 1.8500 to four decimal places.
+
+It was frozen by accident rather than by choice. The hold's drift was written as
+`wider(V.restored, 0.99)`, but `V.restored` and `V.chain` are both clamped to the same tight-zoom
+width, so the depth-reversal pass in this file saw no depth change to preserve and rewrote the key
+as a lateral lean -- toward a framing whose centre is 7 px away. Six per cent of 7 px over 2.9
+seconds is nothing. The comment above it said the hold was deliberate, "the picture, not the camera,
+is doing the work", and that reasoning is what hid the bug.
+
+**What lands on that frozen picture is not small.** Measured on the take itself, one frame at
+370.83 s changes 6,682 sampled pixels across page x 56..1760, because the flagged cards, their
+borders and the amber connectors between them all clear together; the board then paints the green
+`done` bars half a second later in a second repaint of the same size. Twelve per cent of the frame
+changing twice against a dead-still camera reads as a stutter rather than as an event.
+
+The camera now arrives 7.5 % wide and pushes in continuously from before the clear through to
+`V.chain`, monotone the whole way. Through the clear it runs at 0.77 to 1.10 px a frame with a
+smooth deceleration and no acceleration step. Measured on the delivered frames, background motion
+either side of the repaint went from **0.03 to 0.63**, so the repaint stands about six times over
+its surroundings instead of a hundred and thirty.
+
+The repaint itself is untouched. It is the recording, and it is the thing the shot exists to show.
+
+**The general lesson, worth keeping.** Frame-difference energy cannot tell a camera move from the
+picture underneath it changing, so it found the 2:50 fault and was useless on this one. The camera
+is a pure function of the plan; measure it directly.
+
+### 2:41 a third time: the camera was never the fault (2026-07-31)
+
+The owner reported the same spot janky again after the camera fix above. It was, and the two
+previous passes had both changed the wrong thing. Measuring the plan's shot list rather than the
+camera found two separate real faults, and inspecting the delivered frames found a third.
+
+**Fault one: a 14x speed jump at a hard cut.** The shot list read
+
+```
+2:40.50 - 2:42.61  the clear             take @1.00x
+2:42.61 - 2:44.73  the flags come off    take @14.15x
+```
+
+Those two shots are continuous in the take: the second starts at exactly the source second the
+first ends on. Nothing about the picture changes at the cut, so the only thing that changes is how
+fast it is moving, and the whole jump is visible as a jerk. `timelapse()` had always eased **out**
+of a sped-up stretch, for this reason written in its own comment, and never eased **in**, because
+every other sped-up stretch in the video is entered on a cut to different footage where there is no
+previous speed to jolt away from. Two are not: "the repair click" runs into the storm, and "the
+clear" runs into the flags coming off.
+
+`timelapse()` now takes a `lead` as well as a `taper`, geometric in both directions. Both stretches
+in the repair take one lead beat. The entry into the flags coming off went from a single 14.15x
+step to 4.28x then 18.29x, and the entry into the storm from 8.47x to 3.28x then 10.76x. The body
+speeds rise because a shorter body must still cover the same source span; the beat budget is
+unchanged and nothing downstream moves.
+
+**Fault two: the recording repaints twice, and the graphic landed between them.** Measured on the
+take at 480x270, the board through this passage is not merely quiet, it is identical frame to
+frame:
+
+```
+370.767  0.00
+370.800  1.38   <- the flags come off
+370.833  0.34
+370.867  0.00
+  ...           every frame 0.00 to 0.01
+371.267  0.00
+371.300  1.13   <- the labels turn green
+371.333  0.02
+  ...           0.00 for the next second
+```
+
+So the clear is one event in the data and two events on screen, half a second apart, with a frozen
+picture between and on either side. The restore graphic drew over 0.34 s, which finished it in the
+middle of the dead stretch: the shot ran flash, motion, freeze, flash, and the second flash arrived
+with nothing leading into it. That is a fair description of a hiccup.
+
+The second repaint is now measured rather than assumed. `trailer-assets.mjs` records
+`clearSettleMs` by whole-frame difference over the 1.6 s after the clear, which is 500 ms on this
+take, and throws if a take ever repaints only once, since the graphic would then be timed to land
+on nothing. The link's draw is stretched to span the gap exactly: it starts on the frame the flags
+come off, crosses the half second that would otherwise be frozen, and its arrowheads complete on
+the frame the labels go green. Both flashes are still the recording's own. The difference is that
+the second one is now the end of a movement the eye has been following.
+
+The draw is linear rather than the shared eased `ramp`. Under the ease-out the pen sprinted the
+first half and crawled the last few frames, so it had all but stopped before the flash, which put
+the picture back to still at the exact moment the fix existed to cover. `walk()` steps by arc
+length, so a linear parameter is a constant speed along the elbow.
+
+To fit the graphic, "the clear" now opens 0.8 s before the flags come off rather than a full
+second, leaving 1.31 s after it for the 0.5 s draw, time at rest, and a fade that finishes 0.11 s
+before the cut.
+
+**Fault three: two pens parked on a board that had not cleared.** Found in stills, not in any
+metric. `on` is 1 from the shot's first frame and a pen at `draw = 0` is still a dot drawn at the
+start of its line, so two green dots sat at full size on the flagged amber board for the 0.8 s
+before the clear, saying the opposite of what the shot says. The component now renders nothing
+until the flags come off. The pens appear on that frame, which is the largest change in the shot,
+and move off it immediately, so no frame has a pen visible and stationary.
+
+The same pass removed two one-frame switches inside the arrival that the previous fix had
+introduced: the pen vanished the frame `draw` reached 1 and the arrowhead appeared the frame it
+passed 0.96, at full opacity, one frame apart. The pen now shrinks into the point while the head
+grows out of it, in the same place, as one handoff.
+
+**What this cost in method.** Frame-difference energy could see fault one and could not see faults
+two and three at any resolution that matters: a 2 px line is about 0.3 % of the pixels. The shot
+list is a table and should have been read as one; the stills showed the parked pens in a single
+strip. Neither needed a render.
+
+### 2:41 a fourth time: two glides in a row stop dead at the key they share (2026-07-31)
+
+Reported still janky after the pass above. That pass fixed real faults -- the speed jump, the
+graphic timed into a frozen gap, the parked pens -- and introduced the one the owner was feeling.
+Measuring the camera per frame off the plan, the way the second pass should have been checked:
+
+```
+2:38.83  v = 47.01   the push toward the intermediate key, at its peak
+2:39.83  v =  0.02   a dead stop
+2:40.00  v =  0.31   pulling away from zero again
+2:41.33  v =  0.96   the clear lands on a creep
+```
+
+Every easing in `EASE` has zero slope at both ends, so two `glide` keys in a row do not join into
+one move: the camera brakes to a stop at the shared key and starts again from nothing. The
+"monotone push through the clear" was really a 1.3 s whip to 47 px a frame, a stall, and a
+three-second crawl. A whip, a stall, and a restart is a fair description of jank, and the whip was
+itself the fix's own creation: the same travel used to have 4 s and the intermediate key gave it
+1.3.
+
+The fix is deletion. The keys now run `WIDE` at `clickEnd + 1.2` straight to `V.chain` at
+`clearEnd + 0.6`: one glide, 5.0 s, peak 13.5 px a frame, monotone zoom 0.97 to 1.85, velocity
+zero exactly once, at arrival, 0.02 s after the arrowheads land. The clear happens mid-decay at
+4 px a frame. The 0.3 s drift stub that sat between the arrival at `WIDE` and the push went too,
+so the one rest in the passage is at the wide framing before the move begins, where a pause reads
+as a breath. Delivered-frame energy through the passage is one smooth hump; the two repaints
+stand on gently declining motion at 2.8 and 2.2 against a 1.0-0.8 background.
+
+Two knock-ons, both caught by the plan's own checks. The wider mid-glide framing put the lowest
+bracketed card under the bottom caption, and the containment check refused it -- it tests a note
+against the glide's endpoint keys, so no bottom caption may share any part of the brackets' life
+while `WIDE` is an endpoint. The caption moved to the top slot, which is free only between the
+two timelapse speed labels: 4.5 s, against a line that read in 4.4. Dropping "its" ("its
+downstream flags cleared") brought the reading time to 4.2 without changing what the sentence
+binds to what, and the line now runs `clickEnd + 3` beats to `clickEnd + 9`, inside the window
+with margin on both sides. Verified in stills: the label band and the top-caption band do not
+touch, and the caption is sharp at native resolution through the falloff.
+
+The lesson from the third pass, applied: the camera is a pure function of the plan, so this pass
+measured velocity off `cameraAt` before rendering anything, and the render then confirmed rather
+than discovered.
+
+### The footage itself was stepping: rounding times speed at every timelapse boundary (2026-07-31)
+
+With the camera finally smooth, the owner reported the remaining jank precisely: "the camera is
+smooth, it's just that the frame the camera is pointing at is not" -- the picture moving to a
+position and coming back. That is a description of the FOOTAGE stepping, and it measured as
+exactly that.
+
+Every shot boundary sits on the beat grid, and a beat is 0.704 s = 21.12 frames, so no boundary
+lands on a frame. The renderer rounds every Sequence start and every trim to the frame grid, and
+inside a sped-up stretch the rounding error is multiplied by the playback speed. Computing the
+rendered source mapping exactly as the renderer does, rounding included:
+
+```
+2:25.72  late finishers -> easing 1          src jump -0.514s   (footage REWINDS half a second)
+2:37.69  entering 1     -> the repair        src jump -0.072s
+2:39.09  the repair     -> easing 1          src jump +0.067s
+2:43.32  entering 1     -> the flags come off  src jump -0.136s
+2:44.73  the flags come off -> easing 1      src jump +0.162s
+```
+
+Around the flags coming off the recorded board steps back a seventh of a second and then skips
+forward: flags visibly un-clear and re-clear. The 0.51 s rewind in the late finishers has been in
+every preview so far; nobody had watched that boundary closely enough to name it.
+
+`timelapse()` now does its source arithmetic on the composition's frame grid -- the same rounding
+the renderer applies -- so the accumulated source position is exact at every boundary and what
+remains is the trim's own rounding, half a source frame at most, independent of speed. One trap
+inside the fix: the plan is built in the track's clock and shifted by `OFFSET` = 0.3413 s at the
+end, which is not a whole number of frames, so quantizing unshifted times rounds one boundary
+differently than the renderer and reintroduces the error. Found by probing when the same
+expression produced 253 frames inside `timelapse` and 254 outside it; the quantization now
+subtracts `OFFSET` first.
+
+Measured after: every continuity boundary is within 0.028 s, under one source frame at the take's
+25 fps. And the class is now closed rather than fixed once: a plan check recomputes the rendered
+mapping at every adjacent take/broll boundary the plan itself declares continuous -- the exemption
+for deliberate cuts falls out of the same arithmetic, not a list -- and refuses any step over
+0.045 s. The speed jump fix from two passes ago (lead beats) and this fix are the two halves of
+one lesson: a cut inside continuous footage must be continuous in BOTH what is shown and how fast
+it moves, and both halves are now checked or derived rather than hoped.
+
+### Ground truth for Remotion's frame mapping, and what the previews were hiding (2026-07-31)
+
+Three passes at 2:41 were spent measuring a MODEL of how Remotion maps a composition frame to a
+source frame. The model was never checked against Remotion. It is now.
+
+**The probe.** A 25 fps source was generated whose every frame carries its own index in twelve
+black and white blocks, so a rendered frame states which source frame it is. It was mounted in two
+`<Sequence>`s with the same shape as the real cut, 1x then 4.28x, and rendered. Decoding the
+blocks:
+
+```
+comp 0   trimBefore=90   -> source frame 75      90/30 = 3.000 s, x25 = 75      exact
+comp 39                  -> source frame 107     3.000 + 39/30 = 4.300 s, x25 = 107.5 -> 107
+comp 40  trimBefore=130  -> source frame 108     130/30 = 4.333 s, x25 = 108.3 -> 108
+comp 79  rate 4.28       -> source frame 247     4.333 + 39/30*4.28 = 9.897 s, x25 = 247.4 -> 247
+```
+
+Every frame matches `floor((trimBefore/fps + (frame - sequenceStart)/fps * playbackRate) *
+sourceFps)`, which is the documented order of operations: trim, then offset, then stretch.
+`trimBefore` is in COMPOSITION frames and converts through seconds, so with a 25 fps source in a
+30 fps composition it is not a source frame index. Remotion is frame-exact here; every timing
+fault found in these passes was the plan's own arithmetic.
+
+With the mapping verified, the quantization from the pass above was re-checked by computing the
+exact source frame at every composition frame of the finished cut: **zero backward steps and zero
+stalls**, against a real 514 ms rewind without it. It stays.
+
+**What the previews were hiding.** Every file sent for review so far was rendered `--scale=0.5`.
+Measuring frame-to-frame jitter on an identical pixel grid, by upscaling the half-scale render to
+1920 and running the same sub-pixel block match over both:
+
+| render                  | mean camera speed | jitter RMS | as a fraction of the motion |
+| ----------------------- | ----------------- | ---------- | --------------------------- |
+| `--scale=1`             | 1.57 px/frame     | 0.046 px   | 2.9 %                       |
+| `--scale=0.5`, upscaled | 1.60 px/frame     | 0.076 px   | 4.7 %                       |
+
+The half-scale render carries 1.65 times the jitter. The board's type is 13 px on the page and the
+camera magnifies it about 1.85x while creeping under a pixel a frame; at half resolution the
+rasterizer quantizes those edges to a coarser grid, and they snap between positions from one frame
+to the next. That is the picture moving and coming back while the camera geometry is provably
+smooth, which is exactly how the owner described it.
+
+This does not make the earlier faults imaginary: the speed jump, the 514 ms rewind and the frozen
+camera were all real and all measured. It means the preview format was adding a defect of its own
+on top, and that asking for a judgement on smoothness from a half-resolution file was a mistake in
+method, not a difference of taste.
+
+### The recordings are 25 fps and the composition was 30: one frame in six was a repeat (2026-07-31)
+
+The owner reported jank at 1:51 as well as 2:41, and the second location is what identified the
+fault. 1:51.93 is the cut into the cascade and 2:40.50 is the clear: the two passages where the
+RECORDED APP animates rather than sits still. Both play at 1x.
+
+`take.mp4` and `broll.mp4` are both 25 fps. The composition was 30. So every 1x shot had to draw
+five source frames across six composition frames, and one frame in six was a repeat of the one
+before it. Counted on the built cut with the mapping verified above:
+
+```
+1:51.93-2:11.64  the cascade        591 frames,  98 repeats  (17%)
+2:40.50-2:42.61  the clear           63 frames,  10 repeats  (16%)
+0:14.83-0:22.55  the board          231 frames,  38 repeats  (16%)
+```
+
+Where the recording is still, a repeated frame is invisible, and most of this recording is still.
+Where the app animates -- flags propagating through the cascade, the board repainting at the clear
+-- its own motion hesitated every sixth frame. That is precisely "the camera is smooth, the frame
+it is pointing at is not". It was in every cut ever rendered here; the camera faults fixed in the
+passes above were real, and each one that got fixed removed something that had been covering this.
+
+**The composition now runs at 25**, which is the recordings' rate and not a choice. Verified with
+the counter probe rebuilt at 25 fps: `trimBefore=97` gives source frame 97, then 98, 99, 100, on
+for seventy frames, **zero duplicated and zero skipped**. Re-counted across the whole cut, the
+repeats are gone.
+
+Nothing about the edit moved. Every time in `plan.ts` is in seconds, the beat grid is untouched,
+and the shot list is identical to the frame boundary; only the number of frames those seconds are
+drawn with changed, 5386 to 4491.
+
+Two things had to follow the rate rather than stay constant. The frame-grid snapping described
+below is now done in 25ths, and the two travel thresholds in `Trailer.tsx` -- the cut-detection
+ceiling and the falloff's ramp -- were tuned as pixels per FRAME at 30, where the same move covers
+a fifth less ground than it does at 25. They are now stated per second and divided by the rate
+where they are used, so the look is unchanged and the numbers cannot silently retune themselves if
+the rate ever moves again.
+
+**The snap became general.** Quantizing inside `timelapse()` fixed only the boundaries `timelapse`
+owns. At 25 fps the check written in the pass above immediately caught one it did not own: the
+1.99x swarm running into "the change" stepped 48 ms, a frame and a fifth of the recording. The
+snapping is now a single pass over the finished shot list, forward, aligning every boundary the
+plan's own arithmetic declares continuous, so shots written by hand are covered by construction
+along with any added later. Worst remaining step across the cut: 34 ms, under one source frame.
+The restore graphic's cue is read back from the snapped shot rather than recomputed, because the
+snap can move a shot by up to a frame and that graphic is timed to the frame the board repaints.
+
+### The camera crept for 58 % of the video, which is neither moving nor still (2026-07-31)
+
+Ten reports of jank, and every fix before this one changed WHICH camera keys sat where. None asked
+whether the holds were holding. Measured across the finished cut, per frame, straight off the plan:
+
+| camera state                          | frames   | share      |
+| ------------------------------------- | -------- | ---------- |
+| exactly still (< 0.004 px/frame)      | 248      | 5.5 %      |
+| **creeping (0.004 to 0.35 px/frame)** | **2593** | **57.8 %** |
+| really moving (> 0.35 px/frame)       | 1635     | 36.4 %     |
+
+Most of this video was shot with the camera travelling a fraction of a pixel per frame. The drift
+before the cut at 1:51 ran 0.16 px a frame decaying to 0.00; the tail of the push through 2:41 did
+the same. That is far too little to read as a camera move and far too much to be still, and the
+reason it is not harmless is that the transform is a SCALE. A magnification that changes by a
+thousandth resamples every pixel in the frame against a slightly different source position, so the
+whole picture shimmers and thin type walks between pixel columns. Both reported locations sat in
+this band. So did most of the cut.
+
+Every drift in the file exists on purpose -- "a hold that eases would read as the picture
+breathing" -- and that reasoning is what hid this for ten passes. A creep is not a breathing hold.
+It is a still frame that cannot hold still.
+
+**Two changes.** `plan.ts` now measures each camera segment's on-screen travel per frame and gives
+any segment under 0.18 px/frame its predecessor's framing exactly, so a hold that could not be seen
+is deleted rather than retimed. Real moves are not candidates: the push through the clear peaks at
+13 px a frame. After it, still frames go 5.5 % to 48.9 % and the creep band 57.8 % to 14.4 %, with
+the 36.4 % of real motion untouched.
+
+`Camera.tsx` handles what keyframe editing cannot. Every easing worth using ends at rest, so every
+large move passes through arbitrarily small speeds on its way down; that tail cannot be removed. It
+is now quantized instead: the scale is snapped to one output pixel across the page's width and the
+offset to whole pixels, which makes consecutive frames of a slow tail identical rather than subtly
+resampled, and leaves a fast move alone, where the sub-pixel error was never the thing moving.
+
+**What is NOT fixable downstream, and was measured rather than assumed.** In a static region of the
+board, 300x200 px, consecutive frames of the delivered file differ across about 4,500 pixels. The
+same region of `take.mp4` differs across 4,513, and re-encoding that segment from the original webm
+LOSSLESS still differs across 4,114. The per-pixel temporal noise is inside Chromium's own VP8
+screen recording; the pipeline adds essentially none of it and no encoder setting here removes it.
+Only a re-record would, and that is the owner's call.
+
+### 1:51 was a pile-up and a teleport; 2:40 was a fix that made it worse (2026-07-31)
+
+The owner separated the two locations, which turned out to be two unrelated faults, and neither was
+a frame-rate problem.
+
+**2:40: the pixel snapping added the shift it was meant to remove.** Block-matched on the delivered
+frames, the picture through 2:41.2 to 2:41.7 stepped +1, -1, +2, 0, +1 px while the camera geometry
+was smooth. The previous render, without snapping, held steady over the same window. The cause is
+that the scale and the offset were rounded INDEPENDENTLY: a point sits at `translate + distance *
+scale`, and rounding both terms separately makes that sum non-monotone in the camera's own
+continuous motion, so the image walks backwards for a frame whenever the two roundings disagree.
+Reverted. What survives from that pass is the plan-side deletion of camera moves too small to read,
+which is what actually reduced the slow motion, and is measured independently.
+
+Ruled out first, so the revert was not a guess: block matching the RAW take across 366-375 s finds
+no translation at all on any frame, so the graph does not move in the recording. The shift was
+ours.
+
+**1:51: six things inside two frames, one of them a teleport.** Enumerated from the plan:
+
+```
+1:51.88  caption out
+1:51.88  spotlight out
+1:51.93  shot cut into the cascade
+1:51.93  camera 1.579x -> 0.966x
+1:51.93  the drop
+1:51.94  first tick
+```
+
+The camera line is the worst of it and it is the same bug found on the first drop and not fixed on
+the second: `key(d2, WIDE, "snap")` sat at the same instant as the drift arriving at `d2`, so the
+snap easing had a zero-length segment and never acted. A 63 % pull-out happened between one frame
+and the next. A teleport and a very fast move look identical in a keyframe list and are nothing
+alike on screen, which is why it survived so long.
+
+The pull-out is now a beat and a half, the same as the first drop's reveal. The footage is
+continuous across that cut, so nothing about the picture changes there except how much of it is on
+screen, and the eye can follow it out. The snap easing still overshoots and settles, so the throw
+lands with the drum.
+
+The spotlight now lifts a beat earlier instead of in the same frame as the caption, so the board is
+already open and lit when the camera is thrown out: the move reveals a board rather than uncovering
+one. The window's events now span 1.8 s instead of two frames.
+
+### 2:41, found: the board reflows at the clear, and a static bracket made it legible (2026-07-31)
+
+The owner separated 1:51 from 2:41, confirmed 1:51 fixed, and described 2:41 as the GRAPH shifting
+while the camera was fine. That is what it is, and it is in the recording.
+
+An earlier pass block-matched the whole board across 366-375 s of the raw take, found no
+translation on any frame, and concluded the graph does not move. That measurement was wrong for the
+question: a global match cannot see individual cards moving in different directions. Matched per
+cell over a 6x4 grid, and then per card box, the take shows two reflows:
+
+```
+370.84 s   Rider overview  dx=-13 dy=-4      Rider report  dx=-12 dy=-4
+           Weekday profile does not move
+371.32 s   all five cards  dx=+3..+5 dy=+3..+4
+```
+
+The cause is visible in a still: a flagged card carries "out of date - 2 hops" on three lines and a
+cleared one carries "done" on one, so clearing a card CHANGES ITS SHAPE and the graph reflows
+around it. At 1.79x that first jump is about 23 screen pixels in a single frame.
+
+There is no offset that could follow it. Matching each card's pre-clear box against its settled one
+leaves residuals nearly as large as not matching at all (9.6 against 14.2 for `Weekday profile`),
+because the cards resize rather than translate.
+
+**What was ours, and is fixed.** The three brackets were drawn at boxes measured while the cards
+were flagged, and ran a second and a half PAST the clear. So from the reflow onward each bracket
+was the wrong size in the wrong place, and it was the only thing on screen holding still: the eye
+reads a static outline against a moved card as the graph sliding out from under it. The brackets
+now end 0.05 s before the reflow, their fade completing while they are still correct. They start
+0.45 s earlier than before so they still clear the 1.1 s legibility floor.
+
+What points at the three cards afterwards is the green link, which is drawn between card EDGES and
+survives a few pixels of reflow without reading as wrong.
+
+**What is not fixed, and cannot be from here.** The reflow itself is in the take. Removing it needs
+the board to hold a cleared card at the size it had while flagged, and a re-record. That is a
+product change and the owner's call; it is not something the edit can work around, and no further
+attempt should be made to hide it with camera moves, which is what the previous several passes were
+unknowingly doing.
+
+### 2:41, actually fixed: a cut on the reflow (2026-07-31)
+
+The owner's description was precise and I had been measuring the wrong quantity: "the whole graph
+shifts, and it's not a local thing. It goes back to position." Frame-to-frame deltas cannot see an
+out-and-back; consecutive frames with a fixed reference line drawn on each can, and do.
+
+Ten consecutive delivered frames around the clear, each with two vertical reference lines burned in
+at fixed screen positions, show three steady frames, then the ENTIRE row -- the three job cards and
+the grey dataset boxes with them -- jumping left and up together in one frame, then partially
+returning half a second later. Per-card block matching on the raw take gives the numbers: about
+13 px left and 4 px up at the clear, about 4 px back when the labels go green.
+
+The cause is a product behaviour, not an edit fault. A flagged card carries "out of date - 2 hops"
+over three lines and a cleared one carries "done" over one, so clearing a card changes its size and
+the whole graph reflows around it. Nothing in the edit -- frame rate, source mapping, camera
+easing, overlay timing -- can remove something that is in the recording, and every pass from the
+speed-ramp fix onward was unknowingly trying to mask it.
+
+**A cut removes it, by construction.** The eye tracks position across a continuous frame and cannot
+track it across a cut. The camera now re-frames on the exact frame the flags come off, from 1.303x
+to 1.779x, a 37 % change, which is large enough to read as a cut rather than as a jump cut. The
+footage does not cut: it is one continuous 1x shot either side, so the only thing that changes is
+how much of the board is on screen. Measured in the delivered file, the cut frame carries a
+difference of 9.59 against neighbours of 0.11 and 0.78, which is what a cut looks like and no
+longer what a fault looks like.
+
+It is also the strongest place in the video to cut, which is why it should have been the first
+thing tried: the whole board flagged, then hard in on the three that came back.
+
+### 2:41, the missing half: the cut hid the reflow out and left the reflow back (2026-07-31)
+
+The camera cut on the flags-off frame removed the first reflow and the owner still reported jank,
+correctly: the board reflows TWICE. Half a second after the flags come off, the labels repaint
+green and every card slides about 4 px back toward where it was. That second shift was on screen,
+mid-shot, half a second into the new tight framing, in a passage that is otherwise nearly still.
+The out was hidden and the back was not.
+
+The footage now skips the whole unstable window. "the clear" is renamed "the chain, cleared" and
+its source starts at `clearSettleMs + 0.12` -- three source frames past the measured second
+repaint -- instead of a second before the first one. Ahead of the cut the board is the settled
+flagged layout; behind it, the settled cleared one. Neither repaint is ever on screen: the cut
+itself is the frame the board changes, which is the one device that shows a changed board without
+showing it changing. The storm's source is untouched, so the boundary is a deliberate source jump
+of 1.4 s and the continuity snap exempts it by arithmetic.
+
+Measured on the delivered segment: the storm taper decays 3.8 to 0.3, one spike of 9.84 at the cut
+frame, then 0.06 to 0.46 through the whole chain shot. The old profile had a second spike at the
+settle repaint; there is none.
+
+What moved with it: the resolve sound sits on the cut frame, which is now the clear as far as the
+screen is concerned. The green link starts a third of a second after the cut, and its draw still
+spans the take's measured clear-to-settle gap, so the line travels at the speed the board actually
+restored at even though both repaints happen inside the cut. The three brackets on the restored
+cards are gone rather than retimed: the cut lands on a framing whose subject IS those three cards
+and the link then names the direction of the restore, so a bracket would state the same fact a
+third time, and their two earlier timings were each reported as a fault (sliding against the
+reflow past the clear; clutter when ending on it).
+
+### The cut and the arrows, both named and both fixed (2026-07-31)
+
+Two findings from the owner on the skip-cut version, both verified before changing anything.
+
+**"Not a clean cut."** The camera glided to an intermediate framing 1.42x the chain and cut from
+there to 1.04x the chain: same subject, same centre, a third closer. That is an axial cut, and the
+eye reads it as the picture lurching rather than as a new shot. The arrival key is deleted: the
+camera holds WIDE across the redo storm -- the footage under it is a tenfold timelapse, so the
+frame is not still -- and the cut leaves from the full wide board, an 84 % framing change with the
+side panel in frame on one side and not the other. Nothing about it can be mistaken for a glitch.
+
+**"The green arrows aren't even aligned."** They were not. The link was drawn at the card boxes
+measured while the cards were FLAGGED, and the shot it draws over starts after the clear's reflow:
+the settled cards sit left of those boxes by a different amount each -- measured 8, 6 and 4 page
+pixels for `Weekday profile`, `Rider overview` and `Rider report`, up to fourteen screen pixels at
+the chain framing. While the link drew over the unstable window this was camouflaged by everything
+else moving; over a static board it is plainly visible.
+
+`trailer-assets.mjs` now measures each restored card's settled position by matching its LEFT and
+TOP edge bands between a flagged frame and a settled one -- the label inside is different text in
+the two frames and the bottom edge moves with the resize, so a whole-box match splits the
+difference, which is exactly the error being removed. The shifted boxes are stored as
+`boxes.restoredSettled` in the staged timeline, and the plan REFUSES to build the link without
+them, because a fallback to the flagged boxes would silently bring the misalignment back.
+Verified in a native-resolution still: the pen leaves the right edge of `Weekday profile` and both
+arrowheads terminate on their cards' left borders.
+
+### The cut becomes a dissolve: the clear is now depicted instead of hidden (2026-07-31)
+
+Both hard-cut versions -- on the reflow's own frame, then re-framing from the wide board -- were
+reported as disorienting, and the second also as nonsensical. The criticism is correct in a way
+the previous entries missed: the flags coming off is the event the whole video builds to, and a
+cut that hides the board's ungraceful reflow also hides the event. The board was simply different
+after the cut, with nothing on screen depicting the change.
+
+The skip stays -- the unstable half second between the board's two repaints is still never on
+screen -- but it is now crossed by a dissolve under a single continuous camera glide. The amber
+flags and their dashed connectors visibly die out of the picture while the cleared board rises
+through, which reads as the state change it is; the viewpoint never jumps.
+
+The dissolve check refuses to join speeds more than 0.25 apart, and the storm's taper ends at
+2.6x, so the storm gives up its last beat to "the flags, held": one beat of the flagged board at
+1x. The dissolve then joins 1x to 1x with both sides nearly still, which is the one configuration
+where a crossfade of the same footage cannot ghost two clocks. The outgoing side keeps playing
+`CROSSFADE` past its cut, so its source ends `CROSSFADE + 0.1` before the flags drop: the last
+blended frame is still a flagged board, by arithmetic rather than by margin-tuning. The resolve
+note sits at the dissolve's midpoint, when the amber is half gone; the green link starts a tenth
+after the dissolve completes, on a picture that has finished changing.
+
+Verified in native-resolution frames across the boundary: flagged with amber connectors, a soft
+mid-blend, cleared with the connectors gone, under one continuous push. The mid-blend's double
+edges are a few pixels -- the two settled layouts differ by 4 to 8 page pixels -- and read as a
+crossfade, not as motion.
+
+### The opening rebuilt, the captions culled, and the grade adopted (2026-08-01)
+
+The owner reported the opening confusing and purposeless, and separately relayed a cold viewer's
+report that the video leans so hard on its captions that reading them and watching the screen at
+once was overwhelming. Both reports were measured before anything changed: 25 captions totalling
+246 words, on screen 60 % of the runtime at a forced reading rate of 137 words per minute; 50.4 %
+of the runtime at the full-page framing, where a card label is 12.5 composition pixels; and the
+opening's hook shot was the cascade's own source footage (windows overlapping by 3.88 s) carrying
+the same words 108 seconds early.
+
+The measurement also found the film's first sentence stating a count its own frame contradicts.
+At 0:02 the caption read "seven finished jobs out of date" over six amber cards, with the seventh,
+Mart docs, legible between them reading `running` -- obsel does not flag running work, which is a
+correctness rule, so the seventh flag lands only when that job finishes. The same "seven" fired as
+a 64 px word hit at the second drop while the board's own counter beneath it read `6 of 6`. Two
+more captions had drifted the same way: "The first agents finish" over a board showing no done
+card, and "The rename finished clean. Every downstream job said done." over a board that had been
+amber for three beats.
+
+What changed, all in `video/plan.ts` unless named:
+
+- **The hook and the title card are cut.** `OFFSET` moves to the percussion entry; the film opens
+  on the terminals with the rhythm already running and the product on screen at 0:07. Runtime
+  175.24 s, from 179.52.
+- **The board shot grew to 11.2 s and ends on a 3.5 s hold on the dock panel** at the tight
+  framing, where the panel's own words -- "40 agents ready to run", what obsel records, the
+  measured 15.3 s setup time, and the button's description of the run -- are about 24 px on
+  screen and carry no caption. Verified in a rendered still: all legible, the launch button
+  bracketed, the `erasure` tab visible.
+- **Captions went from 25 to 15.** Deleted: every line that restated product text now legible at
+  a tightened framing (the two counter lines, the Codex-session line, the details-panel line, the
+  repair-button line), the two that contradicted their frames, and the sixty-percent line, whose
+  fact the dock panel states. "The first agents finish. Others build on what they wrote." moved
+  from 0:47, where nothing visible had finished, to the post-interlude feed look, where the rows
+  on screen are finished sessions. "Seven flags wait" became "The flags wait"; the ribbon counts.
+  "taxi analytics" became "taxi data".
+- **The hit at the second drop says "six finished jobs"**, which is what the board and its counter
+  show at that moment. The count rises to seven on screen when the late finisher completes, and
+  the counter's own `7 of 7` is now legible at the framing that shows it.
+- **The dock looks are cuts at the tight ceiling.** `V.feed`, `V.activity` and `V.ribbon` moved
+  from 1.5x to 1.85x, reached by hard cuts on the beat (in and out) instead of two-beat glides.
+  The two framings differ by 46 %, which reads as a cut rather than a jump. `V.repair` stays at
+  1.5x: tightening it made the drift out of the details panel reverse depth, which the hold check
+  caught and refused.
+- **The details-panel framing reaches the page's right edge** (`V.reason` box widened from 390 to
+  816 page px), so `mark · columns` and the activity rows beside the panel are no longer clipped.
+  Verified in a rendered still: the full reason chain, the columns line, and `658 ms` / `7 of 7`
+  all in frame with no caption over them.
+- **The grade is on by default** (`video/Root.tsx`, `video/Trailer.tsx`). Measured on the previous
+  cut before adoption: card-label contrast +47 % RMS across five label bands, board-interior p99
+  90 to 131. The b-roll stays outside the graded subtree as before; the interludes, flight and
+  end card were checked in stills under it.
+- **The chapter label yields to the lineage flight** (`Chapters` in `video/Trailer.tsx` takes a
+  `dodge` list): the flight's grid-solved closing composition puts the Weekday profile card on the
+  label's corner, and the label is the movable one.
+
+Checks that ran against the changes rather than for them: the hold-drift depth check refused the
+first version of the repair framing, and the reading-time floor bounded every retimed caption.
+Verified beyond the unit suite (623 tests green, typecheck and lint clean): rendered stills at
+every changed boundary, frame pairs straddling all three new hard cuts showing clean framing
+changes, and a half-scale preview render of the full 175.24 s cut. The preview is bench state for
+the owner's review; no final-quality render has been made.
+
+### The owner's review of the caption cull, and the partial revert (2026-08-01)
+
+The owner reviewed the caption-culled cut and rejected most of it: the deleted captions left
+awkward silent stretches, the tightened dock looks did not replace the missing words for a cold
+viewer, and the hard cuts were not smooth like the film's other camera moves. The opening
+restructure he kept, with one correction: cutting the pre-percussion run-up had cropped the
+track's quiet intro along with the dead footage, so the music entered mid-build.
+
+The cut now standing, against the culled one:
+
+- **The track's run-up is restored** (`OFFSET` back to six beats before the percussion), so the
+  music builds from its own start again. Runtime returns to 179.52 s. The eleven beats the hook
+  and title once occupied stay spent inside the setup: the docker stretch grew from three beats
+  to five (2.1 s was the most compressed shot in the film), and the board shot holds the whole
+  wide board a second longer before its push-in.
+- **Every deleted caption is back at its old slot, rewritten shorter**: 23 lines and 201 words
+  against the original 25 and 246. The windows kept their length, so there is no new silence; the
+  lines just finish reading sooner. Two rewrites also fix frame drift: "Moments ago, every
+  downstream job said done." names its own tense over the already-amber board, and "Sixty percent
+  in" replaces wording the dock panel states verbatim.
+- **The camera looks are back to the original glides at the ordinary 1.5x framings.** The 1.85x
+  hard-cut versions are gone.
+- **The grade is off by default again.** Offered each piece of the batch to keep, the owner did
+  not keep it. It remains one prop away.
+- Kept from the culled cut: the opening (terminals first, then the board ending on a 3.5 s hold
+  on the dock panel before the recorded click), the "six finished jobs" hit, the widened
+  details-panel framing, and the chapter label yielding to the flight.
+
+Verified: `pnpm typecheck`, `pnpm lint`, 623 unit tests, and a half-scale preview render of the
+full 179.52 s (`preview29`), with frames inspected at the docker stretch, the board hold, the
+click, and the drop. Bench state for the owner's review; no final-quality render.
+
+### The silent pan filled (2026-08-01)
+
+The owner reported 0:52 to 0:57 as nothing a viewer could understand. Measured, the stretch is
+the slow lateral pan across the graph's middle, every card in frame reading `waiting`, with no
+caption: the previous line leaves at 0:52.1 and the next arrives at 0:58.4. A travel across
+waiting cards carries no information until something says why they wait, so the dependency
+premise now rides it: "These agents wait for tables still being written.", 0:52.3 to 0:56.3,
+which is what the frame shows -- the finished producers are behind the camera and everything in
+view is downstream of them. Verified in delivered preview frames at 0:53 and 0:55.5.
+
+### The cascade's travelling light was crossing cards, not following wires (2026-08-01)
+
+The owner reported the amber path animation as jumbled and misaligned. It was, and the cause is
+geometric rather than a matter of timing or easing.
+
+**A producer does not connect to its readers. Its output table does.** The board alternates agent,
+table, agent, table across a row, and the fan-out to downstream readers leaves the TABLE's right
+edge. `route()` in `video/Lineage.tsx` started at the producing agent's right edge instead, so the
+elbow it turned at was computed from the wrong origin and landed inside the table's own card.
+
+Measured by scanning warm-toned columns of the recording at 165.4 s, and confirmed against a
+rendered frame after the pulse has faded, the board's vertical bus sits at:
+
+| edge                              | producer's output table           | reader | board's bus | old drawn elbow |
+| --------------------------------- | --------------------------------- | ------ | ----------- | --------------- |
+| Daily totals to its five readers  | `daily trips`, right edge 573     | 598    | **579.5**   | 511.5           |
+| Weekday profile to Rider overview | `weekday profile`, right edge 791 | 816    | **809.5**   | 730.2           |
+
+So the light turned 68 and 79 px left of the wire it was meant to be travelling. Worse than being
+merely offset, both elbows were inside a box: the vertical leg at 511.5 ran through `daily trips`,
+`hourly profile` and `payment mix`, and the one at 730.2 through `weekday profile` and
+`weekend summary`. Three of those five cards have nothing to do with the cascade.
+
+The route now leaves the producer's output table, found geometrically as the next box to the right
+on the same row, and turns 6.5 px inside the gap. Which end of the gap is measured rather than
+chosen: both gaps are exactly 25 px and both buses sit 6.5 px from one end, but from opposite ends.
+A bus shared by five children hugs the table so the shared leg runs for most of its length; a lone
+edge tucks its elbow against the reader. `RestoreLink` takes the same fix, since its own comment
+requires it to draw the same wiring as the cascade.
+
+**Verified, in this order.** `tests/video-cascade.test.ts` asserts both elbows land within 1 px of
+the measured columns, that no elbow's vertical leg crosses a box, that every route starts at the
+output table's right edge and ends at the reader's left edge, and that the shipped source still
+contains the arithmetic the test transcribes. The test was then run against the old geometry and
+fails 12 assertions, so it has teeth rather than merely passing. Finally, rendered frames were
+measured in page coordinates through the camera transform: at frame 2810 the drawn amber column is
+at page x 579 with 67 warm samples, and at frame 2860, with the pulse fully faded, the board's own
+bus measures at page x 579 to 580. The drawn line and the board's wire are the same column.
+
+### Four things the film never said, and where the seconds came from (2026-08-01)
+
+The owner reported the video as incomplete without being able to name what was missing. Four
+things were, and all four are information rather than craft: there was no statement of the
+problem before the product appeared, DataHub's role was named in captions but never shown, the
+erasure half of the product was absent entirely, and nothing said what any of it is built out of.
+
+**The constraint that shaped every fix.** The music's anchors are fixed, so the film is three
+closed budgets rather than one: `OFFSET` to the first drop, the first drop to the breakdown, and
+the second drop to the track's end. Time is not fungible across them. Every second of new
+material had to be found inside the budget it lives in.
+
+| what was added                                                | where                             | what paid for it                                                   |
+| ------------------------------------------------------------- | --------------------------------- | ------------------------------------------------------------------ |
+| "A change upstream quietly leaves finished work out of date." | over the docker stretch, 0:00.5   | nothing; the two definition lines moved one slot later             |
+| `break: what obsel writes`, 8 beats                           | 0:39.4, before the DataHub b-roll | the lateral pan, 25 beats to 20, and its three captions re-slotted |
+| the erasure report, 6 beats                                   | 2:46.8, after the settle          | one beat each from six shots between the cascade and the end card  |
+| `Next.js · Python agents · MCP server · Ed25519 attestations` | the end card                      | nothing; the line stagger tightened                                |
+
+Runtime is **179.56 s**, measured by ffprobe on the delivered preview, against a 180 s cap.
+
+**The DataHub break.** DataHub was named in three captions and shown once as b-roll, and none of
+that says what obsel actually writes there. The break states it entity by entity -- a `Dataset`,
+a `DataJob`, the `Consumes` and `Produces` edges between them, and `urn:li:tag:obsel-stale`
+landing on the job -- and the b-roll then shows those same rows in DataHub's own interface eight
+beats later. Diagram first and footage second: reversed, the b-roll is seven seconds of an
+interface a judge has no vocabulary for yet. Every string in it is read off the code or off the
+b-roll frame that follows it: `clean_trips` is a real task in `agents/scale.py` titled "Trip
+cleaner" reading `raw_trips` and writing `clean_trips`, `obsel_taxi_video` is the flow the take
+was recorded against and is printed at the top of the b-roll page, `Consumes`/`Produces` are
+`agents/graph.py`'s own relationship names, and the tag URN is `STALE_TAG_URN`.
+
+**Where the pan's five beats came from, measured rather than judged.** The lateral travel across
+the graph crosses 493 page pixels at the 1.44x it runs at, which is 2.9 composition pixels a
+frame over fourteen beats and 3.7 over eleven. The setup's dock pan was called out in this
+document as fast enough to strobe at 74 a frame, so both numbers are two orders of magnitude
+inside the fault. All three captions the stretch carries keep their reading time with margin,
+checked by the arithmetic in `plan.ts` rather than by eye -- it refused the first two slottings.
+
+**The erasure shot is a real run, not a mock-up.** `scripts/erasure-broll.mts` starts an obsel of
+its own, opens a request against the `showcase-ecommerce` pack somebody else loaded into DataHub,
+and posts two Ed25519-signed attestations through the real challenge and proof routes. The report
+on camera reads **2 of 18 assets covered, 16 unattested**, and both of those numbers are the
+product's. Three things the run established that were not designed in:
+
+- **The scope check refused the second attestation first.** One snowflake-scoped key signed for
+  the seed and was then refused `out-of-scope` on the next asset, because the estate crosses into
+  dbt one hop downstream. The fix is not a wider scope, it is a second attestor: obsel's claim
+  here is that it combines local claims from parties none of whom can see the whole estate, and
+  the report now carries two attestors because the design forced it to.
+- **A failed run left its server alive and the next run recorded against it**, with a different
+  key registry and a different ledger, and the only symptom was `bad-signature` on a signature
+  that was in fact good. The script now refuses a port something is already answering on.
+- **The estate mirrors every warehouse table into dbt**, so the panel shows two rows called
+  `customers` and two called `order details`. Signing one of each pair put the same visible name
+  on screen twice with opposite states, which reads as a defect rather than as two tables. Both
+  halves of one pair are signed instead, each by the attestor entitled to it.
+
+The shot is a third source kind rather than a second b-roll, and the difference is the camera:
+b-roll is composited as a window card at about 0.8 scale, and at that scale the report's type
+lands around 10 px. It is on the desk with the take instead, framed at 1.59x off a box the
+recording measured for itself -- the two pages carry the panel at different widths, so framing one
+from the other's box crops the report down its side.
+
+**Verified.** `tests/video-erasure.test.ts` asserts the shot is camera-framed rather than
+windowed, that the framing is centred on the measured panel and contains all of it, that its
+caption uses none of the vocabulary `CLAUDE.md` forbids and carries no figure the panel prints
+itself, and that the caption is off screen at least half a second before the cut. Each assertion
+was then run against a deliberately broken plan -- the shot as `broll`, the framing taken from the
+take's dock box, the caption reading "Proof that 2 of 18 assets are clean.", the caption running
+to the cut -- and each failed on the thing it is there to catch. Full suite: typecheck, lint,
+**632 tests** with the assets directory configured. A bare `pnpm test` skips the nine that need
+it and says so.
+
+**Not done in this pass.** The four `format:check` failures this work did not touch are still
+there. The assets directory was patched with the erasure recording by hand rather than rebuilt,
+because a full `trailer-assets.mjs` run needs the take, the b-roll and the licensed music
+together and the music is not on this machine; the two steps applied are the same ffmpeg
+normalize and the same two timeline fields that script now performs, and the next full build
+reproduces them. No final-quality render has been made.
+
+### The erasure shot's strings were written for the wrong reader (2026-08-01)
+
+The owner reported the 2:49 shot as confusing for a beginner, along with the attestation line on
+the end card. He is right about who the strings were written for: `dsr-20260801-1207` assumes the
+viewer files data subject requests, `by analytics-adapter@order-entry` reads as a machine
+identity, and `Ed25519 attestations` is two terms the film uses nowhere else, on its final frame.
+
+The panel's own sentence templates are enforced in `coverage-view.ts` and are not the video's to
+reword. But two of the three jargon sources were strings the capture chooses, and the third was
+the caption. All three are replaced and the shot re-recorded, another real run end to end:
+
+| was on screen                                               | is on screen now                                 |
+| ----------------------------------------------------------- | ------------------------------------------------ |
+| `dsr-20260801-1207`                                         | `deletion-request-2154`                          |
+| by analytics-adapter@order-entry                            | by the analytics team                            |
+| version run-2026-07-31 / snapshot-7741                      | version rebuild-2026-07-31 / snapshot-2026-07-31 |
+| "The same lineage answers a deletion request."              | "obsel also tracks deletion requests."           |
+| Next.js · Python agents · MCP server · Ed25519 attestations | ... · digital signatures                         |
+
+The caption change also removes "lineage", which is this repository's own word and exactly what
+its no-jargon rule exists for; the same-machinery point it carried is for judges, who can read it
+in `docs/erasure-coverage.md`. The attestor field is a free string, so a plain name claims
+nothing the oid-style one did not, and the signatures behind the rows are as real as before: the
+run opened `deletion-request-2154`, was refused nothing, and finished at 2 attested, 16
+unattested, with both attestors on screen. The algorithm's name leaves the end card and stays in
+the repository one line below the address.
+
+Verified on rendered frames at 2:49 (field, green row and caption legible in the new wording) and
+on the end card at 2:58. Typecheck, lint and the full suite with assets: 632 tests, including
+`tests/video-erasure.test.ts`, whose vocabulary and no-figures assertions pass unchanged against
+the new caption. Preview33 rendered at half scale, 179.56 s.
+
+### The terminals were screen grabs, not windows (2026-08-01)
+
+The owner reported the opening's terminals as unnatural: black bands either side of a window
+running the frame's full height. That is exactly what was on screen. `term-render.mjs` renders
+each cast as a bordered window on an ink field, and `TerminalShot` showed the whole 1920x990
+picture, flanks included.
+
+The window is now cut out of the cast frame and set on a desktop. The crop is measured rather
+than styled: the window's border sits at x 255 and 1665 in both casts, found by scanning the
+rendered frames for the fill transition, and one pixel each side keeps the border in the crop. At
+0.84 scale the window has about 120 px of desktop above and below and the caption band sits in
+the lower margin. The desktop is the same three tokens and wine base as the board's own backdrop
+in `Trailer.tsx`, at its unlit values, so the cut onto the board lands on scenery this scene
+already established. It is deliberately not a copied Apple wallpaper: the film ships to judges,
+and a desktop picture lifted from an OS is a third-party asset with nothing to attribute it to.
+
+Verified on rendered frames of all three terminal shots and on the delivered preview at the cut
+into the board. Lint, 632 tests and formatting unchanged. Preview34, 179.56 s.
+
+### The terminals got a desktop in the Windows XP manner (2026-08-01)
+
+The owner asked for the XP background behind the opening's terminals, with desktop icons and a
+dock. The photograph everyone knows is Microsoft's licensed asset and the recognizable OS icons
+are trademarks, so nothing was fetched: the hill, sky and clouds are four gradients and three
+blurred shapes painted in `TerminalShot`, the three desktop icons are generic chips labelled the
+way XP set its labels, and the dock is translucent rounded squares with the terminal's own `>_`
+in the first slot. There is no third-party asset and nothing to attribute.
+
+Two faults were introduced and fixed inside the same pass, both visible in rendered frames
+before they could ship. Rendered on the desk, the whole desktop sat inside the app card's rounded
+corners, a desktop inside a window; terminal shots now render full bleed, off the desk, and their
+opaque layer hides the empty card behind them. Full bleed, a `z-index` that had been holding the
+window above its own wallpaper escaped to the page's stacking context, because nothing on the way
+up creates one, and painted the window over the caption band that renders last precisely so it
+wins. The z-index is gone, document order does that job, and the window now sits at y 148 at 0.72
+scale, which clears the speed label's plate above it and a two-line caption's plate below it, so
+no words are ever printed across the terminal.
+
+Verified on full-resolution frames of all three terminal shots. Lint, 632 tests and formatting
+green. Preview35, 179.56 s.
+
+### The cut from the desktop to the app became a dive through the screen (2026-08-01)
+
+The owner asked for the terminal-to-app transition to feel fluid and deliberate. It was a hard
+cut from a bright desktop to the dark scene the app sits in, two unrelated worlds one frame
+apart.
+
+Over the `pnpm dev` shot's last beat, the whole desktop now accelerates toward the terminal
+window until the window's dark interior swallows the frame, and the cut lands inside it, where
+the app's own window is already rising out of the dark. The move is one scale on one container
+whose origin is the window's centre, so the icons, dock and window fly past together like a
+camera moving rather than elements animating; it is eased in so it leaves from stillness, one
+beat long, finished exactly on the cut; and the last tenth settles to ink over the interior so no
+half-transparent wallpaper shows the empty card mounted underneath. At 2x about (960, 504) the
+1017 px window spans past both frame edges, which is the arithmetic that lets the cut land
+inside it.
+
+The dive replaces the plain exit fade on that shot only; the earlier window swap between the two
+terminals keeps its fade. Verified on full-resolution frames at six points across the boundary,
+including both sides of the cut. Lint, 632 tests and formatting green. Preview36, 179.56 s.
+
+### The dive got its landing (2026-08-01)
+
+The owner reported the reworked terminal-to-app transition as still not smooth. The diagnosis
+held up in the frames: the dive accelerated into its own black frame and cut to the lit scene
+standing still, which is peak velocity into a hard stop with a luminance pop on the same frame,
+however well the two dark frames matched.
+
+The dive now crosses the cut instead of ending on it. `devEnd` is listed in the plan's fades, the
+terminals rank at the b-roll's layer so the desktop is the side that dissolves, and the melt runs
+the standard 0.8 s overlap: the desktop is still flying while it fades, and the app's window is
+already rising underneath when it is revealed, so no frame on either side stands still. The push
+begins 0.45 s before the cut, eased in and out, and by the time it is decelerating it is mostly
+gone. The cast plays over the shot's real span and freezes through the hold, because stretched
+over the extended one it ran 19 % slow and every keystroke sound landed ahead of its character.
+
+Verified on frames at six points across the boundary: the terminal's last printed lines ghost
+over the board's cards mid-melt, and the app window is already in motion at first reveal. Lint,
+632 tests, formatting green. Preview37, 179.56 s.
+
+### The outro was cut and its twelve beats went into the demonstration (2026-08-01)
+
+The film ended on two generated screens: a closing claim on the void ("There is no dismiss
+button.", five beats) and a lockup end card carrying the run's numbers, the parts list, the
+repository address and the entry name (seven beats). The owner's call was that the demonstration
+could use those seconds more than an outro could. Both are gone, along with the `title` and
+`endcard` source kinds, the `thesis` interlude variant, and `EndCard`, `TitleScreen`, `Lockup` and
+`Mark` in `Screens.tsx`, which nothing referenced once the lockup left the film.
+
+**Nothing in the rules required them.** `hackathon.md` asks for a public demo video under three
+minutes showing the project functioning; the address and the entry name live on the submission
+page. The cost is real but small: a judge who watches on YouTube and wants the repository reads
+the description rather than pausing the last frame.
+
+Twelve beats came free, and every one of them went into the closed stretch after the second drop,
+which is the only place they could go: the music's anchors are fixed, so time does not move across
+them.
+
+| shot                  | was  | now  | why                                                                                                    |
+| --------------------- | ---- | ---- | ------------------------------------------------------------------------------------------------------ |
+| the cascade           | 28 b | 31 b | its four captions had 0.98, **0.10**, **0.02** and 0.32 s of slack, the two tightest lines in the film |
+| break: nothing failed | 7 b  | 8 b  | back to the length it was written at                                                                   |
+| late finishers        | 13 b | 15 b | the timelapse ran at **18.6x**, the fastest in the cut                                                 |
+| the reason            | 7 b  | 8 b  | the shot is a viewer reading a panel                                                                   |
+| the settle            | 5 b  | 6 b  | the resolution, and its caption had 0.03 s of slack                                                    |
+| erasure               | 6 b  | 10 b | its caption filled all but 0.6 s of it                                                                 |
+
+The cascade's three beats are not just a longer shot: the two lines that needed them are anchored
+to the drop, so the cues, the camera's two walk steps, the amber spotlight and the ribbon bracket
+were all re-slotted around them. Measured after: **0.98, 0.80, 0.72 and 1.02 s** of slack. The
+timelapse now runs 15.6x. The erasure caption is timed from the shot's start rather than its end,
+which matters now that its end is the track's: anchored the old way it stretched to 6.2 s, more
+than twice its reading time.
+
+**The film ends on the product.** The erasure shot runs to the track's end and the camera pulls
+out from the report to the whole page over the last 2.2 s, so the final frame is forty jobs green
+on the left and the coverage report open on the right, in one continuous move on one recording.
+The creep before the pull-out goes outward, which is the opposite of every other drift in the file
+and is forced rather than chosen: a drift has to lead into the move that follows it. The shot uses
+11.2 s to 18.2 s of a 20 s recording.
+
+Verified on rendered frames at five points across the cascade and the new ending, including the
+last frame. Typecheck, lint, **632 tests** and formatting green. Preview38, 179.56 s, unchanged
+against the 180 s cap.
+
+### Five gallery cards for the Devpost page (2026-08-01)
+
+Generated with the Codex CLI's image tool, one card per beat of the demonstration, in the
+App-Store feature-card manner but understated: a real screenshot in a rounded window on the
+film's own wine backdrop, one headline, one dim sub-line, monospaced type, no badges. The
+screenshots are composited rasters, not redrawn -- the first attempt was checked at pixel zoom
+because an image model that repaints a UI garbles its text, and the tool composited rather than
+repainted. Every string on every card was re-read against the vocabulary rules: the flag card
+says "walked from DataHub lineage, written back as tags", the erasure card says "every asset is
+unattested until a signed attestation covers it", and a "swarm coordinator" sub-line on the hero
+was regenerated to "built on DataHub lineage" because obsel does not schedule agents.
+
+The five, at 1536x1024 in `~/Desktop/devpost-gallery/`: the settled board under the product's
+one-line definition; the amber flood under "One column renamed. Every finished job downstream
+flagged."; DataHub's own Tasks page under "Forty agents, registered as DataJobs in DataHub"; the
+mid-repair board under "One click redoes only the flagged work"; and the coverage report under
+"The same lineage answers a deletion request". They are submission assets, not repository files,
+and the screenshots in them are frames of the same recordings the video is cut from.
+
+### The gate the board's own routes did not have (2026-08-02)
+
+`/api/tasks/report`, `/api/tasks/register`, `/api/demo/launch` and `/api/demo/reset` were
+unauthenticated by decision, recorded in `auth.ts` and repeated in this file and in
+[`architecture.md`](architecture.md). The recorded reasoning had two halves. The first was true: a
+browser has nowhere to read a secret from, so either an operator pastes one or the server hands the
+page a token anyone loading the page can read. The second was false, and it was the load-bearing
+one. **`report` spawns `agents/report.py` with the server's environment, and the child completes the
+task using the server's own `OBSEL_API_TOKEN`.** So an unauthenticated caller who could reach the
+port could replay a flagged task's recorded rows, have both fingerprints match the baseline, and
+watch the completion read as an identical redo: `restoredBy` then clears that task's flag and every
+downstream flag the redo provably restores. The gate on `complete` held only against callers who
+came through the front. Found by a reviewer reading `auth.ts` against the code it describes, which
+is the argument for keeping the reasoning next to what it governs.
+
+**What changed.** All four routes now gate. Three call `refuseUnauthorized` from
+`src/server/http/route.ts` before parsing, so an unauthenticated request never reaches
+`request.json()`; `demo/reset` calls `authorizeMutation` directly because its failures carry `ok`,
+which `agents/run_demo.py` reads. The board holds the operator's token in `localStorage`
+(`src/features/dashboard/token/use-token.ts`) behind a field at the top of the panel, and the guide,
+the registration form and the table form send it. `agents/run_demo.py`'s reset call now sends
+`worker.auth_headers()` like every other Python caller. No route or tool that clears a flag was
+added; the gate removes a way around the existing rule rather than adding an exception to it.
+
+**Measured against a real server, 2026-08-02**, `next start` on port 3141 with
+`OBSEL_API_TOKEN` set, requests by `curl` over real HTTP:
+
+| Request                                                        | Answer                                |
+| -------------------------------------------------------------- | ------------------------------------- |
+| the seven mutations, no `Authorization` header                 | **401** on every one                  |
+| `tasks/report` and `demo/reset`, wrong token                   | **401**                               |
+| `demo/reset` refused                                           | `{"ok":false,...}`, its shape kept    |
+| `tasks/report` with the right token, empty body                | **400**, so the gate ran before parse |
+| `GET /api/demo/activity`, no token                             | **200**, reads stay open              |
+| the same mutations against a server started `OBSEL_API_TOKEN=` | **503**, naming the variable          |
+
+**The board asks for it, and the two failures are reported differently.** Gating the board's
+routes made the token a setup step the guided checklist did not have: a reader could tick DataHub,
+the Python packages, the tag and uv, press the first button, and get a 401.
+
+The two ways it can be missing are not the same failure, and the first attempt treated them as one.
+**The server having no token** means `authorizeMutation` answers 503 to everyone, so nothing the
+guide offers can run: `preflight.ts` checks it and it is a blocker like uv, holding the board on the
+setup stage with the command that writes one into `.env.local`. **This browser not having been given
+one** breaks only the writes. Every read still works, the graph is still true, and the flags on it
+still mean what they say.
+
+Making that second case a blocker too was wrong, and the browser suite said so immediately: 36 tests
+failed because every fixture board, all of them holding a swarm in some real state, was replaced by
+a setup screen. That is the honest reading of the failure rather than a test problem. A settled
+board held on "one more thing to set up" is describing the swarm by a fault that is not the swarm's.
+It is an `attention` line now, which is the field for one line that must not be missed on any stage,
+and it stays silent while the server has no token, because the checklist is already saying that and
+setting it there is what makes pasting possible.
+
+Verified in a real browser on 2026-08-02 against a real DataHub: a board with the server configured
+and nothing pasted stays on its own stage and carries "This obsel has an API token and this browser
+has not been given it ... Paste it into the token field above", and the line goes the moment a value
+is saved. The value is never sent to the page; the check is only whether one exists.
+
+**In the suites.** `tests/live/task-auth.live.test.ts` grew from three routes to seven and its
+"the routes the board calls stay open" block was deleted: it asserted the old behaviour, so it is
+now the block asserting the gate. `e2e/dashboard-token.spec.ts` is new and is the only automated
+proof of the browser half, because `localStorage` is a browser's and a fake one would assert only
+what its author believed: a pasted token arrives at the intercepted route as
+`Bearer <value>`, no token arrives as no header at all, and a stored token survives a real page
+reload and stops being sent once forgotten. Six tests across both viewports. `pnpm test` is
+623 passing, `pnpm e2e` 297 passing with 1 skipped, `pnpm typecheck`, `pnpm lint` and `pnpm build`
+clean. The full live suite needs DataHub, `uvx` and `codex`, and has not been run for this change.

@@ -128,12 +128,14 @@ export function ErasureTab({
 /**
  * What to say when nobody has named a request.
  *
- * It offers a command rather than a button, and that is a statement about the
- * design rather than a shortcut. Opening a request is a mutation, obsel's
- * erasure mutations are token-gated, and the browser holds no token: a button
- * here could not work, and a button that cannot work is worse than a sentence
- * explaining why. It is the same reasoning the header's board note uses for
- * the flow id.
+ * It offers a command rather than a button, and since the board began holding a
+ * pasted token that is a choice rather than a limit. Two reasons for it. The
+ * body names a real person's identifiers, which is not something to put behind
+ * a one-click control on a dashboard anybody in the room can see. And obsel
+ * cannot enumerate the requests it holds, because the ledger derives every URN
+ * and never searches, so the id the reply carries has to be kept by whoever
+ * opened it either way. It is the same reasoning the header's board note uses
+ * for the flow id.
  */
 function NoRequest() {
   return (
@@ -145,9 +147,9 @@ function NoRequest() {
         says otherwise.
       </p>
       <p style={{ margin: "var(--mm-space-sm) 0 0" }}>
-        This obsel has not been given a request to read. Opening one is an operator action, because
-        it writes to the ledger and the browser holds no token for that. The reply carries an id,
-        and that id is what goes in the field above.
+        This obsel has not been given a request to read. Opening one is kept an operator action: the
+        body names a subject&rsquo;s own identifiers, and obsel holds no list of requests to pick
+        from afterwards. The reply carries an id, and that id is what goes in the field above.
       </p>
       <code className={styles.emptyCommand}>
         {`curl -X POST localhost:3000/api/erasure \\

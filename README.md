@@ -106,9 +106,14 @@ Codex CLI. Not mockups, and not assembled from separate sessions.
 Both clips come from one sequence, recorded 2026-07-30 against the same live stack, with that run's
 own numbers in frame. Detection took a measured 397 ms. The repair redid **one** of the three
 flagged tasks in 28.3 s, and obsel cleared the other two itself in 233 ms because the redone table
-came out byte-identical. There is no button that dismisses a flag. A flag clears only through redone
+came out identical. There is no button that dismisses a flag. A flag clears only through redone
 work: the flagged task re-runs and reports, or an upstream task re-runs, its table comes back
 identical, and obsel clears the downstream flags that redo restores.
+
+"Identical" is the fingerprint's word, not the file system's: rows are sorted before hashing, and
+any column the task registered as volatile is left out. Two tables that differ only in row order, or
+only in a load timestamp declared at registration, are identical to obsel and to every sentence
+about identical output in these documents. Nothing else is excluded.
 
 ---
 
@@ -146,6 +151,17 @@ in DataHub. Every item is checked on your machine a couple of times a second, fi
 ticked, and anything missing shows you the exact command to run. Work down the list until it is
 empty. The launcher above does the same work in the same order, which is why it exists: two of those
 steps only work once DataHub is answering.
+
+**One thing you type in**, and the checklist asks for it like the rest. Every route that changes
+something needs a bearer token. `.env.local` holds it, `scripts/start.sh` generates one there if it
+is empty, and the page has a field at the top of its panel to paste it into. Paste it once and the
+browser keeps it. The server never hands it to the page, because anyone who can load the page could
+then read it. The agents do not need this step: obsel spawns them and they inherit the token from
+its environment.
+
+```bash
+grep OBSEL_API_TOKEN .env.local
+```
 
 After that, the demo runs from five buttons.
 
@@ -279,7 +295,11 @@ to `/api/tasks/report`, which runs `agents/report.py`, which calls the same
 disagree with the first about whether a table changed.
 
 You still cannot hand obsel a hash, from the page or from an agent, and there is still no button
-that clears a flag.
+that clears a flag. This route is token-gated like every other mutation, and it was not always: it
+runs `agents/report.py`, which completes the task with the server's own token, so while it was open
+anyone who could reach the port could replay a flagged task's old rows and have the completion read
+as an identical redo that cleared the flag. [`docs/architecture.md`](docs/architecture.md) records
+the whole of it.
 
 ---
 
@@ -316,18 +336,23 @@ The full record of what has been measured, and what has not, is in
   two observations each.
 - The graph has been checked in a real browser on two pipeline shapes, four tasks and forty, plus
   a joined fifth agent in the unit suite. Nothing between or beyond those.
-- The submission video is not voiced or uploaded. A measured 157.9 s reference picture lock exists
-  from a clean one-shot take, but it predates the joining panel and has to be shot again.
+- The submission video is cut and rendered: 2:59.6, 1920x1080 at 25 fps, from recordings of real
+  runs against a real DataHub. It has no narration, by choice. It is a YouTube upload linked from
+  the Devpost entry rather than a file in this repository, and the production project is not
+  committed here.
 - **Bringing your own data is half on the page.** Declaring tasks is a form, driven against a real
   DataHub on 2026-07-26. Reporting a file is not: obsel takes the fingerprint from rows itself, and
   doing that in the browser would be a second definition of what counts as a change, so the report
   still comes from whatever runs your work.
-- **The erasure half has no page.** One request has been run end to end against a real catalog on
-  2026-07-26: 23 assets over five platforms, one turned attested by a real Ed25519 signature. But
-  the coverage picture is JSON from `GET /api/erasure/<id>`. The screen shows erasure only as
-  activity in the trace panel: requests opened, challenges issued, attestations accepted and
-  refused. No agent yet drives that page on its own; the attestation in that run was signed by the
-  operator, not routed to an owner and waited for.
+- **The erasure half has a page, and no workflow behind it.** The board's erasure tab takes a
+  request id and shows the coverage report: a state and a sentence for every asset the walk
+  reached, how many are covered and how many nobody has attested to, and the same graph recolored
+  by coverage. One request has been run end to end against a real catalog on 2026-07-26: 23 assets
+  over five platforms, one turned attested by a real Ed25519 signature. What is missing is
+  everything around it. Opening a request is a curl command. No agent drives the tab on its own.
+  The attestations in those runs were signed by the operator, not routed to the owner of each
+  asset and waited for, and nothing binds an attestation to a version obsel derived from the
+  warehouse itself, because obsel holds no warehouse credentials and reads no warehouse data.
 
 ---
 

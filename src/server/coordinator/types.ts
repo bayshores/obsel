@@ -450,7 +450,7 @@ export interface AffectedTask {
  * A flagged task a redo has just proven sound, before the mark is taken off.
  *
  * The inverse of `AffectedTask`, produced by `restoredBy` when a stale task
- * re-runs and its output comes out byte-identical: everything downstream that
+ * re-runs and its output comes out identical: everything downstream that
  * was flagged only for ground this output carried never had its ground move.
  * `reason` is held to the same standard as a mark's reason — a clear with no
  * traceable cause would be a tool for silencing flags, which is the one tool
@@ -514,7 +514,7 @@ export interface CoordinationResult {
    * Flagged work this completion proved sound, cleared without a re-run.
    *
    * Non-empty only when a stale task redid its work and an output came back
-   * byte-identical: the tasks downstream of that output were flagged for
+   * identical: the tasks downstream of that output were flagged for
    * ground that never moved, and `restoredBy` in `staleness.ts` is the rule
    * deciding which of them the records genuinely prove. Empty on every other
    * completion. Optional because results captured before restoration existed

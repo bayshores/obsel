@@ -600,7 +600,7 @@ export function causesOf(mark: StaleMark | null): StaleCause[] {
 /**
  * Which stale tasks a redo has just proven still sound.
  *
- * When a stale task re-runs and its output comes out byte-identical, the tasks
+ * When a stale task re-runs and its output comes out identical, the tasks
  * downstream of that output were flagged for ground that never actually moved.
  * This function finds them, so a repair can redo one task instead of every
  * flagged one. The inverse of `affectedBy`, and held to the inverse standard:

@@ -165,8 +165,10 @@ whatever state it was in before, so a failed re-run does not erase a good earlie
 }
 ```
 
-- **`changedOutputs` empty** is success, not failure. Your output is byte-identical to
-  the recorded version and nothing downstream needed telling.
+- **`changedOutputs` empty** is success, not failure. Your output is identical to
+  the recorded version and nothing downstream needed telling. Identical means the same
+  fingerprint, not the same bytes: rows are sorted before hashing, and columns you declared
+  volatile are left out. Emitting the same rows in a different order is not a change.
 - **`affected`** is finished work your completion just invalidated. Each entry carries
   the reason and how many hops away it was. Some of them will be tasks that never read
   your table at all: that is the cascade working, and it is exactly the thing a person
@@ -221,7 +223,7 @@ that somebody finds out when it goes wrong.
 write goes through obsel's own API, which is what makes the rules in obsel's staleness
 engine the only way anything is ever marked. There is deliberately no tool that marks or
 clears staleness: a mark comes off through redone work, and only through redone work.
-Either the flagged task re-runs and reports, or an upstream redo lands byte-identical
+Either the flagged task re-runs and reports, or an upstream redo lands identical
 and obsel clears what that provably restores, on its own.
 
 `volatile` on `register_task` names columns of YOUR OWN output tables whose values change on

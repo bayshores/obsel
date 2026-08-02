@@ -1,5 +1,6 @@
 /**
- * The task routes refuse an unauthenticated caller, proven against real servers.
+ * Every mutating route refuses an unauthenticated caller, proven against real
+ * servers.
  *
  * Two obsel instances, both real `next start` processes: one configured with a
  * token, answering 401 to a missing or wrong one, and one started with
@@ -12,9 +13,14 @@
  * clears from those, so the gate on these routes is part of what makes "no
  * route clears a flag" true rather than hygiene around it.
  *
- * The last test is the counterpart: the board's own routes must stay reachable
- * without a token, or the demo path a judge follows would need one pasted in
- * before any button worked.
+ * **`report` is in this list because leaving it out did not hold.** It was
+ * ungated until 2026-08-02, on the argument that the board calls it from a
+ * browser with nowhere to keep a token and that it cannot clear a flag anyway.
+ * The second half was false: it spawns `agents/report.py` with the server's
+ * environment, and the child completes the task with the server's own token. An
+ * unauthenticated caller could replay a flagged task's recorded rows and watch
+ * the completion clear the flag. This suite is where that must fail if anyone
+ * re-opens the route.
  *
  * The bodies below are deliberately trivial or invalid; every request must be
  * refused by the gate BEFORE the body is read. A 400 from any of them would
@@ -34,15 +40,23 @@ let server: ObselServer;
 let tokenless: ObselServer;
 
 /**
- * The task routes only a separate agent process calls, so a route that forgets
- * the gate fails here by name rather than shipping open.
+ * Every route that changes something, so a route that forgets the gate fails
+ * here by name rather than shipping open.
  *
- * `register`, `report` and the two demo routes are absent because they are
- * ungated by decision, not by oversight: the board calls them from a browser
- * that has nowhere to keep a token, and none of them can clear a flag.
- * `auth.ts` carries the full reasoning.
+ * `demo/reset` is safe to send unauthenticated requests to precisely because it
+ * must refuse them: a run where it answers anything but a refusal has also
+ * cleared the integration flow's board, which is the failure this asserts
+ * against. The erasure mutations have their own suite.
  */
-const MUTATIONS = ["/api/tasks/start", "/api/tasks/complete", "/api/tasks/abandon"];
+const MUTATIONS = [
+  "/api/tasks/start",
+  "/api/tasks/complete",
+  "/api/tasks/abandon",
+  "/api/tasks/register",
+  "/api/tasks/report",
+  "/api/demo/launch",
+  "/api/demo/reset",
+];
 
 async function post(
   base: string,
@@ -107,24 +121,30 @@ describe("a server with no token refuses everyone, including the right guess", (
   });
 });
 
-describe("the routes the board calls stay open", () => {
+describe("the routes the board calls are gated too", () => {
   /*
-   * Asserted as "not an auth refusal" rather than as a success. Each of these
-   * rejects the empty body this helper sends, which is the point: reaching the
-   * body parser at all proves the request was never turned away for lacking a
-   * token. A 401 or 503 here would mean the judge's demo path needs one pasted
-   * in before anything works.
+   * The gate runs before the body parser, so an unauthenticated request to a
+   * route that would refuse this empty body must still answer 401 rather than
+   * 400. A 400 here would mean the server read a body a stranger sent.
    */
   for (const path of ["/api/tasks/register", "/api/tasks/report", "/api/demo/launch"]) {
-    it(`${path} answers without a token`, async () => {
+    it(`${path} is refused before its body is read`, async () => {
       const { status } = await post(server.url, path, null);
-      expect(status).toBe(400);
+      expect(status).toBe(401);
     });
   }
 
-  it("/api/demo/reset answers without a token", async () => {
-    // No body to reject, so this one genuinely resets the integration flow.
-    const { status } = await post(server.url, "/api/demo/reset", null);
+  it("/api/demo/reset refuses without clearing anything, and keeps its own shape", async () => {
+    const { status, body } = await post(server.url, "/api/demo/reset", null);
+    expect(status).toBe(401);
+    // The one route whose failures carry `ok`; `agents/run_demo.py` reads it.
+    expect(body.ok).toBe(false);
+  });
+
+  it("/api/demo/reset works for a caller who has the token", async () => {
+    // This one genuinely resets the integration flow, which is why it is last.
+    const { status, body } = await post(server.url, "/api/demo/reset", API_TOKEN);
     expect(status).toBe(200);
+    expect(body.ok).toBe(true);
   });
 });

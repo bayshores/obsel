@@ -167,6 +167,18 @@ The flow, in [`src/server/coordinator/engine.ts`](../src/server/coordinator/engi
    here**, and the rest of the work is skipped. This is the single most important branch in the
    product: without it every scheduled re-run marks the whole pipeline stale and the marks stop
    meaning anything.
+
+   **What "exactly what it produced before" means, precisely.** Equal fingerprints, not equal
+   bytes. `agents/fingerprint.py` sorts the serialised rows before hashing and leaves out every
+   column the producing task registered as volatile, so two tables differing only in row order, or
+   only in a load timestamp declared at registration, compare identical. Everything else moves the
+   hash, including a renamed or dropped volatile column, because the name is part of the schema
+   fingerprint even when the values are not part of the content one. Every sentence in these
+   documents about output coming back "identical" means this relation and no other. Row order is
+   the one place it is genuinely weaker than byte equality, and it is deliberate: a task that
+   re-emits the same rows in a different order has produced the same table, and marking its
+   readers stale for that would be exactly the false alarm this branch exists to prevent.
+
 4. Record the finishing task's new fingerprints and clear its own stale mark, if it had one. It has
    re-run, so it is trustworthy again.
 5. Ask [`staleness.ts`](../src/server/coordinator/staleness.ts) which finished tasks the changed
@@ -541,7 +553,7 @@ What has been verified directly, and what has not.
 
 - **The demo end to end with live agents**, on 2026-07-22 against a live DataHub and a signed-in
   Codex CLI. `reset` → `run` → `rerun-same` → `change`, exit 0, every step's own assertions passing.
-  `run` took 134.0 s for four Codex sessions; `rerun-same` produced a byte-identical table and obsel
+  `run` took 134.0 s for four Codex sessions; `rerun-same` produced an identical table and obsel
   reported 0 changed outputs and 0 marks in 60 ms; `change` renamed one column, was correctly called
   `schema` rather than `both`, and marked exactly `build_revenue` (1 hop), `write_docs` and
   `write_report` (2 hops) in 2591 ms. That run exercises `engine.ts`, `client.ts` and `mcp.ts`
@@ -758,7 +770,7 @@ What has been verified directly, and what has not.
   The demo's `repair` command does not change this: it is the agents redoing their own work in
   dependency order, with obsel doing exactly what it always does at each completion. The one
   thing the coordinator now derives on its own is the inverse of a mark: when a flagged task's
-  redo lands byte-identical, the flags downstream of that output were standing on ground that
+  redo lands identical, the flags downstream of that output were standing on ground that
   never moved, and `restoredBy` (`src/server/coordinator/staleness.ts`) clears the ones the
   records prove. Nothing can request that clear, since no route and no tool takes a task to
   unflag, which keeps the only path to a clean page through redone work.
@@ -791,28 +803,40 @@ That absence is the point — a writable history would let a caller record "this
 work redone, which is exactly what obsel's clearing rule exists to prevent, so
 `tests/live/change-ledger.live.test.ts` asserts the mutating verbs answer 405.
 
-**What the token gates, and what it deliberately does not.** `start`, `complete`, `abandon` and
-`datasets/observe` carry the same gate as the erasure mutations. `complete` is the reason it exists on this side: a
-forged completion whose fingerprints match the recorded baseline reads as an identical redo, and
-`restoredBy` derives clears from those, so an open route was a way to have flags removed without
-work being redone. `register`, `report` and the two demo routes are ungated, because the page calls
-them and a browser has nowhere to keep a secret: either an operator pastes a token before any
-button works, or the server hands it to the page and anyone who can load the page can read it.
-None of the ungated four can clear a flag. This is a real limit — an obsel bound to a reachable
-interface trusts its own network for those routes — and it is written here rather than implied.
+**What the token gates.** Every route that changes something: `start`, `complete`, `abandon`,
+`register`, `report`, the two demo routes, `datasets/observe`, and the three erasure mutations.
+`complete` is the reason it exists on this side: a forged completion whose fingerprints match the
+recorded baseline reads as an identical redo, and `restoredBy` derives clears from those, so an open
+route was a way to have flags removed without work being redone.
+
+**Four of those were ungated until 2026-08-02, and the argument for it was wrong.** The argument was
+that a browser has nowhere to keep a secret, so either an operator pastes a token before any button
+works or the server hands it to the page and anyone who can load the page can read it, and that none
+of the four could clear a flag anyway. The second half was false. `report` spawns `agents/report.py`
+with the server's environment, and the child completes the task using the server's own
+`OBSEL_API_TOKEN`. So an unauthenticated caller could replay a flagged task's recorded rows, have
+the fingerprints match, and watch the completion read as an identical redo that cleared the flag and
+the flags below it. The gate on `complete` held only against callers who came through the front. It
+was found by a reader of `auth.ts`, which is the argument for writing reasoning down beside the
+code: it was checkable, and it did not survive being checked.
+
+The cost the old note was avoiding is now paid, and it is one step: the operator pastes the token
+from `.env.local` into the board's token field, and the page sends it on the mutations it makes.
+`scripts/start.sh` generates the token into that file and deliberately never prints it.
 
 **The demo runner, three routes.** `/api/demo/launch`, `/api/demo/activity` and `/api/demo/reset`.
 They execute and report the demo's own CLI steps on the machine obsel runs on, exist so the
 page's guide can drive the demo without a terminal, and are not part of what an agent
 integrating with obsel would ever call.
 
-**Two of these are reachable from the page itself.** The guide's buttons POST to
-`/api/demo/launch`, and the bring-your-own-data panel POSTs to `/api/tasks/register`. The second is
-the only write the browser performs, and it performs it through the agents' own route rather than a
-route of its own: a form and an MCP client that registered the same task have to produce the same
-entity, and two routes would eventually be two answers about what a registration is. Nothing on the
-page can reach `/api/tasks/complete`, because a fingerprint is taken from rows by
-`agents/fingerprint.py` and there is no second implementation of it.
+**Three of these are reachable from the page itself.** The guide's buttons POST to
+`/api/demo/launch`, the bring-your-own-data panel POSTs to `/api/tasks/register`, and the table form
+POSTs to `/api/tasks/report`. Each goes through the agents' own route rather than one of its own: a
+form and an MCP client that registered the same task have to produce the same entity, and two routes
+would eventually be two answers about what a registration is. Nothing on the page can reach
+`/api/tasks/complete`, because a fingerprint is taken from rows by `agents/fingerprint.py` and there
+is no second implementation of it. All three carry the token the operator pasted, held in
+`localStorage` by `src/features/dashboard/token/use-token.ts`.
 
 **One asymmetry to know before you call anything:** `POST /api/tasks/register` takes **short dataset
 names** like `clean_orders`, not a URN. Every other route, and every field in every response, uses full
@@ -985,7 +1009,7 @@ detail rather than leaving it, so the page never captions a run with the last on
 the same measurement, written onto the mark in DataHub.
 
 `restored` is the inverse of `affected`, and non-empty only on one specific completion: the
-reporting task was itself flagged, it redid its work, and an output came back byte-identical to
+reporting task was itself flagged, it redid its work, and an output came back identical to
 the recorded baseline. The flags downstream of that output were then standing on ground that never
 moved, and `restoredBy` (`staleness.ts`) clears the ones the records prove: producer settled, no
 standing reader observation, the mark not naming that very table, and the producer's previous

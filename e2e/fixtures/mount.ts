@@ -21,6 +21,11 @@
  * create real entities in whatever DataHub the machine is pointed at. What that
  * costs is the same as the rest: no browser test here proves a registration
  * lands. `tests/live/` covers that against a real DataHub.
+ *
+ * An interceptor answers before any gate, so these routes reply here whether or
+ * not the board attached its token. `mutationAuth` records the header that
+ * arrived, which is how `dashboard-token.spec.ts` can tell a board that sends
+ * one from a board that does not.
  */
 
 import type { Page } from "@playwright/test";
@@ -122,6 +127,15 @@ export async function openDashboard(
   launches: DemoStep[];
   /** Every task the board asked obsel to register, in order. */
   registrations: SeenRegistration[];
+  /**
+   * The `Authorization` header on every intercepted mutation, in order, with
+   * `null` where the board sent none.
+   *
+   * Every mutating route is token-gated, so a board that stops attaching the
+   * header would leave every button refused against a real obsel while these
+   * interceptors, which answer before any gate, went on passing.
+   */
+  mutationAuth: (string | null)[];
   /** Make the next registration fail, the way a real refusal arrives. */
   refuseRegistration: (status: number, error: string) => void;
   /**
@@ -146,6 +160,7 @@ export async function openDashboard(
   let currentTrace: TraceEvent[] | "fail" = trace;
   const launches: DemoStep[] = [];
   const registrations: SeenRegistration[] = [];
+  const mutationAuth: (string | null)[] = [];
   let refusal: { status: number; error: string } | null = null;
   let currentErasure: PublishedErasureReport | "missing" | "fail" = "missing";
   // An empty history by default: most tests are not about it, and an empty one is
@@ -235,6 +250,7 @@ export async function openDashboard(
   await page.route("**/api/demo/launch", async (route) => {
     const step = (route.request().postDataJSON() as { step: DemoStep }).step;
     launches.push(step);
+    mutationAuth.push(route.request().headers().authorization ?? null);
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -256,6 +272,7 @@ export async function openDashboard(
    */
   await page.route("**/api/tasks/register", async (route) => {
     registrations.push(route.request().postDataJSON() as SeenRegistration);
+    mutationAuth.push(route.request().headers().authorization ?? null);
     if (refusal !== null) {
       const { status, error } = refusal;
       refusal = null;
@@ -316,6 +333,7 @@ export async function openDashboard(
     serveTrace: (next) => (currentTrace = next),
     launches,
     registrations,
+    mutationAuth,
     refuseRegistration: (status, error) => (refusal = { status, error }),
     serveErasure: (next) => (currentErasure = next),
     serveChanges: (next) => (currentChanges = next),
