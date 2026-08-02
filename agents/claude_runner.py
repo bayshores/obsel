@@ -6,7 +6,7 @@ both are held to the same contract in `agent_contract.py`, because a validator
 that differed per runner would accept a table the other refused.
 `runner_select.py` decides which one runs.
 
-Four invocation details, each learned by running the CLI rather than reading
+Seven invocation details, each learned by running the CLI rather than reading
 about it, and each with an observed reason:
 
 - `-p` is print mode: it runs the session non-interactively and exits. Without
@@ -26,6 +26,18 @@ about it, and each with an observed reason:
 - `--permission-mode acceptEdits` lets the agent write its output file without
   stopping to ask. Confirmed against a file that did not exist yet, which is the
   case the demo always hits.
+
+- `--allowedTools "Bash(python3 *)"` lets a non-interactive session execute the
+  table transformation it wrote. It does not allow other Bash command shapes or
+  full permission bypass. Python is still code execution, so this was enabled
+  only after the owner approved it. Without it, both initial scale agents
+  stopped to request approval and wrote no output file.
+
+- `--model claude-sonnet-5` fixes the model instead of inheriting whichever
+  default the signed-in account currently selects.
+
+- `--effort medium` fixes the reasoning effort. A measured run must not change
+  because an account default changed between sessions.
 
 - stdin is `DEVNULL`. Left connected, the CLI waits for piped input and prints
   "no stdin data received in 3s, proceeding without it" into captured stderr,
@@ -55,6 +67,8 @@ from agents.agent_contract import (
 # reason and write across several tool calls, and one that has not finished by
 # now has gone wrong in a way that waiting will not fix.
 TIMEOUT_SECONDS = 600
+MODEL = "claude-sonnet-5"
+EFFORT = "medium"
 
 
 class ClaudeUnavailable(AgentUnavailable):
@@ -109,9 +123,16 @@ def run_agent(
         [
             "claude",
             "-p",
+            "--model",
+            MODEL,
+            "--effort",
+            EFFORT,
             "--safe-mode",
             "--permission-mode",
             "acceptEdits",
+            "--allowedTools",
+            "Bash(python3 *)",
+            "--",
             prompt,
         ],
         cwd=str(working_dir),

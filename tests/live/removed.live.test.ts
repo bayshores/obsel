@@ -118,6 +118,15 @@ describe("a task DataHub has been told is gone", () => {
     expect(names((await readSnapshot()).tasks)).toContain(NAME);
   });
 
+  it("comes back when the same obsel task is registered again", async () => {
+    await setRemoved(urn, true);
+    expect(names((await readSnapshot()).tasks)).not.toContain(NAME);
+
+    await registerTask(NAME, ["raw_orders"], ["removed_probe_out"], undefined, "Removed probe");
+
+    expect(names((await readSnapshot()).tasks)).toContain(NAME);
+  });
+
   it("reads removed:false as present, not as a mark that exists", async () => {
     // `status` is absent on a task nobody has touched and present with
     // `removed: false` on one that has been restored. A check on the aspect's

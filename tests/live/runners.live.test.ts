@@ -14,6 +14,10 @@
  *   - Claude Code `-p`, without which the CLI opens an interactive session and never returns;
  *   - Claude Code `--permission-mode acceptEdits`, without which writing a file that does
  *     not exist yet stops to ask;
+ *   - Claude Code `--allowedTools "Bash(python3 *)"`, so a non-interactive scale agent can
+ *     execute its table transformation without granting unrestricted Bash;
+ *   - Claude Code `--model claude-sonnet-5` and `--effort medium`, so measured runs do not
+ *     inherit account defaults that can change between sessions;
  *   - Claude Code `--safe-mode`, because the working directory is inside this repository
  *     and Claude Code otherwise reads obsel's own CLAUDE.md, skills and hooks on the way
  *     to doing a two-column rename. Two runs of the same prompt in the same directory

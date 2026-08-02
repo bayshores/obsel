@@ -97,7 +97,7 @@ with `npx skills add remotion-dev/skills`; `skills-lock.json` records the set an
 under `.agents/` are not committed.
 
 **The music is used under a video-use grant, and is not in this repository.** The track is
-the opening section of *PUNCH* by the YouTube channel `lostmemory.mp3`, whose description
+the opening section of _PUNCH_ by the YouTube channel `lostmemory.mp3`, whose description
 grants free use in videos and projects on condition the channel is credited. That licenses
 the finished video, not redistribution of the audio, so the file is never committed: the
 render reads it from a working directory outside the tree, passed on the command line. The

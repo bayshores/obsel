@@ -383,6 +383,12 @@ agent is told and what it is held to are in `agent_contract.py`, shared by both:
 two copies of the validator would drift, and a drifted validator accepts a table
 the other would refuse.
 
+The Claude Code invocation pins `claude-sonnet-5` with medium effort. It does not
+inherit the signed-in account's current model or effort defaults. Non-interactive
+sessions may run `python3` through Bash to transform their table. Other unattended
+Bash command shapes are not allowed, but Python is still code execution and requires
+operator approval.
+
 The output is read back off disk and checked against the column contract before
 obsel hears anything. A plausible-looking bad table would fingerprint as a real
 change and mark the whole chain stale for nothing.

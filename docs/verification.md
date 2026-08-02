@@ -4924,3 +4924,119 @@ refuses without clearing anything and keeps its `ok` field, and then works for a
 token. `run-commands` passing is the other half of the proof: it injects `OBSEL_API_TOKEN` into the
 environment and spawns the real `cmd_reset`, so it would fail if `run_demo.py` had not started
 sending `auth_headers()`.
+
+### The Codex forty-task measurement stopped at `scale-run` (2026-08-02)
+
+Machine: `no-2.local`, Apple M3 Pro, 19327352832 bytes of memory, macOS 26.5.1 build 25F80.
+
+The prerequisites passed: DataHub answered at `http://localhost:8080/config`, `uvx --version`,
+`codex login status` and `claude --version` exited successfully, `.env.local` had a non-empty
+`OBSEL_API_TOKEN`, the production app built and answered 200 at `http://localhost:3000/`, the
+Python environment existed, and vocabulary setup completed. `scale-register` then registered all
+40 tasks in 120.3 s.
+
+The required Codex measurement did not complete. `scale-run` exited 1 after 2 agent runs in 49.7 s
+at a peak concurrency of 2. `clean_zones` and `docs_zones` completed. `clean_trips` announced that
+it had started, then its completion request received HTTP 500 because obsel said the task was not a
+registered agent. This was the command's output:
+
+```text
+scale-run: forty agents over one week of real taxi trips
+------------------------------------------------------------
+  pool: up to 8 Codex sessions at once
+
+  obsel had no record of 1 of the 40 tasks; declaring them now
+  clean_trips        registered
+
+  clean_zones          codex-cli 0.146.0-alpha.9.2  22.4s   265 rows  clean_zones
+  clean_trips          FAILED: clean_trips told obsel it had started and then failed: http://localhost:3000/api/tasks/complete returned 500: {"error":"completion reported for urn:li:dataJob:(urn:li:dataFlow:(obsel,orders_pipeline,prod),clean_trips), which is not a registered agent"}
+obsel should still have clean_trips at running, which means it will not be considered for staleness until it finishes. Re-run this agent -- /Users/seane/Code/obsel/.obsel/state/inflight/clean_trips.json records the announcement, and the re-run re-checks that state with obsel before deciding to resume.
+  docs_zones           codex-cli 0.146.0-alpha.9.2  25.9s     4 rows  zone_docs
+
+  2 agent runs finished in 49.7 s, peak 2 at once
+
+stopped: obsel has no record of 1 scale task(s): clean_trips. Run `python -m agents.run scale-register` first.
+```
+
+The measurement instructions require a stop on a non-zero exit rather than a retry or workaround.
+At that point no detection observation, repair measurement or Claude Code forty-task pass had run,
+so the existing forty-task and Claude Code limitations were unchanged.
+
+`pnpm verify` also exited 1 before the commit gate. Its first command, `prettier --check .`, named
+4 pre-existing tracked files with formatting differences: `pnpm-lock.yaml`, `pnpm-workspace.yaml`,
+`scripts/video.mjs` and `THIRD_PARTY_NOTICES.md`. Those files were not changed because this task is
+limited to measurement and documentation at that point.
+
+The owner then asked to fix the submission blocker. The task had DataHub's soft-delete aspect set to
+`removed: true`. That leaves the DataJob and its `IsPartOf` edge readable. `startTask` therefore
+found it by URN, but `readSnapshot` correctly excluded it and the later completion could not find it
+in the active swarm. Re-registering rewrote the task and lineage aspects without changing the
+soft-delete aspect, so both `scale-register` and `scale-run` reported a registration that could not
+make the task active.
+
+Registration now restores `removed: false` only when the authenticated caller registers that exact
+obsel-owned task, then confirms the entity is not removed before reporting success. It does not
+restore a foreign DataJob and adds no route. The focused live test wrote `removed: true` to a real
+DataJob, registered the same task again, and read it back in the real swarm snapshot. The live file
+passed 7 tests in 1.03 s, and `pnpm typecheck` passed.
+
+The first Claude Code scale attempt then exposed a separate reproducibility gap. The runner invoked
+`claude -p` without a model or effort flag, so it inherited the signed-in account's current defaults.
+The owner selected `claude-sonnet-5` with medium effort. `agents/claude_runner.py` now passes
+`--model claude-sonnet-5 --effort medium` on every session. The focused invocation test remains a
+real Claude Code session, not a stand-in.
+
+With those flags, the scale run exited 1 after 25.3 s with 0 completed agents and peak concurrency 2. Both initial agents failed the output contract because neither wrote its required file. Their
+Claude Code session logs recorded the cause: each generated a `python3` transformation, Claude Code
+answered `This command requires approval`, and the non-interactive session ended without running it.
+The owner approved unattended Python for these work directories. The runner now adds
+`--allowedTools "Bash(python3 *)"`. It does not enable other Bash command shapes or full permission
+bypass. Python is still code execution.
+
+### Five Codex detections and the first Claude Code forty-task pass (2026-08-02)
+
+All runs were on `no-2.local`, Apple M3 Pro, 19327352832 bytes of memory, macOS 26.5.1 build
+25F80, against the local DataHub quickstart and the production obsel server.
+
+After the soft-delete registration fix, the Codex swarm completed all 40 agent runs in 206.7 s at
+peak concurrency 8. Every task finished and no task was marked on the first run. The settled board
+then alternated the forward and reverse `daily_trips` column rename. Each change marked the same 9
+of 40 tasks out to 3 hops. `scale-change` did not print `elapsedMs`, so each detection value below
+was read immediately after the run from the 9 marks' identical `stale.detectedMs` value on
+`GET /api/swarm`.
+
+| observation | direction                     | detection | marked | repair                                              |
+| ----------- | ----------------------------- | --------- | ------ | --------------------------------------------------- |
+| 1           | `riders` to `passenger_total` | 4166 ms   | 9      | 6 of 9 redone in 56.3 s; 3 cleared without a re-run |
+| 2           | `passenger_total` to `riders` | 749 ms    | 9      | 8 of 9 redone in 68.4 s; 1 cleared without a re-run |
+| 3           | `riders` to `passenger_total` | 657 ms    | 9      | 7 of 9 redone in 51.7 s; 2 cleared without a re-run |
+| 4           | `passenger_total` to `riders` | 666 ms    | 9      | 8 of 9 redone in 65.1 s; 1 cleared without a re-run |
+| 5           | `riders` to `passenger_total` | 473 ms    | 9      | 7 of 9 redone in 62.8 s; 2 cleared without a re-run |
+
+Detection minimum was 473 ms, median 666 ms, and maximum 4166 ms. Every repair ended with zero
+flags. The cleared-without-a-re-run counts came from identical upstream redos, and every command
+exited 0.
+
+The first pinned Claude Code scale attempt also recorded two failures before the successful pass:
+
+- A reset exited 1 because the production server was not listening on port 3000. It reported that
+  no local state was touched. The already-built server was restarted before the next reset.
+- Adding the variadic `--allowedTools` flag without an option terminator made Claude Code consume
+  the prompt as another tool pattern. The focused live test failed after 0.8 s with `Input must be
+provided either through stdin or as a prompt argument when using --print`. Adding `--` before the
+  prompt fixed the invocation. The focused Claude test then passed 4 tests with 4 skipped in 10.23 s.
+
+The final Claude Code runner was CLI 2.1.220, pinned to `claude-sonnet-5` with medium effort. It
+kept `--safe-mode` and `--permission-mode acceptEdits`, and allowed only `Bash(python3 *)` without a
+prompt. The full swarm completed all 40 agent runs in 129.3 s at peak concurrency 8. Every output
+passed its contract, every task finished, and nothing was marked on the first run.
+
+The settled Claude Code change renamed `riders` to `passenger_total`, marked 9 of 40 tasks out to
+3 hops, and recorded 4575 ms on all 9 marks. The change agent took 11.4 s. The repair redid 6 of 9
+tasks in 37.8 s and cleared `report_riders`, `revenue_overview` and `rider_overview` without re-runs.
+The command's estimated all-redo comparison was 98 s. The board ended with zero flags. The change
+and repair both exited 0.
+
+The final `pnpm verify` exited 0 after the four files named by the earlier formatting failure were
+formatted. Its unit run passed 626 tests and skipped 9. Lint, type checking, Python self-checks and
+the production build also passed. The production server remains running on port 3000.

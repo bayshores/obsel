@@ -195,7 +195,12 @@ const ribbonBox = (label) =>
     const cell = span?.closest("div");
     if (!cell) return null;
     const r = cell.getBoundingClientRect();
-    return { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height) };
+    return {
+      x: Math.round(r.x),
+      y: Math.round(r.y),
+      w: Math.round(r.width),
+      h: Math.round(r.height),
+    };
   }, label);
 
 try {

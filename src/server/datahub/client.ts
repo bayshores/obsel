@@ -176,6 +176,7 @@ interface DataJobWritePayload {
   urn: string;
   dataJobInfo?: AspectEnvelope<DataJobInfoAspect>;
   dataJobInputOutput?: AspectEnvelope<DataJobInputOutputAspect>;
+  status?: AspectEnvelope<{ removed: boolean }>;
 }
 
 /**
@@ -227,7 +228,8 @@ export async function registerTask(
    * Refusing is reversible: pick a new task name, or reset, which clears every
    * baseline so nothing incomparable survives. Accepting silently is not.
    */
-  const existing = await readTask(urn);
+  const existingEntity = await readTaskEntity(urn);
+  const existing = existingEntity ? toTaskRecord(existingEntity) : null;
   const declared = JSON.stringify(
     Object.fromEntries(
       Object.entries(volatile ?? {})
@@ -251,6 +253,14 @@ export async function registerTask(
 
   await writeDataJob({
     urn,
+    // A registration says this obsel-owned task belongs in the active swarm.
+    // DataHub's soft delete leaves the entity and its IsPartOf edge intact, so
+    // rewriting only the task aspects would return success while readSnapshot
+    // continued to hide it. Restore only the exact task being registered, and
+    // only when DataHub currently marks it removed.
+    ...(existingEntity && isRemoved(existingEntity)
+      ? { status: { value: { removed: false } } }
+      : {}),
     dataJobInfo: {
       value: {
         name,
@@ -301,7 +311,10 @@ export async function registerTask(
 
   // A rejected (entityType, aspectName) pair can be dropped without failing the
   // request, so what landed is checked rather than assumed.
-  const written = await confirmWrite(async () => await readTask(urn), 10_000);
+  const written = await confirmWrite(async () => {
+    const entity = await readTaskEntity(urn);
+    return entity && !isRemoved(entity) ? toTaskRecord(entity) : null;
+  }, 10_000);
   if (written.reads.length !== reads.length || written.writes.length !== writes.length) {
     throw new DataHubError(
       `task ${name} registered, but DataHub stored ${written.reads.length} inputs and ` +

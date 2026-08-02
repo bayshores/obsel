@@ -4,6 +4,14 @@ How obsel is put together, and why each piece is where it is. Written 2026-07-21
 the repository as it stands; anything not yet built is listed as such in
 [What exists](#8-what-exists) rather than described in the present tense elsewhere.
 
+![The obsel runtime architecture: operators and agents enter through the dashboard or MCP bridge,
+the deterministic server coordinates against DataHub as its source of truth, and only demo agents
+touch the local data workspace.](images/architecture.svg)
+
+The editable Structurizr source is [`architecture.dsl`](architecture.dsl). The rendered view uses
+the dashboard's own mmux tokens and casing: rose for control and reporting, green for catalog state,
+sky for agent execution, and amber only for demo-local data.
+
 ---
 
 ## 1. The one idea
@@ -651,6 +659,13 @@ What has been verified directly, and what has not.
   straight past it. A stand-in derives its edges from its own entity map, so they are never late and
   this did not exist in it.
 
+  Registration also confirms that the task is not soft-deleted. DataHub keeps a soft-deleted
+  DataJob and its `IsPartOf` edge readable, while `readSnapshot` excludes the task from the active
+  swarm. When an authenticated caller registers that exact obsel-owned task again, registration
+  restores `removed: false` and confirms the task is active before it returns. It cannot restore a
+  foreign DataJob because task registration derives the URN inside obsel's configured flow. The
+  real status aspect and the restored snapshot are covered in `tests/live/removed.live.test.ts`.
+
 - **`agents/worker.py`'s contract and its state on disk**, by 16 self-checks in
   `pnpm test:python`, wired into `pnpm verify` so they actually run. Real files in real temporary
   directories: the canonicalisation properties, a table surviving a save and load byte-stably, a
@@ -680,8 +695,12 @@ What has been verified directly, and what has not.
   genuine session over a two-row table and confirms it read its input, wrote its output, and met an
   exact column contract. The subject is the invocation rather than the reasoning, and every flag was
   learned by running the CLI: Codex `--sandbox workspace-write` and `--skip-git-repo-check`; Claude
-  Code `-p`, `--permission-mode acceptEdits`, and `--safe-mode`. No stand-in can say whether today's
-  CLI still accepts them.
+  Code `-p`, `--model claude-sonnet-5`, `--effort medium`, `--permission-mode acceptEdits`, and
+  `--allowedTools "Bash(python3 *)"`, and `--safe-mode`. No stand-in can say whether today's CLI
+  still accepts them. The model and effort are fixed so measured runs do not inherit account
+  defaults that can change between sessions. The allowed tool is limited to `python3`; unrestricted
+  permission bypass and other Bash command shapes remain disabled. Python is still code execution,
+  and the owner approved enabling it for these sessions.
 
   `--safe-mode` is the one that had to be found rather than reasoned about. The agent's working
   directory is inside this repository, and Claude Code walks up from it discovering CLAUDE.md,
