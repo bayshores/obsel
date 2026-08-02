@@ -194,7 +194,9 @@ nothing reads it back to decide anything.
 
 **Either agent CLI will do, and you need only one.** With nothing set, obsel uses whichever is
 installed and prefers Codex when both are. To pick, set `OBSEL_RUNNER=codex` or `OBSEL_RUNNER=claude`
-before starting. The setup checklist, the launcher and the workers all read it, so they cannot
+before starting. Claude Code sessions are pinned to `claude-sonnet-5` at medium effort and are
+allowed to run `python3`, which they need to execute the transformation they write;
+[`docs/setup.md`](docs/setup.md) says what that permission does and does not cover. The setup checklist, the launcher and the workers all read it, so they cannot
 disagree about which product is doing the work. An agent reporting through MCP names its own runner
 rather than being asked, because the runner is the agent's business, not obsel's. obsel records what
 a client declared itself to be and does not claim to have checked it. Most measured numbers below

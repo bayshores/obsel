@@ -348,6 +348,34 @@ export async function nextChangeSequence(flowId: string): Promise<number> {
 }
 
 /**
+ * The highest sequence this board has written, without reserving anything.
+ *
+ * `nextChangeSequence` cannot answer this: it increments, so a reader asking it
+ * where the history ends would burn a sequence number and leave a permanent gap
+ * in the ledger. This shares that function's seeding walk and its cache, and
+ * hands back the head itself.
+ *
+ * Zero means the board has never recorded a decision.
+ */
+export async function changeHeadFor(flowId: string): Promise<number> {
+  const cache = heads();
+  // The cache holds the sequence most recently handed out, which is the head.
+  // Seeding it with anything else makes the next writer skip a number, and a
+  // gap stops the walk permanently: every record above it becomes unreachable.
+  const known = cache.get(flowId);
+  if (known !== undefined) return known;
+
+  let sequence = 0;
+  while (sequence < SEED_CEILING) {
+    const record = await readLedgerRecord(changeUrn(flowId, sequence + 1));
+    if (record === null) break;
+    sequence += 1;
+  }
+  cache.set(flowId, sequence);
+  return sequence;
+}
+
+/**
  * Forget the cached head for one board, or all of them.
  *
  * For the live suites, which write into a flow and then read it back with a

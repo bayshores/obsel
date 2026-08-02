@@ -72,6 +72,19 @@ async function runAll(cleanColumns = ["order_id", "order_total"]): Promise<void>
 }
 
 /** The history right now, straight out of DataHub. */
+/**
+ * The sequence of the newest record, or 0 on a board that has recorded nothing.
+ *
+ * Asserted on instead of `entries.length` throughout, because the read is a
+ * window onto the end of the ledger rather than the whole of it: past 200
+ * records the length saturates and stops answering "did one more get written".
+ * The head answers that at any size, and it is the stronger claim anyway, since
+ * it also says the new record landed at the end rather than somewhere inside.
+ */
+function head(entries: ChangeEntry[]): number {
+  return entries.length === 0 ? 0 : entries[entries.length - 1].sequence;
+}
+
 async function history(): Promise<ChangeEntry[]> {
   // The head cache is per process and this suite writes from this one. Forgetting
   // it costs a re-seed and removes any chance of a stale count deciding a test.
@@ -129,7 +142,7 @@ describe("a real cascade writes itself into the ledger", () => {
     );
 
     const after = await history();
-    expect(after.length).toBe(before.length + 1);
+    expect(head(after)).toBe(head(before) + 1);
 
     const record = after[after.length - 1];
     const body = record.body;
@@ -186,7 +199,7 @@ describe("a real cascade writes itself into the ledger", () => {
     await coordinateCompletion(finished("build_revenue", "daily_revenue", "s2", "c2"));
 
     const afterRepair = await history();
-    expect(afterRepair.length).toBe(afterMark.length + 1);
+    expect(head(afterRepair)).toBe(head(afterMark) + 1);
 
     const clearance = afterRepair[afterRepair.length - 1];
     expect(clearance.body?.event).toBe("cleared");
@@ -233,7 +246,7 @@ describe("a real cascade writes itself into the ledger", () => {
     );
 
     const after = await history();
-    expect(after.length).toBe(before.length + 1);
+    expect(head(after)).toBe(head(before) + 1);
 
     const body = after[after.length - 1].body;
     expect(body?.event).toBe("marked");
@@ -253,7 +266,7 @@ describe("a real cascade writes itself into the ledger", () => {
       finished("clean_orders", "clean_orders", "s1", "c1", ["order_id", "order_total"]),
     );
 
-    expect((await history()).length).toBe(before.length);
+    expect(head(await history())).toBe(head(before));
   }, 180_000);
 });
 
@@ -266,13 +279,13 @@ describe("the history is read without a search index", () => {
     // than an empty search result — the distinction `documents.ts` records,
     // because an unindexed record and an absent one are indistinguishable to a
     // search and mean opposite things.
-    const past = await readChangesFor(FLOW_ID, { from: entries.length + 1, limit: 3 });
+    const past = await readChangesFor(FLOW_ID, { from: head(entries) + 1, limit: 3 });
     expect(past).toEqual([]);
 
     // And resuming from a known point returns the tail, since a record cannot
     // change once written.
     if (entries.length > 0) {
-      const tail = await readChangesFor(FLOW_ID, { from: entries.length, limit: 5 });
+      const tail = await readChangesFor(FLOW_ID, { from: head(entries), limit: 5 });
       expect(tail).toHaveLength(1);
     }
   }, 120_000);

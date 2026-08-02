@@ -5040,3 +5040,38 @@ and repair both exited 0.
 The final `pnpm verify` exited 0 after the four files named by the earlier formatting failure were
 formatted. Its unit run passed 626 tests and skipped 9. Lint, type checking, Python self-checks and
 the production build also passed. The production server remains running on port 3000.
+
+### The history tab stopped showing new records at 200, and nobody would have noticed (2026-08-02)
+
+**Found by re-running the live suite** after the benchmark commit, because that commit changed
+`src/server/datahub/client.ts`'s registration path and the suite's green claim predated it. Four
+tests in `change-ledger.live.test.ts` failed. The cause was not the registration change.
+
+`readChanges` took the first 200 records from sequence 1. Under that, a board whose ledger passed
+200 kept rendering the same oldest 200 and every later decision obsel recorded was invisible, with
+nothing on screen saying so. The live suite's own flow had reached 223 records, which is why the
+tests started failing; `orders_pipeline`, the operator's board, was at 20 and unaffected, so no
+recorded demo was ever wrong. A history surface that silently stops reporting is the same shape as
+the failure the ledger exists to remove, so this is a fix rather than a preference.
+
+**What changed.** `readChanges` now finds the head through a new `changeHeadFor` and reads the last
+200 records, and `sequence` comes from the record's own id rather than its index in the window: a
+window that renumbered from 1 would tell a reader this was the board's first decision when it was
+its two hundredth. The four tests now assert on the head sequence rather than on `entries.length`,
+which is the stronger claim anyway and the only one that survives a window that saturates.
+
+**A mistake worth recording, because it was mine and it damaged data.** The first version of
+`changeHeadFor` read the head cache as holding the next sequence to write. It holds the last one
+handed out. Seeding it one too high made the next writer skip 224 in the integration flow, and
+because the walk stops at the first genuine 404, record 225 was written and then unreachable: the
+history truncated at 223 and would have stayed there. Corrected, the next write filled 224 and the
+walk ran through to the end on its own. The operator's flow was never touched.
+
+The gap also exposes a property worth stating rather than assuming: `writeChangeRecord` derives its
+URN from the sequence and does not check whether a record is already there, so a writer that
+reuses a sequence overwrites the record at it. Nothing reachable does that today, and it is
+recorded here rather than fixed, because no route or tool takes a sequence.
+
+**Verified.** The whole live suite green after the fix: **163 tests across 15 files**, real
+DataHub, both Codex and Claude Code running a real session. `pnpm test` 626, lint, typecheck and
+build clean.

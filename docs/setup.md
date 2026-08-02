@@ -100,6 +100,14 @@ and it is the step people skip.
   the other, because a page reporting on a product you did not choose is worse than a clear failure.
   The setup checklist, `scripts/start.sh` and the workers all read the same variable.
 
+  **What choosing Claude Code does to the session, stated plainly.** Its sessions are pinned to
+  `claude-sonnet-5` at medium effort, so a measured run does not change because an account default
+  changed, and they are started with `--allowedTools "Bash(python3 *)"`. That last one is a real
+  permission: the agent writes a Python transformation and needs to run it, and a non-interactive
+  session otherwise stops to ask and writes no table. It allows no other command shape and is not a
+  blanket bypass, but python3 is code execution on your machine, so it belongs here rather than
+  only in the runner's source. Codex sessions are not pinned to a model.
+
   See [`THIRD_PARTY_NOTICES.md`](../THIRD_PARTY_NOTICES.md) for the terms question this raises.
 
 ## The short version
