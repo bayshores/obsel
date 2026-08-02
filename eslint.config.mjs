@@ -86,6 +86,13 @@ export default defineConfig([
      * that fails whenever one exists is a gate people learn to ignore.
      */
     ".claude/**",
+    /*
+     * Vendored agent skills, for the same reason: `npx skills add` writes other
+     * projects' markdown here, and its embedded TypeScript examples are written
+     * to read well rather than to pass this repository's rules. Linting them
+     * reported 92 errors in documentation nobody here maintains.
+     */
+    ".agents/**",
   ]),
   noServerImports,
 ]);

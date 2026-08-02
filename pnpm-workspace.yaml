@@ -1,8 +1,40 @@
-# Both are build-time only and neither runs in obsel's request path:
+# All three are build-time only and none runs in obsel's request path:
 #   sharp         - Next.js image optimisation
 #   unrs-resolver - the module resolver eslint-config-next depends on
+#   esbuild       - the bundler Remotion compiles `video/` with, for the demo
+#                   video only; nothing the app serves imports it
 # Left unanswered, pnpm refuses to complete `pnpm install`, `pnpm dev`, and
 # `pnpm verify`, which stops a judge at the first setup step.
 allowBuilds:
+  esbuild: true
   sharp: true
   unrs-resolver: true
+minimumReleaseAgeExclude:
+  - '@remotion/bundler@4.0.502 || 4.0.503'
+  - '@remotion/canvas-capture@4.0.502'
+  - '@remotion/captions@4.0.502 || 4.0.503'
+  - '@remotion/cli@4.0.502 || 4.0.503'
+  - '@remotion/compositor-darwin-arm64@4.0.502 || 4.0.503'
+  - '@remotion/compositor-darwin-x64@4.0.502 || 4.0.503'
+  - '@remotion/compositor-linux-arm64-gnu@4.0.502 || 4.0.503'
+  - '@remotion/compositor-linux-arm64-musl@4.0.502 || 4.0.503'
+  - '@remotion/compositor-linux-x64-gnu@4.0.502 || 4.0.503'
+  - '@remotion/compositor-linux-x64-musl@4.0.502 || 4.0.503'
+  - '@remotion/compositor-win32-x64-msvc@4.0.502 || 4.0.503'
+  - '@remotion/licensing@4.0.502 || 4.0.503'
+  - '@remotion/media-parser@4.0.502 || 4.0.503'
+  - '@remotion/media-utils@4.0.502 || 4.0.503'
+  - '@remotion/player@4.0.502 || 4.0.503'
+  - '@remotion/renderer@4.0.502 || 4.0.503'
+  - '@remotion/streaming@4.0.502 || 4.0.503'
+  - '@remotion/studio-codemods@4.0.502 || 4.0.503'
+  - '@remotion/studio-protocol@4.0.502 || 4.0.503'
+  - '@remotion/studio-server@4.0.502 || 4.0.503'
+  - '@remotion/studio-shared@4.0.502 || 4.0.503'
+  - '@remotion/studio@4.0.502 || 4.0.503'
+  - '@remotion/timeline-utils@4.0.502 || 4.0.503'
+  - '@remotion/web-renderer@4.0.502 || 4.0.503'
+  - '@remotion/zod-types@4.0.502 || 4.0.503'
+  - remotion@4.0.502 || 4.0.503
+  - '@remotion/media@4.0.502 || 4.0.503'
+  - '@remotion/fonts@4.0.502 || 4.0.503'

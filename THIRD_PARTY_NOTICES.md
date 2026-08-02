@@ -19,6 +19,8 @@ the one judgement call is written out in full rather than summarised.
 | `geist` (Vercel)             | SIL OFL-1.1 / MIT | Geist and Geist Mono, self-hosted                  |
 | Codex CLI (`openai/codex`)   | Apache-2.0        | Running each demo agent, see the note below        |
 | Claude Code (Anthropic)      | proprietary       | The same, as the alternative runner, see below     |
+| Remotion 4.0.502             | source-available  | Assembling the demo video, see the note below      |
+| `@xterm/xterm` 6.0.0         | MIT               | Replaying the recorded terminal sessions on screen |
 
 The fonts are installed from npm and served by obsel itself, never fetched from
 `fonts.googleapis.com`. That is not a preference: obsel's Content Security Policy sets
@@ -79,6 +81,34 @@ no passenger identities; the extract keeps 2,100 rows of times, zones, distances
 fares. The full derivation, source URLs and hashes are in
 [`agents/seeds/PROVENANCE.md`](agents/seeds/PROVENANCE.md), and the extract is committed so
 nothing is fetched from the TLC at demo time.
+
+## The demo video
+
+The submission video is assembled by `video/` with **Remotion 4.0.502**, driven by
+`scripts/trailer-assets.mjs`. Remotion is source-available rather than open source, and
+its licence is the one dependency here that is not permissive: individuals, non-profits,
+and for-profit organizations up to three employees may use it for free, including
+commercially, and larger organizations need a paid company licence. obsel is one
+individual's hackathon entry, which is the first of those categories. Anyone forking this
+repository at a company of four or more needs their own licence to run
+`npx remotion render`; nothing else in the repository depends on it, and the app builds
+and the full verification suite passes without it. Remotion's own agent skills are installed
+with `npx skills add remotion-dev/skills`; `skills-lock.json` records the set and the copies
+under `.agents/` are not committed.
+
+**The music is used under a video-use grant, and is not in this repository.** The track is
+the opening section of *PUNCH* by the YouTube channel `lostmemory.mp3`, whose description
+grants free use in videos and projects on condition the channel is credited. That licenses
+the finished video, not redistribution of the audio, so the file is never committed: the
+render reads it from a working directory outside the tree, passed on the command line. The
+credit rides in the published video's description, which is the owner's decision about
+where it goes.
+
+The footage is all recordings of this project running on the owner's machine: the board
+(`scripts/video.mjs`), DataHub's own interface (`scripts/datahub-broll.mjs`), and two real
+terminal sessions captured with **asciinema** (GPL-3.0, run through `uvx` and not vendored)
+and replayed through **@xterm/xterm** (MIT) by `scripts/term-render.mjs`. Nothing on screen
+is stock footage or a mockup.
 
 ## The demo agents run on a coding CLI, signed in with a consumer subscription
 

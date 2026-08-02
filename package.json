@@ -20,12 +20,17 @@
     "verify": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm test:python && pnpm build",
     "e2e": "playwright test",
     "e2e:ui": "playwright test --ui",
+    "video:studio": "remotion studio",
+    "video:preview": "remotion render Trailer --scale=0.5 --jpeg-quality=70 --crf=30 --concurrency=8",
+    "video:render": "remotion render Trailer --concurrency=6",
     "test:live": "pnpm build && vitest run --config vitest.live.config.ts",
     "test:python": "python3 -m agents.fingerprint && python3 -m agents.worker && python3 -m agents.agent_contract && python3 -m agents.runner_select && python3 -m agents.mcp_core && python3 -m agents.mcp_erasure && python3 -m agents.scale && python3 -m agents.swarm && python3 -m agents.run self-check"
   },
   "dependencies": {
     "@dagrejs/dagre": "3.0.0",
     "@modelcontextprotocol/sdk": "1.29.0",
+    "@remotion/fonts": "4.0.503",
+    "@remotion/media": "4.0.503",
     "@xyflow/react": "12.11.2",
     "geist": "^1.7.2",
     "motion": "^12.42.2",
@@ -37,12 +42,16 @@
   },
   "devDependencies": {
     "@playwright/test": "1.61.1",
+    "@remotion/cli": "^4.0.503",
+    "@remotion/renderer": "^4.0.503",
     "@types/node": "26.1.1",
     "@types/react": "19.2.17",
     "@types/react-dom": "19.2.3",
+    "@xterm/xterm": "^6.0.0",
     "eslint": "9.39.5",
     "eslint-config-next": "16.2.10",
     "prettier": "3.9.5",
+    "remotion": "^4.0.503",
     "typescript": "6.0.3",
     "vitest": "4.1.10"
   }

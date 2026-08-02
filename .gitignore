@@ -27,6 +27,12 @@ agents/.venv/
 # Tool-local launch config (created by the editor's browser preview)
 .claude/
 
+# Vendored agent skills (Remotion's, for the demo video). `skills-lock.json` IS
+# committed, so the set is reproducible with `npx skills add`; the copies are
+# third-party markdown and stay out of the judge-facing repo, the same way
+# `.claude/` does.
+.agents/
+
 # Internal dev docs, kept local but out of the judge-facing repo
 CLAUDE.md
 CLAUDE.local.md
@@ -37,3 +43,23 @@ docs/demo-script.md
 # The reference take lives here so a reboot cannot eat it; the submission video
 # is cut by the owner from a take like these.
 out/
+
+# The staged video assets: large, licensed for use in a video rather than
+# for redistribution, and a property of whoever is rendering.
+.video-public
+
+# The submission video's whole production line, kept out of the repository by
+# the owner's decision: the deliverable is a YouTube video, not source in the
+# tree. The composition, the recording and staging scripts, and the tests that
+# check the cut all stay local.
+video/
+remotion.config.ts
+scripts/datahub-broll.mjs
+scripts/erasure-broll.mts
+scripts/term-render.mjs
+scripts/trailer-assets.mjs
+scripts/trailer-finish.mjs
+tests/video-caption.test.ts
+tests/video-cascade.test.ts
+tests/video-erasure.test.ts
+tests/video-lineage.test.ts
