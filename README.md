@@ -384,22 +384,9 @@ machine with one CLI cannot be read as evidence about both. See
 
 ## Where things live
 
-```mermaid
-flowchart LR
-  operator["operator<br>runs demos, reviews evidence"] -->|browser| dashboard
-  agent["MCP-capable AI agent<br>freshness, register, start, report"] -->|MCP tools| integration
-  subgraph runtime["obsel runtime, one Node process plus local Python processes"]
-    dashboard["obsel dashboard<br>Next.js UI, decides nothing"] -->|snapshots and actions| server
-    server["obsel server<br>token-gated HTTP API<br>no model calls, no warehouse access"]
-    server -->|launch steps| integration["agent integration<br>Python MCP tools and workers"]
-    integration -->|report lifecycle| server
-    integration -->|tables and fingerprints| workspace["demo data workspace<br>local files, never authoritative"]
-  end
-  server -->|read and write| datahub["DataHub<br>system of record: lineage, stale tags, ledgers"]
-  integration -->|run agent| cli["agent CLI<br>codex exec or claude -p"]
-```
+[![The runtime architecture: an operator's browser talks to the obsel dashboard, which talks to the obsel server, which reads and writes DataHub. The server launches agent workers through the agent integration layer, which runs a real agent CLI and keeps demo tables on the local filesystem. An MCP-capable agent joins through the same MCP tools.](docs/images/architecture.svg)](docs/images/architecture.svg)
 
-<div align="center"><em>The same model, rendered as a <a href="docs/images/architecture.svg">static diagram</a> from <a href="docs/architecture.dsl"><code>docs/architecture.dsl</code></a>.</em></div>
+<div align="center"><em>The container diagram, modeled in Structurizr from <a href="docs/architecture.dsl"><code>docs/architecture.dsl</code></a>. Click for full size.</em></div>
 
 ```
 app/                     routing, and the fourteen HTTP routes
