@@ -90,15 +90,13 @@ that lags freshly registered tasks, are documented with reproductions in
 
 ### What is honestly not proven
 
-Most forty-task figures are one or two observations on one machine, not a benchmark. The engine
-never uses a model for its decisions, so the flags are deterministic, but the agent is a live
-model and its output needed pinning three times (documented). Every measured figure here came from
-a Codex run; the demo also runs on Claude Code, and nothing at demo scale has been measured on it. Dagster does retroactive invalidation for
-assets declared in its own code, and agent-coherence handles the in-memory half of this problem
-for shared artifacts inside one run; the prior-art survey in `docs/concept.md` names both rather
-than claiming novelty they would disprove. obsel's case is the one where no single orchestrator
-owns the graph: agents from different frameworks joining at runtime, each becoming a node in a
-metadata platform that outlives them.
+Most forty-task figures are one or two observations on one machine, not a benchmark. Every
+measured figure here came from a Codex run; the demo also runs on Claude Code, and nothing at
+demo scale has been measured on it.
+
+obsel's case is the one where no single orchestrator owns the graph: agents from different
+frameworks joining at runtime, each becoming a node in a metadata platform that outlives them.
+The prior-art survey is in `docs/concept.md`.
 
 ---
 
