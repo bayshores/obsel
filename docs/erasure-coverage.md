@@ -95,7 +95,7 @@ identical bytes are still two versions. This is what makes case 7 come out right
 ## The inverted write rule
 
 `CLAUDE.md` rule 1 says a task that re-runs and produces the same output must not mark anything
-stale, and `compareFingerprints` ([staleness.ts:45](../src/server/coordinator/staleness.ts#L45))
+stale, and `compareFingerprints` ([staleness.ts:62](../src/server/coordinator/staleness.ts#L62))
 returns `null` on identical content so no change is emitted.
 
 **For erasure this is inverted.** Any write to an asset carrying an open obligation reopens it,
@@ -107,10 +107,10 @@ rule, and the next reader will otherwise "fix" it back into unsoundness.
 
 ## The default flip
 
-[staleness.ts:492](../src/server/coordinator/staleness.ts#L492) and
-[staleness.ts:556](../src/server/coordinator/staleness.ts#L556) both `return true` for an input with
+[staleness.ts:692](../src/server/coordinator/staleness.ts#L692) and
+[staleness.ts:743](../src/server/coordinator/staleness.ts#L743) both `return true` for an input with
 no known producer, described in the code as "supplied from outside the swarm", and
-`tests/staleness.test.ts:711` locks that in as "treats a dataset nothing in the swarm produces as
+`tests/staleness.test.ts:809` locks that in as "treats a dataset nothing in the swarm produces as
 stable ground".
 
 That is correct for staleness: with no recorded claim about a dataset, there is nothing to
@@ -150,7 +150,7 @@ costs nothing extra.
 Under a _greatest_ fixpoint, B is attested because A was and A is attested because B was, with no
 direct check anywhere. A memoised traversal with a visited set that returns "attested" on revisit
 computes exactly this, and a visited set is the repo's existing termination idiom
-([staleness.ts:304](../src/server/coordinator/staleness.ts#L304)). The least-fixpoint requirement
+([staleness.ts:442](../src/server/coordinator/staleness.ts#L442)). The least-fixpoint requirement
 above exists specifically to forbid it. On revisit the kernel must return the current value, which
 starts at `UNPROVEN`, never a provisional `ATTESTED`.
 
@@ -159,9 +159,12 @@ starts at `UNPROVEN`, never a provisional `ATTESTED`.
 If `P1` truly rewrote the whole of `A` after `P2`'s last write, then `P2`'s rows are not in `V` and
 `V` is explained. If both contributed to `V`, then no single run rewrote all of it and TOTAL fails.
 The two-writer problem therefore falls out of totality, provided "produced the current version" is
-read as _solely_ produced. This is also why the plan's Phase 1 fixes the existing producer-collapse
-defect, where [staleness.ts:320](../src/server/coordinator/staleness.ts#L320) takes the last writer
-and `engine.ts:324` takes the first.
+read as _solely_ produced. This is also why the plan's Phase 1 fixed the producer-collapse defect,
+where three call sites each resolved a producer their own way and two of them disagreed, one keeping
+the last registered writer and one the first. Fixed:
+[`producersOf`](../src/server/coordinator/staleness.ts#L344) now returns every writer of a dataset
+and each caller states its own rule, `engine.ts` resolves no producer at all, and `soleProducer`
+declines to name an author when a dataset has more than one writer.
 
 ### Snapshot isolation, not in the required table but worth recording
 
