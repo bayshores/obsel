@@ -141,7 +141,7 @@ export function launchStep(
      * Appended whatever the exit code was.
      *
      * This is a record of what ran on this machine, not a list of successes:
-     * `journey()` in `guide.ts` decides for itself which steps count, and it
+     * `performedSteps()` in `guide/guide.ts` decides which steps count, and it
      * only counts the ones that exited 0. A history that silently dropped
      * failures would make a step that failed indistinguishable from one nobody
      * pressed, and those are different situations for a reader to be in.

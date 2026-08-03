@@ -119,7 +119,7 @@ def cmd_self_check(args: argparse.Namespace) -> int:
 
     Everything here is deterministic and offline. The commands themselves talk to
     obsel and to the agent CLI and are covered by `tests/live/run-commands.live.test.ts`
-    and `tests/live/codex.live.test.ts`.
+    and `tests/live/runners.live.test.ts`.
     """
     failures: list[str] = []
 

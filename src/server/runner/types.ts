@@ -120,7 +120,7 @@ export interface DemoActivity {
    * re-run before it.
    *
    * It is a record, never a position. Nothing here says which act is current;
-   * `journey()` in `src/features/dashboard/guide.ts` derives that from this plus
+   * `guide()` in `src/features/dashboard/guide/guide.ts` derives that from this plus
    * the board, and it re-derives on every poll like everything else the guide
    * shows. It does not survive a server restart, and the acts that board state
    * alone can see survive it anyway.

@@ -161,9 +161,8 @@ def _self_check() -> int:
     nothing here to stand in for.
 
     What is NOT covered: starting a CLI. Both runners spawn a subprocess and need
-    their CLI installed and signed in, and they are covered by
-    `tests/live/codex.live.test.ts` and `tests/live/claude.live.test.ts`, which
-    each run a real agent.
+    their CLI installed and signed in, and both are covered by
+    `tests/live/runners.live.test.ts`, which runs a real session of each.
     """
     import tempfile
 
