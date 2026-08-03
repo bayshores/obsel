@@ -265,9 +265,6 @@ function reasonFor(
         ? `, comparing everything except ${[...excluded].sort().join(" and ")}, which it registered as changing every run`
         : "";
     const base = `read ${table}, and ${describe(kind)} after this finished${aside}`;
-    // The unreported case earns a longer sentence, because the usual mental
-    // model — the producer re-ran — is exactly wrong here, and a reader acting
-    // on that model would go ask the wrong agent what it did.
     if (unreported === null) return base;
     /*
      * The unreported case earns a longer sentence, because the usual mental
