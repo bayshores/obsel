@@ -21,6 +21,7 @@ import { createHash, randomUUID } from "node:crypto";
 
 import { readLineageDownstream } from "@/src/server/datahub/client";
 import { datasetExists } from "@/src/server/datahub/incidents";
+import { relationships, type RelationshipDirection } from "@/src/server/datahub/lineage";
 import {
   attestationUrn,
   ledgerUrn,
@@ -158,6 +159,28 @@ export function refuseReopen(id: string, existing: LedgerRecord | null): void {
 }
 
 /**
+ * The edges that make a URN with no entity behind it still a known dataset:
+ * lineage in either direction, or the task edges a swarm registration writes.
+ * Ordered cheapest-signal-first only in the sense that any single hit ends the
+ * probe.
+ */
+const SEED_EDGE_PROBES: readonly [RelationshipDirection, string][] = [
+  ["INCOMING", "DownstreamOf"],
+  ["OUTGOING", "DownstreamOf"],
+  ["INCOMING", "Produces"],
+  ["INCOMING", "Consumes"],
+];
+
+/** Whether DataHub knows this URN at all: an entity, or at least one edge. */
+async function seedKnown(seed: string): Promise<boolean> {
+  if (await datasetExists(seed)) return true;
+  for (const [direction, type] of SEED_EDGE_PROBES) {
+    if ((await relationships(seed, direction, type)).length > 0) return true;
+  }
+  return false;
+}
+
+/**
  * Open a request: walk the graph from the seeds, and record what was found.
  *
  * Everything reached starts `UNPROVEN`, which is not a placeholder. It is the
@@ -186,15 +209,24 @@ export async function openErasureRequest(input: {
   };
 
   /*
-   * Every seed is established BEFORE anything is written, against the endpoint
-   * that genuinely 404s. A URN DataHub never saw walks nowhere, because
-   * `/relationships` answers it with an empty list rather than an error, and the
-   * report that comes back is one UNPROVEN row with `assetsReached: 1` — the
-   * same shape a subject whose data really did stop at one table produces. The
-   * refusal is in `erasure-seeds.ts`; nothing about it marks or clears anything.
+   * Every seed is established BEFORE anything is written. A URN DataHub never
+   * saw walks nowhere, because `/relationships` answers it with an empty list
+   * rather than an error, and the report that comes back is one UNPROVEN row
+   * with `assetsReached: 1` — the same shape a subject whose data really did
+   * stop at one table produces. The refusal is in `erasure-seeds.ts`; nothing
+   * about it marks or clears anything.
+   *
+   * Known means an entity on the endpoint that genuinely 404s, OR at least one
+   * recorded edge in the graph store. Both signals are needed because a table a
+   * swarm produces is often not a materialized entity at all: it exists only as
+   * the endpoint of the `Produces` edge its registration wrote, so the v3 read
+   * answers 404 for it while the graph holds real lineage — measured on
+   * 2026-08-10 against `mcpjoin_clean_t`, whose entity read 404s beside a
+   * `Produces` edge and a `Consumes` edge. Entity-only checking refused every
+   * such table as a seed. A mistyped URN still has neither signal.
    */
   const checked = await Promise.all(
-    request.seeds.map(async (seed) => ({ seed, exists: await datasetExists(seed) })),
+    request.seeds.map(async (seed) => ({ seed, known: await seedKnown(seed) })),
   );
   const unknown = unknownSeeds(checked);
   if (unknown.length > 0) throw new UnknownSeedsError(unknown);

@@ -148,9 +148,10 @@ describe("the routes refuse before they do anything", () => {
     expect(String(refused.body.error)).toContain(typo);
     expect(refused.body.coverage).toBeUndefined();
 
-    // Nothing was opened, so reading it back finds no request.
+    // Nothing was opened, so reading it back finds no request: the typed
+    // not-found from the same audit, a clean 404 rather than a masked error.
     const status = await api(`/api/erasure/${REQUEST}-unknown-seed`, { method: "GET" });
-    expect(status.status).toBe(500);
+    expect(status.status).toBe(404);
   }, 120_000);
 
   it("has no route that marks an asset covered", async () => {

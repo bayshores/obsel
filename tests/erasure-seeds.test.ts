@@ -32,8 +32,8 @@ describe("unknown seeds", () => {
   it("names nothing when every seed is a dataset DataHub knows", () => {
     expect(
       unknownSeeds([
-        { seed: ORDERS, exists: true },
-        { seed: CUSTOMERS, exists: true },
+        { seed: ORDERS, known: true },
+        { seed: CUSTOMERS, known: true },
       ]),
     ).toEqual([]);
   });
@@ -41,8 +41,8 @@ describe("unknown seeds", () => {
   it("names the one seed that does not exist, and keeps the ones that do", () => {
     expect(
       unknownSeeds([
-        { seed: ORDERS, exists: true },
-        { seed: TYPO, exists: false },
+        { seed: ORDERS, known: true },
+        { seed: TYPO, known: false },
       ]),
     ).toEqual([TYPO]);
   });
@@ -51,10 +51,10 @@ describe("unknown seeds", () => {
     const other = `urn:li:dataset:(${SNOWFLAKE},analytics.custmers,PROD)`;
     expect(
       unknownSeeds([
-        { seed: TYPO, exists: false },
-        { seed: other, exists: false },
-        { seed: TYPO, exists: false },
-        { seed: ORDERS, exists: true },
+        { seed: TYPO, known: false },
+        { seed: other, known: false },
+        { seed: TYPO, known: false },
+        { seed: ORDERS, known: true },
       ]),
     ).toEqual([other, TYPO]);
   });

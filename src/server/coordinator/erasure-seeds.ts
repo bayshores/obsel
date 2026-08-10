@@ -10,26 +10,30 @@
  * downstream edges from it. Nothing in either report separates them, so the
  * request is refused at the door rather than answered over the wrong estate.
  *
- * This file is pure. Existence is decided by the caller against
- * `GET /openapi/v3/entity/dataset/<urn>`, the endpoint that genuinely 404s
- * (`docs/environment-findings.md` §1), never `GET /entities/<urn>`, which
- * synthesises a response for any syntactically valid URN. What is here is what
- * to do with those answers.
+ * This file is pure. Whether DataHub knows a seed is decided by the caller,
+ * from two signals: an entity on `GET /openapi/v3/entity/dataset/<urn>`, the
+ * endpoint that genuinely 404s (`docs/environment-findings.md` §1, never
+ * `GET /entities/<urn>`, which synthesises a response for any syntactically
+ * valid URN), or at least one recorded edge in the graph store. The second
+ * signal exists because a table a swarm produces is often no entity at all —
+ * only the endpoint of the `Produces` edge its registration wrote — and an
+ * entity-only check refused every such table as a seed. A mistyped URN has
+ * neither signal. What is here is what to do with those answers.
  *
  * Refusing is all this does. It adds no state, no vocabulary and no claim about
  * any asset: an asset obsel never walked to is not attested absent, and a
  * request obsel refused reports nothing about anybody.
  */
 
-/** One seed and whether DataHub returned an entity for it. */
+/** One seed and whether DataHub knows it: an entity, or at least one edge. */
 export interface SeedCheck {
   seed: string;
-  exists: boolean;
+  known: boolean;
 }
 
 /** Every seed with no dataset behind it, sorted and deduplicated. */
 export function unknownSeeds(checks: readonly SeedCheck[]): string[] {
-  const missing = checks.filter((check) => !check.exists).map((check) => check.seed);
+  const missing = checks.filter((check) => !check.known).map((check) => check.seed);
   return [...new Set(missing)].sort();
 }
 

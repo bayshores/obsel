@@ -6473,18 +6473,24 @@ DataHub records no downstream edges from it. The typo's report and that report c
 fields, the same counts and the same row state, and a reader has nothing to tell them apart
 while the subject's data has actually reached 23.
 
-Seeds are now established before anything is written, one
-`GET /openapi/v3/entity/dataset/<urn>` per seed — the endpoint that genuinely 404s (§1 of
+Seeds are now established before anything is written, from two signals per seed: an entity on
+`GET /openapi/v3/entity/dataset/<urn>` — the endpoint that genuinely 404s (§1 of
 `environment-findings.md`), never `GET /entities/<urn>`, which answers for any syntactically
-valid URN. Unknown seeds are refused with a 400 that lists all of them, and no ledger record is
-written for a request that was refused. The check is additive: it adds no state, no vocabulary,
-and no claim about any asset.
+valid URN — or, failing that, at least one recorded edge in the graph store. The second signal
+was forced by the first live run of this check: a table a swarm produces is often no entity at
+all, only the endpoint of the `Produces` edge its registration wrote, so the entity read 404s
+while the graph holds real lineage. Measured 2026-08-10 against `mcpjoin_clean_t`: entity read
+404, `Produces` INCOMING total 1, `Consumes` INCOMING total 1. Entity-only checking refused
+every such table as a seed, and the MCP suite's own join test failed on exactly that. A
+mistyped URN has neither signal. Unknown seeds are refused with a 400 that lists all of them,
+and no ledger record is written for a request that was refused. The check is additive: it adds
+no state, no vocabulary, and no claim about any asset.
 
-The decision, given the existence answers, is `src/server/coordinator/erasure-seeds.ts` and is
-covered by `tests/erasure-seeds.test.ts` — 5 tests, run under `pnpm verify` on this commit,
-36 files and 646 tests passing. The HTTP round trip is written in
-`tests/live/erasure.live.test.ts` ("refuses a seed DataHub has no dataset for, and names it")
-and is **unrun**: it needs the live stack, which was out of bounds for this change.
+The decision, given the known-or-not answers, is `src/server/coordinator/erasure-seeds.ts` and
+is covered by `tests/erasure-seeds.test.ts`. The HTTP round trip is
+`tests/live/erasure.live.test.ts` ("refuses a seed DataHub has no dataset for, and names it"),
+run 2026-08-10 against the live stack, and the accepted-seed direction is the MCP join test in
+`tests/live/obsel-mcp.live.test.ts`, same run.
 
 ## 2026-08-10 — the entry-shape discipline, carried to the other three lists
 
