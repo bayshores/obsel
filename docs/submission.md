@@ -159,7 +159,7 @@ With nothing installed at all, [bayshores.github.io/obsel](https://bayshores.git
 that same check over that same file, in your browser, and gives you seven buttons that each edit one
 field of it: flip a character of a signature, report the signing key compromised, replay a record,
 edit obsel's own recorded answer. The page shows the edit and the refusal side by side. It is
-`attestation.ts`, `erasure.ts` and `scripts/verify-erasure-evidence.mjs` bundled for a browser, not a
+`attestation.ts`, `erasure.ts` and `scripts/verify-bundle.mjs` bundled for a browser, not a
 recording of them, and `tests/site-verify.test.ts` holds the built page's answers line for line
 against a spawned `node` on the CLI.
 

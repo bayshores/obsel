@@ -8,20 +8,21 @@
  *
  * - `dist/main.js`, the page: `site/main.js` plus everything it imports, which
  *   is the repository's own `attestation.ts`, `erasure.ts` and
- *   `verify-erasure-evidence.mjs`, unchanged.
+ *   `verify-bundle.mjs`, unchanged.
  * - `dist/core.js`, the same computation with no DOM, which
  *   `tests/site-verify.test.ts` imports under Node and holds equal to the CLI
  *   verifier. Testing `dist/main.js` directly is impossible without a browser,
  *   and testing `site/core.js` unbundled would test the wrong artifact: the
- *   thing that ships is the bundle, shims and all.
+ *   thing that ships is the bundle, substitutions and all.
  *
- * Substitutions, all three of them named here because this list is the whole
- * difference between the page and the CLI:
+ * Substitutions, both of them named here because this list is the whole
+ * difference between the page and the CLI. There is deliberately no third: the
+ * check itself lives in `scripts/verify-bundle.mjs`, which touches no
+ * filesystem and no `process`, so nothing here stands in for a Node built-in
+ * the browser lacks.
  *
  * - `node:crypto` becomes `site/node-crypto.js` (Ed25519 and SHA-256 from
  *   @noble, synchronous, because WebCrypto is not).
- * - `node:fs/promises` becomes a stub; only the CLI's unreachable `main()`
- *   imports it.
  * - Free `Buffer` references resolve to the feross/buffer polyfill.
  *
  * Not minified. A judge reading view-source should find the same sentences the
@@ -46,7 +47,6 @@ const shared = {
   minify: false,
   alias: {
     "node:crypto": join(root, "site", "node-crypto.js"),
-    "node:fs/promises": join(root, "site", "fs-promises-stub.js"),
   },
   inject: [join(root, "site", "buffer-shim.js")],
   logLevel: "info",

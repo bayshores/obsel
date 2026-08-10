@@ -8,5 +8,5 @@
  * stays out of here so the tested artifact is the one that computes.
  */
 
-export { shapeProblem, verifyBundle } from "../scripts/verify-erasure-evidence.mjs";
+export { shapeProblem, verifyBundle } from "../scripts/verify-bundle.mjs";
 export { TAMPERS } from "./tampers.js";

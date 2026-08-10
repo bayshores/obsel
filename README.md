@@ -169,7 +169,7 @@ live run and re-checks it in your browser, including the signatures. Seven butto
 it each — flip a byte of a signature, report the signing key compromised, replay a record, edit
 obsel's own answer — and the check runs again on the edit. The page shows what changed and what the
 refusal was. It is running `attestation.ts`, `erasure.ts` and
-`scripts/verify-erasure-evidence.mjs` from this repository, not a recording of them.
+`scripts/verify-bundle.mjs` from this repository, not a recording of them.
 
 That page is the erasure half without a stack. For the whole thing, including staleness and the
 agents, run it locally.

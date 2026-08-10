@@ -2,7 +2,7 @@
  * The browser's stand-in for the three `node:crypto` calls the verifier makes.
  *
  * This file is the ONLY substitution in the hosted page. `attestation.ts`,
- * `erasure.ts` and `verify-erasure-evidence.mjs` are bundled unchanged; what
+ * `erasure.ts` and `verify-bundle.mjs` are bundled unchanged; what
  * cannot come along is `node:crypto` itself, because `verifyAttestation` is
  * synchronous by design and the browser's own WebCrypto API is asynchronous.
  * The arithmetic here comes from audited, widely used libraries by the same

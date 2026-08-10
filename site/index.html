@@ -36,7 +36,7 @@ node scripts/verify-erasure-evidence.mjs examples/erasure-evidence/bundle.json</
           >erasure.ts</a
         >
         <span aria-hidden="true">·</span>
-        <a href="https://github.com/bayshores/obsel/blob/main/scripts/verify-erasure-evidence.mjs"
+        <a href="https://github.com/bayshores/obsel/blob/main/scripts/verify-bundle.mjs"
           >the verifier this page runs</a
         >
       </p>
@@ -114,12 +114,13 @@ node scripts/verify-erasure-evidence.mjs examples/erasure-evidence/bundle.json</
       <p>
         The signature check, the challenge and key rules, and the coverage computation on this page
         are <code>attestation.ts</code>, <code>erasure.ts</code> and
-        <code>verify-erasure-evidence.mjs</code> from the repository, bundled unchanged. One thing
-        is substituted: the Ed25519 and SHA-256 arithmetic, which the server takes from
+        <code>verify-bundle.mjs</code> from the repository, bundled unchanged. One thing is
+        substituted: the Ed25519 and SHA-256 arithmetic, which the server takes from
         <code>node:crypto</code> and this page takes from @noble/ed25519 and @noble/hashes, because
         the browser's own crypto API is asynchronous and the verifier is deliberately not. A test in
         the repository holds the two arithmetics to the same answers over the same bundles, tampered
-        and not.
+        and not, and nothing else here is stood in for: <code>verify-bundle.mjs</code> touches no
+        filesystem, so the build has no Node built-in left to replace.
       </p>
       <p>
         What this page cannot establish: that the data is gone. An attestation is a signed claim by

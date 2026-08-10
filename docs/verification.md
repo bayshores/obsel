@@ -5765,15 +5765,24 @@ and DataHub. Somebody reading the repository for ten minutes could only take the
 it. The page closes that and nothing else: it does not host obsel, and it cannot, because DataHub is
 a multi-container stack no static host will run.
 
-**What runs.** `site/main.js` imports `scripts/verify-erasure-evidence.mjs`, which imports
-`attestation.ts` and `erasure.ts`. esbuild bundles that graph for the browser with three
+**What runs.** `site/main.js` imports `scripts/verify-bundle.mjs`, which imports
+`attestation.ts` and `erasure.ts`. esbuild bundles that graph for the browser with two
 substitutions, and they are the complete list:
 
-| Substituted        | With                              | Why                                                                  |
-| ------------------ | --------------------------------- | -------------------------------------------------------------------- |
-| `node:crypto`      | `site/node-crypto.js` over @noble | `verifyAttestation` is synchronous; WebCrypto's API is not           |
-| `node:fs/promises` | a stub that throws                | only the CLI's `main()` imports it, and the browser never reaches it |
-| `Buffer`           | the feross/buffer polyfill        | the kernel encodes base64 and utf8 through it                        |
+| Substituted   | With                              | Why                                                        |
+| ------------- | --------------------------------- | ---------------------------------------------------------- |
+| `node:crypto` | `site/node-crypto.js` over @noble | `verifyAttestation` is synchronous; WebCrypto's API is not |
+| `Buffer`      | the feross/buffer polyfill        | the kernel encodes base64 and utf8 through it              |
+
+There is deliberately no third row, and getting there took a second pass. The first version bundled
+the CLI script itself, which imports `node:fs/promises`, and stood a throwing stub in front of that
+import so esbuild could resolve it. The stub was unreachable and it was still a stand-in, in a
+repository whose rule is that there are none, so the check moved into `scripts/verify-bundle.mjs`,
+which touches no filesystem and no `process`, and `scripts/verify-erasure-evidence.mjs` became the
+command line over it: argv, `readFile`, exit codes. The browser build now resolves every import it
+has for real. The CLI's behavior is unchanged, and its three exit codes were re-checked directly (0
+on the committed bundle, 2 with no argument, 2 on `package.json`) on top of the thirteen-case tamper
+matrix, which spawns it as a real process.
 
 Only three functions of `node:crypto` are reimplemented — `createPublicKey`, `verify`, and a
 `createHash("sha256")` that takes utf8 and returns hex — and everything a signature actually depends
@@ -5782,9 +5791,9 @@ the key lifecycle, the coverage fixpoint. `site/node-crypto.js` implements nothi
 so a new `node:crypto` call in the kernel breaks the site build's test rather than passing vacuously.
 
 **The refactor this required.** `verify-erasure-evidence.mjs` was a script with its logic in
-`main()`. The whole check is now exported as `verifyBundle`, which returns the verdict and every line
-the CLI prints; `main()` is a thin CLI wrapper, and the CLI branch is entered only when the file is
-the script Node was started with. Two dynamic `new URL(...)` imports became literal specifiers,
+`main()`. The check is now `scripts/verify-bundle.mjs`, exporting `verifyBundle`, which returns the
+verdict and every line the CLI prints; the original path is the command line over it and holds
+everything only Node can do. Two dynamic `new URL(...)` imports became literal specifiers,
 because a computed URL is opaque to a bundler. The CLI's behavior is unchanged, and
 `tests/verify-evidence.test.ts` — the thirteen-case tamper matrix above, which spawns a real `node`
 process — still passes unedited, which is what establishes that.
