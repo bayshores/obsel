@@ -231,6 +231,8 @@ code, because two earlier drafts of the rule were unsound.
 | a write with an identical fingerprint reopens              | `tests/erasure.test.ts`; attestations bind to a version, never a content hash                                                                                                           | unit       |
 | a rebuild declaring less than the catalog knows            | `tests/erasure.test.ts`, residue `closure-mismatch`                                                                                                                                     | unit       |
 | an attestation saying the subject is present               | `tests/erasure.test.ts`, `CONTRADICTED`                                                                                                                                                 | unit       |
+| an older version re-attested after a present report        | `tests/erasure.test.ts` 10b and 10c: the finding survives a record naming a version obsel knew of before it, and is answered by one first seen after it                                 | unit       |
+| an envelope submitted to a request it does not name        | `tests/erasure-submit.test.ts`: refused with `request-mismatch` before the ledger is read, against a port nothing is listening on                                                       | unit       |
 | an unsigned rebuild claim                                  | `tests/erasure.test.ts`; found by a surviving mutation, not by design                                                                                                                   | unit       |
 | one record's whole scope lent to another's narrow search   | `tests/erasure.test.ts`, residue `predicate-split`; the Direct check is decided on one record, and named partitions union only across records that each searched every identifier       | unit       |
 | the sentence for that refusal, checked word for word       | `tests/erasure.test.ts`, "does not say nobody searched for an identifier somebody searched": it names the missing single record and how far the partial search reached                  | unit       |
@@ -260,6 +262,11 @@ code, because two earlier drafts of the rule were unsound.
 Held to the same standard as everything above: these are the cases nobody has executed, written
 down so the table cannot imply them.
 
+- **The cross-request refusal over HTTP.** `tests/live/erasure.live.test.ts` gained a case on
+  2026-08-10 that opens a second request, signs a real record against a challenge issued for it, and
+  POSTs it to the first request, expecting a 422 and an unchanged ledger. It is written and has not
+  been run: the audit session that added it had no live stack. The unit row above covers the refusal
+  itself; what is unexecuted is the whole path through the route and DataHub.
 - **A change record written by the observation path, read back.** `decideObservation` appends one
   the same way `decideCompletion` does, and the 2026-07-30 full-suite run executed that write —
   `observe.live.test.ts` drives a marking observation, and the suite stayed green through it, so the

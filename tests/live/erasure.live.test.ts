@@ -625,6 +625,78 @@ describe("the evidence bundle, checked by a process that is not obsel", () => {
   }, 300_000);
 });
 
+describe("an envelope issued for one request, submitted to another", () => {
+  it("is refused, and nothing about the other request's answer moves", async () => {
+    /*
+     * Everything about this envelope is genuine: obsel issued the challenge,
+     * the attestor holds a registered key scoped for the asset, and the record
+     * answers the challenge it was given. What is wrong is only the request it
+     * was POSTed against. `verifyAttestation` holds the challenge and the record
+     * to each other and cannot see that, so without a check at the submission
+     * boundary the record is appended to the first request's own bucket, where
+     * `buildReport` reads it back and takes the version the whole answer is
+     * computed against from a record the first request has no evidence about.
+     */
+    const other = `${REQUEST}-second`;
+    const opened = await api("/api/erasure", {
+      method: "POST",
+      body: JSON.stringify({
+        request: other,
+        identifiers: ["cust_88213"],
+        seeds: [CUSTOMERS],
+        hops: 1,
+      }),
+    });
+    expect(opened.status).toBe(200);
+
+    const challenge = await api("/api/erasure/challenge", {
+      method: "POST",
+      body: JSON.stringify({ request: other, asset: CUSTOMERS }),
+    });
+    expect(challenge.status).toBe(200);
+
+    const signed = signAttestation(
+      {
+        kind: "direct",
+        request: other,
+        asset: CUSTOMERS,
+        version: "snapshot-foreign",
+        predicate: {
+          identifiers: ["cust_88213"],
+          expression: "customer_id = 'cust_88213'",
+          columns: ["customer_id"],
+        },
+        scope: { kind: "whole" },
+        result: "absent",
+        attestor: ATTESTOR,
+        signatureVerified: false,
+        at: new Date().toISOString(),
+        nonce: challenge.body.nonce as string,
+      },
+      PRIVATE_PEM,
+      KEY_ID,
+    );
+
+    const before = await readAttestationsFor(REQUEST, CUSTOMERS);
+
+    const refused = await api("/api/erasure/proof", {
+      method: "POST",
+      body: JSON.stringify({ request: REQUEST, envelope: signed }),
+    });
+    expect(refused.status).toBe(422);
+    const failures = refused.body.failures as { kind: string }[];
+    expect(failures.map((entry) => entry.kind)).toContain("request-mismatch");
+
+    // The ledger is append-only, so this is the assertion that matters: a
+    // record refused here can never be taken back out.
+    const after = await readAttestationsFor(REQUEST, CUSTOMERS);
+    expect(after.length).toBe(before.length);
+
+    const status = await api(`/api/erasure/${REQUEST}`, { method: "GET" });
+    expect(rowFor(status.body, CUSTOMERS)?.version).not.toBe("snapshot-foreign");
+  }, 300_000);
+});
+
 describe("a key reported compromised takes its coverage back", () => {
   it("returns the asset to unattested, with no data having changed", async () => {
     /*

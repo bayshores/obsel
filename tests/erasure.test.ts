@@ -279,6 +279,59 @@ describe("the counterexample table, walked", () => {
       "still present",
     );
   });
+
+  it("10b. keeps the contradiction when a later attestation names an older version", () => {
+    /*
+     * The rollback. An attestor reports customers absent at v1, then reports
+     * the subject present at v2, and the board says CONTRADICTED. It then
+     * re-signs the ORIGINAL absent record for v1 with a fresh timestamp. The
+     * version a report is computed against is whatever the latest attestation
+     * names, so the answer moves back to v1, where the present record is not
+     * evaluated at all — and the finding leaves the report while sitting in the
+     * ledger. Case 10 says nothing argues with a present report, and a record
+     * naming an earlier version is still an argument.
+     */
+    const coverage = coverageFor(
+      input({
+        currentVersion: { [CUSTOMERS]: "v1", [DETAILS]: "v1" },
+        attestations: [
+          direct({ version: "v1", at: "2026-08-01T00:00:00.000Z" }),
+          direct({ version: "v2", result: "present", at: "2026-08-05T00:00:00.000Z" }),
+          direct({ version: "v1", at: "2026-08-09T00:00:00.000Z" }),
+        ],
+      }),
+    );
+
+    expect(stateOf(coverage, CUSTOMERS)).toBe("CONTRADICTED");
+    expect(summarize(coverage).contradicted).toBe(1);
+    // The sentence names the version the subject was found in, not the version
+    // the row is keyed to, so the two cannot be confused for each other.
+    expect(coverage.find((entry) => entry.asset === CUSTOMERS)?.explanation).toContain(
+      "at version v2",
+    );
+  });
+
+  it("10c. lets a version first seen after the contradiction answer it", () => {
+    /*
+     * The other direction, which must keep working: the subject was found in
+     * v2, somebody deleted it, the warehouse committed v3, and the attestor
+     * re-checked. v3 is a version obsel first heard of after the finding, so it
+     * answers it. Without this the first present report would freeze the asset
+     * red forever and there would be no way to record the erasure that followed.
+     */
+    const coverage = coverageFor(
+      input({
+        currentVersion: { [CUSTOMERS]: "v3", [DETAILS]: "v1" },
+        attestations: [
+          direct({ version: "v2", result: "present", at: "2026-08-05T00:00:00.000Z" }),
+          direct({ version: "v3", at: "2026-08-09T00:00:00.000Z" }),
+        ],
+      }),
+    );
+
+    expect(stateOf(coverage, CUSTOMERS)).toBe("ATTESTED");
+    expect(summarize(coverage).contradicted).toBe(0);
+  });
 });
 
 describe("the cases the table does not list", () => {

@@ -102,6 +102,15 @@ independent source**, so under-declaring to dodge an unclean upstream is detecta
 
 `CONTRADICTED` when any valid attestation reports the subject present.
 
+**`D.request = R` is checked twice, and the second check is at the door.** The kernel filters by
+request, so a record naming another request can never explain anything here. That is not enough on
+its own: the version each asset is reported at is chosen from the records in the request's ledger
+before the kernel runs, so a foreign record in that ledger moves the answer without ever attesting
+to it. A record whose signed payload names a request other than the one it is submitted to is
+therefore refused at `POST /api/erasure/proof`, with `request-mismatch`, before anything is read or
+written. Refusing is the reversible answer: the ledger is append-only, and a record that lands in
+the wrong request's ledger cannot be taken back out.
+
 **Version identity is not fingerprint identity.** A version is a warehouse-native commit identifier
 (Iceberg snapshot id, Delta commit version, table revision), never a content hash. Two versions with
 identical bytes are still two versions. This is what makes case 7 come out right, and it inverts
@@ -134,25 +143,26 @@ affirmative certificate. **The erasure kernel gets its own default and must neve
 
 ## The counterexample table, walked
 
-| #   | Case                                                                 | Required     | Rule gives   | Why                                                                   |
-| --- | -------------------------------------------------------------------- | ------------ | ------------ | --------------------------------------------------------------------- |
-| 1   | MERGE / dbt incremental over prior version                           | UNPROVEN     | UNPROVEN     | not TOTAL; prior version is an unexplained portion of `V`             |
-| 2   | Partition overwrite, 3 of 730                                        | UNPROVEN     | UNPROVEN     | not TOTAL; residue = 727 partitions                                   |
-| 3   | SCD2 snapshot                                                        | UNPROVEN     | UNPROVEN     | not TOTAL, it appends; retention is its correct behavior              |
-| 4   | Asset with no attestation of any kind                                | UNPROVEN     | UNPROVEN     | no explanation exists, so residue is all of `V`                       |
-| 4b  | Asset with no recorded upstream lineage, rebuild claimed             | UNPROVEN     | UNPROVEN     | nothing to cross-check CLOSED against, so the claim is refused        |
-| 5   | Cyclic lineage A→B→A                                                 | UNPROVEN     | UNPROVEN     | least fixpoint never promotes either without a grounding direct check |
-| 6   | Two writers, one clean run                                           | UNPROVEN     | UNPROVEN     | no single `P` solely produced `V`, so no `P` is TOTAL w.r.t. `V`      |
-| 7   | Unproven write, identical fingerprint                                | reopens      | reopens      | attestation binds to the old version; the new version has none        |
-| 8   | Full rebuild: total, closed, attributed, inputs attested             | ATTESTED     | ATTESTED     | derived coverage satisfied                                            |
-| 9   | Direct check against current version                                 | ATTESTED     | ATTESTED     | direct explanation covers all of `V`                                  |
-| 10  | Attestation reports subject present                                  | CONTRADICTED | CONTRADICTED | by definition                                                         |
-| 11  | Honest compaction: total self-rebuild from an attested prior version | ATTESTED     | ATTESTED     | derived coverage, with the prior version as the only input            |
-| 12  | Compaction that also merged new rows                                 | UNPROVEN     | UNPROVEN     | not TOTAL, or an ordinary rebuild held to the full closure check      |
-| 13  | Self-rebuild whose prior version was never attested                  | UNPROVEN     | UNPROVEN     | the one input it declares is unattested                               |
-| 14  | Self-rebuild chained on a RETRACTED ancestor                         | UNPROVEN     | UNPROVEN     | retracted records are dropped, the ancestor falls, the chain with it  |
-| 15  | Self-rebuild signed by a key later reported compromised              | UNPROVEN     | UNPROVEN     | key invalidation runs before the kernel, so the chain has no ground   |
-| 15b | Self-rebuild declaring its OWN current version as input              | UNPROVEN     | UNPROVEN     | least fixpoint never promotes a state that requires itself            |
+| #   | Case                                                                 | Required     | Rule gives   | Why                                                                          |
+| --- | -------------------------------------------------------------------- | ------------ | ------------ | ---------------------------------------------------------------------------- |
+| 1   | MERGE / dbt incremental over prior version                           | UNPROVEN     | UNPROVEN     | not TOTAL; prior version is an unexplained portion of `V`                    |
+| 2   | Partition overwrite, 3 of 730                                        | UNPROVEN     | UNPROVEN     | not TOTAL; residue = 727 partitions                                          |
+| 3   | SCD2 snapshot                                                        | UNPROVEN     | UNPROVEN     | not TOTAL, it appends; retention is its correct behavior                     |
+| 4   | Asset with no attestation of any kind                                | UNPROVEN     | UNPROVEN     | no explanation exists, so residue is all of `V`                              |
+| 4b  | Asset with no recorded upstream lineage, rebuild claimed             | UNPROVEN     | UNPROVEN     | nothing to cross-check CLOSED against, so the claim is refused               |
+| 5   | Cyclic lineage A→B→A                                                 | UNPROVEN     | UNPROVEN     | least fixpoint never promotes either without a grounding direct check        |
+| 6   | Two writers, one clean run                                           | UNPROVEN     | UNPROVEN     | no single `P` solely produced `V`, so no `P` is TOTAL w.r.t. `V`             |
+| 7   | Unproven write, identical fingerprint                                | reopens      | reopens      | attestation binds to the old version; the new version has none               |
+| 8   | Full rebuild: total, closed, attributed, inputs attested             | ATTESTED     | ATTESTED     | derived coverage satisfied                                                   |
+| 9   | Direct check against current version                                 | ATTESTED     | ATTESTED     | direct explanation covers all of `V`                                         |
+| 10  | Attestation reports subject present                                  | CONTRADICTED | CONTRADICTED | by definition                                                                |
+| 10b | Present at `V2`, then the older `V1` re-attested absent              | CONTRADICTED | CONTRADICTED | `V1` is a version obsel knew of before the finding, so it answers none of it |
+| 11  | Honest compaction: total self-rebuild from an attested prior version | ATTESTED     | ATTESTED     | derived coverage, with the prior version as the only input                   |
+| 12  | Compaction that also merged new rows                                 | UNPROVEN     | UNPROVEN     | not TOTAL, or an ordinary rebuild held to the full closure check             |
+| 13  | Self-rebuild whose prior version was never attested                  | UNPROVEN     | UNPROVEN     | the one input it declares is unattested                                      |
+| 14  | Self-rebuild chained on a RETRACTED ancestor                         | UNPROVEN     | UNPROVEN     | retracted records are dropped, the ancestor falls, the chain with it         |
+| 15  | Self-rebuild signed by a key later reported compromised              | UNPROVEN     | UNPROVEN     | key invalidation runs before the kernel, so the chain has no ground          |
+| 15b | Self-rebuild declaring its OWN current version as input              | UNPROVEN     | UNPROVEN     | least fixpoint never promotes a state that requires itself                   |
 
 ### Cases 1 and 2 in detail
 
@@ -168,6 +178,40 @@ computes exactly this, and a visited set is the repo's existing termination idio
 ([staleness.ts:442](../src/server/coordinator/staleness.ts#L442)). The least-fixpoint requirement
 above exists specifically to forbid it. On revisit the kernel must return the current value, which
 starts at `UNPROVEN`, never a provisional `ATTESTED`.
+
+### Case 10b in detail: what answers a present report, and what does not
+
+Added 2026-08-10, after an audit found the report could be moved off a present finding without any
+data changing.
+
+The version a report is computed against is whatever the latest attestation names
+([`versionOf`](../src/server/coordinator/erasure-engine.ts#L486)), and state is keyed to
+`(asset, version)`. Those two together left a gap. An attestor reports `A@V1` absent, then reports
+the subject **present** at `A@V2`, and the board says `CONTRADICTED`. It then re-signs the original
+absent record for the older `V1` with a fresh timestamp. The reported version moves back to `V1`,
+`V2` is no longer evaluated at all, and the finding leaves the answer while the record that carries
+it sits in the ledger. Any attestor with scope on the asset could do it, and the report went from
+one contradiction to none with nothing in the estate having changed.
+
+So a present report now surfaces against the version being reported unless a version obsel **first
+heard of after it** has been attested. Ordering versions by first mention is the only ordering
+available: version identifiers are warehouse-native and obsel does not parse them, so `V2` cannot be
+read as later than `V1`. First mention rather than latest mention, deliberately, because taking the
+latest is exactly the move that re-signing an old record makes.
+
+Both directions matter and only one of them is the defect:
+
+- A record naming a version obsel already knew of when the subject was found present does not
+  answer the finding, whatever its timestamp. The row keeps `CONTRADICTED` and the sentence names
+  the version the subject was found in, which is not the version the row is keyed to.
+- A version first seen after the finding does answer it. That is the ordinary sequence — the subject
+  was found, somebody deleted it, the warehouse committed a new version, the attestor re-checked —
+  and freezing the asset red forever would leave no way to record the erasure that followed.
+
+**"What this does not fix" above is unchanged.** Coverage is still keyed to the version the latest
+attestation names, so an asset compacted an hour ago whose attestor has not spoken since is still
+reported at the version that was attested. What changed is only that a present report cannot be
+argued away by a record about a version that predates it.
 
 ### Case 6 in detail
 

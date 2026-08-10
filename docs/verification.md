@@ -6176,3 +6176,47 @@ branch of its own on datasets nothing else in that file touches, so it cannot al
 cascade there. What it adds over the unit tests is the ordering against real DataHub: that the mark
 written for the moved table is still readable, tag included, after the clear half of the same
 decision has run.
+
+## 2026-08-10 — Two audit findings in the submit and report path
+
+Both came out of a pre-deadline correctness audit and both let an answer move without any data
+changing. Neither is a crash and neither would have shown up in an aggregate count, which is why
+they are recorded here with the failing check that demonstrated each one.
+
+**A present report could be argued away by a record about an older version.** `versionOf` picks the
+version named by the attestation with the greatest `at`, and that is the only source of the version
+each asset is reported at. An attestor that reported `customers` absent at `v1`, then reported the
+subject **present** at `v2`, could re-sign the original `v1` record with a fresh timestamp: the
+report moved back to `v1`, `v2` stopped being evaluated, and the summary went from one contradiction
+to none while the present record sat in the ledger. Any attestor with scope on the asset could do it.
+
+`tests/erasure.test.ts` case 10b is the failing check. Against the unfixed kernel it reported
+`ATTESTED` where the specification requires `CONTRADICTED`. A present report now surfaces against
+the version being reported unless a version obsel first heard of after it has been attested, which
+is the only ordering over versions obsel has — it does not parse warehouse-native version
+identifiers. Case 10c is the other direction and passed before the change as well as after: a
+version first seen after the finding does answer it, so the ordinary sequence of finding the
+subject, deleting it, and re-checking still ends green. The rule and both directions are in
+`docs/erasure-coverage.md` under "Case 10b in detail". Coverage is still keyed to the version the
+latest attestation names, so the "What this does not fix" paragraph above it is unchanged.
+
+**An envelope signed for one request was accepted by another.** `submitAttestation(envelope,
+requestId)` never compared the signed payload's `request` to the request it was submitted to.
+`verifyAttestation` holds the challenge and the record to each other, which is a different pair, so
+an envelope legitimately issued, signed and bound for `R2` passed every check when POSTed against
+`R1` — and was written into `R1`'s own append-only bucket, where the report reads it back and takes
+the version the whole answer is computed against from a record `R1` has no evidence about. The
+kernel filters by request and so could not be made to attest from it; the version it is asked about
+is chosen before it runs.
+
+The submission is now refused with `request-mismatch` before the ledger is read.
+`tests/erasure-submit.test.ts` is the failing check, against `DATAHUB_GMS_URL` pointed at a port
+nothing is listening on: unfixed, the call reached the ledger read and died at `fetch failed`
+instead of refusing. Its second case sends a record naming the request it was submitted to and
+asserts that this one does get as far as that read, so the guard is narrow rather than a blanket
+refusal.
+
+`pnpm verify` on the change: green, **645 unit tests across 36 files**, python self-checks and
+build included. The end-to-end refusal over HTTP is written as a live case in
+`tests/live/erasure.live.test.ts` and has not been run — the audit session had no live stack, and
+`docs/coverage.md` carries it under "Not covered" until somebody runs `pnpm test:live`.

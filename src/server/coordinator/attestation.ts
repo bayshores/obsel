@@ -124,7 +124,8 @@ export type VerificationFailure =
   | { kind: "unknown-challenge"; nonce: string }
   | { kind: "challenge-expired"; nonce: string; expiredAt: string }
   | { kind: "challenge-replayed"; nonce: string }
-  | { kind: "challenge-mismatch"; detail: string };
+  | { kind: "challenge-mismatch"; detail: string }
+  | { kind: "request-mismatch"; submittedFor: string; recordNames: string };
 
 export type VerificationResult =
   | { ok: true; attestation: Attestation; keyId: string }

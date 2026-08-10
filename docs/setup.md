@@ -448,3 +448,7 @@ curl -s -X POST localhost:3000/api/erasure/proof -H "Authorization: Bearer $OBSE
 
 An accepted submission lands in the ledger and the next read of `GET /api/erasure/<id>` reflects
 it. A refused one is a 422 listing every failure at once, and writes nothing.
+
+The `request` in the body must be the one the signed record itself names. An envelope issued and
+signed for another request is refused with `request-mismatch`, because the ledger it would land in
+is the one this request's report is computed from.

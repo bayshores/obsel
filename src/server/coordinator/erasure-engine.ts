@@ -206,6 +206,35 @@ export async function submitAttestation(
   requestId: string,
 ): Promise<SubmissionResult> {
   return await serialized(async () => {
+    /*
+     * The record must name the request it was submitted to, checked before the
+     * ledger is touched.
+     *
+     * `verifyAttestation` holds the challenge and the record to each other, and
+     * that is a different pair: an envelope legitimately issued, signed and
+     * bound for request R2 passes every one of those checks when it is POSTed
+     * against R1. It would then be written into R1's own append-only bucket,
+     * where `buildReport` reads it back and hands it to `versionOf`, which
+     * looks at the asset and not at the request — so a record R1 has no
+     * evidence about would set the version R1's answer is computed against.
+     * The kernel filters by request and so cannot be made to attest from it,
+     * but the version it is asked about is chosen before it runs.
+     *
+     * Refused rather than filtered out later: nothing that names another
+     * request belongs in this one's ledger, and a refusal is the reversible
+     * answer.
+     */
+    const named = requestOf(envelope);
+    if (named !== null && named !== requestId) {
+      emit("compare", "refused an attestation", "request-mismatch");
+      return {
+        accepted: false,
+        failures: [
+          { kind: "request-mismatch" as const, submittedFor: requestId, recordNames: named },
+        ],
+      };
+    }
+
     const request = await readRequest(requestId);
     const nonce = nonceOf(envelope);
     const asset = assetOf(envelope);
@@ -500,6 +529,26 @@ function attestationOf(envelope: Envelope): Attestation {
   // is what a hostile-storage model would demand; it is not done here, and that
   // is stated rather than implied: the ledger is trusted storage in this design.
   return { ...(record as unknown as Attestation), signatureVerified: true };
+}
+
+/**
+ * The request the signed payload names, or null when the payload does not carry
+ * a readable one.
+ *
+ * Null rather than a thrown error or an empty string: a payload that is not
+ * JSON, or that has no `request` field, is a malformed envelope, and
+ * `verifyAttestation` says so in those words a few lines below. Answering it
+ * here with a request mismatch would name the wrong problem.
+ */
+function requestOf(envelope: Envelope): string | null {
+  try {
+    const record = JSON.parse(Buffer.from(envelope.payload, "base64").toString("utf8")) as {
+      request?: unknown;
+    };
+    return typeof record.request === "string" ? record.request : null;
+  } catch {
+    return null;
+  }
 }
 
 function nonceOf(envelope: Envelope): string {

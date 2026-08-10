@@ -360,6 +360,30 @@ export function coverageFor(input: CoverageInput): Coverage[] {
     .map((asset) => {
       const version = input.currentVersion[asset];
       const at = key(asset, version);
+
+      /*
+       * A contradiction about another version of the same asset surfaces here,
+       * because the version a report is computed against is supplied by the
+       * caller and the caller derives it from the attestations themselves. An
+       * attestor that reports the subject present at V2 and then re-signs an
+       * absent record naming the older V1 would otherwise move the report back
+       * to V1, where the present record is not a target, and the finding would
+       * leave the answer while sitting in the ledger. Case 10 says nothing
+       * argues with a present report; a later attestation naming an earlier
+       * version is still an argument.
+       */
+      const contradiction = standingContradiction(usable, asset, version);
+      if (contradiction) {
+        return {
+          request: input.request,
+          asset,
+          version,
+          state: "CONTRADICTED" as const,
+          residue: [],
+          explanation: explain(asset, contradiction.version, "CONTRADICTED", [], usable),
+        };
+      }
+
       const settled = state.get(at) ?? "UNPROVEN";
       const residue =
         settled === "ATTESTED" ? [] : (residues.get(at) ?? [{ kind: "no-attestation" }]);
@@ -372,6 +396,70 @@ export function coverageFor(input: CoverageInput): Coverage[] {
         explanation: explain(asset, version, settled, residue, usable),
       };
     });
+}
+
+/**
+ * When obsel first heard of a version of an asset, which is the only ordering
+ * over versions it has.
+ *
+ * Version identifiers are warehouse-native and obsel does not parse them, so
+ * "later" cannot be read off `v1` and `v2`. What it can read is the earliest
+ * attestation naming each one. Earliest rather than latest, deliberately: taking
+ * the latest would let a re-signature of an old version jump it to the front,
+ * which is the move this ordering exists to refuse.
+ */
+function firstSeen(usable: Attestation[], asset: string, version: Version): string | null {
+  let earliest: string | null = null;
+  for (const record of usable) {
+    if (record.asset !== asset || record.version !== version) continue;
+    if (earliest === null || record.at.localeCompare(earliest) < 0) earliest = record.at;
+  }
+  return earliest;
+}
+
+/**
+ * The present report that still stands against the version being reported, or
+ * nothing.
+ *
+ * A contradiction is answered only by a version obsel first heard of after the
+ * contradicted one: that is the warehouse doing the erasure and an attestor
+ * re-checking the result. It is not answered by a record naming a version that
+ * already existed when the subject was found present, whatever its timestamp,
+ * and it is not answered by silence about the version being reported.
+ */
+function standingContradiction(
+  usable: Attestation[],
+  asset: string,
+  reportedVersion: Version,
+): DirectAttestation | null {
+  const reportedFirst = firstSeen(usable, asset, reportedVersion);
+  const standing = usable
+    .filter(
+      (record): record is DirectAttestation =>
+        record.kind === "direct" &&
+        record.asset === asset &&
+        record.result === "present" &&
+        record.signatureVerified,
+    )
+    .filter((record) => {
+      if (record.version === reportedVersion) return true;
+      // Nobody has attested to the version being reported, so nothing here has
+      // superseded the finding.
+      if (reportedFirst === null) return true;
+      const seen = firstSeen(usable, asset, record.version);
+      return seen !== null && seen.localeCompare(reportedFirst) >= 0;
+    })
+    // Sorted so the sentence names the newest standing finding rather than
+    // whichever record happened to arrive first.
+    .sort(
+      (a, b) =>
+        (firstSeen(usable, asset, a.version) ?? "").localeCompare(
+          firstSeen(usable, asset, b.version) ?? "",
+        ) ||
+        a.at.localeCompare(b.at) ||
+        a.version.localeCompare(b.version),
+    );
+  return standing.length > 0 ? standing[standing.length - 1] : null;
 }
 
 /**
@@ -669,7 +757,11 @@ function explain(
 
   if (state === "CONTRADICTED") {
     const record = usable.find(
-      (entry) => entry.asset === asset && entry.kind === "direct" && entry.result === "present",
+      (entry) =>
+        entry.asset === asset &&
+        entry.version === version &&
+        entry.kind === "direct" &&
+        entry.result === "present",
     );
     return `${record?.attestor ?? "an attestor"} reports the subject is still present in ${table} at version ${version}`;
   }
