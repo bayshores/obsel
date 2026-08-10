@@ -8,12 +8,16 @@ since abandoned, see `docs/concept.md` §8). The DataHub behavior is independent
 carries over unchanged; where the original rationale was specific to the old concept, it has been
 rewritten for obsel.
 
-Every claim here was measured on this machine against GMS `v1.5.0.6` (`serverEnv: core`,
-`serverType: quickstart`) with `showcase-ecommerce` loaded. Commands are given so each is
-reproducible rather than asserted.
+Every claim here was measured on this machine, `serverEnv: core`, `serverType: quickstart`, with
+`showcase-ecommerce` loaded. Commands are given so each is reproducible rather than asserted.
 
 Sections 1 to 9 were measured on 2026-07-21. Sections 10 and 11 were measured on 2026-07-23 and say
 so, so a reader can tell how old any given claim is rather than trusting one date for all of them.
+
+**The GMS build changed partway down this file.** Sections 1 to 14 were measured against
+`v1.5.0.6`. Section 16 records `GET /config` reporting `v1.7.0` on 2026-08-09, and section 16 is the
+only one measured against it. Nothing in sections 1 to 15 has been re-checked on `v1.7.0`, and
+nothing in section 16 has been checked on `v1.5.0.6`.
 
 ---
 
@@ -923,3 +927,293 @@ more of that response than a description and a field list should expect the ledg
 Section 7 is why obsel traverses with `GET /relationships`, and that ruling covers the kit: **the kit's
 `get_lineage` must not be used, and `agents/context.py` says so at the top.** The two calls it does use
 resolve one named URN each, and `get_entities` gates on `graph.exists()`, which section 1 endorses.
+
+---
+
+## 16. Native incidents are writable and confirmable on open-source DataHub; the agent registry is writable but has no UI
+
+Measured 2026-08-09 on this machine. **The stack is no longer the `v1.5.0.6` the top of this file
+names.** `GET /config` reports:
+
+```json
+{
+  "versions": {
+    "acryldata/datahub": {
+      "version": "v1.7.0",
+      "commit": "7f81ccbfe27b9acc947f5f600fcf9ddb72138a80"
+    }
+  },
+  "datahub": { "serverEnv": "core", "serverType": "quickstart" }
+}
+```
+
+Everything in this section was measured against that build, unauthenticated, exactly as section 4
+describes. Nothing here has been checked on `v1.5.0.6`.
+
+Every write below landed on scratch entities created for this measurement and on nothing else. They
+are named here so a later reader can tell them apart from the demo:
+
+| URN                                                                                        | What it is                                    |
+| ------------------------------------------------------------------------------------------ | --------------------------------------------- |
+| `urn:li:dataFlow:(obsel,obsel_scratch_incident_spike,prod)`                                | scratch flow                                  |
+| `urn:li:dataJob:(urn:li:dataFlow:(obsel,obsel_scratch_incident_spike,prod),probe_job)`     | scratch job                                   |
+| `urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_scratch_incident_spike.probe_table,PROD)` | scratch dataset, the target                   |
+| `urn:li:aiAgent:obsel-scratch-probe-20260809`                                              | scratch agent entity                          |
+| `urn:li:agentSkill:obsel-scratch-skill-20260809`                                           | scratch skill entity                          |
+| `urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_scratch.never_written_at_all,PROD)`       | see 16.3; created as a side effect of a raise |
+| `urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_scratch.ghost_check_b,PROD)`              | see 16.3, the same thing reproduced           |
+
+They are left in place rather than deleted, because obsel's writes are additive and reversible and a
+delete of anything shared is the larger risk. All ten incidents raised during the measurement were
+moved to `RESOLVED`, and all three scratch datasets read `health: PASS`.
+
+### 16.1 `raiseIncident` works on open source, and the incident type needs no setup
+
+```graphql
+mutation r($i: RaiseIncidentInput!) {
+  raiseIncident(input: $i)
+}
+```
+
+```json
+{
+  "i": {
+    "type": "OPERATIONAL",
+    "title": "obsel scratch spike: upstream output changed",
+    "description": "...",
+    "resourceUrn": "urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_scratch_incident_spike.probe_table,PROD)",
+    "startedAt": 1786325954566,
+    "priority": "MEDIUM",
+    "status": { "state": "ACTIVE", "stage": "TRIAGE", "message": "spike" },
+    "source": { "type": "MANUAL" }
+  }
+}
+```
+
+It returns the new incident's URN as a bare string: `urn:li:incident:da3ddac3-74e0-4173-bda3-4e2737525b55`.
+
+`IncidentType` is a GraphQL enum — `FRESHNESS`, `VOLUME`, `FIELD`, `SQL`, `DATA_SCHEMA`,
+`OPERATIONAL`, `CUSTOM` — and `IncidentState` is `ACTIVE` or `RESOLVED`. `IncidentStage` is
+`TRIAGE`, `INVESTIGATION`, `WORK_IN_PROGRESS`, `FIXED`, `NO_ACTION_REQUIRED`.
+
+**`CUSTOM` with an arbitrary `customType` string is accepted with no prior registration.** A raise
+carrying `"customType": "obsel Stale Downstream Work"`, a phrase written nowhere in DataHub before
+that request, succeeded and read back with the string intact. This is the opposite of section 6.2:
+a tag or glossary term has to exist before obsel can apply one, an incident type does not. Nothing
+about incidents needs a setup step.
+
+### 16.2 The read-back paths, and the two that do not lag
+
+Four raises, each polled at 20–50 ms intervals from the instant the mutation returned:
+
+| Read path                                  | Served from  | First correct answer                                |
+| ------------------------------------------ | ------------ | --------------------------------------------------- |
+| `GET /openapi/v3/entity/incident/<urn>`    | aspect store | 19, 24, 47, 48 ms — **always on the first attempt** |
+| `GET /relationships?...types=IncidentOn`   | graph store  | 1587, 2477, 2583, 3423 ms                           |
+| GraphQL `dataset(urn:).incidents`          | search index | 1791 ms                                             |
+| GraphQL `entity(urn:) { ... on Incident }` | —            | **never; see 16.3**                                 |
+
+The numbers in the first row are the elapsed time to complete one HTTP round trip, not a propagation
+delay: the entity was already there when the first read left. `raiseIncident` itself took 112–269 ms.
+
+This is the same split as section 11, with the same consequence for `confirmWrite`: poll the
+OpenAPI v3 entity endpoint, never a relationship or a GraphQL list. The graph-store lag here
+(1.6–3.4 s) is larger than the roughly one second section 11 measured for DataJob membership, so any
+code that waits on the `IncidentOn` edge needs a window of several seconds and gains nothing by
+waiting.
+
+**The dataset carries its own incident summary, and that is the read worth having.** Raising an
+incident writes an `incidentsSummary` aspect onto the target dataset:
+
+```bash
+curl -s 'http://localhost:8080/openapi/v3/entity/dataset/<encoded-urn>?aspects=incidentsSummary'
+```
+
+```json
+{
+  "incidentsSummary": {
+    "value": {
+      "activeIncidentDetails": [],
+      "resolvedIncidentDetails": [
+        {
+          "urn": "urn:li:incident:da3ddac3-74e0-4173-bda3-4e2737525b55",
+          "createdAt": 1786325954746,
+          "resolvedAt": 1786326077589,
+          "type": "OPERATIONAL",
+          "priority": 2
+        }
+      ]
+    }
+  }
+}
+```
+
+Active and resolved are separate arrays, each entry carrying the incident URN and both timestamps. It
+is the aspect store, so it does not lag: measured over two raise-and-resolve cycles, a new incident
+appeared in `activeIncidentDetails` **86 and 89 ms** after `raiseIncident` returned, and left it
+**51 and 107 ms** after `updateIncidentStatus` returned. That answers "does this dataset have open
+work" off one URN, with no search, no relationship traversal and no stored list of incident URNs to
+keep in step.
+
+### 16.3 Four traps
+
+**GraphQL `entity(urn:)` cannot read an incident at all, and cannot tell you it failed.** For an
+incident that genuinely exists and reads back fine over OpenAPI v3, `entity(urn:)` returns
+`{"data":{"entity":null}}`. For an invented incident URN it returns exactly the same thing. The two
+cases are indistinguishable. Section 1's ruling therefore extends: `entity(urn:)` fabricates datasets
+(it returned a well-formed `DATASET` for
+`urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_scratch.invented_never_written,PROD)`, which was
+never written) and erases incidents. `GET /openapi/v3/entity/incident/<urn>` genuinely 404s for an
+invented URN and 200s for a real one, which is what makes it usable.
+
+**`raiseIncident` returns HTTP 200 when it fails.** A raise with no `resourceUrn` answers HTTP 200
+with `{"errors":[{"message":"At least 1 resource urn must be defined to raise an incident.", ...}],
+"data":{"raiseIncident":null}}`. A caller that checks the status code and not the body records a
+success. The value of `data.raiseIncident` is the only signal that means anything.
+
+**`raiseIncident` does not check that its target exists.** A raise against
+`urn:li:dataset:(urn:li:dataPlatform:obsel,obsel_scratch.never_written_at_all,PROD)` — a URN nothing
+had ever written — succeeded and returned an incident URN. Any caller has to establish the dataset
+exists itself, by section 1's rule, **before** raising, because of the next trap.
+
+**Raising an incident on a dataset that does not exist creates that dataset.** This is the one to
+watch, and it was reproduced deliberately on a second fresh URN
+(`obsel_scratch.ghost_check_b`) rather than inferred from the first:
+
+```
+before raise:  GET /openapi/v3/entity/dataset/<urn>  ->  404
+raiseIncident(resourceUrn: <urn>)                    ->  urn:li:incident:5ba8958a-...
++0.0 s:        GET /openapi/v3/entity/dataset/<urn>  ->  404
++0.5 s:        GET /openapi/v3/entity/dataset/<urn>  ->  200, with an incidentsSummary aspect
+```
+
+Writing `incidentsSummary` onto the target materializes the entity, so after about half a second the
+URN answers 200 forever. The consequence is precise and unpleasant: **section 1's existence check
+stops working for any dataset URN an incident has ever been raised against.** A typo in a URN passed
+to `raiseIncident` does not fail, it creates a permanent dataset with no properties, no schema and no
+lineage, which every later existence check then confirms. Establish existence first; the check is
+worthless afterwards.
+
+### 16.4 Resolving, and what resolving does not change
+
+```graphql
+mutation u($urn: String!, $i: IncidentStatusInput!) {
+  updateIncidentStatus(urn: $urn, input: $i)
+}
+```
+
+with `{"state":"RESOLVED","stage":"FIXED","message":"..."}` returns `true` in 57–321 ms, and the new
+state reads back over OpenAPI v3 after 27–38 ms, again on the first attempt.
+
+On an invented incident URN it fails properly: HTTP 200 with
+`{"errors":[{"message":"Failed to update incident. Incident does not exist.", ...,
+"extensions":{"code":404, ...}}],"data":{"updateIncidentStatus":null}}`. So the resolve path has a
+real existence signal, unlike the raise path.
+
+**Resolving does not remove the `IncidentOn` edge.** After both scratch incidents on the probe table
+were resolved, `GET /relationships?urn=<dataset>&types=IncidentOn&direction=INCOMING` still returned
+both. The edge records that an incident exists, not that one is open. Anything deciding whether a
+dataset has open work must read each incident's `status.state` from the aspect store; enumerating the
+edge and counting is wrong.
+
+The direction convention matches the rest of this file and was checked rather than assumed:
+`IncidentOn` is `OUTGOING` from the incident to the dataset and `INCOMING` on the dataset.
+
+An `ACTIVE` incident does change `dataset.health`:
+
+```json
+{
+  "health": [
+    {
+      "type": "INCIDENTS",
+      "status": "FAIL",
+      "message": "1 active incident",
+      "causes": ["ACTIVE_INCIDENTS"]
+    }
+  ]
+}
+```
+
+`health` and `dataset.incidents` are both served from the search index. After a resolve,
+`incidents(state: ACTIVE)` stopped listing the incident after 1420 ms. Neither is a write
+confirmation.
+
+**What this settles for obsel.** Both mutations work on this open-source build, both are confirmable
+from the aspect store within one round trip, and neither needs a setup step. The async-write rule is
+satisfied: `confirmWrite` on `GET /openapi/v3/entity/incident/<urn>` for a raise, and on the target
+dataset's `incidentsSummary` for either direction. The GraphQL read ban in `CLAUDE.md` is about
+`searchAcrossLineage` being served from a lagging index, and every reason it gives applies here too —
+`dataset(urn:).incidents` lags by 1.4–1.8 s and returns an empty list rather than an error. A
+_mutation_ is a different thing: it is the only way to raise an incident at all, it returns the new
+URN synchronously, and nothing about it is served from an index. Reading back over GraphQL is what
+stays banned.
+
+### 16.5 The `aiAgent` and `agentSkill` entity types exist, accept writes, and appear nowhere a person can look
+
+`aiAgent` and `agentSkill` are both in the entity registry on `v1.7.0`. The check that distinguishes
+a registered type from an unregistered one is the status code, and it is unambiguous:
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' \
+  'http://localhost:8080/openapi/v3/entity/aiAgent/urn%3Ali%3AaiAgent%3Aobsel-invented-agent-0001'   # 404
+curl -s 'http://localhost:8080/openapi/v3/entity/notAnEntityType/urn%3Ali%3AnotAnEntityType%3Ax'
+# {"error":"Failed to find entity with name notAnEntityType in EntityRegistry"}  HTTP 400
+```
+
+A 404 means the type is registered and this URN is not there. A 400 with that message means the type
+does not exist. `incident`, `aiAgent` and `agentSkill` all answer 404.
+
+The aspects are `aiAgentInfo` (`name`, `tagline`, `description`, `instructions`, `source`, `created`,
+`lastModified`), `aiAgentDependencies` (`skills`, `tools`, `models`, all arrays of URNs), and
+`agentSkillInfo` (`name`, `description`, `instructions`, `sourceRepository`, `requiredTools`). The
+`sourceRepository` schema's own description names the "git as source of truth" pattern and the
+`agentskills.io` standard, and `instructions` is documented as the markdown body of a `SKILL.md`
+minus its frontmatter.
+
+A write of both, over `POST /openapi/v3/entity/aiAgent?async=false` and
+`.../entity/agentSkill?async=false`, succeeded in 112 ms and read back on the first attempt 13 ms
+later. `GET /openapi/v3/entity/aiAgent?count=10` lists it.
+
+**There is no GraphQL surface for either type.** The GMS GraphQL schema contains no `AIAgent`,
+`AgentSkill` or any type whose name includes `Agent` or `Skill`, and the `EntityType` enum — 54
+values, including `INCIDENT` — has no agent or skill value. `searchAcrossEntities` for the scratch
+agent's exact name returned zero results. The DataHub UI is driven by that GraphQL schema, so an
+entity written here is not browsable, not searchable, and not linkable.
+
+`aiAgentDependencies` stored the skill URN and read it back, but no relationship edge appeared for
+it. `GET /relationships` from the agent returned an empty list for every name tried
+(`AgentUsesSkill`, `UsesSkill`, `AdoptsSkill`, `HasSkill`, `AgentSkill`, `Uses`, `SkillOf`). The
+aspect read is the only confirmed way to recover what an agent depends on; the real edge name, if
+there is one, was not found within the time budget for this measurement.
+
+**What this settles for obsel.** Registering the demo workers as `aiAgent` entities is possible and
+confirmable. It is also invisible: nobody opening DataHub would see it, because the surface that
+renders entities does not know these types exist. That is the fact, recorded; whether it is worth
+building is a separate decision.
+
+### 16.6 A DataJob's lineage edge does not create the dataset it points at
+
+Measured 2026-08-09 on the same `v1.7.0` build, and recorded here because 16.3 makes it decide
+something: obsel establishes a dataset exists before raising an incident on it, so whether obsel's
+own writes bring a dataset into existence is the difference between raising and skipping.
+
+They do not. `registerTask` writes `dataJobInputOutput` naming the datasets a task reads and
+writes, and those edges are queryable over `GET /relationships` — but the datasets themselves are
+not entities:
+
+```
+obsel_demo.clean_orders    GET /openapi/v3/entity/dataset/<urn>  ->  200
+obsel_demo.side_table      GET /openapi/v3/entity/dataset/<urn>  ->  404
+obsel_demo.audit_report    GET /openapi/v3/entity/dataset/<urn>  ->  404
+obsel_demo.raw_orders      GET /openapi/v3/entity/dataset/<urn>  ->  404
+```
+
+`side_table` and `audit_report` are outputs of tasks registered in the integration flow, so both
+have carried a `Produces` edge for weeks. The four demo tables that do answer 200 carry
+`datasetProperties`, which nothing in this repository writes, so something outside obsel created
+them; the point here is only that the lineage edge is not what did.
+
+The consequence for obsel: a change to a table DataHub has no entity for is flagged on the board as
+usual and raises no incident, with the skip traced. `tests/live/incidents.live.test.ts` creates its
+own dataset entities for exactly this reason, and asserts the skip on a table name unique to each
+run — a fixed one would be created permanently by the very regression that test exists to catch.

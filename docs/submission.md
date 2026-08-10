@@ -75,8 +75,11 @@ no scheduler. When an agent reports completion, obsel fingerprints what it produ
 schema and content, separately, so a rename is distinguishable from new rows), compares against the
 recorded baseline, and walks those edges downstream. Finished work built on the changed table is
 flagged with the cause, the hop distance, and a plain sentence stored on the flag. The
-`obsel-stale` tag lands on the DataJob through DataHub's MCP server, so somebody browsing DataHub
-sees it without knowing obsel exists.
+`obsel-stale` tag lands on the DataJob through DataHub's MCP server, and the cascade raises one
+native DataHub Incident on the changed table naming every flagged task, so somebody browsing DataHub
+sees both without knowing obsel exists. The incident comes down when the marks it names are gone,
+through redone work or a board reset that wipes them, and never on request; measured live, the
+raise added 345 ms and the resolve 300 ms, each including its confirming read-back.
 
 Four rules make the flags worth reading:
 
@@ -129,13 +132,37 @@ fingerprint from the rows itself and a second implementation of that would be a 
 what counts as a change.
 
 **The video** (2:59) follows the forty-agent run, the mid-swarm change and the repair end to end,
-then closes on a real erasure request opened against a real catalog, whose report on camera reads
-**2 of 18 assets covered, 16 unattested**. That is a separate run against a different seed, and its
-figures are never combined with the walk above.
+then closes on a real erasure request opened against a real catalog. Its report on camera reads
+**2 of 18 assets covered, 16 unattested**, each of the two signed by a different team's key. Both
+keys are then reported compromised, out of band, and the panel's next ordinary read comes back 4.0 s
+later with the callout naming what it dropped and the headline reading **0 of 18 covered, 18
+unattested**. No asset was written, no version moved and obsel was told nothing: coverage is derived
+from the ledger on every read, so there is no stored verdict to go on being right. That is a
+separate run, walked two hops rather than four, and its figures are never combined with the
+23-asset walk above.
+
+### Check it yourself
+
+`pnpm verify` runs the typecheck, lint, 651 unit tests and the Python self-checks, no Docker
+needed. `pnpm test:live` runs 176 tests against a real DataHub, the real `mcp-server-datahub`, a
+real obsel server and real agent CLI sessions. Nothing in the repository is tested against a
+stand-in: everything that crosses a process boundary is covered against the real thing, and the one
+in-memory stand-in that ever existed was deleted for cause, recorded in `docs/verification.md`.
+Every screen in the video is a recording of a real run. One check needs nothing installed but Node:
+
+```
+node scripts/verify-erasure-evidence.mjs examples/erasure-evidence/bundle.json
+```
+
+That re-runs obsel's own signature check and coverage kernel over a committed real capture, offline,
+and exits 0 only if the answer obsel recorded is the one the evidence supports. Change any
+signature, key status or lineage edge in the file and it exits 1 naming the record and what failed.
 
 ### Built with
 
-DataHub (quickstart, GMS v1.5.0.6) for the graph and the record; DataHub's MCP server
+DataHub (quickstart; the forty-task numbers were measured on GMS v1.5.0.6 and the 2026-08-09 runs
+on v1.7.0, each run's stack named in `docs/verification.md`) for the graph and the record;
+DataHub's MCP server
 (`mcp-server-datahub`, pinned `==0.6.0`) for the tag writes; Next.js for the page; Python for the
 agents and obsel's own MCP server; `node:crypto` for the Ed25519 signature arithmetic behind the
 attestations, with no third-party cryptography added; the Codex CLI or Claude Code for the real
@@ -178,18 +205,22 @@ prior-art survey is in `docs/concept.md`.
 
 ## 1a. Gallery captions, in order
 
-1. **card5_erasure.** One erasure request, seeded from one table: the walk reached 23 assets across
-   five platforms at four hops. One Ed25519 signature moved one of them. 1 of 23 attested, 22
-   unattested, and no route can move the rest.
-2. **card1_hero.** Forty agent tasks, each a real DataJob in DataHub with Consumes and Produces
+1. **card5a_erasure_covered.** One erasure request against somebody else's catalog, seeded from one
+   table: the walk reached 18 assets at two hops, and two Ed25519 signatures from two different
+   teams covered two of them. 2 of 18 covered, 16 unattested, and no route can move the rest.
+2. **card5b_erasure_compromised.** The same report 4.0 s after both signing keys were reported
+   compromised. No asset was written and no version moved, so nothing else in obsel would have
+   noticed: the coverage is derived on every read, both attestations are dropped with the reason
+   named, and the report says 0 of 18 covered, 18 unattested.
+3. **card1_hero.** Forty agent tasks, each a real DataJob in DataHub with Consumes and Produces
    edges to the tables it read and wrote. The record belongs to the catalog and outlives the run.
-3. **card2_flagged.** One column renamed on a settled board: 9 of 40 flagged out to three hops, four
+4. **card2_flagged.** One column renamed on a settled board: 9 of 40 flagged out to three hops, four
    of the nine never having read that table, the 30 outside it unflagged. Five observations of that
    change put detection at a median of 666 ms.
-4. **card3_datahub.** The `obsel-stale` tag on a flagged job, read out of DataHub's own interface.
+5. **card3_datahub.** The `obsel-stale` tag on a flagged job, read out of DataHub's own interface.
    obsel writes it through `mcp-server-datahub` and confirms it by reading `globalTags` back off the
    entity: 3 of 3 tagged.
-5. **card4_repair.** The repair redid 6 of 9 flagged tasks in 37.8 s. The other three cleared
+6. **card4_repair.** The repair redid 6 of 9 flagged tasks in 37.8 s. The other three cleared
    without re-running, because an upstream redo came back identical. No endpoint clears a flag, and
    a live test asserts that.
 

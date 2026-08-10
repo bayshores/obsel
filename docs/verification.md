@@ -5642,3 +5642,251 @@ exited; the code was already complete and tested, and the re-render produced 448
 
 Not done: this cut is not uploaded. Every link in this repository still points at the
 2026-08-02 upload.
+
+### An offline verifier for the erasure evidence, and a real bundle to run it on (2026-08-09)
+
+obsel serves a coverage report, and that report is obsel's word. `erasure-engine.ts` stamps
+`signatureVerified: true` on every ledger record it reads and never redoes the arithmetic, which
+`attestationOf` states rather than implies. Nothing outside the process had ever checked that
+boundary. Three things now do.
+
+**`GET /api/erasure/<id>/evidence`** returns one request's evidence as a single file: the DSSE
+envelopes as they were signed, the attestor registry, the challenges obsel issued, the lineage
+`GET /relationships` returned, and obsel's own answer beside them. Read-only, and gated with the
+API token, unlike the coverage report at `GET /api/erasure/<id>`, which is not. The difference is
+that obsel builds the report and can leave the subject's identifiers out of it, whereas a bundle
+carries signed payloads and a direct attestation's `predicate` records the query its attestor
+executed, identifiers included. Those bytes are what the signature covers. obsel strips the one
+identifier list it owns, `request.identifiers`, replacing it with SHA-256 digests, which is all the
+kernel's predicate check needs since that check is set membership.
+
+**`scripts/verify-erasure-evidence.mjs`** reads a bundle with Node and nothing else. Node 24 strips
+types on import, so it imports `src/server/coordinator/attestation.ts` and `erasure.ts` and runs the
+real signature check and the real coverage kernel. There is no second implementation of either, and
+that was checked before anything was written: a five-minute probe importing both from a bare `.mjs`
+on Node 24.18.0 returned the correct PAE bytes and all five of `erasure.ts`'s exports, so the
+fallback the plan allowed for, a self-contained verifier with its PAE bytes pinned by a unit test,
+was not needed.
+
+Each record is verified at `now = record.at`, not the wall clock. A challenge lives fifteen minutes,
+so a wall-clock `now` would report `challenge-expired` for every bundle older than that, which is
+every bundle: they are read after the fact by definition. `at` is inside the signed payload, so it
+cannot be moved without breaking the signature, and the question the check then answers is whether
+the record was signed inside the window obsel opened. The script adds the lower bound of that window
+itself, because `verifyAttestation` checks only the upper one; on a live server a record cannot
+predate the nonce it quotes, and in a file it can. That matters beyond tidiness: `at` is what
+`keyUsable` compares against a key's retirement date, so a record backdated far enough is a retired
+key's signature standing again.
+
+Exit 0 means every record verified and the recomputed answer matches the one obsel recorded, asset
+by asset. Exit 1 means it does not check out, naming each record and each failure kind. Exit 2 means
+the file could not be read or is not a bundle.
+
+**What it does not establish.** It cannot show that anybody looked in a table. obsel holds no
+warehouse credentials and reads no warehouse data; the script prints both of `ASSURANCE_LIMITS`
+under every run rather than leaving them in a document. A record signed on a machine whose clock is
+behind obsel's fails the lower-bound check by however far the two disagree, and no tolerance is
+allowed for it because a tolerance is a number nobody can justify; both timestamps are printed so a
+reader can tell skew from a moved date.
+
+**`examples/erasure-evidence/bundle.json` is a real capture**, not a hand-written shape. One request
+opened through the real HTTP API against the live quickstart DataHub, two challenges issued, two
+attestations signed with a keypair generated in that process and submitted through
+`POST /api/erasure/proof`, then the bundle pulled through the new route:
+
+|              |                                                                                |
+| ------------ | ------------------------------------------------------------------------------ |
+| Request      | `dsr-20260810-erasure-evidence`                                                |
+| Opened       | `2026-08-10T01:49:57.091Z`, captured `2026-08-10T01:50:03.302Z`                |
+| Reached      | 18 assets over five platforms, 2 hops from `snowflake … order_entry.customers` |
+| Attestations | 2: one direct over the seed, one rebuild over the dbt model built from it      |
+| Answer       | 2 of 18 assets covered, 16 unattested, 0 contradicted                          |
+
+The private key existed only inside the capturing process and was written nowhere, so these
+signatures cannot be re-minted by anyone. The subject `cust_88213` and both version strings are
+invented; obsel read no warehouse, and the capture demonstrates the accounting around a claim rather
+than the claim.
+
+**The first capture attempt failed its own verifier**, which is worth recording because it is the
+check biting on the first thing it saw. The throwaway driver built each record before requesting its
+challenge, so both records were dated 5 and 18 ms before the challenges they answered, and the
+verifier reported `at-before-challenge-issued` on both and exited 1. The driver was wrong about the
+order the thing being recorded happens in — obsel asks, the attestor looks, the attestor signs — and
+the bundle was recaptured under a fresh request id.
+
+**The tamper matrix, executed.** `tests/verify-evidence.test.ts` builds a bundle that verifies, using
+real Ed25519 keypairs and real signatures, then makes one edit at a time and spawns a real `node`
+process on the real script. Thirteen tests, all passing:
+
+| Edit                                             | What the script reported                                | Exit |
+| ------------------------------------------------ | ------------------------------------------------------- | ---- |
+| none                                             | every record verified, 2 of 2 covered, vocabulary clean | 0    |
+| one byte of a signed payload moved               | `bad-signature`                                         | 1    |
+| signature relabelled with another registered key | `recorded-keyid-mismatch`, then `bad-signature`         | 1    |
+| the ledger's copy of a nonce edited              | `recorded-nonce-mismatch`                               | 1    |
+| the signing key marked compromised               | `key-compromised`, 0 of 2 covered, `recorded ATTESTED`  | 1    |
+| a lineage edge added under the rebuild           | `closure-mismatch`, 1 of 2 covered, no record failed    | 1    |
+| a challenge removed                              | `unknown-challenge`, 0 of 2 covered                     | 1    |
+| a record appended a second time                  | `challenge-replayed`, coverage unmoved at 2 of 2        | 1    |
+| a record dated after its challenge expired       | `challenge-expired`                                     | 1    |
+| a record dated before its challenge was issued   | `at-before-challenge-issued`                            | 1    |
+| a file that is not a bundle, and no argument     | refused before reading a field                          | 2    |
+
+The lineage row is the one worth reading twice: every signature still verifies, and what fails is
+the answer. The compromised-key row is the same event the film's ending shows, arriving through a
+file instead of a page.
+
+Stdout is held to the vocabulary the specification fixes, on the failure paths as well as the
+passing one, by `/\b(proof|proven|proves|complete|completely)\b/i` over every line — the same regex
+`tests/erasure-limits.test.ts` applies to the report's own limits.
+
+**Live.** `tests/live/erasure.live.test.ts` grew three tests, 12 to 15, all passing in 27.7 s against
+the real stack: the evidence route refuses an unauthenticated caller and answers a gated one; the
+script verifies a bundle captured from that server after every attestation those tests really signed,
+and agrees with the server number for number on the summary and row by row on state and version,
+which is what pins the ten-line `currentVersion` rule the script restates against `versionOf` in the
+`server-only` engine; and the same bundle with one byte of one signed payload moved exits non-zero
+reporting `bad-signature`.
+
+`pnpm test` is 645 passing across 37 files. `pnpm typecheck` and `pnpm lint` are clean. `prettier
+--check` passes on every file the repository contains; it reports 210 files under `competition/`,
+which is excluded through `.git/info/exclude` and is not part of the repository, and prettier does
+not read that file.
+
+## 2026-08-09 — DataHub incidents, raised by a real cascade and resolved by a real repair
+
+Commit: this change, on top of `96d4cb0`. Stack: DataHub `v1.7.0` (`GET /config`, `commit
+7f81ccbfe27b9acc947f5f600fcf9ddb72138a80`), not the `v1.5.0.6` the top of
+`environment-findings.md` still names. Every number below is from
+`tests/live/incidents.live.test.ts`, which runs on its own flow (`obsel_it_incidents`), its own
+port (3121) and its own dataset namespace (`obsel_incidents.*`), so it cannot touch the demo board
+or the tables a judge sees.
+
+**What was built.** `src/server/datahub/incidents.ts` raises one DataHub incident per cascade, on
+the dataset whose output changed, and resolves it when the repair closes it. The call sites are
+beside `markAllStale` in `src/server/coordinator/completion.ts` — both the completion path and the
+observation path — and inside the clear path, and nowhere else. The incident URN and the tasks it
+names are written into the cascade's change record (`ChangeBody.incident`), which is what lets the
+resolve path find them again without searching for anything.
+
+**Measured, on three runs of the live file:**
+
+| what                                                           | measured                             |
+| -------------------------------------------------------------- | ------------------------------------ |
+| `raiseStaleWorkIncident`, including both aspect-store confirms | 345 ms, 349 ms                       |
+| `resolveIncident`, including both aspect-store confirms        | 300 ms, 370 ms                       |
+| a three-task cascade end to end, including the raise           | 2989 ms wall, obsel reported 2741 ms |
+| the repair completion end to end, including the resolve        | 873 ms, 905 ms                       |
+
+The cascade and repair figures are the whole call the reporting agent waits for, which is what
+`elapsedMs` has always meant here, so the incident write is inside them rather than beside them.
+The raise costs one existence read, the mutation, and two confirming reads.
+
+**What the live file proves, in one run of ten passing tests (16.1 s):**
+
+- A real cascade over three finished tasks raises exactly one incident, on the changed table and not
+  on a task or a leaf: exactly one new URN appeared on that table between the read before the change
+  and the read after it. DataHub reads it back `ACTIVE` over `GET /openapi/v3/entity/incident/<urn>`
+  and lists it in the table's `incidentsSummary.activeIncidentDetails`.
+- Its type is `CUSTOM` with `customType: "obsel stale downstream work"`, accepted with no prior
+  registration — the opposite of the tag rule in §6.2 — and its body is each mark's own recorded
+  reason and hop count, with no wording invented for the incident.
+- A partial repair leaves it open: one of the three named tasks re-ran, its own mark came off, and
+  the incident was still `ACTIVE`. The upstream redo that cleared the other two resolved it, checked
+  on the incident and on the table's summary.
+- Nothing resolves one on request. Five plausible routes answer 404 or 405 with a valid token; the
+  MCP server lists no tool that raises, resolves, closes or clears one, and no tool takes an incident
+  as an argument; and a completion posted with an invented `resolveIncident` key left the incident
+  `ACTIVE`.
+- A target DataHub has no entity for is skipped rather than invented. On a table name unique to the
+  run, the cascade flagged its downstream task as usual, the change record carried no incident, and
+  the table still answered 404 afterwards — so obsel did not create it, which is what §16.3 measured
+  `raiseIncident` doing to any caller that does not check first.
+- `updateIncidentStatus` on an invented incident URN throws rather than reporting success, which is
+  the trap §16.3 records for the raise: HTTP 200 on failure, with the answer in the body.
+
+`tests/live/change-ledger.live.test.ts` was re-run against the same stack with incidents live, 11
+passing in 77.7 s, to confirm the completion path it shares was not disturbed. `pnpm test` is 651
+passing across 37 files, `pnpm typecheck`, `pnpm lint` and `prettier --check` clean.
+
+**Two things this does not do, both deliberate.**
+
+`resetSwarm` clears every mark on a board and does not resolve incidents raised for those marks, so
+a board reset part way through a cascade leaves an incident open on a table whose work is no longer
+flagged. Adding it would mean a route that resolves one, which is the thing asserted absent above.
+Found by running the shared live suite: it left two `ACTIVE` incidents on `obsel_demo.clean_orders`,
+resolved by hand afterwards with a message saying the board they described had been reset. The
+integration suites share the demo's dataset URNs — a dataset URN carries no flow — so incidents
+raised by a live run land on the demo's tables. `tests/live/incidents.live.test.ts` uses its own
+namespace for that reason; the older live files do not.
+
+A DataJob's lineage edge does not create the dataset it points at. Verified 2026-08-09 on this
+instance: `obsel_demo.side_table` has carried a `Produces` edge for weeks and
+`GET /openapi/v3/entity/dataset/<urn>` still answers 404 for it. So obsel raises an incident only
+where the changed table is a real entity in DataHub, and traces a skip where it is not.
+
+## 2026-08-09 — The key compromise is on camera, and the film ends on it (v8)
+
+The erasure act was recut from two caption cues to three so the film can show coverage being
+lost without anything being written. `scripts/erasure-broll.mts` now writes the attestor
+registry to a file and passes the path, because `OBSEL_ATTESTOR_KEYS` is re-read on every
+report build; after the report is on screen, the script rewrites that file to mark both
+signing keys compromised and records `compromiseMs` at the moment the red callout paints.
+The take is refused if the flip lands where the cut cannot use it, if any never-say word is
+on screen, or if the headline does not read `0 of`.
+
+The take in the film is `deletion-request-0218`, recorded against the live DataHub. On
+camera: `2 of 18 assets covered, 16 unattested`, then the registry rewrite, then the panel's
+own next read comes back with the callout naming both dropped attestations and the headline
+`0 of 18 assets covered, 18 unattested`. Measured on this take: the callout painted 3989 ms
+after the registry file changed, which is the panel's five-second read cycle and the walk
+behind it. An earlier accepted take (`deletion-request-0202`) measured 2815 ms for the same
+gap; that take was discarded for a fast read and an early board, but its 2.8 s had already
+been written into four captions. All four now say 4.0 s, the number measured on the take the
+film and the two gallery stills actually show.
+
+The render was interrupted by a host restart after the agent driving it stopped, and
+completed anyway: 4488 frames, then `trailer-finish` run by hand. Measured on the finished
+file: 179.520000 s on both streams against the 180 s cap, -14.07 LUFS, `tv, bt709` on all
+three color tags. The video suite passed 43 of 43 against the staged assets, including the
+new pins: three cues in the erasure act, cue three at or after the flip, and the shot window
+containing `erasureCompromiseMs`. The gallery pair `docs/images/erasure-covered.png` and
+`erasure-compromised.png` are frames of this same take.
+
+## 2026-08-09 — The full live suite after all four phases, and what one failure was
+
+`pnpm test:live` over the whole `tests/live/` directory, on the same `v1.7.0` stack, after the
+evidence route, the verifier, and the incidents work all landed: **16 files, 176 tests, 175
+passed, 1 failed.** The failure is `runners.live.test.ts`, "reads the input, writes the output,
+and returns what is on disk", and its error is the CLI's own: `claude -p exited 1 after 3.2s:
+Failed to authenticate: OAuth session expired and could not be refreshed`. That is the machine's
+Claude Code login having expired, not a code path — the Codex half of the same file ran a real
+session and passed, and this is exactly why that runner is tested against the real CLI: no
+stand-in would have said the login was dead. The test is expected to pass again after
+`claude login`; nothing was changed to make it pass.
+
+Run separately afterward for per-file evidence the overwritten reporter lines did not keep:
+`incidents.live.test.ts` 10 of 10 in 13.8 s, `erasure.live.test.ts` 15 of 15 in 8.1 s.
+
+The full run re-raised cascade incidents on `obsel_demo.clean_orders`, because the engine and
+change-ledger suites share the demo's dataset URNs (recorded under the incidents entry above).
+Both were resolved by hand afterward with a message saying the board they described had been
+reset by the suite's own teardown; `incidentsSummary` on every demo table read zero active
+after.
+
+### A board reset now takes its incidents with it (2026-08-09, night)
+
+`resetSwarm` wipes every mark on the flow, and until this change it left any cascade-raised
+incident standing over marks that no longer existed: the shared live suite had left two ACTIVE
+incidents on the demo's own table this way, with its `health` reading FAIL about a board that had
+been reset. Now the reset's last step is `resolveResetIncidents` in `completion-writes.ts`: the
+candidates come from the change ledger's own records exactly as the repair path finds them, the
+rule is `closableIncidents` with a `stillCites` that answers false for everything — literally true
+of a board that was just wiped — and the resolve message names the reset rather than a repair that
+never happened. The route still takes no incident argument, so nothing can use this to dismiss a
+mark without wiping the whole board it holds the token for.
+
+Live, in `tests/live/incidents.live.test.ts`: a real cascade raised an incident, `POST
+/api/demo/reset` came back with the table named under `incidentsResolved`, the incident read
+RESOLVED from the aspect store with "reset" in its message, and every mark it had named was gone.
+11 of 11 in that file, 18.8 s, on the same `v1.7.0` stack.

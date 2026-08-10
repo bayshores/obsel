@@ -10,14 +10,16 @@ code". The images close that gap. They are the same category of artifact as the 
 
 Capturing them is the owner's action, like recording the video. Nothing here is generated.
 
-## The two images
+## The images
 
-| File          | Page state | What has to be legible in it                                                                                                                                                                                            |
-| ------------- | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `settled.png` | settled    | Four done boxes, the headline reading `all 4 finished, nothing out of date`, and the write-back cell reading `·· nothing to write yet`.                                                                                 |
-| `flagged.png` | flagged    | Three amber boxes, `- order_total` / `+ order_total_usd` on the changed table, the subline naming how many never read it, the measured detection time, and the write-back cell counting the marks written into DataHub. |
-| `cascade.gif` | flagging   | The moment itself, animated: three boxes turning amber, the amber path moving outward from the changed table, and the ribbon's measured figures landing.                                                                |
-| `repair.gif`  | repairing  | The way back: flags coming off as one redo lands, the strip's `cleared … without a re-run` lines with their reasons, and the headline returning to nothing out of date.                                                 |
+| File                      | Page state                | What has to be legible in it                                                                                                                                                                                            |
+| ------------------------- | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `settled.png`             | settled                   | Four done boxes, the headline reading `all 4 finished, nothing out of date`, and the write-back cell reading `·· nothing to write yet`.                                                                                 |
+| `flagged.png`             | flagged                   | Three amber boxes, `- order_total` / `+ order_total_usd` on the changed table, the subline naming how many never read it, the measured detection time, and the write-back cell counting the marks written into DataHub. |
+| `cascade.gif`             | flagging                  | The moment itself, animated: three boxes turning amber, the amber path moving outward from the changed table, and the ribbon's measured figures landing.                                                                |
+| `repair.gif`              | repairing                 | The way back: flags coming off as one redo lands, the strip's `cleared … without a re-run` lines with their reasons, and the headline returning to nothing out of date.                                                 |
+| `erasure-covered.png`     | erasure, report read      | The headline `2 of 18 assets covered, 16 unattested`, the assurance line under it, and at least one row reading `attested absent · version <V>` with the attestor named in its sentence.                                |
+| `erasure-compromised.png` | erasure, keys compromised | The headline `0 of 18 assets covered, 18 unattested`, the red callout naming how many attestations were dropped and why, and both dropped rows reading `<asset>: <attestor>, key compromised`.                          |
 
 The two GIFs exist because a still of a finished cascade shows nothing moving, which was the exact
 reason the edges were animated in the first place. Fourteen seconds each, cut around the moment a
@@ -26,6 +28,27 @@ standing for the repair. `scripts/record.mjs` takes them, the way `scripts/captu
 takes the stills: it launches the real step through the launch route, records the live page with
 Playwright, refuses to save anything when the moment never arrives or the step exits non-zero, and
 writes the cut point beside each video.
+
+## The erasure pair, and why it is the one crop here
+
+The two erasure files are the only images on this page that are not the whole frame, and the only
+ones `scripts/capture.mjs` did not take. Both are stated here rather than left to be noticed.
+
+They come from `scripts/erasure-broll.mts`, the recorder that films the video's last act: it opens a
+real erasure request against the `showcase-ecommerce` pack, posts two real Ed25519-signed
+attestations through the real routes, photographs the report, rewrites the key registry to report
+both signing keys compromised, waits for the panel's own next read to show the callout, and
+photographs it again. The script refuses to save a take whose panel never showed a covered row,
+whose headline did not go to nothing covered, or that used any word from the table at the top of
+`README.md`. Both files are from one take on 2026-08-09, seconds apart, which is the same rule as
+rule 2 below.
+
+The crop is the rectangle that recording measured for itself off the live page, the same one the
+film frames, and not a rectangle chosen by eye. Rule 5 asks for the whole frame so a reader can see
+that the numbers sit on the same screen as the graph, and that reasoning is what argues against it
+here: the board behind this panel is the video's own taxi flow, its ribbon carries that run's
+detection time, and a still holding one run's staleness figures beside another run's coverage
+figures is the inconsistency rule 2 exists to prevent.
 
 ## Rules
 
@@ -45,8 +68,9 @@ writes the cut point beside each video.
 
 ## What is in here now
 
-All four were retaken on 2026-07-30 from commit `8a09994`, against a live DataHub and a live Codex
-CLI. The set they replaced showed the page before the 2026-07-28 rebuild, when it was a scrolling
+The four staleness files were retaken on 2026-07-30 from commit `8a09994`, against a live DataHub
+and a live Codex CLI. The erasure pair is later and separate, and the section above it is its whole
+account. The set they replaced showed the page before the 2026-07-28 rebuild, when it was a scrolling
 column rather than a graph with a panel beside it, so every wide shot in it was of a layout that no
 longer exists.
 
@@ -92,6 +116,23 @@ node scripts/capture.mjs settled   # after run, before change
 
 ```bash
 node scripts/capture.mjs flagged   # after change
+```
+
+The erasure pair comes from the video's own recorder rather than from `capture.mjs`, and it writes
+into a working directory outside the tree, so replacing it is a run and two crops. `pnpm build`
+first, and nothing may be answering on the port:
+
+```bash
+npx tsx scripts/erasure-broll.mts "$W/erasure"
+```
+
+That writes `report.png` and `compromised.png` as whole 1920 × 990 frames, alongside a
+`timeline.json` carrying the panel rectangle it measured. Crop both to that rectangle, keeping them
+identical so the pair can be read as one panel changing:
+
+```bash
+sips -c <h> <w> --cropOffset <y> <x> "$W/erasure/report.png"      --out docs/images/erasure-covered.png
+sips -c <h> <w> --cropOffset <y> <x> "$W/erasure/compromised.png" --out docs/images/erasure-compromised.png
 ```
 
 ## The hero, which is the one decoration

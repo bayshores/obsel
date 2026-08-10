@@ -138,6 +138,34 @@ It lives in its own module rather than in `client.ts` because `client.ts` carrie
 `client.ts` has no unit tests at all; a pure parser behind it would be a pure parser nothing can
 check.
 
+### The other place a cascade shows up in DataHub
+
+A mark lives on the DataJob and a tag beside it, and both are things a person has to know to look
+for. An **incident** is DataHub's own surface for "there is something wrong with this table", it
+lives on the dataset, and it turns that dataset's `health` to `FAIL` while it is open. So a cascade
+raises one — one per cascade, on the table whose output moved, naming the tasks it flagged, with each
+mark's own recorded reason and hop count as the body. `src/server/datahub/incidents.ts` holds the
+writes and the four DataHub traps they guard, measured in
+[`environment-findings.md`](environment-findings.md) §16.
+
+Three properties keep it from becoming a second answer that can disagree with the first:
+
+- **It is raised after both halves of every mark have landed and been confirmed**, so an incident
+  never points at work the board has no record of.
+- **It comes down only where a flag does.** In the clear path, when not one of the tasks it named
+  still carries a mark citing that table — a partial repair leaves it open — and in `resetSwarm`,
+  where every mark on the flow is wiped and the incident's own condition goes false with them,
+  with a resolve message naming the reset. There is no route, no MCP tool and no request argument
+  that resolves one directly, asserted in `tests/live/incidents.live.test.ts`; the reset path takes
+  no incident argument either, so the only way to reach it is to wipe the whole board, holding the
+  token for it.
+- **Failing to write it never fails a completion.** The marks are obsel's answer and they are already
+  in DataHub; a raise or a resolve that throws is a traced step and nothing more.
+
+One limit, stated rather than worked around. A change to a table DataHub has no entity for
+raises nothing, because raising an incident on a URN nothing has written would create that dataset
+(§16.3), so obsel establishes existence first and traces the skip.
+
 URN construction is in one place per language, and the two must agree character for character:
 [`src/server/datahub/urns.ts`](../src/server/datahub/urns.ts) and
 [`agents/graph.py`](../agents/graph.py).
@@ -805,19 +833,28 @@ agent integrating with obsel calls, and every one of obsel's ten MCP tools is a 
 them. `GET /api/swarm` carries the derived repair order alongside the snapshot, so a caller that
 already reads the board does not need a second route to learn what to redo first.
 
-**The erasure ledger, four routes.** `POST /api/erasure`, `/api/erasure/challenge` and
+**The erasure ledger, five routes.** `POST /api/erasure`, `/api/erasure/challenge` and
 `/api/erasure/proof`, each gated on `OBSEL_API_TOKEN` by `authorizeMutation` in
 `src/server/http/auth.ts`, plus `GET /api/erasure/<id>`, which is deliberately ungated and strips
-the subject's identifiers out of the report before answering. With no token configured the three
-mutating routes answer 503 rather than running unauthenticated, which is the closed direction.
+the subject's identifiers out of the report before answering, and `GET /api/erasure/<id>/evidence`,
+which returns the raw records behind that report — envelopes, public keys, challenges, lineage —
+so `scripts/verify-erasure-evidence.mjs` can re-run the signature check and the coverage kernel
+offline. The evidence route is gated where the report route is not, because a DSSE payload carries
+the bytes the signature covers and cannot be redacted without destroying what the recipient is
+asked to check; the one identifier list obsel owns, the request's, is replaced by salted digests.
+With no token configured the three mutating routes answer 503 rather than running unauthenticated,
+which is the closed direction.
 
 **The board's change history, one route** — the fourth group, and one route is the whole of it.
 `GET /api/changes`, ungated, read-only, and it is the
 read-only part that is load bearing rather than incidental. Each coordination decision that marked or
 cleared finished work appends one append-only `document` record beside the erasure evidence chain, so
 the question "what did obsel flag here, and did a redo close it?" has an answer that outlives the
-process. Nothing reads a record back to decide anything: a clear is still derived by `restoredBy`
-from task properties alone, and there is no route or tool that appends to, edits or deletes a record.
+process. No obsel decision reads a record back: a clear is still derived by `restoredBy` from task
+properties alone, and there is no route or tool that appends to, edits or deletes a record. One thing
+does read them, and it decides nothing — a record carrying an `incident` names the DataHub incident
+that cascade raised and the tasks closing it depends on, which is how the repair path finds it again
+without searching.
 That absence is the point — a writable history would let a caller record "this was cleared" with no
 work redone, which is exactly what obsel's clearing rule exists to prevent, so
 `tests/live/change-ledger.live.test.ts` asserts the mutating verbs answer 405.

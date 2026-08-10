@@ -79,7 +79,10 @@ Every agent task becomes a real DataJob in DataHub, wired into that same lineage
 reads and the tables it writes, so the graph itself is the coordination: obsel runs no message bus
 and no scheduler. When an output changes, obsel follows those edges and flags every finished
 downstream task, recording the reason and the change that caused it. That includes tasks that never
-read the changed table directly, only something built on it.
+read the changed table directly, only something built on it. The same cascade raises one native
+DataHub Incident on the table that changed, listing every flagged task. The incident comes down
+when the marks it names are gone: cleared by redone work, or wiped with the whole board on a
+reset. No route or tool resolves one directly.
 
 A re-run that produces the same table flags nothing. If identical re-runs raised flags, users would
 learn to ignore every flag.
@@ -126,8 +129,10 @@ Codex CLI. Not mockups, and not assembled from separate sessions.
 
 The full three-minute demo, [on YouTube](https://youtu.be/qQNA59VADNc), is cut from recordings of
 real runs. It follows the forty-agent run, the mid-swarm change and the repair end to end, then
-closes on a real erasure request opened against a real catalog, whose report on camera reads 2 of 18
-assets covered and 16 unattested. The two clips below are from a separate four-agent take.
+closes on a real erasure request opened against a real catalog. Its report on camera reads 2 of 18
+assets covered and 16 unattested, and then both signing keys are reported compromised and the same
+report reads 0 of 18 covered and 18 unattested. The two clips below are from a separate four-agent
+take.
 
 |                                                                                 The change is detected                                                                                  |                                                                                              The repair                                                                                              |
 | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: |
@@ -139,6 +144,14 @@ own numbers in frame. Those two came off because the redone table came out ident
 only way a flag ever clears. There is no button that dismisses one. Either the flagged task re-runs
 and reports, or an upstream task re-runs, its table comes back identical, and obsel clears the
 downstream flags that redo restores.
+
+The film's last twelve seconds are the erasure report, and these are the two states it passes
+through, from that same recording on 2026-08-09.
+
+|                                                                                   The coverage report                                                                                    |                                                                                                  After the keys are reported compromised                                                                                                   |
+| :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: |
+| ![The erasure panel reading 2 of 18 assets covered, 16 unattested, with one row attested absent over version rebuild-2026-07-31 by the analytics team.](docs/images/erasure-covered.png) | ![The same panel reading 0 of 18 assets covered, 18 unattested, above a callout saying obsel dropped 2 attestations because the key that signed them is not trusted, naming each asset and attestor.](docs/images/erasure-compromised.png) |
+|                                                                     2 of 18 covered, each by a different team's key.                                                                     |                                                                                      0 of 18, 4.0 s later. No asset was written and no version moved.                                                                                      |
 
 "Identical" is the fingerprint's word, not the file system's. Rows are sorted before hashing, and
 any column the task registered as volatile is left out. Two tables that differ only in row order, or
@@ -231,8 +244,9 @@ recorded in [`docs/verification.md`](docs/verification.md).
 
 The launcher installs `uv` if it is missing, and skips whatever is already done, so running it twice
 is safe. Docker, Node and the agent CLI sign-in need you, so it detects those and says what to do. It
-installs DataHub `v1.5.0.6` by name, which is the version every measured number here was taken
-against.
+installs DataHub `v1.5.0.6` by name. The measured numbers through 2026-08-02 were taken against
+that version; the 2026-08-09 runs, including the erasure evidence bundle and the incident
+measurements, ran against `v1.7.0`, and `docs/verification.md` names the stack beside each run.
 
 obsel shows one page at a time. The page's header carries its name, and opening that name explains
 how to start obsel on a different one.
@@ -355,6 +369,7 @@ Each row is one command, and names the file that would fail if the claim were fa
 | A flagged task's identical redo clears the flags downstream of it        | `pnpm test:live`                   | `engine.live.test.ts`, and over real stdio in `obsel-mcp.live.test.ts`                     |
 | That clearing refuses everything it cannot prove                         | `pnpm test`                        | `tests/staleness.test.ts`: the refusal cases come first, each guard checked by breaking it |
 | The `obsel-stale` tag really lands in DataHub, confirmed by reading back | `pnpm test:live`                   | `mcp.live.test.ts`, `obsel-mcp.live.test.ts`                                               |
+| A cascade raises one DataHub Incident, resolved only by the real repair  | `pnpm test:live`                   | `incidents.live.test.ts`, including the routes and tools that do not exist                 |
 | `217` and `217.0` are not treated as a change                            | `python3 -m agents.worker`         | and again through MCP in `agents/mcp_core.py`                                              |
 | A reply obsel never sent is refused, not read as "nothing was affected"  | `python3 -m agents.run self-check` | breaking that guard fails six checks, and five more in `mcp_core.py`                       |
 | Any MCP agent can join and set off a real chain of flags                 | `pnpm test:live`                   | `obsel-mcp.live.test.ts`, with a real client, a dead port, and the wrong server            |
@@ -363,6 +378,18 @@ Each row is one command, and names the file that would fail if the claim were fa
 **Nothing here is tested against a stand-in.** Anything that crosses a process boundary is covered
 against a live DataHub, the real MCP server, a real obsel, and a real session of each agent CLI
 installed.
+
+Verify the committed evidence bundle with Node and nothing else:
+
+```bash
+node scripts/verify-erasure-evidence.mjs examples/erasure-evidence/bundle.json
+```
+
+That file is a real capture: 18 assets reached, 2 signed attestations, 2 of 18 covered. The script
+re-runs obsel's own signature check and coverage kernel over the bytes and exits 0 only if the
+answer obsel recorded is the one the evidence supports. Edit any signature, key status or lineage
+edge in it and the script exits 1 naming the record and what failed. Details in
+[`examples/erasure-evidence/`](examples/erasure-evidence/).
 
 ### What is still open
 
@@ -424,10 +451,10 @@ with one CLI cannot be read as evidence about both. See
 <div align="center"><em>The container diagram, modeled in Structurizr from <a href="docs/architecture.dsl"><code>docs/architecture.dsl</code></a>. Click for full size.</em></div>
 
 ```
-app/                     routing, and the fourteen HTTP routes
+app/                     routing, and the seventeen HTTP routes
 src/features/dashboard/    the dashboard UI
 src/server/coordinator/  the staleness rules, and the part that talks to DataHub
-src/server/datahub/      DataHub client, tag writes, id shapes
+src/server/datahub/      DataHub client, tag and incident writes, id shapes
 src/server/runner/       the demo runner behind the buttons, and the bench's reporter
 agents/                  the four demo agents, obsel's own MCP server, the bench's reporter
 skills/                  instructions for an agent working in a swarm obsel is watching
