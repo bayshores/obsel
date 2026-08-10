@@ -211,32 +211,26 @@ prior-art survey is in `docs/concept.md`.
 
 ## 1a. Gallery captions, in order
 
-All six are in `~/Desktop/devpost-gallery/annotated/`, built by `scripts/gallery.mjs` on 2026-08-10
-from real captures of a live run. Each card magnifies the part of its screenshot the caption is
-about and draws a line back to the rectangle the browser measured while the shot was taken.
+Uploaded to the Devpost gallery on 2026-08-10, replacing the 2026-08-01 set. The images are the six
+cards `scripts/gallery.mjs` builds, from `~/Desktop/devpost-gallery/annotated/`; each caption below
+is the live text, held to Devpost's 140-character field.
 
-1. **card5_erasure.** One erasure request against somebody else's catalog, seeded from one table:
-   the walk reached 18 assets at two hops, and two Ed25519 signatures from two different teams
-   covered two of them. Beside it, the same report after both signing keys were reported
-   compromised: no asset was written and no version moved, so nothing else in obsel would have
-   noticed, and the report goes from 2 of 18 covered to 0 of 18, naming each dropped attestation
-   and why.
+1. **card5_erasure.** One erasure request, before and after both keys were reported compromised:
+   2 of 18 covered falls to 0 of 18, each dropped attestation named.
 2. **card1_hero.** Forty agent tasks, each a real DataJob in DataHub with Consumes and Produces
-   edges to the tables it read and wrote. The record belongs to the catalog and outlives the run.
-3. **card2_flagged.** One column renamed on a settled board: 9 of 40 flagged out to three hops, four
-   of the nine never having read that table, the 30 outside it unflagged. The card numbers four
-   places on the board: the rewritten table, a job three hops out, the measured detection time, and
-   the marks written into DataHub.
-4. **card3_datahub.** DataHub's own interface, twice: the flow holding forty tasks, and the
-   `obsel-stale` tag on a flagged job. obsel writes the tag through `mcp-server-datahub` and
-   confirms it by reading `globalTags` back off the entity.
-5. **card4_repair.** obsel's decision record, read as a column: what changed, what went out of date
-   and how far out, and how long each decision took. One flag came off without its own task
-   re-running, because a redo upstream came back identical. No endpoint clears a flag, and a live
-   test asserts that.
-6. **card6_verifier.** The evidence bundle checked in a browser tab, on GitHub Pages, by the same
-   verifier the repository runs. One character of one signature has been changed, the edit is on
-   screen as a field with a before and an after, and the page refuses the record it belongs to.
+   edges. The record belongs to the catalog and outlives the run.
+3. **card2_flagged.** One column renamed on a settled board: 9 of 40 flagged out to three hops,
+   four of them never read that table. Detection measured at 2090 ms.
+4. **card3_datahub.** DataHub's own interface: the flow with forty tasks, and the obsel-stale tag
+   on a flagged job, written by mcp-server-datahub and read back.
+5. **card4_repair.** obsel's decision record: what changed, what went out of date and how far, and
+   a flag that came off since an upstream redo landed identical.
+6. **card6_verifier.** The evidence bundle checked on GitHub Pages by the repository's own
+   verifier: one signature character changed, and the record is refused.
+
+The story's MCP-server paragraph was rewritten in the same edit. It now says, beyond the ten tools
+and the credential line, that no tool marks or clears a flag, so an agent can join the swarm but
+cannot dismiss what obsel decided about its work.
 
 ---
 
