@@ -1070,8 +1070,9 @@ the same measurement, written onto the mark in DataHub.
 reporting task was itself flagged, it redid its work, and an output came back identical to
 the recorded baseline. The flags downstream of that output were then standing on ground that never
 moved, and `restoredBy` (`staleness.ts`) clears the ones the records prove: producer settled, no
-standing reader observation, the mark not naming that very table, and the producer's previous
-report predating the reader's finish. Each clear removes the properties and the DataHub tag, and
+standing reader observation, the mark not naming that very table, the table not being one this same
+completion found changed, the task not being one this same completion just marked, and the
+producer's previous report predating the reader's finish. Each clear removes the properties and the DataHub tag, and
 carries a reason like a mark does. It cannot be requested: the field exists only as a consequence
 of redone work.
 

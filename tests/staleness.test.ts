@@ -1314,3 +1314,155 @@ describe("affectedBy — saying what the comparison ignored", () => {
     );
   });
 });
+
+describe("restoredBy — a redo where one output changed and another did not", () => {
+  /*
+   * One task writing two tables is ordinary, and it is the shape where the two
+   * halves of a decision can contradict each other. `affectedBy` marks the
+   * readers of the table that moved; `restoredBy` runs over the table that came
+   * back identical. Until the rules below existed, the second half handed the
+   * first half's tasks back as restored, and `clearRestored` runs last, so the
+   * task ended the pass with `complete` and no mark over a table that had just
+   * changed under it. That is the one answer obsel must never give.
+   */
+
+  const T1 = "2026-07-21T10:00:00.000Z";
+  const T2 = "2026-07-21T11:00:00.000Z";
+  const T4 = "2026-07-21T12:30:00.000Z";
+
+  function twoOutputSwarm(): { swarm: SwarmSnapshot; finishing: TaskRecord } {
+    const clean: TaskRecord = {
+      ...task("clean_orders_task", ["raw_orders"], ["clean_orders"]),
+      finishedAt: T4,
+    };
+    const revenue: TaskRecord = {
+      ...task("build_revenue", ["clean_orders"], ["daily_revenue", "revenue_index"], "stale"),
+      finishedAt: T1,
+      fingerprints: { [ds("daily_revenue")]: fp("s", "c"), [ds("revenue_index")]: fp("s", "c") },
+      stale: {
+        causedBy: ds("clean_orders"),
+        causedByTask: null,
+        hops: 1,
+        changeKind: "content",
+        reason: "test mark",
+        since: T4,
+        detectedMs: null,
+      },
+    };
+    // Two hops from the original change, so its recorded cause names the far
+    // origin rather than the table it actually reads.
+    const report: TaskRecord = {
+      ...task("write_report", ["daily_revenue"], ["revenue_report"], "stale"),
+      finishedAt: T2,
+      stale: {
+        causedBy: ds("clean_orders"),
+        causedByTask: null,
+        hops: 2,
+        changeKind: "content",
+        reason: "test mark",
+        since: T4,
+        detectedMs: null,
+      },
+    };
+    return { swarm: snapshot([clean, revenue, report]), finishing: revenue };
+  }
+
+  it("never hands back a task the same decision just marked", () => {
+    const { swarm, finishing } = twoOutputSwarm();
+
+    const affected = affectedBy(swarm, [{ dataset: ds("daily_revenue"), kind: "content" }], T4, {
+      excludeTasks: [finishing.urn],
+    });
+    const restored = restoredBy(swarm, finishing, [ds("revenue_index")]);
+
+    expect(names(affected)).toEqual(["write_report"]);
+    expect(names(restored)).toEqual([]);
+  });
+
+  it("still clears a reader of the output that did come back identical", () => {
+    // The rule above is conservative, not a refusal to restore anything: the
+    // sibling table nobody touched still frees the work built on it.
+    const { swarm, finishing } = twoOutputSwarm();
+    const notes: TaskRecord = {
+      ...task("write_index_notes", ["revenue_index"], ["index_notes"], "stale"),
+      finishedAt: T2,
+      stale: {
+        causedBy: ds("clean_orders"),
+        causedByTask: null,
+        hops: 2,
+        changeKind: "content",
+        reason: "test mark",
+        since: T4,
+        detectedMs: null,
+      },
+    };
+
+    const restored = restoredBy(snapshot([...swarm.tasks, notes]), finishing, [
+      ds("revenue_index"),
+    ]);
+    expect(names(restored)).toEqual(["write_index_notes"]);
+  });
+
+  it("holds a reader of a table a change was reported on elsewhere in the pass", () => {
+    // The unreported-change half of the same shape. The finishing task noticed
+    // bytes in a table it READS that its producer never reported, so the readers
+    // of that table are being marked right now. Their marks were written after
+    // the snapshot this runs against, so nothing in the records says the ground
+    // moved; the caller has to say so, and this is where it is said.
+    const { swarm, finishing } = twoOutputSwarm();
+    const audit: TaskRecord = {
+      ...task("write_audit", ["clean_orders"], ["audit_notes"], "stale"),
+      finishedAt: T2,
+      stale: {
+        causedBy: ds("elsewhere"),
+        causedByTask: null,
+        hops: 1,
+        changeKind: "content",
+        reason: "test mark",
+        since: T1,
+        detectedMs: null,
+      },
+    };
+
+    const restored = restoredBy(
+      snapshot([...swarm.tasks, audit]),
+      finishing,
+      [ds("revenue_index")],
+      {
+        changedDatasets: [ds("clean_orders")],
+      },
+    );
+    expect(names(restored)).toEqual([]);
+  });
+
+  it("holds every task the caller names as marked by this same decision", () => {
+    // The belt to the rule above: a task reached at hop two stands on a table
+    // whose producer looks settled in the pre-decision snapshot, so no record
+    // available here contradicts it. The decision knows it just marked the task,
+    // and that is enough to keep the flag.
+    const { swarm, finishing } = twoOutputSwarm();
+    const notes: TaskRecord = {
+      ...task("write_index_notes", ["revenue_index"], ["index_notes"], "stale"),
+      finishedAt: T2,
+      stale: {
+        causedBy: ds("clean_orders"),
+        causedByTask: null,
+        hops: 2,
+        changeKind: "content",
+        reason: "test mark",
+        since: T4,
+        detectedMs: null,
+      },
+    };
+
+    const restored = restoredBy(
+      snapshot([...swarm.tasks, notes]),
+      finishing,
+      [ds("revenue_index")],
+      {
+        excludeTasks: [notes.urn],
+      },
+    );
+    expect(names(restored)).toEqual([]);
+  });
+});

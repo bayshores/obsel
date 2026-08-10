@@ -75,6 +75,22 @@ async function registerPipeline(): Promise<void> {
   // an observed change stops at the reporter — its own outputs are judged by the normal
   // output comparison — so proving anything gets marked needs another finished reader.
   await registerTask("audit_orders", ["clean_orders"], ["audit_report"], undefined, "Order audit");
+  /*
+   * A branch of its own for the two-output redo, on datasets nothing else here
+   * touches, so a cascade in the chain above can never reach it and the existing
+   * `affected` lists stay exactly as they are. Registered here for the same
+   * reason `side_job` is: registration is permanent.
+   */
+  await registerTask("split_seed_task", ["raw_split"], ["split_seed"], undefined, "Split seed");
+  await registerTask(
+    "split_writer",
+    ["split_seed"],
+    ["split_kept", "split_moved"],
+    undefined,
+    "Split writer",
+  );
+  await registerTask("kept_reader", ["split_kept"], ["kept_out"], undefined, "Kept reader");
+  await registerTask("moved_reader", ["split_moved"], ["moved_out"], undefined, "Moved reader");
 }
 
 /**
@@ -600,6 +616,83 @@ describe("a redo that comes out identical clears what it proves, in DataHub", ()
       expect(task?.stale?.causedBy, name).toBe(datasetUrn("daily_revenue"));
       expect(await tagsOn(name), name).toEqual([STALE_TAG_URN]);
     }
+  });
+});
+
+describe("a redo where one output moved and another did not, in DataHub", () => {
+  /**
+   * NOT YET RUN. Written with the fix for the two-output false clear and added
+   * here for the live suite's next execution; `docs/verification.md` lists it as
+   * unrun. The unit tests in `tests/staleness.test.ts` cover the rule itself.
+   * What only this can show is the two halves of one real decision agreeing on
+   * one real board: the marks `markAllStale` writes are still standing after
+   * `clearRestored` has run.
+   */
+
+  /** One report carrying both of a task's outputs, as a two-table agent posts it. */
+  function finishedBoth(
+    name: string,
+    outputs: Record<string, { schema: string; content: string }>,
+  ): CompletionReport {
+    return {
+      taskUrn: taskUrn(name),
+      fingerprints: Object.fromEntries(
+        Object.entries(outputs).map(([dataset, fingerprint]) => [datasetUrn(dataset), fingerprint]),
+      ),
+      finishedAt: new Date().toISOString(),
+    };
+  }
+
+  /** Everyone on the split branch finishes, then the seed table changes. */
+  async function flaggedSplitBoard(): Promise<void> {
+    await coordinateCompletion(finished("split_seed_task", "split_seed", "sd1", "cd1"));
+    await coordinateCompletion(
+      finishedBoth("split_writer", {
+        split_kept: { schema: "sk1", content: "ck1" },
+        split_moved: { schema: "sm1", content: "cm1" },
+      }),
+    );
+    await coordinateCompletion(finished("kept_reader", "kept_out", "sk2", "ck2"));
+    await coordinateCompletion(finished("moved_reader", "moved_out", "sm2", "cm2"));
+    // The change that flags all three: split_writer at one hop, both readers at
+    // two, and a two-hop mark names the seed table rather than what it reads.
+    await coordinateCompletion(finished("split_seed_task", "split_seed", "sd1-changed", "cd1"));
+  }
+
+  it("keeps the flag on the reader of the table that moved while clearing the other", async () => {
+    await flaggedSplitBoard();
+
+    await startTask(taskUrn("split_writer"));
+    const result = await coordinateCompletion(
+      finishedBoth("split_writer", {
+        split_kept: { schema: "sk1", content: "ck1" },
+        split_moved: { schema: "sm1-changed", content: "cm1" },
+      }),
+    );
+
+    expect(result.changedOutputs.map((change) => change.dataset)).toEqual([
+      datasetUrn("split_moved"),
+    ]);
+    expect(result.affected.map((entry) => entry.task.name)).toEqual(["moved_reader"]);
+    expect(result.restored?.map((entry) => entry.task.name)).toEqual(["kept_reader"]);
+
+    // The invariant the fix is for: no task is in both halves of one decision.
+    const affectedNames = new Set(result.affected.map((entry) => entry.task.name));
+    for (const entry of result.restored ?? []) {
+      expect(affectedNames.has(entry.task.name), entry.task.name).toBe(false);
+    }
+
+    // As DataHub holds it. The mark written for the changed table is still
+    // standing after the clear half of the same decision has run.
+    const moved = await readTask(taskUrn("moved_reader"));
+    expect(moved?.status).toBe("stale");
+    expect(moved?.stale?.causedBy).toBe(datasetUrn("split_moved"));
+    expect(await tagsOn("moved_reader")).toEqual([STALE_TAG_URN]);
+
+    const kept = await readTask(taskUrn("kept_reader"));
+    expect(kept?.status).toBe("complete");
+    expect(kept?.stale).toBeNull();
+    expect(await tagsOn("kept_reader")).toEqual([]);
   });
 });
 

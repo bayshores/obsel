@@ -131,8 +131,9 @@ the others mean something.
   recorded in the trace and in the completion reply's new `restored` list. The rule is one pure
   function, `restoredBy` in `staleness.ts`, and it prefers a kept flag to a wrong clear: the
   producer must be settled, no reader observation may be standing, the mark must not name that very
-  table, and the producer's previous report must predate the reader's finish. Nothing can request
-  it. No route and no MCP tool takes a task to clear.
+  table, the table must not be one this same completion found changed, the task must not be one
+  this same completion just marked, and the producer's previous report must predate the reader's
+  finish. Nothing can request it. No route and no MCP tool takes a task to clear.
 
   **"Identical" throughout this file means equal fingerprints, not equal bytes.**
   `agents/fingerprint.py` sorts the serialised rows before hashing and excludes every column the
@@ -6132,3 +6133,40 @@ the list's own box went from 0 px to 523 px, and the card built from that shot s
 
 `pnpm verify` green at this commit: 658 tests passed, 26 skipped, 38 files passed, 3 skipped, with
 typecheck, lint, formatting and build.
+
+### One decision marked a task and cleared it in the same breath (2026-08-10)
+
+A completion where the finishing task writes two tables, one of which came back identical and
+one of which moved, could end with the reader of the moved table carrying no flag at all.
+
+**The defect.** `decideCompletion` runs two halves. `affectedBy` walked from the moved table and
+marked its reader; `restoredBy` then ran over the identical table and handed the same task back as
+restored, and `clearRestored` runs after `markAllStale`, so the clear won: status `complete`, no
+mark, no tag, over a table that had changed seconds earlier. Two rules let it through. `provenBy`
+read the finishing task as settled for every dataset it writes, `producer.urn === finishing.urn`,
+including the one that had just moved. And the reader's own mark did not contradict that, because a
+mark two or more hops out stores the far origin as its cause rather than the table the reader
+actually reads, so the guard that refuses when a mark names the input never fired. The same shape
+was reachable through the unreported-change path, where the marks being written are not in the
+snapshot `restoredBy` reasons over at all.
+
+**The change.** `restoredBy` now takes the tables this pass found changed and the tasks this pass
+marked. The changed set is derived from the finishing task's own outputs, every declared output that
+did not come back identical, and widened by a `changedDatasets` argument carrying the unreported
+changes the same completion noticed. A dataset in that set is refused for every writer of it, before
+the settled check rather than inside it. `excludeTasks` carries the affected set, so one decision
+can no longer both flag a task and hand it back sound.
+
+**Evidence.** Four tests in `tests/staleness.test.ts` under "restoredBy — a redo where one output
+changed and another did not". All four were written first and run against the unchanged file: the
+first returned `write_report` from both `affectedBy` and `restoredBy` in one pass, which is the false
+clean itself. After the change, 645 unit tests pass, 4 more than the 641 before. The positive case is
+in the same block: the reader of the sibling table that did come back identical still clears, so this
+is a narrower refusal rather than a refusal to restore anything.
+
+**Not run.** The live half, "keeps the flag on the reader of the table that moved while clearing the
+other" in `tests/live/engine.live.test.ts`, is written and has not been executed. It registers a
+branch of its own on datasets nothing else in that file touches, so it cannot alter any existing
+cascade there. What it adds over the unit tests is the ordering against real DataHub: that the mark
+written for the moved table is still readable, tag included, after the clear half of the same
+decision has run.

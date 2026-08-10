@@ -625,6 +625,16 @@ export function causesOf(mark: StaleMark | null): StaleCause[] {
  * - **S's own mark must not name E as the table that moved.** A hop-one mark is
  *   the record saying E changed after S finished, and no amount of soundness in
  *   S's other inputs argues with it.
+ * - **E must not be a table THIS pass found changed.** A task writing two tables
+ *   reports both at once, and one of them coming back identical says nothing
+ *   about the other. Every dataset the finishing task writes that did not come
+ *   back identical counts, as does every dataset the caller names in
+ *   `changedDatasets` — the unreported changes this same completion noticed,
+ *   which are being marked right now and are therefore in no record this
+ *   function can read. The mark rule above does not cover this: a mark two or
+ *   more hops out stores the far origin as its cause, never the table the reader
+ *   actually reads, so a reader flagged for a distant table passes it while
+ *   standing on one that just moved.
  * - **The producer's previous report must predate S's finish.** The recorded
  *   fingerprint of E is whatever the producer last reported; that is what S
  *   read only if nothing re-reported E after S finished. The snapshot is read
@@ -650,10 +660,29 @@ export function restoredBy(
   snapshot: SwarmSnapshot,
   finishing: TaskRecord,
   unchangedOutputs: readonly string[],
+  options: { changedDatasets?: readonly string[]; excludeTasks?: readonly string[] } = {},
 ): RestoredTask[] {
   if (finishing.stale === null || unchangedOutputs.length === 0) return [];
 
   const producers = producersOf(snapshot);
+
+  /*
+   * The tables this pass is marking work over. Derived from the finishing task's
+   * own outputs so the kernel refuses on its own records, and widened by whatever
+   * the caller found: `changedDatasets` carries the unreported changes the same
+   * completion noticed on its inputs.
+   *
+   * An output the finishing task declares but did not report identical counts as
+   * changed, including one it reported for the first time. That is wider than
+   * "changed", and it is the direction this whole function falls in: a table
+   * nothing attested identical is not evidence for taking a flag off.
+   */
+  const identical = new Set(unchangedOutputs);
+  const changedHere = new Set<string>([
+    ...finishing.writes.filter((output) => !identical.has(output)),
+    ...(options.changedDatasets ?? []),
+  ]);
+  const excluded = new Set(options.excludeTasks ?? []);
 
   const finishedAtOf = (task: TaskRecord): number => {
     if (task.finishedAt === null) return Number.NaN;
@@ -663,6 +692,15 @@ export function restoredBy(
   const cleared = new Set<string>();
 
   const provenBy = (producer: TaskRecord, input: string, reader: TaskRecord): boolean => {
+    /*
+     * Before the settled check, and not folded into it: a table this pass found
+     * changed is unsettled ground for EVERY writer of it, including the task
+     * reporting now. `producer.urn === finishing.urn` below reads the reporter as
+     * settled for everything it writes, which is true only of the outputs it just
+     * reported identical.
+     */
+    if (changedHere.has(input)) return false;
+
     const settled =
       producer.urn === finishing.urn || cleared.has(producer.urn) || producer.status === "complete";
     if (!settled) return false;
@@ -705,6 +743,9 @@ export function restoredBy(
     for (const task of candidates) {
       if (task.status !== "stale" || task.stale === null) continue;
       if (task.urn === finishing.urn || cleared.has(task.urn)) continue;
+      // Marked by this same decision. One pass may not both flag a task and hand
+      // it back sound, and the flag is the half that stands.
+      if (excluded.has(task.urn)) continue;
       if (task.finishedAt === null) continue;
 
       if (task.reads.every((input) => sound(input, task))) {

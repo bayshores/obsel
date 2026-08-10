@@ -391,7 +391,17 @@ async function decideCompletion(
    * and no MCP tool can name a task to clear, because a tool to declare work
    * fresh would be a tool for silencing the one thing obsel is for.
    */
-  const restored = restoredBy(snapshot, finishing, unchangedOutputs);
+  const restored = restoredBy(snapshot, finishing, unchangedOutputs, {
+    /*
+     * Both halves of what this same decision just found, because neither is in
+     * the snapshot `restoredBy` reasons over: it was read before any of this.
+     * Without them the two halves contradict each other on one board — the
+     * readers of a changed table get marked above and handed back sound here,
+     * and `clearRestored` runs last, so the mark loses.
+     */
+    changedDatasets: changes.map((change) => change.dataset),
+    excludeTasks: affected.map((entry) => entry.task.urn),
+  });
   await Promise.all(restored.map(clearRestored));
 
   /*
