@@ -17,6 +17,7 @@ import {
   registerTask as writeTask,
   updateTaskProperties,
 } from "@/src/server/datahub/client";
+import type { RegistrationOutcome } from "@/src/server/datahub/registration";
 import { FLOW_URN, isTaskUrn } from "@/src/server/datahub/urns";
 import { clientProperty, type ClientDeclaration } from "@/src/server/http/client-body";
 import { resolveResetIncidents } from "./completion-writes";
@@ -34,6 +35,10 @@ import type { SwarmSnapshot, TaskRecord } from "./types";
  * belongs, and handed to `writeTask`, which decides; the read is skipped
  * entirely when nothing is declared, since a task declaring nothing cannot
  * disagree with anyone.
+ *
+ * Re-declaring a task exactly as it already stands writes nothing and says so,
+ * which is why the trace line differs: a step reading "registered" over a task
+ * nobody wrote to would be the panel narrating a write that did not happen.
  */
 export async function registerTask(
   name: string,
@@ -43,12 +48,21 @@ export async function registerTask(
   title?: string,
   volatile?: Record<string, string[]>,
   client?: ClientDeclaration,
-): Promise<TaskRecord> {
+): Promise<RegistrationOutcome> {
   const board =
     volatile && Object.keys(volatile).length > 0 ? (await readSnapshot()).tasks : undefined;
-  const task = await writeTask(name, reads, writes, description, title, volatile, client, board);
-  emit("write", `registered ${label(task)}`, `${task.reads.length} in, ${task.writes.length} out`);
-  return task;
+  const outcome = await writeTask(name, reads, writes, description, title, volatile, client, board);
+  const { task } = outcome;
+  if (outcome.alreadyRegistered) {
+    emit("read", `${label(task)} is already declared`, "nothing written, its record stands");
+  } else {
+    emit(
+      "write",
+      `registered ${label(task)}`,
+      `${task.reads.length} in, ${task.writes.length} out`,
+    );
+  }
+  return outcome;
 }
 
 /*

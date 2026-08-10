@@ -145,7 +145,7 @@ describe("refusing to write onto an entity obsel did not create", () => {
     // The guard refusing everything would pass both tests above and break the
     // product, so the positive case is asserted in the same file.
     const { registerTask } = await import("@/src/server/coordinator/engine");
-    const task = await registerTask("lineage_guard_subject", ["raw_orders"], ["guard_out"]);
+    const { task } = await registerTask("lineage_guard_subject", ["raw_orders"], ["guard_out"]);
     const updated = await updateTaskProperties(task.urn, { "obsel.status": "registered" });
     expect(updated.status).toBe("registered");
   }, 300_000);

@@ -6831,3 +6831,36 @@ registered with no writes has not been run, as with the rest of that file: this 
 stack. It registers a reader with `writes: []`, posts an empty map with a real token, and asserts
 the 400, the sentence, and that the task is still `registered` with no `finishedAt` and no recorded
 fingerprint.
+
+## 2026-08-10 — Re-registering a finished task no longer erases its baseline
+
+`POST /api/tasks/register` called `registerTask` unconditionally, and `registerTask` rebuilt
+`dataJobInfo.customProperties` from the declaration alone. The OpenAPI v3 upsert replaces the whole
+aspect, which is why `updateTaskProperties` read-modify-writes and this path did not: a task that
+had already finished came out of a second registration with its lineage intact and its recorded
+fingerprints, `finishedAt`, previous and observed fingerprints and stale mark gone. Its next
+completion then found no fingerprint for its own output, `compareFingerprints` returned null as a
+first run, and a genuinely changed table marked nothing downstream — the false-clean direction.
+
+The MCP door already refused to re-POST an unchanged declaration, and
+`skills/obsel-collaboration/SKILL.md` stated the harm, so an agent using the tools was safe. The
+page's own registration form and any curl caller went straight past it.
+
+Both rules now live at the HTTP door, in `src/server/datahub/registration.ts`. The same declaration
+a second time writes nothing at all and the reply carries `alreadyRegistered: true`; a declaration
+that genuinely differs is written onto the existing properties rather than over them, so the
+evidence a comparison needs survives a re-declaration. The volatile-immutability check ahead of it
+is unchanged. The one case that must still write is a task DataHub currently marks removed, since
+the restore is the `status` aspect that write carries — `tests/live/removed.live.test.ts` covers
+exactly that and is why the short-circuit checks it.
+
+**Measured.** `tests/register-merge.test.ts`, 14 cases over the merge decision, run 2026-08-10. Run
+first against the behavior as it stood, extracted verbatim, where 7 of the 14 failed: the
+declaration on file was never recognized, and the fingerprints, `finishedAt`, run detail, status
+and stale mark were all absent from what a registration would have written.
+
+**Not run.** `tests/live/register-preserves.live.test.ts` was added on 2026-08-10 and has never
+executed: DataHub was out of bounds on the machine it was written on. It drives the real HTTP door
+against a real `next start` and a real DataHub, and its last case is the consequence rather than the
+field — a producer re-declared between two completions still marks its downstream reader when its
+table really changes.

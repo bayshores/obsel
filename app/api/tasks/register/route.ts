@@ -38,7 +38,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const task = await registerTask(
+    const { task, alreadyRegistered } = await registerTask(
       parsed.name,
       parsed.reads,
       parsed.writes,
@@ -47,7 +47,17 @@ export async function POST(request: Request) {
       parsed.volatile,
       parsed.client,
     );
-    return NextResponse.json(task);
+    /*
+     * The task record, with one field beside it saying whether anything was
+     * written. Beside rather than inside: `alreadyRegistered` is about this
+     * request, and `TaskRecord` is what the board holds about the task.
+     *
+     * Re-declaring a task that already stands exactly this way writes nothing —
+     * see `registration.ts`. Without that, this route erased the fingerprints of
+     * a task that had already finished, and its next completion had no baseline
+     * left to compare against.
+     */
+    return NextResponse.json({ ...task, alreadyRegistered });
   } catch (error) {
     const message = error instanceof Error ? error.message : "registration failed";
     return NextResponse.json({ error: message }, { status: 500 });

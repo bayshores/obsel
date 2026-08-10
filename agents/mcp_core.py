@@ -231,6 +231,21 @@ def lineage_matches(record: Mapping[str, Any], reads: Sequence[str], writes: Seq
     ) == set(writes)
 
 
+def split_already_registered(reply: Mapping[str, Any]) -> tuple[dict[str, Any], bool]:
+    """The task record, and whether obsel wrote anything to produce it.
+
+    `POST /api/tasks/register` answers with the record and an
+    `alreadyRegistered` field beside it. That field is about the request, not
+    about the task, so it comes off the record here: leaving it inside would put
+    a second, sometimes contradictory answer next to the wrapper's own.
+
+    A reply without the field is read as a write having happened, which is what
+    every reply carried before obsel's door kept this rule.
+    """
+    task = {key: value for key, value in reply.items() if key != "alreadyRegistered"}
+    return task, reply.get("alreadyRegistered") is True
+
+
 def find_task_by_name(tasks: Sequence[Any], name: str) -> dict[str, Any] | None:
     for record in tasks:
         if isinstance(record, dict) and record.get("name") == name:
@@ -913,6 +928,20 @@ def _self_check() -> int:
         "different lineage does not match",
         not lineage_matches(clean_task, ["raw_orders", "extra"], ["clean_orders"]),
         "a genuine redeclaration must not be mistaken for a repeat",
+    )
+
+    reply_task, reply_already = split_already_registered(
+        {"urn": "urn:li:dataJob:x", "name": "clean_orders", "alreadyRegistered": True}
+    )
+    check(
+        "obsel saying it wrote nothing is read as such",
+        reply_already and "alreadyRegistered" not in reply_task,
+        "the marker is about the request, and belongs beside the record rather than inside it",
+    )
+    check(
+        "a reply without the marker is read as a write",
+        split_already_registered({"urn": "urn:li:dataJob:x"})[1] is False,
+        "every reply carried before obsel's door kept this rule was a write",
     )
 
     print()

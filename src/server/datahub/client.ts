@@ -24,6 +24,12 @@ import { confirmWrite, gmsFetch, gmsJson, gmsUrl } from "./gms";
 import { readLineageDownstream, relationships } from "./lineage";
 import { PROP } from "./properties";
 import type { PropertyPatch } from "./properties";
+import {
+  registrationProperties,
+  sameDeclaration,
+  type Declaration,
+  type RegistrationOutcome,
+} from "./registration";
 import { parseTagUrns } from "./tags";
 import {
   isRemoved,
@@ -199,7 +205,7 @@ async function writeDataJob(payload: DataJobWritePayload): Promise<void> {
  * `reads` and `writes` are short dataset names such as `clean_orders`; the
  * namespace and platform are applied here so callers never hand-build a URN.
  *
- * A registration is a fresh declaration of intent, so it sets status
+ * A first registration is a fresh declaration of intent, so it sets status
  * `registered` and carries no run state. Re-running a task that already exists
  * goes through `startTask`/`coordinateCompletion`, which preserve the recorded
  * fingerprints — those are the baseline a re-run is compared against.
@@ -207,6 +213,15 @@ async function writeDataJob(payload: DataJobWritePayload): Promise<void> {
  * `board` is the swarm's other tasks, handed in by the caller that already read
  * them rather than read again here, so this function keeps one entity read.
  * Needed only when `volatile` declares something; see the conflict check below.
+ *
+ * **Re-registering an existing task preserves them too**, and that is the point
+ * of `registration.ts`. Declaring the same task twice is ordinary: an agent that
+ * ensures its own task exists on every start does it, and the page's own form
+ * and any curl caller reach this through `POST /api/tasks/register`. Since the
+ * OpenAPI upsert replaces the whole aspect, a registration that rebuilt
+ * `customProperties` from the declaration alone erased the finished work's
+ * fingerprints, and the task's next completion compared against nothing and
+ * reported a real change as a first run.
  */
 export async function registerTask(
   name: string,
@@ -217,7 +232,7 @@ export async function registerTask(
   volatile?: Record<string, string[]>,
   client?: ClientDeclaration,
   board?: readonly VolatileDeclaration[],
-): Promise<TaskRecord> {
+): Promise<RegistrationOutcome> {
   const urn = taskUrn(name);
 
   /*
@@ -269,6 +284,41 @@ export async function registerTask(
    */
   const conflict = volatileConflict(name, declaredByDataset, board ?? []);
   if (conflict) throw new DataHubError(conflict);
+  const declaration: Declaration = {
+    reads: reads.map(datasetUrn),
+    writes: writes.map(datasetUrn),
+    volatile: declared,
+    title: title ?? null,
+    description: description ?? null,
+  };
+
+  /*
+   * The same declaration a second time writes nothing at all.
+   *
+   * This is the rule `agents/mcp_server.py` already kept by answering
+   * `alreadyRegistered` without posting, and it belongs here rather than only
+   * there: a guard on one door is a guard the other door walks around, and the
+   * page's own form and every curl caller come in through this one.
+   *
+   * Not taken when DataHub currently marks the task removed. A soft delete is
+   * undone by the `status` aspect the write below carries, so short-circuiting
+   * there would answer "already registered" about a task `readSnapshot` cannot
+   * see.
+   */
+  if (existing && existingEntity && !isRemoved(existingEntity)) {
+    const onFile: Declaration = {
+      reads: existing.reads,
+      writes: existing.writes,
+      volatile: recorded,
+      // `?? null`, because both fields are optional on a `TaskRecord`: a task
+      // that never carried one and a task whose value is null declared the
+      // same thing, and a comparison that told them apart would rewrite the
+      // aspect over a difference nobody made.
+      title: existing.title ?? null,
+      description: existing.description ?? null,
+    };
+    if (sameDeclaration(onFile, declaration)) return { task: existing, alreadyRegistered: true };
+  }
 
   await writeDataJob({
     urn,
@@ -287,37 +337,47 @@ export async function registerTask(
         // metadata, so DataHub's UI shows the same words the page does.
         description: description ?? "obsel agent task",
         type: { string: "COMMAND" },
-        customProperties: {
-          [PROP.status]: "registered",
-          // Spread, so a task registered without a title carries no empty key.
-          ...(title ? { [PROP.title]: title } : {}),
-          /*
-           * Which output columns are declared meaningless, keyed by the FULL
-           * dataset URN so a reader can look it up with the URN it already has.
-           *
-           * Written at registration and never again: `registerTask` refuses a
-           * re-registration whose lineage differs, and the immutability rule
-           * below extends that to this. An exclusion list that could change
-           * between runs would make two recorded fingerprints of one table
-           * incomparable, which reads as a change nobody made.
-           */
-          ...(volatile && Object.keys(volatile).length > 0
-            ? {
-                [PROP.volatile]: JSON.stringify(
-                  Object.fromEntries(
-                    Object.entries(volatile).map(([table, columns]) => [
-                      datasetUrn(table),
-                      [...columns].sort(),
-                    ]),
+        /*
+         * What the record already held, then what this declaration restates.
+         *
+         * The merge is `registration.ts`, and it is here rather than inline
+         * because it is the difference between a re-declared task keeping its
+         * fingerprints and losing them. The declared half below is unchanged.
+         */
+        customProperties: registrationProperties(
+          existingEntity?.dataJobInfo?.value.customProperties,
+          {
+            [PROP.status]: "registered",
+            // Spread, so a task registered without a title carries no empty key.
+            ...(title ? { [PROP.title]: title } : {}),
+            /*
+             * Which output columns are declared meaningless, keyed by the FULL
+             * dataset URN so a reader can look it up with the URN it already has.
+             *
+             * Written at the first registration that declares them and never
+             * rewritten: the immutability check above refuses a re-registration
+             * that names a different set. An exclusion list that could change
+             * between runs would make two recorded fingerprints of one table
+             * incomparable, which reads as a change nobody made.
+             */
+            ...(volatile && Object.keys(volatile).length > 0
+              ? {
+                  [PROP.volatile]: JSON.stringify(
+                    Object.fromEntries(
+                      Object.entries(volatile).map(([table, columns]) => [
+                        datasetUrn(table),
+                        [...columns].sort(),
+                      ]),
+                    ),
                   ),
-                ),
-              }
-            : {}),
-          // What the MCP client declared itself to be, when the registration
-          // came through that door. Spread like `title`, so a task registered by
-          // anything else carries no empty key.
-          ...(client ? { [PROP.clientRegistered]: clientProperty(client) ?? "" } : {}),
-        },
+                }
+              : {}),
+            // What the MCP client declared itself to be, when the registration
+            // came through that door. Spread like `title`, so a task registered by
+            // anything else carries no empty key.
+            ...(client ? { [PROP.clientRegistered]: clientProperty(client) ?? "" } : {}),
+          },
+        ),
       },
     },
     dataJobInputOutput: {
@@ -372,7 +432,7 @@ export async function registerTask(
     );
   });
 
-  return written;
+  return { task: written, alreadyRegistered: false };
 }
 
 /**

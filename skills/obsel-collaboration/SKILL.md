@@ -74,9 +74,10 @@ will never reach you.
 
 **Registering is a declaration, not a way to start a run.** If you register again
 with the same name and the same lineage, obsel returns the existing task with
-`alreadyRegistered: true` and changes nothing. This is deliberate: re-registering
-would clear the recorded fingerprints, and your next completion would then look like
-a first version and mark nothing downstream. To run again, go to step 3.
+`alreadyRegistered: true` and changes nothing. Re-declaring a task with a lineage
+that genuinely differs does write, and obsel carries the recorded fingerprints onto
+the new declaration rather than dropping them, so your next completion still has a
+version to be compared against. To run again, go to step 3.
 
 ### 3. Announce before you write anything
 

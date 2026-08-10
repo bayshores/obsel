@@ -201,18 +201,15 @@ def build_server(obsel_url: str = OBSEL_URL) -> Any:
 
         Registering is a one-time declaration, not a way to start a run. If a
         task with this name and exactly this lineage already exists, this returns
-        it with `alreadyRegistered: true` and changes nothing -- re-registering
-        would clear the recorded fingerprints, and the next completion would then
-        look like a first version and mark nothing downstream. To run again,
-        call `announce_start` and then `report_complete`.
+        it with `alreadyRegistered: true` and changes nothing. To run again, call
+        `announce_start` and then `report_complete`.
 
         A consequence worth knowing: since nothing is written when the task
         already exists, `title` and `description` take effect on the FIRST
         registration only, and a later call carrying a new title returns the
-        existing task unchanged. That is the right trade -- both are cosmetic and
-        neither enters the staleness decision, while the fingerprints the guard
-        protects are the entire basis of it -- but it does mean there is no way to
-        rename a task through this tool.
+        existing task unchanged. Both are cosmetic and neither enters the
+        staleness decision, but it does mean there is no way to rename a task
+        through this tool.
 
         Args:
             name: a code identifier for this task, e.g. "clean_orders_job".
@@ -280,7 +277,13 @@ def build_server(obsel_url: str = OBSEL_URL) -> Any:
             raise mcp_core.ObselReplyError(
                 f"obsel's reply to registering {name!r} carries no task urn: {reply!r:.300}"
             )
-        return {"task": reply, "alreadyRegistered": False}
+        # obsel's own door keeps this rule now too, and says so in its reply. It
+        # sees more than the board read above does -- the title and the volatile
+        # list, not only the lineage -- so its answer is the one reported, and
+        # the marker is lifted out of the record rather than left inside it,
+        # where it would sit next to a wrapper contradicting it.
+        task, already = mcp_core.split_already_registered(reply)
+        return {"task": task, "alreadyRegistered": already}
 
     @server.tool()
     def announce_start(taskUrn: str, ctx: Context) -> dict[str, Any]:

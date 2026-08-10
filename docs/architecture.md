@@ -941,9 +941,19 @@ shapes are not sampled there.
 
 ### `POST /api/tasks/register`
 
-Declare a task, what it will touch, and optionally its job in one sentence. Idempotent in the
-sense that re-registering resets the task to `registered` with no run state; it does not preserve
-fingerprints, so it is not the way to re-run a task.
+Declare a task, what it will touch, and optionally its job in one sentence. Not the way to re-run a
+task: to run again, announce a start and report a completion.
+
+Re-declaring a task that already exists never costs it its recorded fingerprints. If the
+declaration is the one already on file — same reads, same writes, same volatile list, same title
+and description — obsel writes nothing at all and answers with the existing record and
+`alreadyRegistered: true`. If it genuinely differs, the new declaration is written and the recorded
+evidence is carried onto the new aspect: the fingerprints, `finishedAt`, the previous and observed
+fingerprints, the run detail, the status and any stale mark. Both rules are
+[`src/server/datahub/registration.ts`](../src/server/datahub/registration.ts), and both exist
+because the OpenAPI v3 upsert replaces the whole aspect: a registration built from the declaration
+alone erased the baseline of a task that had already finished, and its next completion then
+compared against nothing and reported a real change as a first run.
 
 ```jsonc
 // request: SHORT dataset names; description optional, ≤300 chars
@@ -956,8 +966,10 @@ fingerprints, so it is not the way to re-run a task.
 ```
 
 ```jsonc
-// 200: a TaskRecord, with the URNs the server built
+// 200: a TaskRecord, with the URNs the server built, and one field beside it
+// saying whether this request wrote anything
 {
+  "alreadyRegistered": false,
   "urn": "urn:li:dataJob:(urn:li:dataFlow:(obsel,orders_pipeline,prod),build_revenue)",
   "name": "build_revenue",
   "description": "totals the clean orders into one revenue row per day",
