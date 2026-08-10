@@ -480,6 +480,37 @@ describe("key lifecycle", () => {
     );
   });
 
+  it("rejects a retired key's answer to a challenge issued after it retired", () => {
+    /*
+     * The nonce is issued by obsel, so a record carrying it cannot have been
+     * signed before obsel handed it out. A holder of a retired private key can
+     * still write any `at` they like into the payload, and backdating it to
+     * before the retirement is the obvious move. The challenge is the one
+     * timestamp in the record the signer did not choose, so the retirement
+     * check reads the later of the two.
+     */
+    const keys = [
+      registeredKey({
+        notBefore: "2026-01-01T00:00:00.000Z",
+        status: { state: "retired", at: "2026-06-01T00:00:00.000Z" },
+      }),
+    ];
+    const challenges = [
+      challenge({
+        nonce: "n-today",
+        issuedAt: "2026-08-10T12:00:00.000Z",
+        expiresAt: "2026-08-10T12:15:00.000Z",
+      }),
+    ];
+    const envelope = sign(record({ at: "2026-05-01T00:00:00.000Z", nonce: "n-today" }));
+    const result = verifyAttestation(
+      envelope,
+      context({ keys, challenges, now: "2026-08-10T12:01:00.000Z" }),
+    );
+    expect(result.ok).toBe(false);
+    expect(failureKinds(result)).toContain("key-retired-before-signing");
+  });
+
   it("rejects everything a compromised key ever signed, however old", () => {
     /*
      * The asymmetry that matters. A compromise report says somebody else may

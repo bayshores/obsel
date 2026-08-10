@@ -26,7 +26,9 @@
  *
  * The last one is the only defence against a record signed long ago and held.
  * Without it, an attestor could sign "absent" the day the key was issued and
- * hand it over whenever asked.
+ * hand it over whenever asked. It is also the only timestamp in a record that
+ * the signer did not choose, so the retirement check in `keyUsable` reads it
+ * rather than trusting the record's self-declared `at`.
  */
 
 import { createPublicKey, sign as cryptoSign, verify as cryptoVerify } from "node:crypto";
@@ -318,7 +320,8 @@ export function verifyAttestation(
   }
   if (!signatureValid) failures.push({ kind: "bad-signature", keyId: keyid });
 
-  failures.push(...keyUsable(key, record.at, context.now));
+  const challenge = context.challenges.find((entry) => entry.nonce === record.nonce);
+  failures.push(...keyUsable(key, record.at, context.now, challenge?.issuedAt));
 
   if (record.attestor !== key.attestor) {
     failures.push({
@@ -332,7 +335,7 @@ export function verifyAttestation(
     failures.push({ kind: "out-of-scope", attestor: key.attestor, asset: record.asset });
   }
 
-  failures.push(...challengeUsable(record, context));
+  failures.push(...challengeUsable(record, challenge, context.now));
 
   if (failures.length > 0) return { ok: false, failures };
 
@@ -479,8 +482,20 @@ function isStringArray(value: unknown): boolean {
  * work stands because retirement says only that it is no longer in use; a
  * compromised key's past work does not, because the report says somebody else
  * may have had it, and there is no honest way to say for how long.
+ *
+ * `signedAt` is the signer's own word, and a holder of a retired private key
+ * can write any date into it. `challengeIssuedAt` is not: obsel issued that
+ * nonce, and a record carrying it was signed no earlier than the moment it was
+ * handed out. So the retirement check reads the later of the two, and only the
+ * retirement check — `notBefore` and the dated-in-the-future refusal are about
+ * what the record claims about itself, and a nonce says nothing about either.
  */
-function keyUsable(key: RegisteredKey, signedAt: string, now: string): VerificationFailure[] {
+function keyUsable(
+  key: RegisteredKey,
+  signedAt: string,
+  now: string,
+  challengeIssuedAt?: string,
+): VerificationFailure[] {
   const failures: VerificationFailure[] = [];
   const signed = Date.parse(signedAt);
   const valid = Date.parse(key.notBefore);
@@ -505,7 +520,10 @@ function keyUsable(key: RegisteredKey, signedAt: string, now: string): Verificat
 
   if (key.status.state === "compromised") {
     failures.push({ kind: "key-compromised", keyId: key.keyId, at: key.status.at });
-  } else if (key.status.state === "retired" && signed > Date.parse(key.status.at)) {
+  } else if (
+    key.status.state === "retired" &&
+    earliestSigning(signed, challengeIssuedAt) > Date.parse(key.status.at)
+  ) {
     failures.push({
       kind: "key-retired-before-signing",
       keyId: key.keyId,
@@ -516,17 +534,30 @@ function keyUsable(key: RegisteredKey, signedAt: string, now: string): Verificat
   return failures;
 }
 
+/**
+ * The earliest moment the signature can have been made, in epoch milliseconds.
+ *
+ * A record cannot embed a nonce that did not exist yet, so an issue time later
+ * than the record's own `at` is the honest one. An unparseable or missing
+ * issue time falls back to `at`: the challenge checks below refuse that record
+ * on their own, and guessing here would be a second opinion about it.
+ */
+function earliestSigning(signed: number, challengeIssuedAt?: string): number {
+  const issued = challengeIssuedAt === undefined ? NaN : Date.parse(challengeIssuedAt);
+  return Number.isNaN(issued) ? signed : Math.max(signed, issued);
+}
+
 function challengeUsable(
   record: SignedRecord,
-  context: VerificationContext,
+  challenge: Challenge | undefined,
+  now: string,
 ): VerificationFailure[] {
-  const challenge = context.challenges.find((entry) => entry.nonce === record.nonce);
   if (!challenge) {
     return [{ kind: "unknown-challenge", nonce: String(record.nonce) }];
   }
   const failures: VerificationFailure[] = [];
   if (challenge.consumed) failures.push({ kind: "challenge-replayed", nonce: challenge.nonce });
-  if (Date.parse(context.now) > Date.parse(challenge.expiresAt)) {
+  if (Date.parse(now) > Date.parse(challenge.expiresAt)) {
     failures.push({
       kind: "challenge-expired",
       nonce: challenge.nonce,

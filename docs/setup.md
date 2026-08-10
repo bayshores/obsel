@@ -407,7 +407,8 @@ openssl genpkey -algorithm ed25519 -out attestor.key && openssl pkey -in attesto
 ```
 
 To retire a key, set `"status": {"state": "retired", "at": "<iso>"}`: its past signatures still
-stand. To report one compromised, set `"status": {"state": "compromised", "at": "<iso>"}`: every
+stand, and it can no longer answer a challenge issued after that date, whatever date the record
+gives itself. To report one compromised, set `"status": {"state": "compromised", "at": "<iso>"}`: every
 signature it ever made falls, and any asset it covered goes back to unattested on the next read.
 Both take effect when obsel restarts, because the registry is read at startup.
 

@@ -1307,7 +1307,11 @@ and obsel's challenge was fresh, unexpired and never used before.
   stand, because retirement says only that a key is out of use and dropping its work would punish
   good hygiene. A compromised key's signatures all fall, whenever they were made, because the report
   says somebody else may have held it and there is no honest way to say for how long. Same shape as
-  RETRACTED against SUPERSEDED in the kernel.
+  RETRACTED against SUPERSEDED in the kernel. What retirement does stop is a new answer: the
+  retirement check reads the later of the record's `at` and the issue time of the challenge the
+  record quotes, since `at` is the signer's own word and the nonce is obsel's. A holder of a retired
+  private key who backdates `at` to before the retirement date is still refused with
+  `key-retired-before-signing`, covered by a unit case in `tests/attestation.test.ts`.
 - **Key compromise is not a write, and nothing else in obsel would notice it.** Every other way
   coverage is lost happens because somebody touched data. `invalidatedByKeys` is what takes back
   attestations after a compromise report, including for a key deleted from the registry rather than
@@ -5675,9 +5679,11 @@ every bundle: they are read after the fact by definition. `at` is inside the sig
 cannot be moved without breaking the signature, and the question the check then answers is whether
 the record was signed inside the window obsel opened. The script adds the lower bound of that window
 itself, because `verifyAttestation` checks only the upper one; on a live server a record cannot
-predate the nonce it quotes, and in a file it can. That matters beyond tidiness: `at` is what
-`keyUsable` compares against a key's retirement date, so a record backdated far enough is a retired
-key's signature standing again.
+predate the nonce it quotes, and in a file it can. The lower bound reports that as its own failure
+rather than letting a backdated `at` pass as an ordinary record. It is no longer the only thing
+standing between a backdated record and a retired key: `keyUsable` now takes the retirement check
+against the later of `at` and the challenge's `issuedAt`, so a record quoting a nonce obsel minted
+after the retirement is refused wherever it is read.
 
 Exit 0 means every record verified and the recomputed answer matches the one obsel recorded, asset
 by asset. Exit 1 means it does not check out, naming each record and each failure kind. Exit 2 means
