@@ -38,12 +38,22 @@ describe("the report's stated limits", () => {
     }
   });
 
-  it("names the two things a reader cannot infer from the counts", () => {
+  it("names the three things a reader cannot infer from the counts", () => {
     const all = ASSURANCE_LIMITS.join(" ").toLowerCase();
     // What the walk covered, and who did the attesting. A report whose caveats
     // dropped either one would leave its numbers reading as a statement about
     // an estate obsel never saw, or as a measurement obsel never took.
     expect(all).toContain("lineage");
     expect(all).toContain("no warehouse credentials");
+    /*
+     * And where the version beside each asset came from. obsel learns of a write
+     * only when somebody attests to it, so an asset written since its last
+     * attestation keeps being reported at the older, attested version. A reader
+     * quoting the counts onward cannot tell that from the numbers, and the tab
+     * does not render these sentences, so the payload is the only place it can
+     * be said.
+     */
+    expect(all).toContain("latest attestation names");
+    expect(all).toContain("nobody attested to");
   });
 });

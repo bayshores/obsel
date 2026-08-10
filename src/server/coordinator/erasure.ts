@@ -871,10 +871,19 @@ export function summarize(coverage: Coverage[]): {
  *
  * These travel in the report's JSON because the counts beside them are the part
  * a reader quotes onward, and "22 of 23 covered" reads as a statement about an
- * estate unless something says what it was measured over. Both sentences are
- * already committed to in `docs/erasure-coverage.md` under "What the rule does
- * not catch"; this is the same claim, carried where the numbers go rather than
- * in a document the numbers can outrun.
+ * estate unless something says what it was measured over. All three sentences
+ * are already committed to in `docs/erasure-coverage.md`, the first two under
+ * "What the rule does not catch" and the third under the self-rebuild section's
+ * "What this does not fix"; these are the same claims, carried where the numbers
+ * go rather than in a document the numbers can outrun.
+ *
+ * The third one is the least obvious and the easiest to drop. The version beside
+ * each asset is the one its latest attestation names, because `currentVersion`
+ * in `erasure-engine.ts` is derived from the ledger and obsel subscribes to
+ * nothing: a warehouse write no attestor reports moves no version here, so the
+ * asset keeps being reported at the older version somebody did attest to. That
+ * is the opposite of what a reader assumes a version column means, and neither
+ * the counts nor the dashboard says otherwise.
  *
  * Fixed text, never computed from the run. They describe the shape of the
  * method, so a report that varied them would be describing something other than
@@ -886,7 +895,7 @@ export function summarize(coverage: Coverage[]): {
  * without either reaching into a module that holds DataHub credentials.
  *
  * The vocabulary table is enforced on these by `tests/erasure-limits.test.ts`,
- * which is why neither sentence says "proof", "proven" or "complete".
+ * which is why no sentence here says "proof", "proven" or "complete".
  */
 export const ASSURANCE_LIMITS: readonly string[] = [
   "coverage is computed over the lineage DataHub records, as of this walk. An export, " +
@@ -895,4 +904,8 @@ export const ASSURANCE_LIMITS: readonly string[] = [
   "an attestation is a signed claim by a named attestor, not a measurement obsel took. obsel " +
     "holds no warehouse credentials and reads no warehouse data, so it cannot itself establish " +
     "that a subject is absent from any asset.",
+  "the version reported for an asset is the version its latest attestation names, which is that " +
+    "attestor's claim and not something obsel observed. obsel learns of a write only when " +
+    "somebody attests to it, so a warehouse write nobody attested to leaves the asset reported " +
+    "as attested absent over the earlier version until a newer attestation arrives.",
 ];

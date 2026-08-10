@@ -222,6 +222,14 @@ describe("one erasure request, from opening to covered and back", () => {
     for (const limit of limits) {
       expect(/\b(proof|proven|proves|complete|completely)\b/i.test(limit), limit).toBe(false);
     }
+    /*
+     * Including the sentence about where the version beside each asset came
+     * from, added 2026-08-10. The route derives that version from the ledger, so
+     * an asset written since its last attestation is served at the older,
+     * attested version. A consumer reading the counts learns that only if this
+     * sentence rides in the same object.
+     */
+    expect(limits.join(" ")).toContain("latest attestation names");
   }, 300_000);
 
   it("refuses a second open under the same id, and leaves the first record as it was", async () => {

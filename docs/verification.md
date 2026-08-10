@@ -5725,11 +5725,20 @@ each failure kind. Exit 2 means the file could not be read or is not a bundle, w
 bundle with no `request.seeds` list, counted in the header ahead of every record.
 
 **What it does not establish.** It cannot show that anybody looked in a table. obsel holds no
-warehouse credentials and reads no warehouse data; the script prints both of `ASSURANCE_LIMITS`
-under every run rather than leaving them in a document. A record signed on a machine whose clock is
+warehouse credentials and reads no warehouse data; the script prints all three of
+`ASSURANCE_LIMITS` under every run rather than leaving them in a document. A record signed on a machine whose clock is
 behind obsel's fails the lower-bound check by however far the two disagree, and no tolerance is
 allowed for it because a tolerance is a number nobody can justify; both timestamps are printed so a
 reader can tell skew from a moved date.
+
+**The third sentence, added 2026-08-10.** `ASSURANCE_LIMITS` now also states that the version
+reported for an asset is the version its latest attestation names, an attestor's claim rather than
+something obsel observed, so a warehouse write nobody attested to leaves the asset reported at the
+earlier version. obsel subscribes to nothing and `POST /api/datasets/observe` feeds the staleness
+half only, so nothing else in the payload would have told a reader that. `tests/erasure-limits.test.ts`
+pins the sentence and was run here, failing first for its absence. The matching assertion added to
+`tests/live/erasure.live.test.ts`, that the sentence reaches an API consumer on the real route, has
+not been run.
 
 **`examples/erasure-evidence/bundle.json` is a real capture**, not a hand-written shape. One request
 opened through the real HTTP API against the live quickstart DataHub, two challenges issued, two
@@ -5935,7 +5944,8 @@ things, which is the asymmetry `keyUsable` encodes, and a reader can now produce
 themselves in about four seconds.
 
 **What the page cannot establish**, printed under every run from `ASSURANCE_LIMITS` exactly as the
-CLI prints it: that anybody looked in a table, and that an uncatalogued export exists. It also cannot
+CLI prints it: that anybody looked in a table, that an uncatalogued export exists, and that the
+version each asset is reported at is still the version standing in the warehouse. It also cannot
 establish that the bundle came from a real DataHub — that claim rests on the live capture recorded
 above, not on anything the page does.
 
