@@ -6241,8 +6241,9 @@ clean itself. After the change, 645 unit tests pass, 4 more than the 641 before.
 in the same block: the reader of the sibling table that did come back identical still clears, so this
 is a narrower refusal rather than a refusal to restore anything.
 
-**Not run.** The live half, "keeps the flag on the reader of the table that moved while clearing the
-other" in `tests/live/engine.live.test.ts`, is written and has not been executed. It registers a
+**Run 2026-08-10.** The live half, "keeps the flag on the reader of the table that moved while
+clearing the other" in `tests/live/engine.live.test.ts`, passed in the merged tree's full live run;
+the closing entry below carries that run's numbers. It registers a
 branch of its own on datasets nothing else in that file touches, so it cannot alter any existing
 cascade there. What it adds over the unit tests is the ordering against real DataHub: that the mark
 written for the moved table is still readable, tag included, after the clear half of the same
@@ -6289,8 +6290,8 @@ refusal.
 
 `pnpm verify` on the change: green, **645 unit tests across 36 files**, python self-checks and
 build included. The end-to-end refusal over HTTP is written as a live case in
-`tests/live/erasure.live.test.ts` and has not been run — the audit session had no live stack, and
-`docs/coverage.md` carries it under "Not covered" until somebody runs `pnpm test:live`.
+`tests/live/erasure.live.test.ts`, and passed 2026-08-10 in the merged tree's full live run; the
+closing entry below carries that run's numbers.
 
 ## 2026-08-10 — The attestation ledger's 25-record ceiling, and the write that overwrote past it
 
@@ -6367,8 +6368,8 @@ makes. Against the old reservation the case named "leaves the head where it was"
 `expected 2 to be 1` — the head had moved with nothing written at 2. All six pass after the change.
 `tests/live/ledger-gap.live.test.ts` was added for the part only a real board shows, on a flow id
 unique to the run: reserve, write, reserve and abandon, reserve again, write, then forget the cache
-and read the history back out of DataHub. **It has not been run**, because DataHub was out of bounds
-for this pass.
+and read the history back out of DataHub. **Run 2026-08-10**: it passed in the merged tree's full
+live run, recorded in the closing entry below.
 
 The `SEED_CEILING` comment stated its own consequence backwards, saying a gap costs visibility of
 the older records. It costs the newer ones. Rewritten, and the rewrite was wrong in its own way
@@ -6421,10 +6422,10 @@ read returned nothing, and the sentence carries the id, the opened time and the 
 earlier record stands. Written first and seen failing against the unguarded code
 (`refuseReopen is not a function`), then passing. `pnpm verify` is green on this worktree.
 
-**Not run here.** The end-to-end case is a new test in `tests/live/erasure.live.test.ts` — a second
-`POST /api/erasure` under the request the suite already opened, asserting 409 and that
-`readLedgerRecord` returns the same body and the same `at` afterwards. It needs DataHub, which this
-work was not permitted to touch, so it is unrun.
+**Run 2026-08-10.** The end-to-end case is a new test in `tests/live/erasure.live.test.ts` — a
+second `POST /api/erasure` under the request the suite already opened, asserting 409 and that
+`readLedgerRecord` returns the same body and the same `at` afterwards. It passed in the merged
+tree's full live run, recorded in the closing entry below.
 
 ## 2026-08-10 — a failed ledger read can no longer answer "this request does not exist"
 
@@ -6615,12 +6616,12 @@ decision did not exist. They now assert that an unconfirmed raise still produces
 carrying the urn, that `changeBody` writes it and `closableIncidents` names it, that a confirmed
 raise records the same entry, and that a skipped raise records nothing. `pnpm verify` green.
 
-**Not executed.** `tests/live/incidents.live.test.ts` gained "a raise whose confirmation cannot
+**Run 2026-08-10.** `tests/live/incidents.live.test.ts` gained "a raise whose confirmation cannot
 complete": a real HTTP forwarder on port 3122 in front of the real GMS, passing every request
 through except `GET /openapi/v3/entity/incident/*`, which it answers 503. The raise then returns a
 urn reported unconfirmed, the incident reads `ACTIVE` against the real GMS on that urn, and the
-test resolves it. This has not been run: it needs the live stack. The measured raise and resolve
-figures above are unaffected, but they predate this change and were not retaken.
+test resolves it. It passed in the merged tree's full live run, recorded in the closing entry
+below. The measured raise and resolve figures above predate this change and were not retaken.
 
 ## 2026-08-10 — The route list is read off the filesystem instead of guessed at
 
@@ -6645,7 +6646,7 @@ up as a failure rather than as an empty method list.
 `/api/datasets/observe` was added to `MUTATIONS` in `tests/live/task-auth.live.test.ts`. The
 route composes `mutationRoute` and has been gated all along, so nothing is open; what was
 missing is the guard that would catch a future ungating of it, and that route can raise stale
-marks across the board. **Unrun here:** the live suite was not executed for this change.
+marks across the board. **Run 2026-08-10:** the full live suite passed on the merged tree, this guard included.
 
 ## 2026-08-10 — The erasure board reports a failed read where the colors are
 
@@ -6706,3 +6707,29 @@ second serves a read that answers nothing for thirty seconds rather than one tha
 because a failing read can answer between the re-open and the assertion, and the test would
 then be passing on the failure having landed rather than on nothing being held. The fixture
 flag that holds a read open, `"hang"` in `e2e/fixtures/mount.ts`, is unexecuted with it.
+
+## 2026-08-10 — The audit's merge, and the full runs behind it
+
+Every entry above dated 2026-08-10 was written in an isolated worktree and cherry-picked onto the
+main branch one commit at a time, `pnpm verify` after each pick, all green. Three further commits
+were made at merge time, each for a defect only the merged tree could show: the joining-panel
+browser check still asserted the replacement text the audit removed; the seed check's first live
+run refused a swarm-produced table (the entity read 404s while the graph holds its edges — the
+check now accepts either signal); and the live helper's `stop` returned while Next 16's worker
+still held the port, so a restart's readiness probe could be answered by the old server's corpse.
+
+The merged tree's own runs, all on this commit's code:
+
+- `pnpm verify` green: 748 unit tests passed and 26 conditionally skipped, 50 files; 249 python
+  self-checks; typecheck, lint, formatting, build.
+- `pnpm e2e`: 301 passed, 1 skipped, both viewports.
+- `pnpm test:live`: 189 tests across 17 files, one run, all green, against the real DataHub with
+  one real Codex and one real Claude Code session. This run is the first execution of every live
+  test the audit added.
+- `node scripts/verify-erasure-evidence.mjs examples/erasure-evidence/bundle.json`: exit 0, the
+  recomputed answer matching the recorded one.
+
+Still unexecuted, named rather than implied: the hosted verifier page has no browser spec, so the
+page's clear-before-verify ordering rests on the shared implementation and the unit-run site
+tests; and the live check that `GET /api/erasure/<id>` answers 500 while GMS is unreachable exists
+nowhere yet.
