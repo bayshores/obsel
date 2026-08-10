@@ -185,7 +185,7 @@ const CARDS = {
       },
       {
         anchor: "headline",
-        bleed: 12,
+        bleed: 4,
         at: { x: 736, w: 740 },
         text: "obsel's answer for the whole board, held against the lineage DataHub recorded",
       },
@@ -657,19 +657,80 @@ function spotlight(card, shots) {
 function legend(card, shots) {
   const shot = shots[card.shot];
   const placed = place(shot, { x: 178, y: 176, w: 1180, h: 620 });
-  const marks = card.steps
-    .map((step, i) => {
-      const rect = shot.rect(step.anchor);
-      const on = placed.onCard(rect);
-      return (
-        spot(shot, placed, rect) +
-        // Outside the rectangle's top-right corner, never over it: a marker
-        // centered on a graph node is larger than the node and hides the thing
-        // it is pointing at.
-        `<div class="pin" style="left:${on.x + on.w + 6}px;top:${on.y - 24}px">${i + 1}</div>`
-      );
-    })
+  const rects = card.steps.map((step) => placed.onCard(shot.rect(step.anchor)));
+
+  /*
+   * Where each marker goes, decided rather than fixed.
+   *
+   * A marker pinned to one corner of its own rectangle is fine until two
+   * rectangles sit side by side, and then it lands on its neighbour's box, or
+   * off the edge of the screenshot, and points at the wrong thing. So each one
+   * tries the eight places around its rectangle and takes the first that stays
+   * inside the shot, clear of every other named rectangle, and clear of the
+   * markers already placed.
+   */
+  const R = 19;
+  const GAP = 9;
+  const hits = (a, b, pad = 4) =>
+    a.x < b.x + b.w + pad &&
+    a.x + a.w + pad > b.x &&
+    a.y < b.y + b.h + pad &&
+    a.y + a.h + pad > b.y;
+  const inside = (a) =>
+    a.x >= placed.box.x + 2 &&
+    a.y >= placed.box.y + 2 &&
+    a.x + a.w <= placed.box.x + placed.box.w - 2 &&
+    a.y + a.h <= placed.box.y + placed.box.h - 2;
+
+  const pins = [];
+  rects.forEach((rect, i) => {
+    const cx = rect.x + rect.w / 2;
+    const cy = rect.y + rect.h / 2;
+    /*
+     * Away from the nearest other rectangle, not from all of them averaged.
+     * Averaging put the marker for the left of two adjacent cells on its right
+     * side, because the mean of everything else sat far to the left across the
+     * graph, and the pair then read swapped.
+     */
+    const near = rects
+      .filter((_, j) => j !== i)
+      .map((o) => ({ x: o.x + o.w / 2, y: o.y + o.h / 2 }))
+      .sort((a, b) => Math.hypot(a.x - cx, a.y - cy) - Math.hypot(b.x - cx, b.y - cy))[0] ?? {
+      x: cx,
+      y: cy,
+    };
+    const away = (at) => Math.hypot(at.x + R - near.x, at.y + R - near.y);
+    const candidates = [
+      { x: rect.x + rect.w + GAP, y: rect.y - R * 2 - GAP },
+      { x: rect.x - R * 2 - GAP, y: rect.y - R * 2 - GAP },
+      { x: rect.x + rect.w + GAP, y: rect.y + rect.h + GAP },
+      { x: rect.x - R * 2 - GAP, y: rect.y + rect.h + GAP },
+      { x: cx - R, y: rect.y - R * 2 - GAP },
+      { x: cx - R, y: rect.y + rect.h + GAP },
+      { x: rect.x + rect.w + GAP, y: cy - R },
+      { x: rect.x - R * 2 - GAP, y: cy - R },
+    ]
+      .map((at) => ({ ...at, w: R * 2, h: R * 2 }))
+      /*
+       * Outward first. Two cells side by side both have a free corner facing
+       * their neighbour, and taking it puts each marker nearer the other one's
+       * box than its own, so the numbers read swapped.
+       */
+      .sort((a, b) => away(b) - away(a));
+    const free = candidates.find(
+      (at) =>
+        inside(at) &&
+        rects.every((other, j) => j === i || !hits(at, other)) &&
+        pins.every((other) => !hits(at, other)),
+    );
+    pins.push(free ?? candidates[0]);
+  });
+
+  const lit = rects.map((rect, i) => spot(shot, placed, shot.rect(card.steps[i].anchor))).join("");
+  const markers = pins
+    .map((at, i) => `<div class="pin" style="left:${at.x}px;top:${at.y}px">${i + 1}</div>`)
     .join("");
+
   const gap = 24;
   const w = (CARD.w - 120 - gap * (card.steps.length - 1)) / card.steps.length;
   const items = card.steps
@@ -686,7 +747,8 @@ function legend(card, shots) {
     ${head(card, 56)}
     ${placed.html}
     <div class="veil" style="left:${placed.box.x}px;top:${placed.box.y}px;width:${placed.box.w}px;height:${placed.box.h}px"></div>
-    ${marks}
+    ${lit}
+    ${markers}
     ${items}`;
 }
 
@@ -746,35 +808,48 @@ function pair(card, shots) {
 function diff(card, shots) {
   const gap = 44;
   const w = (CARD.w - 120 - gap) / 2;
-  const panels = card.shots
-    .map((name, i) => {
-      const x = 60 + i * (w + gap);
-      const shot = shots[name];
-      const panel = card.panels[i];
-      const view = panel.anchor
-        ? crop(shot, shot.rect(panel.anchor), {
-            x,
-            y: 250,
-            w,
-            h: 560,
-            bleed: 0,
-            className: "crop plain",
-            maxZoom: 1.6,
-          })
-        : place(shot, { x, y: 250, w, h: 560, className: "window plain" });
-      return `
+  const views = card.shots.map((name, i) => {
+    const shot = shots[name];
+    const panel = card.panels[i];
+    const x = 60 + i * (w + gap);
+    const view = panel.anchor
+      ? crop(shot, shot.rect(panel.anchor), {
+          x,
+          y: 250,
+          w,
+          h: 560,
+          bleed: 0,
+          className: "crop plain",
+          maxZoom: 1.6,
+        })
+      : place(shot, { x, y: 250, w, h: 560, className: "window plain" });
+    return { x, panel, view };
+  });
+
+  const panels = views
+    .map(
+      ({ x, panel, view }) => `
         <p class="label" style="left:${x}px;top:214px;width:${w}px">${esc(panel.label)}</p>
         ${view.html}
-        <p class="caption" style="left:${x}px;top:846px;width:${w}px">${esc(panel.text)}</p>`;
-    })
+        <p class="caption" style="left:${x}px;top:846px;width:${w}px">${esc(panel.text)}</p>`,
+    )
     .join("");
-  const mid = CARD.w / 2;
+
+  /*
+   * The arrow is placed from the two panels rather than from the card. The
+   * panels are cropped to whatever rectangle each recording measured, so their
+   * heights are not known until they are built, and an arrow at a fixed height
+   * sat off-center against them.
+   */
+  const [left, right] = views.map(({ view }) => view.box);
+  const cx = (left.x + left.w + right.x) / 2;
+  const cy = (left.y + left.h / 2 + (right.y + right.h / 2)) / 2;
   return `
     ${head(card, 72)}
     ${panels}
     <svg>
-      <path d="M ${mid - 16} 520 L ${mid + 16} 520" />
-      <path d="M ${mid + 5} 511 L ${mid + 16} 520 L ${mid + 5} 529" />
+      <path d="M ${cx - 17} ${cy} L ${cx + 17} ${cy}" />
+      <path d="M ${cx + 6} ${cy - 9} L ${cx + 17} ${cy} L ${cx + 6} ${cy + 9}" />
     </svg>`;
 }
 
