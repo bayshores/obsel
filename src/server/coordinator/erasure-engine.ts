@@ -17,7 +17,7 @@ import "server-only";
  * same rule the staleness half already keeps.
  */
 
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 
 import { readLineageDownstream } from "@/src/server/datahub/client";
 import {
@@ -259,6 +259,132 @@ export async function submitAttestation(
 /** The current answer for a request, derived from the ledger every time. */
 export async function erasureStatus(requestId: string): Promise<ErasureReport> {
   return await buildReport(await readRequest(requestId));
+}
+
+/**
+ * Everything an outside party needs to re-derive this request's answer without
+ * obsel, without DataHub, and without trusting either.
+ *
+ * The report obsel serves is a claim by obsel. `buildReport` above stamps
+ * `signatureVerified: true` on every ledger record it reads, because the record
+ * only got into the ledger by passing `verifyAttestation` once — see
+ * `attestationOf`, which says so rather than implying it. A reader who wants
+ * that boundary checked rather than asserted has to redo the arithmetic on the
+ * bytes, and this is what they need to do it: the envelopes as they were signed,
+ * the registry obsel was told to trust, the challenges obsel issued, and the
+ * lineage the closure check was made against.
+ *
+ * `report` carries obsel's own answer alongside the evidence, so the two can be
+ * compared rather than merely coexisting. `scripts/verify-erasure-evidence.mjs`
+ * recomputes coverage from the evidence fields only and reports any asset where
+ * the two disagree. The claim is read BEFORE the evidence, deliberately: an
+ * attestation landing between the two reads leaves the bundle carrying more
+ * evidence than the claim was built from, which the verifier reports as a
+ * disagreement. That is a false alarm, and a false alarm is the direction this
+ * race is allowed to fail in.
+ *
+ * **The subject's identifiers are not in here, and one part of them cannot be
+ * taken out.** `request.identifiers` is replaced by SHA-256 digests, which is
+ * everything the kernel's predicate check needs — it asks only whether each
+ * identifier the request covers was searched for, which is set membership and
+ * survives digesting. What obsel cannot redact is the `predicate` inside a
+ * direct attestation: those bytes are what the attestor signed, and changing
+ * them destroys the signature this bundle exists to have checked. So a bundle is
+ * evidence handed to a named recipient, not a publication, which is why the
+ * route serving it is gated.
+ */
+export interface EvidenceBundle {
+  formatVersion: 1;
+  capturedAt: string;
+  request: Omit<ErasureRequest, "identifiers"> & {
+    /** SHA-256 hex of each subject identifier, sorted. Never the identifiers. */
+    identifierDigests: string[];
+  };
+  reachable: string[];
+  upstreamOf: Record<string, string[]>;
+  /** Public material only: the registry as `attestation.ts` reads it. */
+  keys: RegisteredKey[];
+  /** Every challenge answered by a record below, as it was issued. */
+  challenges: Challenge[];
+  attestations: {
+    asset: string;
+    /** Position in this asset's append-only ledger, from 1. */
+    sequence: number;
+    at: string;
+    body: { envelope: Envelope; keyId: string; nonce: string };
+  }[];
+  /** obsel's own answer, to be compared against a recomputation, never used as one. */
+  report: {
+    summary: ErasureReport["summary"];
+    coverage: { asset: string; version: string; state: string }[];
+    attestationsDroppedForKeys: ErasureReport["assurance"]["attestationsDroppedForKeys"];
+  };
+}
+
+export async function erasureEvidence(requestId: string): Promise<EvidenceBundle> {
+  const request = await readRequest(requestId);
+  const report = await buildReport(request);
+  const reach = await readLineageDownstream(request.seeds, request.hops);
+
+  const attestations: EvidenceBundle["attestations"] = [];
+  const challenges: Challenge[] = [];
+  const answered = new Set<string>();
+
+  for (const asset of reach.reachable) {
+    const records = await readAttestationsFor(request.request, asset);
+    for (const [index, record] of records.entries()) {
+      const body = JSON.parse(record.body) as EvidenceBundle["attestations"][number]["body"];
+      attestations.push({ asset, sequence: index + 1, at: record.at, body });
+
+      // Read by a URN derived from the nonce the record carries, never searched
+      // for. A challenge a lagging index failed to return would read to the
+      // verifier as `unknown-challenge`, which is indistinguishable from an
+      // attestation answering a question obsel never asked.
+      if (answered.has(body.nonce)) continue;
+      answered.add(body.nonce);
+      const issued = await readLedgerRecord(ledgerUrn("challenge", body.nonce));
+      if (issued) challenges.push(JSON.parse(issued.body) as Challenge);
+    }
+  }
+
+  return {
+    formatVersion: 1,
+    capturedAt: new Date().toISOString(),
+    request: {
+      request: request.request,
+      seeds: request.seeds,
+      hops: request.hops,
+      openedAt: request.openedAt,
+      identifierDigests: request.identifiers
+        .map((identifier) => createHash("sha256").update(identifier, "utf8").digest("hex"))
+        .sort(),
+    },
+    reachable: reach.reachable,
+    upstreamOf: reach.upstreamOf,
+    // Projected field by field rather than passed through. `OBSEL_ATTESTOR_KEYS`
+    // is an operator's file and may carry whatever else that operator put in it;
+    // a registry with a private key beside the public one would otherwise be
+    // copied verbatim into a bundle meant to be handed to somebody.
+    keys: (await attestorKeys()).map((key) => ({
+      keyId: key.keyId,
+      attestor: key.attestor,
+      publicKeyPem: key.publicKeyPem,
+      notBefore: key.notBefore,
+      status: key.status,
+      scope: key.scope,
+    })),
+    challenges,
+    attestations,
+    report: {
+      summary: report.summary,
+      coverage: report.coverage.map((row) => ({
+        asset: row.asset,
+        version: row.version,
+        state: row.state,
+      })),
+      attestationsDroppedForKeys: report.assurance.attestationsDroppedForKeys,
+    },
+  };
 }
 
 /**

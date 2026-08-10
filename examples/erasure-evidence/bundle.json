@@ -1,0 +1,282 @@
+{
+  "formatVersion": 1,
+  "capturedAt": "2026-08-10T01:50:03.302Z",
+  "request": {
+    "request": "dsr-20260810-erasure-evidence",
+    "seeds": [
+      "urn:li:dataset:(urn:li:dataPlatform:snowflake,b2fd91.order_entry_db.order_entry.customers,PROD)"
+    ],
+    "hops": 2,
+    "openedAt": "2026-08-10T01:49:57.091Z",
+    "identifierDigests": ["29bde5ff12e3c93ed899b0e66f5f0759298f43ebf6bd6ff3b1e1b9d6ee485961"]
+  },
+  "reachable": [
+    "urn:li:dataset:(urn:li:dataPlatform:dbt,b2fd91.ORDER_ENTRY_DB.analytics.order_details,PROD)",
+    "urn:li:dataset:(urn:li:dataPlatform:dbt,b2fd91.ORDER_ENTRY_DB.analytics.order_history,PROD)",
+    "urn:li:dataset:(urn:li:dataPlatform:dbt,b2fd91.order_entry_db.order_entry.customers,PROD)",
+    "urn:li:dataset:(urn:li:dataPlatform:looker,b2fd91.order-entry-looker.view.order_details,PROD)",
+    "urn:li:dataset:(urn:li:dataPlatform:powerbi,b2fd91.datahub_order_entries.Customer_Analytics_Measures,PROD)",
+    "urn:li:dataset:(urn:li:dataPlatform:powerbi,b2fd91.datahub_order_entries.Essential_KPI_Measures,PROD)",
+    "urn:li:dataset:(urn:li:dataPlatform:powerbi,b2fd91.datahub_order_entries.Geographic_Measures,PROD)",
+    "urn:li:dataset:(urn:li:dataPlatform:powerbi,b2fd91.datahub_order_entries.ORDER_DETAILS,PROD)",
+    "urn:li:dataset:(urn:li:dataPlatform:powerbi,b2fd91.datahub_order_entries.Product_Perfromance_Measures,PROD)",
+    "urn:li:dataset:(urn:li:dataPlatform:powerbi,b2fd91.datahub_order_entries.Time_Inteligence_Measures,PROD)",
+    "urn:li:dataset:(urn:li:dataPlatform:snowflake,b2fd91.order_entry_db.analytics.order_details,PROD)",
+    "urn:li:dataset:(urn:li:dataPlatform:snowflake,b2fd91.order_entry_db.analytics.order_details_replica,PROD)",
+    "urn:li:dataset:(urn:li:dataPlatform:snowflake,b2fd91.order_entry_db.analytics.order_history,PROD)",
+    "urn:li:dataset:(urn:li:dataPlatform:snowflake,b2fd91.order_entry_db.order_entry.customers,PROD)",
+    "urn:li:dataset:(urn:li:dataPlatform:tableau,b2fd91.37fcfb15-34ae-973a-5ae3-cf63691d48e3,PROD)",
+    "urn:li:dataset:(urn:li:dataPlatform:tableau,b2fd91.4a3af1dd-fd0c-7077-d5fd-aa2fdf87cb23,PROD)",
+    "urn:li:dataset:(urn:li:dataPlatform:tableau,b2fd91.8bfe7483-1c9a-a0e1-ec84-57207dd37a15,PROD)",
+    "urn:li:dataset:(urn:li:dataPlatform:tableau,b2fd91.f32082e5-06b8-f46e-9047-4611fffe66b0,PROD)"
+  ],
+  "upstreamOf": {
+    "urn:li:dataset:(urn:li:dataPlatform:dbt,b2fd91.ORDER_ENTRY_DB.analytics.order_details,PROD)": [
+      "urn:li:dataset:(urn:li:dataPlatform:dbt,b2fd91.order_entry_db.order_entry.addresses,PROD)",
+      "urn:li:dataset:(urn:li:dataPlatform:dbt,b2fd91.order_entry_db.order_entry.countries,PROD)",
+      "urn:li:dataset:(urn:li:dataPlatform:dbt,b2fd91.order_entry_db.order_entry.customers,PROD)",
+      "urn:li:dataset:(urn:li:dataPlatform:dbt,b2fd91.order_entry_db.order_entry.inventories,PROD)",
+      "urn:li:dataset:(urn:li:dataPlatform:dbt,b2fd91.order_entry_db.order_entry.order_items,PROD)",
+      "urn:li:dataset:(urn:li:dataPlatform:dbt,b2fd91.order_entry_db.order_entry.orders,PROD)",
+      "urn:li:dataset:(urn:li:dataPlatform:dbt,b2fd91.order_entry_db.order_entry.product_categories,PROD)",
+      "urn:li:dataset:(urn:li:dataPlatform:dbt,b2fd91.order_entry_db.order_entry.products,PROD)",
+      "urn:li:dataset:(urn:li:dataPlatform:dbt,b2fd91.order_entry_db.order_entry.promotions,PROD)",
+      "urn:li:dataset:(urn:li:dataPlatform:dbt,b2fd91.order_entry_db.order_entry.regions,PROD)",
+      "urn:li:dataset:(urn:li:dataPlatform:dbt,b2fd91.order_entry_db.order_entry.warehouses,PROD)"
+    ],
+    "urn:li:dataset:(urn:li:dataPlatform:dbt,b2fd91.ORDER_ENTRY_DB.analytics.order_history,PROD)": [
+      "urn:li:dataset:(urn:li:dataPlatform:snowflake,b2fd91.order_entry_db.analytics.order_details,PROD)"
+    ],
+    "urn:li:dataset:(urn:li:dataPlatform:dbt,b2fd91.order_entry_db.order_entry.customers,PROD)": [
+      "urn:li:dataset:(urn:li:dataPlatform:snowflake,b2fd91.order_entry_db.order_entry.customers,PROD)"
+    ],
+    "urn:li:dataset:(urn:li:dataPlatform:looker,b2fd91.order-entry-looker.view.order_details,PROD)": [
+      "urn:li:dataset:(urn:li:dataPlatform:snowflake,b2fd91.order_entry_db.analytics.order_details,PROD)"
+    ],
+    "urn:li:dataset:(urn:li:dataPlatform:powerbi,b2fd91.datahub_order_entries.Customer_Analytics_Measures,PROD)": [
+      "urn:li:dataset:(urn:li:dataPlatform:snowflake,b2fd91.order_entry_db.analytics.order_details,PROD)"
+    ],
+    "urn:li:dataset:(urn:li:dataPlatform:powerbi,b2fd91.datahub_order_entries.Essential_KPI_Measures,PROD)": [
+      "urn:li:dataset:(urn:li:dataPlatform:snowflake,b2fd91.order_entry_db.analytics.order_details,PROD)"
+    ],
+    "urn:li:dataset:(urn:li:dataPlatform:powerbi,b2fd91.datahub_order_entries.Geographic_Measures,PROD)": [
+      "urn:li:dataset:(urn:li:dataPlatform:snowflake,b2fd91.order_entry_db.analytics.order_details,PROD)"
+    ],
+    "urn:li:dataset:(urn:li:dataPlatform:powerbi,b2fd91.datahub_order_entries.ORDER_DETAILS,PROD)": [
+      "urn:li:dataset:(urn:li:dataPlatform:snowflake,b2fd91.order_entry_db.analytics.order_details,PROD)"
+    ],
+    "urn:li:dataset:(urn:li:dataPlatform:powerbi,b2fd91.datahub_order_entries.Product_Perfromance_Measures,PROD)": [
+      "urn:li:dataset:(urn:li:dataPlatform:snowflake,b2fd91.order_entry_db.analytics.order_details,PROD)"
+    ],
+    "urn:li:dataset:(urn:li:dataPlatform:powerbi,b2fd91.datahub_order_entries.Time_Inteligence_Measures,PROD)": [
+      "urn:li:dataset:(urn:li:dataPlatform:snowflake,b2fd91.order_entry_db.analytics.order_details,PROD)"
+    ],
+    "urn:li:dataset:(urn:li:dataPlatform:snowflake,b2fd91.order_entry_db.analytics.order_details,PROD)": [
+      "urn:li:dataset:(urn:li:dataPlatform:dbt,b2fd91.ORDER_ENTRY_DB.analytics.order_details,PROD)",
+      "urn:li:dataset:(urn:li:dataPlatform:snowflake,b2fd91.order_entry_db.order_entry.addresses,PROD)",
+      "urn:li:dataset:(urn:li:dataPlatform:snowflake,b2fd91.order_entry_db.order_entry.countries,PROD)",
+      "urn:li:dataset:(urn:li:dataPlatform:snowflake,b2fd91.order_entry_db.order_entry.customers,PROD)",
+      "urn:li:dataset:(urn:li:dataPlatform:snowflake,b2fd91.order_entry_db.order_entry.inventories,PROD)",
+      "urn:li:dataset:(urn:li:dataPlatform:snowflake,b2fd91.order_entry_db.order_entry.order_items,PROD)",
+      "urn:li:dataset:(urn:li:dataPlatform:snowflake,b2fd91.order_entry_db.order_entry.orders,PROD)",
+      "urn:li:dataset:(urn:li:dataPlatform:snowflake,b2fd91.order_entry_db.order_entry.product_categories,PROD)",
+      "urn:li:dataset:(urn:li:dataPlatform:snowflake,b2fd91.order_entry_db.order_entry.products,PROD)",
+      "urn:li:dataset:(urn:li:dataPlatform:snowflake,b2fd91.order_entry_db.order_entry.promotions,PROD)",
+      "urn:li:dataset:(urn:li:dataPlatform:snowflake,b2fd91.order_entry_db.order_entry.regions,PROD)",
+      "urn:li:dataset:(urn:li:dataPlatform:snowflake,b2fd91.order_entry_db.order_entry.warehouses,PROD)"
+    ],
+    "urn:li:dataset:(urn:li:dataPlatform:snowflake,b2fd91.order_entry_db.analytics.order_details_replica,PROD)": [
+      "urn:li:dataset:(urn:li:dataPlatform:snowflake,b2fd91.order_entry_db.analytics.order_details,PROD)"
+    ],
+    "urn:li:dataset:(urn:li:dataPlatform:snowflake,b2fd91.order_entry_db.analytics.order_history,PROD)": [
+      "urn:li:dataset:(urn:li:dataPlatform:dbt,b2fd91.ORDER_ENTRY_DB.analytics.order_history,PROD)",
+      "urn:li:dataset:(urn:li:dataPlatform:snowflake,b2fd91.order_entry_db.analytics.order_details,PROD)",
+      "urn:li:dataset:(urn:li:dataPlatform:snowflake,b2fd91.order_entry_db.analytics.order_history,PROD)"
+    ],
+    "urn:li:dataset:(urn:li:dataPlatform:snowflake,b2fd91.order_entry_db.order_entry.customers,PROD)": [],
+    "urn:li:dataset:(urn:li:dataPlatform:tableau,b2fd91.37fcfb15-34ae-973a-5ae3-cf63691d48e3,PROD)": [
+      "urn:li:dataset:(urn:li:dataPlatform:snowflake,b2fd91.order_entry_db.analytics.order_details,PROD)"
+    ],
+    "urn:li:dataset:(urn:li:dataPlatform:tableau,b2fd91.4a3af1dd-fd0c-7077-d5fd-aa2fdf87cb23,PROD)": [
+      "urn:li:dataset:(urn:li:dataPlatform:snowflake,b2fd91.order_entry_db.analytics.order_details,PROD)"
+    ],
+    "urn:li:dataset:(urn:li:dataPlatform:tableau,b2fd91.8bfe7483-1c9a-a0e1-ec84-57207dd37a15,PROD)": [
+      "urn:li:dataset:(urn:li:dataPlatform:snowflake,b2fd91.order_entry_db.analytics.order_details,PROD)"
+    ],
+    "urn:li:dataset:(urn:li:dataPlatform:tableau,b2fd91.f32082e5-06b8-f46e-9047-4611fffe66b0,PROD)": [
+      "urn:li:dataset:(urn:li:dataPlatform:snowflake,b2fd91.order_entry_db.analytics.order_details,PROD)"
+    ]
+  },
+  "keys": [
+    {
+      "keyId": "warehouse-adapter-2026-08",
+      "attestor": "warehouse-adapter@order-entry",
+      "publicKeyPem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEADdWHuc1fvk+wnllNF+22elrpSh2rYbojKUy4Adv/gxc=\n-----END PUBLIC KEY-----\n",
+      "notBefore": "2026-07-01T00:00:00.000Z",
+      "status": {
+        "state": "active"
+      },
+      "scope": [
+        "urn:li:dataset:(urn:li:dataPlatform:snowflake,b2fd91.*",
+        "urn:li:dataset:(urn:li:dataPlatform:dbt,b2fd91.*"
+      ]
+    }
+  ],
+  "challenges": [
+    {
+      "asset": "urn:li:dataset:(urn:li:dataPlatform:dbt,b2fd91.order_entry_db.order_entry.customers,PROD)",
+      "expiresAt": "2026-08-10T02:05:00.898Z",
+      "issuedAt": "2026-08-10T01:50:00.898Z",
+      "nonce": "1f599772-1156-4431-8872-816f696ac481",
+      "request": "dsr-20260810-erasure-evidence"
+    },
+    {
+      "asset": "urn:li:dataset:(urn:li:dataPlatform:snowflake,b2fd91.order_entry_db.order_entry.customers,PROD)",
+      "expiresAt": "2026-08-10T02:04:58.440Z",
+      "issuedAt": "2026-08-10T01:49:58.440Z",
+      "nonce": "dea04132-5f10-43d0-a678-bbe649cf1758",
+      "request": "dsr-20260810-erasure-evidence"
+    }
+  ],
+  "attestations": [
+    {
+      "asset": "urn:li:dataset:(urn:li:dataPlatform:dbt,b2fd91.order_entry_db.order_entry.customers,PROD)",
+      "sequence": 1,
+      "at": "2026-08-10T01:50:01.058Z",
+      "body": {
+        "envelope": {
+          "payload": "eyJhc3NldCI6InVybjpsaTpkYXRhc2V0Oih1cm46bGk6ZGF0YVBsYXRmb3JtOmRidCxiMmZkOTEub3JkZXJfZW50cnlfZGIub3JkZXJfZW50cnkuY3VzdG9tZXJzLFBST0QpIiwiYXQiOiIyMDI2LTA4LTEwVDAxOjUwOjAxLjA1OFoiLCJhdHRlc3RvciI6IndhcmVob3VzZS1hZGFwdGVyQG9yZGVyLWVudHJ5IiwiaW5wdXRzIjpbeyJhc3NldCI6InVybjpsaTpkYXRhc2V0Oih1cm46bGk6ZGF0YVBsYXRmb3JtOnNub3dmbGFrZSxiMmZkOTEub3JkZXJfZW50cnlfZGIub3JkZXJfZW50cnkuY3VzdG9tZXJzLFBST0QpIiwidmVyc2lvbiI6InNuYXBzaG90LTIwMjYwODEwLTEifV0sImtpbmQiOiJyZWJ1aWxkIiwibWF0ZXJpYWxpemF0aW9uIjoiZnVsbCIsIm5vbmNlIjoiMWY1OTk3NzItMTE1Ni00NDMxLTg4NzItODE2ZjY5NmFjNDgxIiwicmVxdWVzdCI6ImRzci0yMDI2MDgxMC1lcmFzdXJlLWV2aWRlbmNlIiwic2lnbmF0dXJlVmVyaWZpZWQiOmZhbHNlLCJzb2xlUHJvZHVjZXIiOnRydWUsInZlcnNpb24iOiJkYnQtcnVuLTIwMjYwODEwIn0=",
+          "payloadType": "application/vnd.obsel.attestation+json",
+          "signatures": [
+            {
+              "keyid": "warehouse-adapter-2026-08",
+              "sig": "rc0r486cNCC9UrJ1UM0lp+ZUfUCXyXZ5JflUo6SRLJa6VtJPaq8qwXn2faX6KpHhBiur8utc1ZmIQamgm3NwBg=="
+            }
+          ]
+        },
+        "keyId": "warehouse-adapter-2026-08",
+        "nonce": "1f599772-1156-4431-8872-816f696ac481"
+      }
+    },
+    {
+      "asset": "urn:li:dataset:(urn:li:dataPlatform:snowflake,b2fd91.order_entry_db.order_entry.customers,PROD)",
+      "sequence": 1,
+      "at": "2026-08-10T01:49:59.126Z",
+      "body": {
+        "envelope": {
+          "payload": "eyJhc3NldCI6InVybjpsaTpkYXRhc2V0Oih1cm46bGk6ZGF0YVBsYXRmb3JtOnNub3dmbGFrZSxiMmZkOTEub3JkZXJfZW50cnlfZGIub3JkZXJfZW50cnkuY3VzdG9tZXJzLFBST0QpIiwiYXQiOiIyMDI2LTA4LTEwVDAxOjQ5OjU5LjEyNloiLCJhdHRlc3RvciI6IndhcmVob3VzZS1hZGFwdGVyQG9yZGVyLWVudHJ5Iiwia2luZCI6ImRpcmVjdCIsIm5vbmNlIjoiZGVhMDQxMzItNWYxMC00M2QwLWE2NzgtYmJlNjQ5Y2YxNzU4IiwicHJlZGljYXRlIjp7ImNvbHVtbnMiOlsiY3VzdG9tZXJfaWQiLCJlbWFpbCJdLCJleHByZXNzaW9uIjoiY3VzdG9tZXJfaWQgPSAnY3VzdF84ODIxMyciLCJpZGVudGlmaWVycyI6WyJjdXN0Xzg4MjEzIl19LCJyZXF1ZXN0IjoiZHNyLTIwMjYwODEwLWVyYXN1cmUtZXZpZGVuY2UiLCJyZXN1bHQiOiJhYnNlbnQiLCJzY29wZSI6eyJraW5kIjoid2hvbGUifSwic2lnbmF0dXJlVmVyaWZpZWQiOmZhbHNlLCJ2ZXJzaW9uIjoic25hcHNob3QtMjAyNjA4MTAtMSJ9",
+          "payloadType": "application/vnd.obsel.attestation+json",
+          "signatures": [
+            {
+              "keyid": "warehouse-adapter-2026-08",
+              "sig": "T8YUfombX4fv1/uij08RgcJVQeMGE5TrYNt/LsmJp8dB8aFwKHUPd4nbSVrjlniIagk9uBZ+PYlJ8F8tR/NdCw=="
+            }
+          ]
+        },
+        "keyId": "warehouse-adapter-2026-08",
+        "nonce": "dea04132-5f10-43d0-a678-bbe649cf1758"
+      }
+    }
+  ],
+  "report": {
+    "summary": {
+      "total": 18,
+      "attested": 2,
+      "unproven": 16,
+      "contradicted": 0
+    },
+    "coverage": [
+      {
+        "asset": "urn:li:dataset:(urn:li:dataPlatform:dbt,b2fd91.ORDER_ENTRY_DB.analytics.order_details,PROD)",
+        "version": "unknown",
+        "state": "UNPROVEN"
+      },
+      {
+        "asset": "urn:li:dataset:(urn:li:dataPlatform:dbt,b2fd91.ORDER_ENTRY_DB.analytics.order_history,PROD)",
+        "version": "unknown",
+        "state": "UNPROVEN"
+      },
+      {
+        "asset": "urn:li:dataset:(urn:li:dataPlatform:dbt,b2fd91.order_entry_db.order_entry.customers,PROD)",
+        "version": "dbt-run-20260810",
+        "state": "ATTESTED"
+      },
+      {
+        "asset": "urn:li:dataset:(urn:li:dataPlatform:looker,b2fd91.order-entry-looker.view.order_details,PROD)",
+        "version": "unknown",
+        "state": "UNPROVEN"
+      },
+      {
+        "asset": "urn:li:dataset:(urn:li:dataPlatform:powerbi,b2fd91.datahub_order_entries.Customer_Analytics_Measures,PROD)",
+        "version": "unknown",
+        "state": "UNPROVEN"
+      },
+      {
+        "asset": "urn:li:dataset:(urn:li:dataPlatform:powerbi,b2fd91.datahub_order_entries.Essential_KPI_Measures,PROD)",
+        "version": "unknown",
+        "state": "UNPROVEN"
+      },
+      {
+        "asset": "urn:li:dataset:(urn:li:dataPlatform:powerbi,b2fd91.datahub_order_entries.Geographic_Measures,PROD)",
+        "version": "unknown",
+        "state": "UNPROVEN"
+      },
+      {
+        "asset": "urn:li:dataset:(urn:li:dataPlatform:powerbi,b2fd91.datahub_order_entries.ORDER_DETAILS,PROD)",
+        "version": "unknown",
+        "state": "UNPROVEN"
+      },
+      {
+        "asset": "urn:li:dataset:(urn:li:dataPlatform:powerbi,b2fd91.datahub_order_entries.Product_Perfromance_Measures,PROD)",
+        "version": "unknown",
+        "state": "UNPROVEN"
+      },
+      {
+        "asset": "urn:li:dataset:(urn:li:dataPlatform:powerbi,b2fd91.datahub_order_entries.Time_Inteligence_Measures,PROD)",
+        "version": "unknown",
+        "state": "UNPROVEN"
+      },
+      {
+        "asset": "urn:li:dataset:(urn:li:dataPlatform:snowflake,b2fd91.order_entry_db.analytics.order_details,PROD)",
+        "version": "unknown",
+        "state": "UNPROVEN"
+      },
+      {
+        "asset": "urn:li:dataset:(urn:li:dataPlatform:snowflake,b2fd91.order_entry_db.analytics.order_details_replica,PROD)",
+        "version": "unknown",
+        "state": "UNPROVEN"
+      },
+      {
+        "asset": "urn:li:dataset:(urn:li:dataPlatform:snowflake,b2fd91.order_entry_db.analytics.order_history,PROD)",
+        "version": "unknown",
+        "state": "UNPROVEN"
+      },
+      {
+        "asset": "urn:li:dataset:(urn:li:dataPlatform:snowflake,b2fd91.order_entry_db.order_entry.customers,PROD)",
+        "version": "snapshot-20260810-1",
+        "state": "ATTESTED"
+      },
+      {
+        "asset": "urn:li:dataset:(urn:li:dataPlatform:tableau,b2fd91.37fcfb15-34ae-973a-5ae3-cf63691d48e3,PROD)",
+        "version": "unknown",
+        "state": "UNPROVEN"
+      },
+      {
+        "asset": "urn:li:dataset:(urn:li:dataPlatform:tableau,b2fd91.4a3af1dd-fd0c-7077-d5fd-aa2fdf87cb23,PROD)",
+        "version": "unknown",
+        "state": "UNPROVEN"
+      },
+      {
+        "asset": "urn:li:dataset:(urn:li:dataPlatform:tableau,b2fd91.8bfe7483-1c9a-a0e1-ec84-57207dd37a15,PROD)",
+        "version": "unknown",
+        "state": "UNPROVEN"
+      },
+      {
+        "asset": "urn:li:dataset:(urn:li:dataPlatform:tableau,b2fd91.f32082e5-06b8-f46e-9047-4611fffe66b0,PROD)",
+        "version": "unknown",
+        "state": "UNPROVEN"
+      }
+    ],
+    "attestationsDroppedForKeys": []
+  }
+}

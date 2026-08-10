@@ -12,7 +12,11 @@
  * `document` records of its own.
  */
 
+import { spawnSync } from "node:child_process";
 import { generateKeyPairSync } from "node:crypto";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
@@ -510,6 +514,114 @@ describe("a compaction that rewrote an asset from its own prior version", () => 
     const after = rowFor(refused.body.report as Record<string, unknown>, CUSTOMERS);
     expect(after?.state).toBe("UNPROVEN");
     expect(after?.explanation).toContain("rewritten from its own version");
+  }, 300_000);
+});
+
+describe("the evidence bundle, checked by a process that is not obsel", () => {
+  /*
+   * The server stamps `signatureVerified: true` on every ledger record it reads
+   * and never redoes the arithmetic — `erasure-engine.ts` says so at
+   * `attestationOf` rather than implying it. So the report obsel serves is
+   * obsel's word, and the only thing that tests that boundary is somebody
+   * outside the process redoing it from the bytes.
+   *
+   * Here that somebody is a bare `node` on `scripts/verify-erasure-evidence.mjs`,
+   * over a bundle this server produced, after every attestation the tests above
+   * really signed and really submitted. No build, no install, no import into the
+   * test's own process.
+   */
+  const workspace = mkdtempSync(join(tmpdir(), "obsel-live-evidence-"));
+  const script = new URL("../../scripts/verify-erasure-evidence.mjs", import.meta.url).pathname;
+
+  afterAll(() => {
+    rmSync(workspace, { recursive: true, force: true });
+  });
+
+  function runVerifier(bundle: unknown, name: string): { code: number; stdout: string } {
+    const path = join(workspace, name);
+    writeFileSync(path, JSON.stringify(bundle, null, 2));
+    const run = spawnSync(process.execPath, [script, path], {
+      encoding: "utf8",
+      env: { ...process.env, NODE_OPTIONS: "" },
+    });
+    return { code: run.status ?? -1, stdout: run.stdout ?? "" };
+  }
+
+  it("refuses the bundle to an unauthenticated caller, unlike the report beside it", async () => {
+    /*
+     * The report carries no identifiers because obsel builds it and can leave
+     * them out. A bundle carries DSSE payloads, and a direct attestation's
+     * payload holds the predicate its attestor executed. Those bytes are what
+     * the signature covers, so obsel cannot redact them and still hand over
+     * something checkable.
+     */
+    const open = await fetch(`${server.url}/api/erasure/${REQUEST}/evidence`, {
+      signal: AbortSignal.timeout(60_000),
+    });
+    expect(open.status).toBe(401);
+
+    const gated = await api(`/api/erasure/${REQUEST}/evidence`, { method: "GET" });
+    expect(gated.status).toBe(200);
+  }, 300_000);
+
+  it("verifies, and agrees with the live server asset by asset", async () => {
+    const report = await api(`/api/erasure/${REQUEST}`, { method: "GET" });
+    expect(report.status).toBe(200);
+    const evidence = await api(`/api/erasure/${REQUEST}/evidence`, { method: "GET" });
+    expect(evidence.status).toBe(200);
+
+    const run = runVerifier(evidence.body, "live.json");
+    expect(run.code, run.stdout).toBe(0);
+
+    // Number for number against what the server said, from a process that read
+    // no DataHub and trusted no field of obsel's answer.
+    const summary = report.body.summary as Record<string, number>;
+    const counted =
+      /recomputed\s+(\d+) of (\d+) assets covered, (\d+) unattested, (\d+) contradicted/.exec(
+        run.stdout,
+      );
+    expect(counted, run.stdout).not.toBeNull();
+    expect(counted!.slice(1).map(Number)).toEqual([
+      summary.attested,
+      summary.total,
+      summary.unproven,
+      summary.contradicted,
+    ]);
+
+    /*
+     * And row by row, which is what pins the ten-line `currentVersion` rule the
+     * script restates against `versionOf` in `erasure-engine.ts`. The two live in
+     * different files because one of them is `server-only`; a reading of both is
+     * not evidence that they agree, and this is.
+     */
+    for (const row of report.body.coverage as CoverageRow[]) {
+      expect(run.stdout, `state for ${row.asset}`).toContain(
+        `${row.state.padEnd(12)} ${row.asset}`,
+      );
+      expect(run.stdout, `version for ${row.asset}`).toContain(`version ${row.version}`);
+    }
+  }, 300_000);
+
+  it("refuses the same bundle with one byte of one signed payload moved", async () => {
+    const evidence = await api(`/api/erasure/${REQUEST}/evidence`, { method: "GET" });
+    const bundle = JSON.parse(JSON.stringify(evidence.body)) as {
+      attestations: { body: { envelope: { payload: string } } }[];
+    };
+    expect(bundle.attestations.length).toBeGreaterThan(0);
+
+    // The attestor's name, one letter different. Everything else about the
+    // record is untouched: it still answers its own challenge, still names an
+    // asset the key is scoped for, still parses.
+    const envelope = bundle.attestations[0].body.envelope;
+    const decoded = Buffer.from(envelope.payload, "base64").toString("utf8");
+    envelope.payload = Buffer.from(decoded.replace(ATTESTOR, `${ATTESTOR}x`), "utf8").toString(
+      "base64",
+    );
+
+    const run = runVerifier(bundle, "tampered.json");
+    expect(run.code, run.stdout).not.toBe(0);
+    expect(run.stdout).toContain("bad-signature");
+    expect(run.stdout).toContain("FAILED");
   }, 300_000);
 });
 

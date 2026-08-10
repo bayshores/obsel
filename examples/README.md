@@ -3,6 +3,17 @@
 These files let you judge what obsel produces without standing up DataHub, Docker, or the
 dashboard. Read them in the order below.
 
+**[`erasure-evidence/`](erasure-evidence/) is the other half**, and it is checkable rather than
+readable: one erasure request's signed evidence, captured off a real run, with a zero-dependency
+script that re-runs the signature check and the coverage kernel over it.
+
+```
+node ../scripts/verify-erasure-evidence.mjs erasure-evidence/bundle.json
+```
+
+Everything below this line is the staleness half: one pipeline, one change, and what obsel said
+about it.
+
 ## These came off a real run
 
 Captured on **2026-07-23** from `agents/.venv/bin/python -m agents.run change --capture`, against a
