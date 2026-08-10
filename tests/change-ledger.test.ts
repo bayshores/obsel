@@ -16,7 +16,11 @@
 
 import { describe, expect, it } from "vitest";
 
-import { changeBody, closableIncidents } from "@/src/server/coordinator/change-ledger";
+import {
+  changeBody,
+  closableIncidents,
+  raisedIncidentRecord,
+} from "@/src/server/coordinator/change-ledger";
 import { changeUrn } from "@/src/server/datahub/documents";
 import type { DatasetChange } from "@/src/server/coordinator/staleness";
 import type { AffectedTask, StaleMark, TaskRecord } from "@/src/server/coordinator/types";
@@ -239,6 +243,53 @@ describe("what a record carries about the change", () => {
     });
 
     expect(input({ affected: [affected("daily_revenue")] })).not.toHaveProperty("incident");
+  });
+});
+
+describe("an incident whose confirmation did not land", () => {
+  /*
+   * `raiseIncident` mints the URN and returns it; obsel then polls two aspect
+   * reads to confirm the incident is ACTIVE and attached to the table. Those
+   * two reads can fail on a transient non-2xx or a timeout after the incident
+   * already exists in DataHub. The URN is the only handle anything has on it:
+   * `resolveClosedIncidents` and `resolveResetIncidents` both take their
+   * candidates from change records, so a URN that never reaches a record names
+   * an incident that stays ACTIVE and holds the dataset's health at FAIL with
+   * nothing able to close it. An unconfirmed raise is therefore still recorded,
+   * and reported as unconfirmed rather than as a success.
+   */
+  const RAISED = {
+    urn: "urn:li:incident:99999999-8888-7777-6666-555555555555",
+    dataset: ds("clean_orders"),
+    taskUrns: [task("daily_revenue").urn],
+  };
+
+  it("is still recorded, so a later repair can name it", () => {
+    const unconfirmed = raisedIncidentRecord(
+      { urn: RAISED.urn, confirmed: false, unconfirmed: "DataHub write was not confirmed" },
+      RAISED.dataset,
+      RAISED.taskUrns,
+    );
+    expect(unconfirmed).toEqual(RAISED);
+
+    const body = input({
+      affected: [affected("daily_revenue")],
+      incident: unconfirmed ?? undefined,
+    });
+    expect(body?.incident?.urn).toBe(RAISED.urn);
+    expect(closableIncidents([body], () => false)).toEqual([RAISED]);
+  });
+
+  it("records the same entry a confirmed raise does", () => {
+    expect(
+      raisedIncidentRecord({ urn: RAISED.urn, confirmed: true }, RAISED.dataset, RAISED.taskUrns),
+    ).toEqual(RAISED);
+  });
+
+  it("records nothing when there was no raise at all", () => {
+    // The skip trap 4 forces: DataHub has no dataset under that urn, so no
+    // incident exists and there is nothing for a repair to close.
+    expect(raisedIncidentRecord(null, RAISED.dataset, RAISED.taskUrns)).toBeNull();
   });
 });
 

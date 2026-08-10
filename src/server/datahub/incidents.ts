@@ -169,12 +169,26 @@ const UPDATE = `mutation obselResolve($urn: String!, $input: IncidentStatusInput
 }`;
 
 /**
+ * What one raise produced: the URN DataHub minted, and whether obsel confirmed it.
+ *
+ * `confirmed` is false when the mutation returned a URN and the bounded
+ * confirmation below did not complete. `unconfirmed` then carries the reason,
+ * for the caller's traced step.
+ */
+export interface IncidentRaise {
+  urn: string;
+  confirmed: boolean;
+  unconfirmed?: string;
+}
+
+/**
  * Raise one incident on the dataset whose output changed, and confirm it landed.
  *
  * Returns the incident's URN, or null when the target dataset is not in DataHub
- * — the skip that trap 4 forces. Everything else throws; the caller decides what
- * a failure costs, and in `completion.ts` it costs a traced step and nothing
- * more, because the marks are obsel's answer and this is a second copy of it.
+ * — the skip that trap 4 forces. A failure before the mutation throws; the
+ * caller decides what that costs, and in `completion.ts` it costs a traced step
+ * and nothing more, because the marks are obsel's answer and this is a second
+ * copy of it.
  *
  * The confirmation is `confirmWrite` over two aspect reads: the incident itself
  * reading `ACTIVE`, and the incident URN appearing in the TARGET dataset's
@@ -183,6 +197,17 @@ const UPDATE = `mutation obselResolve($urn: String!, $input: IncidentStatusInput
  * summary). The second is not redundant: it is DataHub's own statement that this
  * incident is attached to that table, which is the thing a person opening the
  * dataset will see.
+ *
+ * **A confirmation that does not complete is reported, never thrown, because the
+ * URN must survive it.** By the time either read runs, `raiseIncident` has
+ * already minted an incident that is open on that table, and this URN is the
+ * only handle anything has on it — `resolveClosedIncidents` and
+ * `resolveResetIncidents` take their candidates from change records, and a
+ * record is only written for a URN the caller received. Throwing here left the
+ * incident ACTIVE and the dataset's health at FAIL with nothing in obsel able to
+ * name it again. Both polls stay: the loop is what tells a delay apart from a
+ * failure, and the answer it produces is now `confirmed: false` instead of
+ * nothing at all.
  */
 export async function raiseStaleWorkIncident(input: {
   /** The dataset whose output moved. The incident is raised on this. */
@@ -191,7 +216,7 @@ export async function raiseStaleWorkIncident(input: {
   description: string;
   /** When obsel marked the work, as an ISO instant. */
   startedAt: string;
-}): Promise<string | null> {
+}): Promise<IncidentRaise | null> {
   if (!(await datasetExists(input.dataset))) return null;
 
   const urn = await mutate<string>(
@@ -211,16 +236,24 @@ export async function raiseStaleWorkIncident(input: {
     "raiseIncident",
   );
 
-  await confirmWrite(
-    async () => ((await readIncidentState(urn)) === "ACTIVE" ? urn : null),
-    15_000,
-  );
-  await confirmWrite(
-    async () => ((await activeIncidentsOn(input.dataset)).includes(urn) ? urn : null),
-    15_000,
-  );
+  try {
+    await confirmWrite(
+      async () => ((await readIncidentState(urn)) === "ACTIVE" ? urn : null),
+      15_000,
+    );
+    await confirmWrite(
+      async () => ((await activeIncidentsOn(input.dataset)).includes(urn) ? urn : null),
+      15_000,
+    );
+  } catch (error) {
+    return {
+      urn,
+      confirmed: false,
+      unconfirmed: error instanceof Error ? error.message : "unknown error",
+    };
+  }
 
-  return urn;
+  return { urn, confirmed: true };
 }
 
 /**

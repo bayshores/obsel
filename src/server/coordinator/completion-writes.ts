@@ -26,7 +26,7 @@ import {
   resolveIncident,
 } from "@/src/server/datahub/incidents";
 import { FLOW_ID } from "@/src/server/datahub/urns";
-import { changeBody, closableIncidents } from "./change-ledger";
+import { changeBody, closableIncidents, raisedIncidentRecord } from "./change-ledger";
 import type { ChangeBody, RaisedIncident } from "./change-ledger";
 import {
   compareFingerprints,
@@ -131,6 +131,11 @@ export async function recordChange(input: {
  * completion that had already succeeded and having the agent retry it. That is
  * the same posture as `recordChange` above.
  *
+ * A raise whose confirmation did not land is a different case from a raise that
+ * failed, and it is recorded: DataHub minted the incident, so the record has to
+ * carry its URN or nothing can ever close it. The traced step says it was not
+ * confirmed.
+ *
  * A completion retried after a partial failure can raise a second incident for
  * the same cascade — `raiseIncident` takes no idempotency key and obsel invents
  * none. Both name the same tasks, so the repair that closes one closes the
@@ -151,7 +156,7 @@ export async function raiseCascadeIncident(
     affected.length > listed.length ? `\n… and ${affected.length - listed.length} more` : "";
 
   try {
-    const urn = await raiseStaleWorkIncident({
+    const raise = await raiseStaleWorkIncident({
       dataset,
       title: `${affected.length} finished ${affected.length === 1 ? "task is" : "tasks are"} out of date after ${table} changed`,
       description:
@@ -163,7 +168,7 @@ export async function raiseCascadeIncident(
       startedAt: affected[0].mark.since,
     });
 
-    if (urn === null) {
+    if (raise === null) {
       // The skip trap 4 in `incidents.ts` forces. Traced rather than silent:
       // a table obsel flagged work over, that DataHub has no entity for, is
       // worth someone knowing about.
@@ -171,12 +176,21 @@ export async function raiseCascadeIncident(
       return null;
     }
 
+    const named = `names ${affected.length} flagged task(s)`;
     emit(
       "write",
       `raised a DataHub incident on ${table}`,
-      `names ${affected.length} flagged task(s)`,
+      raise.confirmed
+        ? named
+        : `${named}; obsel could not confirm it within the polling window: ${raise.unconfirmed}`,
     );
-    return { urn, dataset, taskUrns: affected.map((entry) => entry.task.urn) };
+    // Recorded whether or not the confirmation landed. `raisedIncidentRecord`
+    // states why: the URN is the only handle any later resolve has on it.
+    return raisedIncidentRecord(
+      raise,
+      dataset,
+      affected.map((entry) => entry.task.urn),
+    );
   } catch (error) {
     const message = error instanceof Error ? error.message : "unknown error";
     emit("write", `could not raise a DataHub incident on ${table}`, message);

@@ -6574,3 +6574,34 @@ typecheck clean, the Python self-checks green, and `next build` green.
 
 **Unrun:** still no browser test for the hosted page, as the entry above says. The refusal this file
 now returns is asserted through the built core under Node, not in a browser.
+
+## 2026-08-10 — An incident obsel raised but could not confirm is no longer lost
+
+`raiseStaleWorkIncident` returned the incident urn only when both of its bounded confirms
+succeeded. `raiseIncident` mints the incident before either confirm runs, so a transient non-2xx
+or a timeout on `GET /openapi/v3/entity/incident/<urn>` or on the target dataset's
+`incidentsSummary` threw the urn away with the error. `raiseCascadeIncident` caught it, emitted a
+traced step and returned null, so `recordChange` wrote no `incident` block. Both resolve paths take
+their candidates from change records, so that incident stayed `ACTIVE` and the dataset's health
+stayed `FAIL` with nothing in obsel able to name it again, whatever a later repair did.
+
+The raise now returns `{ urn, confirmed }` and reports a confirmation that did not complete as
+`confirmed: false` with the reason, instead of throwing it. Both 15 s polls are unchanged: the loop
+is what tells a propagation delay apart from a failure, and only the answer it produces on failure
+changed. The traced step says the incident was raised and not confirmed. `raisedIncidentRecord` in
+`change-ledger.ts` is the decision, and it is pure: a raise that returned a urn is recorded either
+way, a raise that never happened records nothing. Recording an unconfirmed urn costs nothing in the
+other direction, because every resolve path reads `activeIncidentsOn` before acting.
+
+**Executed.** Three deterministic tests in `tests/change-ledger.test.ts`, written first and run
+first against the old code, where they failed with `raisedIncidentRecord is not a function` — the
+decision did not exist. They now assert that an unconfirmed raise still produces a record entry
+carrying the urn, that `changeBody` writes it and `closableIncidents` names it, that a confirmed
+raise records the same entry, and that a skipped raise records nothing. `pnpm verify` green.
+
+**Not executed.** `tests/live/incidents.live.test.ts` gained "a raise whose confirmation cannot
+complete": a real HTTP forwarder on port 3122 in front of the real GMS, passing every request
+through except `GET /openapi/v3/entity/incident/*`, which it answers 503. The raise then returns a
+urn reported unconfirmed, the incident reads `ACTIVE` against the real GMS on that urn, and the
+test resolves it. This has not been run: it needs the live stack. The measured raise and resolve
+figures above are unaffected, but they predate this change and were not retaken.

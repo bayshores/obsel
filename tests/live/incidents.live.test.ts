@@ -40,6 +40,7 @@ import {
   StdioClientTransport,
   getDefaultEnvironment,
 } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { createServer } from "node:http";
 import { beforeAll, describe, expect, it } from "vitest";
 
 // `obsel-server.ts` imports nothing but `node:child_process`, so it is safe to
@@ -73,6 +74,14 @@ import type { CompletionReport } from "@/src/server/coordinator/types";
 
 /** Not 3095–3099 or 3117–3120: every other live file holds one of those. */
 const PORT = 3121;
+
+/**
+ * The interfering hop's port, held by nothing else in this suite.
+ *
+ * Used by one test, which puts a real forwarder in front of the real GMS to
+ * fail the confirmation reads of a raise that genuinely happened.
+ */
+const PROXY_PORT = 3122;
 
 /** This suite's own namespace, so nothing here can touch the demo's tables. */
 const NS = "obsel_incidents";
@@ -391,25 +400,29 @@ describe("what the two mutations cost, measured", () => {
      * above is untouched.
      */
     const raiseStarted = Date.now();
-    const urn = await raiseStaleWorkIncident({
+    const raise = await raiseStaleWorkIncident({
       dataset: PROBE,
       title: "obsel integration suite: measuring the raise",
       description: "Raised and resolved by tests/live/incidents.live.test.ts. Not a finding.",
       startedAt: new Date().toISOString(),
     });
     const raiseMs = Date.now() - raiseStarted;
-    expect(urn).not.toBeNull();
-    expect(await readIncidentState(urn!)).toBe("ACTIVE");
+    expect(raise).not.toBeNull();
+    // Against a GMS answering normally, both aspect reads land inside the
+    // window, so the raise reports itself confirmed.
+    expect(raise!.confirmed).toBe(true);
+    const urn = raise!.urn;
+    expect(await readIncidentState(urn)).toBe("ACTIVE");
 
     const resolveStarted = Date.now();
     await resolveIncident({
-      urn: urn!,
+      urn,
       dataset: PROBE,
       message: "integration suite cleanup",
     });
     const resolveMs = Date.now() - resolveStarted;
-    expect(await readIncidentState(urn!)).toBe("RESOLVED");
-    expect(await activeIncidentsOn(PROBE)).not.toContain(urn!);
+    expect(await readIncidentState(urn)).toBe("RESOLVED");
+    expect(await activeIncidentsOn(PROBE)).not.toContain(urn);
 
     console.log(
       `[incidents] raise confirmed in ${raiseMs} ms, resolve confirmed in ${resolveMs} ms ` +
@@ -428,6 +441,94 @@ describe("what the two mutations cost, measured", () => {
       }),
     ).rejects.toThrow(/does not exist/i);
   }, 120_000);
+});
+
+describe("a raise whose confirmation cannot complete", () => {
+  /*
+   * The failing sequence behind the fix in `incidents.ts`: `raiseIncident`
+   * returns a real URN, and one of the two aspect reads that confirm it then
+   * fails. Before the fix the URN was thrown away with the error, the caller
+   * wrote no incident into the change record, and no obsel path could ever name
+   * that incident again while it sat ACTIVE on the table.
+   *
+   * The interference is real, not simulated: a forwarder in front of the real
+   * GMS, passing every request through byte for byte except
+   * `GET /openapi/v3/entity/incident/*`, which it answers 503. The mutation and
+   * the dataset reads reach the same DataHub they always do, so the incident
+   * this test creates genuinely exists — and is resolved at the end against the
+   * real GMS, which is also what shows the URN survived.
+   *
+   * Both 15 s polls still run and both are exhausted, so this test costs about
+   * 15 s on its own.
+   */
+  it("returns the urn DataHub minted, reported as unconfirmed", async () => {
+    const upstream = gmsUrl();
+    const proxy = createServer((request, response) => {
+      const path = request.url ?? "/";
+      if (request.method === "GET" && path.startsWith("/openapi/v3/entity/incident/")) {
+        response.writeHead(503, { "Content-Type": "text/plain" });
+        response.end("interference: this hop refuses incident entity reads");
+        return;
+      }
+      const chunks: Buffer[] = [];
+      request.on("data", (chunk: Buffer) => chunks.push(chunk));
+      request.on("end", () => {
+        const headers: Record<string, string> = {};
+        for (const [name, value] of Object.entries(request.headers)) {
+          if (typeof value === "string" && name !== "host") headers[name] = value;
+        }
+        const body = Buffer.concat(chunks);
+        fetch(`${upstream}${path}`, {
+          method: request.method,
+          headers,
+          body: request.method === "GET" || request.method === "HEAD" ? undefined : body,
+        })
+          .then(async (upstreamResponse) => {
+            const text = await upstreamResponse.text();
+            response.writeHead(upstreamResponse.status, {
+              "Content-Type": upstreamResponse.headers.get("content-type") ?? "application/json",
+            });
+            response.end(text);
+          })
+          .catch((cause: unknown) => {
+            response.writeHead(502, { "Content-Type": "text/plain" });
+            response.end(String(cause));
+          });
+      });
+    });
+
+    await new Promise<void>((resolve) => proxy.listen(PROXY_PORT, "127.0.0.1", resolve));
+
+    let raise: Awaited<ReturnType<typeof raiseStaleWorkIncident>> = null;
+    try {
+      process.env.DATAHUB_GMS_URL = `http://127.0.0.1:${PROXY_PORT}`;
+      raise = await raiseStaleWorkIncident({
+        dataset: PROBE,
+        title: "obsel integration suite: a raise nobody could confirm",
+        description: "Raised and resolved by tests/live/incidents.live.test.ts. Not a finding.",
+        startedAt: new Date().toISOString(),
+      });
+    } finally {
+      process.env.DATAHUB_GMS_URL = upstream;
+      await new Promise<void>((resolve) => proxy.close(() => resolve()));
+    }
+
+    expect(raise).not.toBeNull();
+    expect(raise!.confirmed).toBe(false);
+    expect(raise!.unconfirmed).toMatch(/not confirmed/i);
+
+    // Against the real GMS: the incident the interfered-with call created is
+    // open, and the urn it handed back is the one that names it.
+    expect(await readIncidentState(raise!.urn)).toBe("ACTIVE");
+    expect(await activeIncidentsOn(PROBE)).toContain(raise!.urn);
+
+    await resolveIncident({
+      urn: raise!.urn,
+      dataset: PROBE,
+      message: "integration suite cleanup",
+    });
+    expect(await readIncidentState(raise!.urn)).toBe("RESOLVED");
+  }, 300_000);
 });
 
 describe("nothing raises or resolves an incident on request", () => {

@@ -228,6 +228,37 @@ export interface RaisedIncident {
 }
 
 /**
+ * The record entry for a raise, including one whose confirmation did not land.
+ *
+ * **A URN DataHub minted is recorded whether or not obsel could confirm it.**
+ * `raiseIncident` returns the URN of an incident that now exists; the two aspect
+ * reads that follow only establish that it reads ACTIVE and is attached to the
+ * table. Either read can fail on a transient non-2xx or a timeout while the
+ * incident is already open. If the URN is dropped at that point, no obsel path
+ * can ever name it again: `resolveClosedIncidents` and `resolveResetIncidents`
+ * both take their candidates from change records, so the incident stays ACTIVE
+ * and the dataset's health stays FAIL over work that may since have been redone.
+ *
+ * Recording it costs nothing in the other direction. Every resolve path checks
+ * the dataset's own `activeIncidentsOn` before acting, so a recorded URN for an
+ * incident that somehow is not open is simply not a candidate.
+ *
+ * The unconfirmed raise is still reported as unconfirmed by the caller's traced
+ * step. This decides what is written down, not what obsel claims happened.
+ *
+ * Pure, and structurally typed on purpose: `incidents.ts` carries `server-only`,
+ * and this module is reachable from the browser.
+ */
+export function raisedIncidentRecord(
+  raise: { urn: string; confirmed: boolean; unconfirmed?: string } | null,
+  dataset: string,
+  taskUrns: readonly string[],
+): RaisedIncident | null {
+  if (raise === null) return null;
+  return { urn: raise.urn, dataset, taskUrns: [...taskUrns] };
+}
+
+/**
  * Which recorded incidents this board's current marks no longer justify.
  *
  * Pure, and the whole rule: an incident closes when NOT ONE of the tasks it
