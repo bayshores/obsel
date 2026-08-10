@@ -83,6 +83,31 @@ export async function writeLedgerRecord(record: LedgerRecord): Promise<string> {
   const urn = ledgerUrn(record.kind, record.id);
   const now = Date.parse(record.at);
 
+  /*
+   * Append-only, enforced at the write for attestations.
+   *
+   * The OpenAPI v3 write below is an upsert: posting a URN that already holds a
+   * record replaces its `documentInfo` and the earlier record is gone. Every
+   * other guard in this path is on the caller's side of the boundary, so a
+   * caller that computed the wrong sequence number destroyed evidence and was
+   * told the write succeeded. Reading first turns that into a refusal, which is
+   * the direction this failure has to fall: a refused attestation is resubmitted,
+   * an overwritten one is not recoverable.
+   *
+   * Attestations only. `change` records are written from a cached head that
+   * tolerates gaps by design (see `nextChangeSequence`), and `challenge` and
+   * `request` records are keyed by values that are unique on their own.
+   */
+  if (record.kind === "attestation") {
+    const held = await readLedgerRecord(urn);
+    if (held !== null) {
+      throw new DataHubError(
+        `ledger record ${urn} already exists; the evidence ledger is append-only`,
+        409,
+      );
+    }
+  }
+
   const body = [
     {
       urn,
@@ -192,19 +217,54 @@ export async function readLedgerRecord(urn: string): Promise<LedgerRecord | null
  * genuine 404. Sequence numbers keep the ledger append-only: a second
  * attestation about the same asset is a new record beside the first, never a
  * write over it.
+ *
+ * **There is no record ceiling here, and there was.** The walk used to stop at
+ * twenty-five. Two things then went wrong at once on an asset with that many
+ * records, and neither announced itself: `submitAttestation` derives the next
+ * sequence from this read, so a capped read handed back a sequence that was
+ * already taken; and the spent-nonce check reads this list, so a nonce consumed
+ * by a record above the cap read as unconsumed. Twenty-five re-attestations on
+ * one asset is ordinary volume for an estate under compaction. A ceiling on a
+ * count-to-404 walk is a ceiling on what the report can see, so the walk runs
+ * until the ledger genuinely ends.
  */
-export async function readAttestationsFor(
-  request: string,
-  asset: string,
-  limit = 25,
-): Promise<LedgerRecord[]> {
-  const found: LedgerRecord[] = [];
-  for (let sequence = 1; sequence <= limit; sequence += 1) {
-    const record = await readLedgerRecord(attestationUrn(request, asset, sequence));
-    if (record === null) break;
+export async function readAttestationsFor(request: string, asset: string): Promise<LedgerRecord[]> {
+  return await readSequence((sequence) =>
+    readLedgerRecord(attestationUrn(request, asset, sequence)),
+  );
+}
+
+/**
+ * Read a derived-URN sequence from one upward, stopping at the first absence.
+ *
+ * Pure sequence logic over whatever reader it is handed, so the rule it holds —
+ * every present record from one to the end, and nothing invented past the end —
+ * is testable without a network. The walk terminates because each further step
+ * requires the step before it to have found a record, and the ledger is finite.
+ */
+export async function readSequence<T>(read: (sequence: number) => Promise<T | null>): Promise<T[]> {
+  const found: T[] = [];
+  for (let sequence = 1; ; sequence += 1) {
+    const record = await read(sequence);
+    if (record === null) return found;
     found.push(record);
   }
-  return found;
+}
+
+/**
+ * The sequence number the next attestation about this asset lands on.
+ *
+ * Counted to the first genuine 404 rather than taken from a bounded read, and
+ * kept beside the reader so the two cannot disagree about where the ledger ends.
+ * `writeLedgerRecord` refuses an occupied attestation URN, so a wrong answer
+ * here is a refusal rather than an overwrite.
+ */
+export async function nextAttestationSequence(request: string, asset: string): Promise<number> {
+  let sequence = 1;
+  while ((await readLedgerRecord(attestationUrn(request, asset, sequence))) !== null) {
+    sequence += 1;
+  }
+  return sequence;
 }
 
 /**

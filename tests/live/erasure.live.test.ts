@@ -697,6 +697,69 @@ describe("an envelope issued for one request, submitted to another", () => {
   }, 300_000);
 });
 
+describe("an asset with more records than any reader's ceiling", () => {
+  /*
+   * The volume a compacting estate reaches on one table. The attestation walk
+   * used to stop at twenty-five records, and the write position was taken from
+   * the length of that walk, so record 26 was written and record 27 landed on
+   * the same urn and replaced it. The report and the spent-nonce check both read
+   * that walk, so neither could see what had been lost.
+   *
+   * Written straight into the ledger rather than through twenty-six signed
+   * submissions: the subject is the walk and the write, and the signing path
+   * either side of it is covered by the tests above. The asset is a scratch urn
+   * no lineage reaches, so these records are never parsed into a report.
+   */
+  const SCRATCH = `urn:li:dataset:(${SNOWFLAKE},b2fd91.ledger_depth.scratch_${Date.now()},PROD)`;
+
+  it("reads back every record past the former ceiling", async () => {
+    const { attestationUrn, writeLedgerRecord } = await import("@/src/server/datahub/documents");
+
+    for (let sequence = 1; sequence <= 26; sequence += 1) {
+      await writeLedgerRecord({
+        id: attestationUrn(REQUEST, SCRATCH, sequence).split("obsel.attestation.")[1],
+        kind: "attestation",
+        request: REQUEST,
+        at: new Date().toISOString(),
+        body: JSON.stringify({ nonce: `depth-${sequence}` }),
+        assets: [SCRATCH],
+      });
+    }
+
+    const found = await readAttestationsFor(REQUEST, SCRATCH);
+    expect(found.length).toBe(26);
+    // Record 26 specifically: the first one the old ceiling hid, and the one
+    // the next submission used to overwrite.
+    expect(JSON.parse(found[25].body).nonce).toBe("depth-26");
+  }, 300_000);
+
+  it("refuses a second write onto a urn the ledger already holds", async () => {
+    const { attestationUrn, writeLedgerRecord } = await import("@/src/server/datahub/documents");
+    const { DataHubError } = await import("@/src/server/datahub/errors");
+
+    const id = attestationUrn(REQUEST, SCRATCH, 26).split("obsel.attestation.")[1];
+    await expect(
+      writeLedgerRecord({
+        id,
+        kind: "attestation",
+        request: REQUEST,
+        at: new Date().toISOString(),
+        body: JSON.stringify({ nonce: "would-have-overwritten-26" }),
+        assets: [SCRATCH],
+      }),
+    ).rejects.toBeInstanceOf(DataHubError);
+
+    // Refused, and record 26 is the one it always was rather than merely present.
+    const found = await readAttestationsFor(REQUEST, SCRATCH);
+    expect(JSON.parse(found[25].body).nonce).toBe("depth-26");
+  }, 300_000);
+
+  it("lands the next accepted submission above the whole ledger", async () => {
+    const { nextAttestationSequence } = await import("@/src/server/datahub/documents");
+    expect(await nextAttestationSequence(REQUEST, SCRATCH)).toBe(27);
+  }, 300_000);
+});
+
 describe("a key reported compromised takes its coverage back", () => {
   it("returns the asset to unattested, with no data having changed", async () => {
     /*

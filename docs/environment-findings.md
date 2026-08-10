@@ -788,6 +788,16 @@ enumerates attestations by counting up from one until a genuine 404. No search i
 the path that decides coverage. The sequence number is what keeps the ledger append-only: a second
 attestation about one asset is a new record beside the first, never a write over it.
 
+**The write to `/openapi/v3/entity/document` is an upsert, and the sequence number is the only thing
+keeping two records apart.** Posting a URN that already holds a record replaces its `documentInfo`;
+nothing 409s and nothing warns. The attestation walk carried a ceiling of 25 records until
+2026-08-10, and `submitAttestation` took the position of its next write from the length of that walk,
+so on an asset holding 25 records the 26th was written and the 27th landed on the same URN and
+replaced it. The same ceiling blinded the spent-nonce check, which reads the same walk. Both are
+fixed: the walk runs to a genuine 404 with no ceiling, and `writeLedgerRecord` reads an attestation
+URN before writing it and refuses one the ledger already holds. Evidence in `docs/coverage.md`, row
+"more attestations on one asset than a reader's ceiling".
+
 ## 14. `mcp-server-datahub` blocks on telemetry it cannot reach, for two and a half minutes
 
 Measured 2026-07-28. `uvx mcp-server-datahub==0.6.0` POSTs to `track.datahubproject.io` on startup,

@@ -6220,3 +6220,47 @@ refusal.
 build included. The end-to-end refusal over HTTP is written as a live case in
 `tests/live/erasure.live.test.ts` and has not been run — the audit session had no live stack, and
 `docs/coverage.md` carries it under "Not covered" until somebody runs `pnpm test:live`.
+
+## 2026-08-10 — The attestation ledger's 25-record ceiling, and the write that overwrote past it
+
+`readAttestationsFor` walked attestation records from sequence 1 to a default limit of 25, and
+`submitAttestation` took the position of its next write from the length of that walk. The two
+together lost evidence on any asset that reached that many records, which an estate under
+compaction reaches on one table without anything unusual happening.
+
+What the arithmetic did, run against the pre-fix loop body over a ledger holding 40 dense records
+and then over ledgers holding 25 and 26:
+
+```
+records visible to the report and the nonce check: 25 of 40
+write position with 25 records held: 26
+write position with 26 records held: 26
+```
+
+So record 26 was written, record 27 was handed the same URN, and the write to
+`/openapi/v3/entity/document` is an upsert: it replaced record 26's `documentInfo` and answered
+`accepted: true`. The same ceiling hid record 26 from the spent-nonce check in
+`submitAttestation`, so a nonce that record had consumed read as unconsumed and its envelope
+could be replayed.
+
+Three changes, in `src/server/datahub/documents.ts` and `src/server/coordinator/erasure-engine.ts`:
+
+- The attestation walk has no ceiling. It counts to a genuine 404, which is where the ledger
+  actually ends, so every reader that feeds the report or the spent-nonce check sees the whole
+  sequence.
+- `nextAttestationSequence` answers where the next record goes, counted on its own terms rather
+  than taken from the length of whatever a reader returned.
+- `writeLedgerRecord` reads an attestation URN before writing it and refuses one the ledger
+  already holds, with a `DataHubError` at 409. A refused attestation is resubmitted; an
+  overwritten one is not recoverable, so that is the direction this failure has to fall.
+
+Executed: `tests/erasure-ledger-sequence.test.ts`, six checks over the walk itself — all 40 of 40
+records returned, a stop at the first absence rather than a skip past it, the sequence numbers
+asked for in order, and distinct URNs at 25, 26 and 27. Written first and run against the pre-fix
+tree, where it failed. `pnpm verify` green after the change: 647 unit tests across 36 files, the
+python self-checks, and the build.
+
+**Not run.** `tests/live/erasure.live.test.ts` gained three checks that need DataHub: 26 records
+written into the real ledger and read back, a second write onto record 26's URN refused with the
+record left byte-identical, and `nextAttestationSequence` answering 27. They are in the file and
+nobody has executed them.

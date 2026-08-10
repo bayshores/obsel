@@ -23,6 +23,7 @@ import { readLineageDownstream } from "@/src/server/datahub/client";
 import {
   attestationUrn,
   ledgerUrn,
+  nextAttestationSequence,
   readAttestationsFor,
   readLedgerRecord,
   writeLedgerRecord,
@@ -267,8 +268,16 @@ export async function submitAttestation(
       return { accepted: false, failures: result.failures };
     }
 
+    /*
+     * The sequence is counted to the end of the ledger, never taken from the
+     * length of a bounded read. `existing` is unbounded now and would give the
+     * same answer, but tying the write's position to whatever the reader
+     * happened to return is how records 26 and up came to overwrite each other,
+     * so the position is asked for on its own terms.
+     */
+    const sequence = await nextAttestationSequence(requestId, asset);
     await writeLedgerRecord({
-      id: attestationUrn(requestId, asset, existing.length + 1).split("obsel.attestation.")[1],
+      id: attestationUrn(requestId, asset, sequence).split("obsel.attestation.")[1],
       kind: "attestation",
       request: requestId,
       at: result.attestation.at,
