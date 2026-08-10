@@ -6694,6 +6694,12 @@ have stranded a reader on a board with its colors withheld and no way back to th
 board; it is now disabled only before the first report, which is the state its "needs a
 report to be read first" sentence describes.
 
+**What the withheld notice calls the colors it is not using.** It said the board does not fall
+back to "the out-of-date colors", which reads first as colors that are themselves out of date,
+a claim about the board rather than about the work. It now names the staleness coloring and
+says green there means finished work that is still current. `tests/dashboard-erasure-honesty.test.ts`
+pins both halves; the assertion was run red against the old sentence first.
+
 All three are asserted by `tests/dashboard-erasure-honesty.test.ts`, 10 tests, run here and
 passing. The re-open test was run red first against a `showingReport` that dropped nothing:
 it reported the held report where null was expected, which is the defect itself. `pnpm verify`

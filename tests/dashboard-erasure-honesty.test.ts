@@ -187,6 +187,11 @@ describe("what the board is colored by", () => {
     // reader is told what the board is not showing rather than only that
     // something failed.
     expect(reading.notice.toLowerCase()).toContain("green");
+    // The withheld coloring is named by what it means, not by the condition it
+    // marks. "the out-of-date colors" reads first as colors that are themselves
+    // out of date, which is a claim about the board rather than about the work.
+    expect(reading.notice).toContain("the staleness coloring");
+    expect(reading.notice).not.toContain("out-of-date colors");
     expect(reading.notice).not.toContain("—");
     for (const word of ["proven", "proof", "complete"]) {
       expect(reading.notice.toLowerCase()).not.toContain(word);

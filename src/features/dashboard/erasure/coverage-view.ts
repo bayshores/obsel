@@ -101,7 +101,7 @@ export function boardReading(input: {
           : "obsel is reading the erasure report.";
     return {
       kind: "withheld",
-      notice: `${cause} The board is left uncolored rather than falling back to the out-of-date colors, where green means finished work rather than attested absent.`,
+      notice: `${cause} The board is left uncolored rather than falling back to the staleness coloring, where green means finished work that is still current rather than attested absent.`,
     };
   }
   return {
