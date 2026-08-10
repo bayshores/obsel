@@ -17,6 +17,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
 import {
+  SEED_CEILING,
   changeHeadFor,
   forgetChangeHeads,
   nextChangeSequence,
@@ -78,5 +79,32 @@ describe("reserving a sequence number", () => {
     forgetChangeHeads(OTHER);
 
     expect(await changeHeadFor(FLOW)).toBe(9);
+  });
+});
+
+describe("a board that has reached the seeding ceiling", () => {
+  /**
+   * The seeding walk stops at `SEED_CEILING`, so no reader can ever place the
+   * head above it. A sequence handed out from a head at the ceiling therefore
+   * points at a position the next seed will hand out again, and the v3 upsert in
+   * `writeLedgerRecord` overwrites whatever is already there. Refusing is the
+   * only answer that does not destroy a record.
+   */
+  it("refuses to reserve a sequence rather than hand out one that overwrites", async () => {
+    noteChangeWritten(FLOW, SEED_CEILING);
+
+    await expect(nextChangeSequence(FLOW)).rejects.toThrow(String(SEED_CEILING));
+  });
+
+  it("still reports the head, so readers can walk the history that is there", async () => {
+    noteChangeWritten(FLOW, SEED_CEILING);
+
+    expect(await changeHeadFor(FLOW)).toBe(SEED_CEILING);
+  });
+
+  it("reserves normally one position below the ceiling", async () => {
+    noteChangeWritten(FLOW, SEED_CEILING - 1);
+
+    expect(await nextChangeSequence(FLOW)).toBe(SEED_CEILING);
   });
 });

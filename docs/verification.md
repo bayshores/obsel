@@ -6300,4 +6300,34 @@ and read the history back out of DataHub. **It has not been run**, because DataH
 for this pass.
 
 The `SEED_CEILING` comment stated its own consequence backwards, saying a gap costs visibility of
-the older records. It costs the newer ones. Corrected in place.
+the older records. It costs the newer ones. Rewritten, and the rewrite was wrong in its own way
+about where the next write lands. The entry below repairs both the comment and the behavior.
+
+## 2026-08-10 — At the ledger's seeding ceiling, obsel refuses a sequence instead of overwriting
+
+`nextChangeSequence` was `changeHeadFor(flow) + 1` with nothing between them, and `changeHeadFor`'s
+walk stops at `SEED_CEILING`, 2000. On a board with 2000 records the walk therefore seeds the head
+at 2000 and the reservation hands out 2001. The next process seeds 2000 again and hands out 2001
+again, and `writeLedgerRecord` upserts through the OpenAPI v3 route, which does not refuse an
+existing URN. The second write replaces the first record at 2001, and the record it replaced is
+gone. This is the same shape as the read-capped-then-write-past-the-cap defect fixed at limit 25
+earlier in this pass, arriving at the other ceiling.
+
+**What changed.** `nextChangeSequence` throws when the head is at or above the ceiling, naming the
+flow and the ceiling. `changeHeadFor` is untouched, so readers still walk the 2000 records that are
+there. The refusal reaches `recordChange` in `src/server/coordinator/completion-writes.ts`, which
+already catches a failed ledger write and emits a trace step rather than failing the completion, so
+a board at the ceiling stops chronicling and keeps coordinating. `SEED_CEILING` is now exported, and
+its comment states the consequence in the direction the code produces: the next write lands **at**
+the occupied position, not above it.
+
+**Evidence.** `tests/change-sequence.test.ts`, three cases added, nine total, no DataHub and no
+stand-in for it: the head cache is the real one, seeded through `noteChangeWritten` the way the
+existing cases seed it. Against the old code the case named "refuses to reserve a sequence rather
+than hand out one that overwrites" failed with `promise resolved "2001" instead of rejecting`. The
+two cases beside it hold the rest of the behavior in place: the head is still reported at the
+ceiling, and a head one below it still reserves 2000. All nine pass after the change.
+
+**What this does not do.** It does not raise the ceiling, and it does not let obsel record past it.
+A board that reaches 2000 records loses its chronicle from that point until somebody raises
+`SEED_CEILING`, which is a code change, not a runtime setting. No board obsel has run is near it.

@@ -408,17 +408,27 @@ function heads(): Map<string, number> {
  * for good. A reservation reused after a failed write costs at most one
  * unconfirmed record overwritten by the next one.
  *
- * `SEED_CEILING` bounds the seeding walk. A board with more history than that
- * keeps recording: the walk stops looking, the head lands at the ceiling, and the
- * next write goes above it, leaving position 2001 empty. Every record from 2002
- * up is then unreachable to the readers below. That is accepted rather than
- * repaired here, because the alternative at the ceiling is refusing to record at
- * all, and the ceiling sits far above any board obsel has run.
+ * `SEED_CEILING` bounds the seeding walk, and a head at the ceiling is where
+ * reserving stops. The walk cannot place a head above the ceiling, so a fresh
+ * process on a board that reached it seeds the head at the ceiling again, hands
+ * out the position after it again, and `writeLedgerRecord`'s v3 upsert overwrites
+ * the record already sitting there. Handing out that position destroys history;
+ * refusing costs the one record obsel wanted to write, which `recordChange`
+ * already treats as a traced failure rather than a failed completion. So this
+ * throws, naming the ceiling, and raising the ceiling is the repair a board that
+ * large needs.
  */
-const SEED_CEILING = 2_000;
+export const SEED_CEILING = 2_000;
 
 export async function nextChangeSequence(flowId: string): Promise<number> {
-  return (await changeHeadFor(flowId)) + 1;
+  const head = await changeHeadFor(flowId);
+  if (head >= SEED_CEILING) {
+    throw new Error(
+      `change ledger for ${flowId} is at the seeding ceiling of ${SEED_CEILING}: ` +
+        "no sequence can be reserved without overwriting an existing record",
+    );
+  }
+  return head + 1;
 }
 
 /**
