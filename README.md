@@ -2,7 +2,10 @@
 
 ![obsel](docs/images/hero.gif)
 
-**obsel tells you which finished agent work is now based on data that has changed since it ran.**
+**obsel tracks a right-to-erasure request across the systems it cannot see: every asset the request
+reaches stays unattested until an operator who can look signs for it.**
+
+**It also tells you which finished agent work is now based on data that has changed since it ran.**
 
 Built for [Build with DataHub: The Agent Hackathon](https://datahub.devpost.com/) &nbsp;·&nbsp;
 Category: _Agents That Do Real Work_ &nbsp;·&nbsp; Apache-2.0
@@ -15,6 +18,54 @@ Category: _Agents That Do Real Work_ &nbsp;·&nbsp; Apache-2.0
 
 ---
 
+## Erasure coverage
+
+A GDPR Article 17 erasure request arrives, a team deletes the subject's rows in the system it owns,
+and the request is closed. Nobody can say where else those rows had already flowed, or which of
+those places anybody has looked at.
+
+obsel starts from the tables known to hold the subject and walks lineage: the Consumes and Produces
+edges between jobs and tables that DataHub's ingestion already records for the estate. Every asset
+that walk reaches starts at `UNPROVEN`, which says nobody has spoken for that asset, not that the
+subject is still in it.
+
+An asset leaves `UNPROVEN` only on an attestation: a statement signed with a registered Ed25519 key
+by the operator of the store holding the asset, binding the subject's absence to a named version of
+a named table. obsel holds no warehouse credentials and reads no warehouse data. It cannot prove
+absence itself and does not claim to. It composes those local claims into a per-asset picture no
+single attestor is positioned to produce, and leads its report with the assets nobody signed for.
+
+Coverage is what that report totals across the walk, derived from the append-only ledger of signed
+records on every read and never stored. The vocabulary is fixed, in the code and in every document
+here:
+
+| Never say    | Say                                          |
+| ------------ | -------------------------------------------- |
+| proven clean | attested absent over version V by attestor A |
+| proof        | evidence, attestation                        |
+| complete     | N of M assets covered, K unattested          |
+
+The rules that decide what an attestation is worth:
+
+- An attestation binds to a **version**, never a content hash. A rewrite that produced identical
+  bytes reopens the asset, because nobody has attested to the new version.
+- A run that merged, appended or rewrote three of 730 partitions **cannot** account for what it left
+  behind, and is never accepted as a rebuild.
+- An attestor declares what it consumed, and obsel cross-checks that against DataHub's recorded
+  lineage, so leaving out an unclean upstream is detectable.
+- If the key that signed an attestation is later reported compromised, the asset goes back to
+  unattested, though no data changed. A stored verdict would still be reporting the old number,
+  because a compromise report touches no table and no stored field.
+- **No route, tool or argument marks an asset covered.** A live test asserts those endpoints do not
+  exist.
+
+The rule, and the ten counterexamples it was checked against, are in
+[`docs/erasure-coverage.md`](docs/erasure-coverage.md). It was written before the code, because two
+earlier drafts of the rule were unsound.
+
+The same walk answers a second question, about finished work rather than about people. The rest of
+this page is that half.
+
 ## The problem
 
 Agents in a swarm read tables that other agents wrote.
@@ -24,40 +75,14 @@ is no longer current. Nothing reports this, so the finished work still looks com
 
 ## What obsel does
 
-obsel gives every agent task an entry in DataHub, linked to the data it reads and the data it
-writes. When an output changes, obsel follows those links and flags every finished downstream task,
-recording the reason and the change that caused it. That includes tasks that never read the changed
-table directly, only something built on it.
+Every agent task becomes a real DataJob in DataHub, wired into that same lineage by the tables it
+reads and the tables it writes, so the graph itself is the coordination: obsel runs no message bus
+and no scheduler. When an output changes, obsel follows those edges and flags every finished
+downstream task, recording the reason and the change that caused it. That includes tasks that never
+read the changed table directly, only something built on it.
 
 A re-run that produces the same table flags nothing. If identical re-runs raised flags, users would
 learn to ignore every flag.
-
-## The same lineage, for erasure
-
-When someone exercises their right to erasure, a team deletes that person's rows in one system and
-reports the request done. Nobody can say what happened in the other places the data flowed into.
-
-obsel walks the lineage DataHub already records, holds every asset it reaches as **unattested**, and
-changes that status only where a **signed attestation** says the subject is absent from a specific
-version of a specific table. Its report leads with the assets nobody has attested to.
-
-obsel holds no warehouse credentials and never reads your data, so it cannot prove absence and does
-not claim to. It combines independently signed local claims into a per-asset picture that no single
-attestor could produce alone, under these rules:
-
-- An attestation binds to a **version**, never a content hash. A rewrite that produced identical
-  bytes reopens the asset, because nobody has attested to the new version.
-- A run that merged, appended or rewrote three of 730 partitions **cannot** account for what it left
-  behind, and is never accepted as a rebuild.
-- An attestor declares what it consumed, and obsel cross-checks that against DataHub's recorded
-  lineage, so leaving out an unclean upstream is detectable.
-- If the key that signed an attestation is later reported compromised, the asset goes back to
-  unattested, even though no data changed.
-- **No route, tool or argument marks an asset covered.** A live test asserts those endpoints do not
-  exist.
-
-The rule, and the ten counterexamples it was checked against, are in `docs/erasure-coverage.md`. It
-was written before the code, because two earlier drafts of the rule were unsound.
 
 ## When you should not use this
 
@@ -99,20 +124,21 @@ Codex CLI. Not mockups, and not assembled from separate sessions.
 
 ### Recordings
 
-The full three-minute demo, [on YouTube](https://youtu.be/qQNA59VADNc), covers the forty-agent
-run, the mid-swarm change, the repair, and the erasure report, cut from recordings of real runs.
-The two clips below are from a separate four-agent take.
+The full three-minute demo, [on YouTube](https://youtu.be/qQNA59VADNc), is cut from recordings of
+real runs. It follows the forty-agent run, the mid-swarm change and the repair end to end, then
+closes on a real erasure request opened against a real catalog, whose report on camera reads 2 of 18
+assets covered and 16 unattested. The two clips below are from a separate four-agent take.
 
 |                                                                                 The change is detected                                                                                  |                                                                                              The repair                                                                                              |
 | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: |
 | ![Three boxes turn amber as the change is detected, the amber path travels outward from the changed table, and the ribbon lands on a measured detection time.](docs/images/cascade.gif) | ![One redo lands, and the strip prints a cleared line for each of the two flags obsel took off itself, with the reason, before the headline returns to nothing out of date.](docs/images/repair.gif) |
+|                                                                        Three flags landed in a measured 397 ms.                                                                         |                                          A redo of **one** of the three flagged tasks took 28.3 s, and obsel took the other two flags off itself in 233 ms.                                          |
 
 Both clips come from one sequence, recorded 2026-07-30 against the same live stack, with that run's
-own numbers in frame. Detection took a measured 397 ms. The repair redid **one** of the three
-flagged tasks in 28.3 s, and obsel cleared the other two itself in 233 ms because the redone table
-came out identical. There is no button that dismisses a flag; a flag clears only through redone
-work. Either the flagged task re-runs and reports, or an upstream task re-runs, its table comes back
-identical, and obsel clears the downstream flags that redo restores.
+own numbers in frame. Those two came off because the redone table came out identical, which is the
+only way a flag ever clears. There is no button that dismisses one. Either the flagged task re-runs
+and reports, or an upstream task re-runs, its table comes back identical, and obsel clears the
+downstream flags that redo restores.
 
 "Identical" is the fingerprint's word, not the file system's. Rows are sorted before hashing, and
 any column the task registered as volatile is left out. Two tables that differ only in row order, or
@@ -287,6 +313,12 @@ with every reply quoted from that run, is in [`docs/setup.md`](docs/setup.md). T
 shapes, changes and edge cases obsel has been run against is
 [`docs/coverage.md`](docs/coverage.md).
 
+Where your tables are already documented in DataHub, the optional step 4b in
+[`docs/setup.md`](docs/setup.md) reads that documentation through DataHub's Agent Context Kit and puts
+the description and the columns into each agent's prompt as a delimited section marked as data rather
+than instructions; it adds nothing for the four demo tables, which obsel registers without a
+description or a schema.
+
 **Declaring those tasks is a form on the page**, under the joining panel, with a name and the
 tables it reads and writes. It posts to the same `/api/tasks/register` the MCP tool calls, so a
 task you add by hand and a task an agent registered itself are the same entity and appear in the
@@ -358,7 +390,7 @@ The full record of what has been measured, and what has not, is in
   everything around it. Opening a request is a curl command. No agent drives the tab on its own.
   The attestations in those runs were signed by the operator, not routed to the owner of each
   asset and waited for, and nothing binds an attestation to a version obsel derived from the
-  warehouse itself, because obsel holds no warehouse credentials and reads no warehouse data.
+  warehouse itself, for the reason the erasure section states.
 
 ---
 
@@ -374,13 +406,13 @@ pnpm e2e         # browser checks; builds and serves the app itself
 
 **`pnpm verify` is the one to run first.** It needs no Docker and no browser download.
 
-As of 2026-07-28, `pnpm verify` passes end to end, with 531 tests and 202 Python self-checks
-across nine modules. `pnpm e2e` passes 271 browser checks across two viewports, with one
-skipped by design, half of them against a forty-task pipeline recorded off a real run.
+As of 2026-08-02, `pnpm verify` passes end to end, with 626 unit tests across 35 files and 222
+Python self-checks across nine modules. `pnpm e2e` passes 297 browser checks across two viewports,
+with one skipped by design, half of them against a forty-task pipeline recorded off a real run.
 
-`pnpm test:live` passes 112 tests across eleven files in 434 s, including one real agent session
-per installed CLI. Its closing line names any runner it did not exercise, so a green run on a
-machine with one CLI cannot be read as evidence about both. See
+`pnpm test:live` passes 163 tests across fifteen files, including one real agent session per
+installed CLI. Its closing line names any runner it did not exercise, so a green run on a machine
+with one CLI cannot be read as evidence about both. See
 [docs/verification.md](docs/verification.md).
 
 ---
@@ -405,8 +437,8 @@ tests/                   deterministic tests, no browser and no DataHub
 e2e/                     browser checks
 ```
 
-There is no scheduler, and nothing listening for events. An agent reporting that it finished is what
-starts every check obsel does.
+An agent reporting that it finished is what starts every check obsel does. Nothing else can: obsel
+subscribes to no events and polls nothing.
 
 ---
 

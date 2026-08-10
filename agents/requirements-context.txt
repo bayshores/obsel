@@ -1,0 +1,28 @@
+# DataHub's Agent Context Kit, installed into agents/.venv-context and nowhere else.
+#
+# Deliberately a second file and a second virtual environment. The kit pins
+# `acryl-datahub[datahub-rest]==1.6.0.6` exactly, while agents/requirements.txt
+# pins 1.6.0.15 -- the release agents/graph.py's and agents/setup.py's writes were
+# verified against on a live GMS. Installing the kit beside them downgrades that
+# pin to one nothing here has verified, and `pnpm test:python` cannot catch it: it
+# runs under the bare system interpreter and never loads either venv.
+#
+# Keeping the two apart costs a directory and settles the question instead of
+# arguing it. See docs/environment-findings.md section 15 for the two rejected
+# resolutions and what was measured about each.
+#
+# Install:
+#   python3 -m venv agents/.venv-context
+#   agents/.venv-context/bin/pip install -r agents/requirements-context.txt
+#   agents/.venv-context/bin/pip check      # No broken requirements found.
+#
+# Nothing needs this file to be installed. agents/context.py returns {} when this
+# environment is absent, and the worker runs without catalog context, which is how
+# every run before 2026-08-09 worked.
+#
+# The kit's `get_lineage` must not be used from here. It is GraphQL
+# `searchAcrossLineage`, which lags by minutes and returns an empty list rather
+# than an error -- see docs/environment-findings.md section 7. obsel's traversal is
+# `GET /relationships`. Only `get_entities` and `list_schema_fields` are called,
+# and neither traverses.
+datahub-agent-context==1.7.0

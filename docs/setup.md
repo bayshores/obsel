@@ -194,6 +194,39 @@ python3 -m venv agents/.venv
 agents/.venv/bin/python -m pip install -r agents/requirements.txt
 ```
 
+**4b. Optional: give the agents catalog context.** With this installed, a worker is told what DataHub
+already records about the tables it reads -- the dataset description, and each column's name, type and
+description -- as a delimited data section in its prompt. Skip it and the workers run exactly as they
+did before, without that section; nothing else changes and no check fails.
+
+**It does nothing for the four demo tables, and that is not a fault in the setup.** obsel registers a
+dataset as a URN on a lineage edge; it never writes a description or a schema for one, so DataHub has
+nothing to return about `obsel_demo.clean_orders` and the section stays empty. This step is worth
+taking when the tables your agents read came into DataHub from a real warehouse, or were documented in
+DataHub by hand -- the bring-your-own-data case further down, not the demo. Measured both ways on
+2026-08-09; see `docs/verification.md`.
+
+It is a second environment on purpose. DataHub's Agent Context Kit pins `acryl-datahub` to a different
+patch release than the one obsel's writes were verified against, so installing it beside them would
+move a verified pin. See `docs/environment-findings.md` section 15.
+
+```bash
+python3 -m venv agents/.venv-context
+agents/.venv-context/bin/pip install -r agents/requirements-context.txt
+agents/.venv-context/bin/pip check      # should print: No broken requirements found.
+```
+
+To tell it worked, ask for a table that is documented. The quickstart's `showcase-ecommerce` data is,
+so this prints a description and 22 columns with their types; it took 590 to 812 ms on 2026-08-09.
+
+```bash
+python3 -c "from agents import context; import json; print(json.dumps(context.fetch_context(['urn:li:dataset:(urn:li:dataPlatform:dbt,b2fd91.order_entry_db.order_entry.customers,PROD)']), indent=2))"
+```
+
+`{}` back means DataHub is not up, does not hold that dataset, holds it with no description or schema,
+or the environment above is missing. A worker treats all four the same way and runs without the
+section.
+
 **5. Install `uv`.** obsel writes its `obsel-stale` tag through DataHub's own MCP server, which is
 run with `uvx`. Without this the staleness engine still decides correctly and the tag write is the
 step that fails, so it is worth having before the first run rather than after it.

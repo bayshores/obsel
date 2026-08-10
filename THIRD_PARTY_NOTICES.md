@@ -110,6 +110,24 @@ terminal sessions captured with **asciinema** (GPL-3.0, run through `uvx` and no
 and replayed through **@xterm/xterm** (MIT) by `scripts/term-render.mjs`. Nothing on screen
 is stock footage or a mockup.
 
+**Two images are not the owner's, and both are in the video only.** The opening shot puts
+the terminal on a desktop, and the desktop is dressed with them. Neither is in the product,
+neither is committed, and both are copied into the render's working directory by
+`scripts/trailer-assets.mjs`.
+
+| Asset                                                                                                                                      | What it is                                                                                                                                     | Where it appears                                        |
+| ------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| `wallpaper.jpg`                                                                                                                            | A community 4K recreation of "Bliss", the Windows XP default wallpaper. The original is a photograph by Charles O'Rear, licensed to Microsoft. | The desktop, 0:00 to 0:08                               |
+| `computer.png`, `projects.png`, `trash.png`, `dock-terminal.png`, `dock-finder.png`, `dock-safari.png`, `dock-notes.png`, `dock-music.png` | Apple macOS system and application icons, taken from `CoreTypes.bundle` and the applications' own bundles on the owner's machine               | Three desktop icons and the five in the dock, same shot |
+
+Both were supplied by the owner, who made the call to use them. The scene they are in is
+about eight seconds of a three-minute video and exists to say that the setup is two
+commands typed on an ordinary desktop. Neither image is redistributed here: the repository
+ignores `video/` entirely, so the files sit outside what a fork receives, and anyone
+re-rendering supplies their own. An earlier cut drew the desktop from four CSS gradients
+and three grey rectangles for exactly this reason; the owner replaced it and this entry is
+the record of that.
+
 ## The demo agents run on a coding CLI, signed in with a consumer subscription
 
 **The decision, and why it is written down.** Each of the four demo agents is a real session

@@ -29,3 +29,10 @@ mcp==1.28.1
 # be pinned to ==0.6.0; `@latest` resolves to a read-only 0.4.0 with no write
 # tools that ignores TOOLS_IS_MUTATION_ENABLED without warning. See
 # docs/environment-findings.md section 2.
+#
+# DataHub's Agent Context Kit is not installed from here either, for the same kind
+# of reason. `datahub-agent-context==1.7.0` pins acryl-datahub to ==1.6.0.6, so
+# installing it here would silently move the 1.6.0.15 pin above -- the one the
+# writes were verified with -- to a release nothing has verified. It lives in its
+# own environment instead: agents/requirements-context.txt, installed into
+# agents/.venv-context. See docs/environment-findings.md section 15.

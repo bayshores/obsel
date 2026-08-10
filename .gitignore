@@ -14,6 +14,12 @@ test-results/
 
 # Python environment for the demo agent workers and DataHub emitter
 agents/.venv/
+
+# Separate environment for DataHub's Agent Context Kit. Apart from the one above
+# because the kit pins acryl-datahub to a different patch release than the one
+# agents/graph.py's writes are verified against. See docs/environment-findings.md
+# section 15.
+agents/.venv-context/
 **/__pycache__/
 *.pyc
 
@@ -59,6 +65,8 @@ scripts/erasure-broll.mts
 scripts/term-render.mjs
 scripts/trailer-assets.mjs
 scripts/trailer-finish.mjs
+tests/video-breaks.test.ts
+tests/video-camera.test.ts
 tests/video-caption.test.ts
 tests/video-cascade.test.ts
 tests/video-erasure.test.ts

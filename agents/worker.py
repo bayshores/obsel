@@ -321,10 +321,20 @@ def _run_agent(
     rather than assuming. Imported here rather than at module scope so that
     importing `worker` needs no CLI installed.
     """
-    from agents import runner_select
+    from agents import context, runner_select
 
     runner_name = runner_select.resolve()
     module = runner_select.runner(runner_name)
+
+    # What DataHub already records about the tables being read, appended to the
+    # job as a delimited data section. `fetch_context` returns {} on every
+    # failure and `render_context` renders {} as the empty string, so a missing
+    # kit or an unreachable DataHub leaves `job` exactly as it arrived. Nothing
+    # read here reaches a staleness decision; see agents/context.py.
+    catalog = context.render_context(
+        context.fetch_context([pipeline.task_dataset_urn(task, name) for name in task.reads])
+    )
+    job = job + catalog
 
     contract = list(expect_columns or task.output_columns) or None
     table, seconds, version = module.run_agent(

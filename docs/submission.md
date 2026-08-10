@@ -9,103 +9,189 @@ changes here in the same commit.
 
 ## 1. Devpost description draft
 
-**Elevator:** obsel flags finished agent work when the ground it was built on moves.
+**obsel tracks a right-to-erasure request across the systems it cannot see: every asset the request
+reaches stays unattested until an operator who can look signs for it.**
 
-### The problem
+Category: _Agents That Do Real Work_ · Apache-2.0 · built solo · video 2:59 · every number here
+is traceable to `docs/verification.md` in the repository.
 
-When several AI agents build on each other's data, each one finishes and reports done. If
-something upstream changes after a downstream agent already finished, that finished work is now
-wrong, and nothing tells anyone. It sits there looking complete. The more agents you run, the more
-finished-looking wrong work you accumulate, and at forty tasks nobody can eyeball what a change
-reached.
+### Erasure coverage
 
-### What obsel does
+A GDPR Article 17 request arrives, the team holding the system of record deletes the subject's rows,
+and the ticket closes. Copies of those rows had already flowed into stores other people run, and
+nothing on file says which of those places anybody has looked at.
 
-Every agent task becomes a real DataJob in DataHub, wired with Consumes and Produces lineage to
-the tables it reads and writes. The lineage graph is the coordination: there is no message bus and
+obsel starts from the tables known to hold the subject and walks lineage, the Consumes and Produces
+edges between jobs and tables that DataHub's ingestion already records for the estate. Every asset
+that walk reaches begins at `UNPROVEN`, which says nobody has spoken for the asset, not that the
+subject is still in it.
+
+An asset leaves `UNPROVEN` on an attestation: a statement signed with a registered Ed25519 key by
+the operator of the store the asset sits in, binding the subject's absence to a named version of a
+named table, the whole version rather than a partition of it. A hash says what the bytes were, a
+signature says who answers for the claim and can be revoked. The attestor is whoever holds
+credentials to that store, and obsel is never one: it holds no warehouse credentials, reads no
+warehouse data, and therefore cannot establish absence and does not claim to. That limit is the
+design. What obsel does is combine those local claims into a per-asset picture no single attestor is
+positioned to produce, and lead with the assets nobody signed for.
+
+Coverage is that picture totaled, N of M attested and K unattested, recomputed from the append-only
+ledger on every read and never stored. A stored verdict would still be reporting the old number
+after a signing key was reported compromised, because a compromise report touches no table and no
+stored field.
+
+### The one-minute version
+
+- **A day-one report is almost entirely unattested.** Seeded from one Snowflake
+  customers table in the `showcase-ecommerce` catalog, four hops out, the walk reached **23 assets
+  across five platforms**, every one `UNPROVEN` with `no-attestation`. One real Ed25519 keypair, one
+  challenge, one signed attestation moved exactly one of them: **1 of 23 attested, 22 unattested**,
+  driven by hand against a live DataHub on 2026-07-26.
+- **A compromised key takes coverage back with nobody touching data.** Retiring a key and reporting
+  one compromised are separate code paths: a retired key's past signatures stand, a compromised
+  key's signatures fail whatever their age. The falsifier is a passing test in
+  `tests/attestation.test.ts`, "an asset goes back to unattested when the signing key is reported
+  compromised".
+- **No route, tool or argument marks an asset covered.** A live test
+  posts to the three paths a later commit would add and asserts there is no mutation behind any of
+  them; the MCP suite asserts no such tool is offered. With no `OBSEL_API_TOKEN` set,
+  `POST /api/erasure` answers **503** and names the reason.
+- **The vocabulary is enforced in code and in every document.** Never "proven clean", always
+  "attested absent over version V by attestor A". Never "complete", always "N of M covered, K
+  unattested".
+
+Absence in a table cannot be established from a graph of how tables connect, only carried through
+one. obsel reports who has accounted for what, and who has not.
+
+### The same walk, on finished work
+
+Agents in a swarm read tables other agents wrote. When an upstream table changes, downstream work
+that already finished is now built on data that has moved, and nothing says so: the work still looks
+finished. At forty tasks nobody can eyeball what a change reached.
+
+Every agent task becomes a real DataJob in DataHub, wired with Consumes and Produces edges to the
+tables it reads and writes, so the lineage graph is the coordination and there is no message bus and
 no scheduler. When an agent reports completion, obsel fingerprints what it produced (sha256 over
-schema and content, separately, so a rename is distinguishable from new rows), compares against
-the recorded baseline, and walks DataHub's own lineage downstream. Finished work built on the
-changed table gets marked stale, with the cause, the hop distance, and a plain sentence stored on
-the mark. The `obsel-stale` tag lands on the DataJob through DataHub's MCP server, so the flag shows up in
-DataHub's own UI beside obsel's page.
+schema and content, separately, so a rename is distinguishable from new rows), compares against the
+recorded baseline, and walks those edges downstream. Finished work built on the changed table is
+flagged with the cause, the hop distance, and a plain sentence stored on the flag. The
+`obsel-stale` tag lands on the DataJob through DataHub's MCP server, so somebody browsing DataHub
+sees it without knowing obsel exists.
 
-The rules that make the flags trustworthy:
+Four rules make the flags worth reading:
 
-- A re-run that produces the same output marks nothing. Staleness is decided by fingerprint
-  comparison, never by "a write happened". "The same" is the fingerprint's word: rows are sorted
-  before hashing and columns the task registered as volatile are excluded, so a re-run differing
-  only in row order or only in a load timestamp counts as identical. Proven at forty tasks: an
-  identical re-run marked zero of 40.
-- Work in flight is never judged. A mid-swarm change marked 8 finished tasks in a measured
+- A re-run producing the same table flags nothing. Staleness is decided by comparing fingerprints,
+  never by the fact that a write happened. "The same" is the fingerprint's word: rows are sorted
+  before hashing and columns the task registered as volatile are left out, so a re-run differing
+  only in row order or only in a load timestamp counts as identical. At forty tasks, an identical
+  re-run flagged zero of 40.
+- Work in flight is never judged. A mid-swarm change flagged 8 finished tasks in a measured
   13,349 ms while 9 agents were still running, and none of the nine was touched.
-- Flags clear only through redone work. There is no route and no tool that clears a flag, because
-  a tool to declare work fresh would be a tool for silencing the one thing obsel is for. When a
-  flagged task re-runs and its output comes back identical, obsel clears the downstream flags
-  that redo provably restores, and only those.
+- A flag comes off through redone work and nothing else. No route and no tool takes a task to clear,
+  because a tool to declare work fresh would be a tool for silencing the one thing obsel is for.
+  When a flagged task re-runs and its table comes back identical, obsel clears the downstream flags
+  that redo restores, and only those.
 - Every number on the page was measured, or it is withheld. A failed read blanks every stat.
 
-### The demo
+**The demo.** Forty real Codex agent sessions build a pipeline over one week of real NYC yellow-taxi
+trips (2,100 rows, sha256-pinned, provenance documented), concurrently, peak 8 at once, **252.6 s**
+wall clock. One agent then re-runs with a renamed column, and how far that reaches depends on how
+much has finished, which is the product rather than a caveat about it:
 
-Forty real Codex agent sessions build a pipeline over one week of real NYC yellow-taxi trips
-(2,100 rows, sha256-pinned, provenance documented), concurrently, peak 8 at once, 252.6 s wall
-clock. One agent re-runs with a renamed column, and how much that reaches depends on how much has
-finished, which is the product rather than a caveat about it. Three measured runs, each named
-because they give different counts:
-
-- **Settled board, 2026-07-24.** `daily_trips` renamed its column with every task complete: **9 of
-  40** marked out to three hops in **3968 ms**, the other 31 untouched, all nine tags confirmed in
-  DataHub.
+- **Settled board, 2026-07-24.** **9 of 40** flagged out to three hops in **3968 ms**, the 30 tasks
+  outside the change none of them flagged, all nine tags confirmed in DataHub.
 - **Mid-swarm, the same day.** The same rename while **9 agents were still in flight**: **8 of 40**
-  finished tasks marked in **13,349 ms**, five direct readers and three transitive, and not one of
-  the nine running agents touched. `report_city` finished after the cascade on inputs that had not
-  moved and was correctly left alone.
-- **The run the video is cut from.** The change marked **7 of 40**, detection **658 ms**.
-- **Five settled observations, 2026-08-02.** The forward and reverse rename alternated on a
-  settled board, each one a real agent session. All five marked **9 of 40** at three hops.
-  Detection: **minimum 473 ms, median 666 ms, maximum 4166 ms.** One machine, so it is a range
-  rather than a benchmark, but it is five observations rather than one.
-- **The same thing on Claude Code, 2026-08-02.** Forty sessions of `claude-sonnet-5` at medium
-  effort finished in **129.3 s** at peak 8, every output passing its contract and nothing marked.
-  The settled change then marked **9 of 40** at 4575 ms, and the repair redid **6 of 9 in 37.8 s**,
-  clearing the other three without re-running them.
+  finished tasks flagged in **13,349 ms**, five direct readers and three transitive, and not one of
+  the nine running agents touched. `report_city` finished after the flags landed, on inputs that had
+  not moved, and was correctly left alone.
+- **Five settled observations, 2026-08-02.** The forward and reverse rename alternated on a settled
+  board, each one a real agent session, all five flagging **9 of 40** at three hops. Detection:
+  **minimum 473 ms, median 666 ms, maximum 4166 ms.** One machine, so it is a range rather than a
+  benchmark, but it is five observations rather than one.
+- **The same pipeline on Claude Code, 2026-08-02.** Forty sessions of `claude-sonnet-5` at medium
+  effort finished in **129.3 s** at peak 8, every output passing its contract and nothing flagged.
+  The settled change then flagged **9 of 40** at **4575 ms**, and the repair redid **6 of 9 in
+  37.8 s**, clearing the other three without re-running them.
 
-Then the repair, from the 8-flag page: obsel redoes only the flagged work, in parallel, and every
-time a redo lands identical it cancels the downstream redos that are now provably unnecessary.
-Measured: 5 of 8 redone in 42.4 s against
-roughly 188 s to redo everything, that baseline estimated from each task's own last measured run
-and labeled as an estimate everywhere it appears.
+Then the repair, from the 8-flag page: obsel redoes only the flagged work, in parallel, and cancels
+each downstream redo as soon as an upstream redo lands identical and makes it unnecessary. Measured:
+**5 of 8 redone in 42.4 s** against roughly **188 s** to redo all eight, that baseline estimated
+from each task's own last measured run and labeled an estimate everywhere it appears.
 
 Any MCP-capable agent can join a swarm through obsel's own MCP server (ten tools, seven for the
 page and three for erasure; every mutation goes through obsel's HTTP API and the server holds no
-DataHub credentials). The
-bring-your-own-data walkthrough in `docs/setup.md` was executed for real: a five-row expenses CSV,
-a renamed column, the downstream task flagged at one hop in 3,934 ms, the flag cleared by the
-redo. Declaring your own tasks does not need an agent at all: a form on the page posts to the same
-registration route the MCP tool calls, driven against a real DataHub on 2026-07-26. Reporting the
-work still comes from whatever runs it, because obsel takes the fingerprint from the rows itself and
-a second implementation of that would be a second definition of what counts as a change.
+DataHub credentials). The bring-your-own-data walkthrough in `docs/setup.md` was executed for real:
+a five-row expenses CSV, a renamed column, the downstream task flagged at one hop in 3934 ms, the
+flag cleared by the redo. Declaring your own tasks does not need an agent at all: a form on the page
+posts to the same registration route the MCP tool calls, driven against a real DataHub on
+2026-07-26. Reporting the work still comes from whatever runs it, because obsel takes the
+fingerprint from the rows itself and a second implementation of that would be a second definition of
+what counts as a change.
+
+**The video** (2:59) follows the forty-agent run, the mid-swarm change and the repair end to end,
+then closes on a real erasure request opened against a real catalog, whose report on camera reads
+**2 of 18 assets covered, 16 unattested**. That is a separate run against a different seed, and its
+figures are never combined with the walk above.
 
 ### Built with
 
 DataHub (quickstart, GMS v1.5.0.6) for the graph and the record; DataHub's MCP server
-(`mcp-server-datahub`, pinned `==0.6.0`) for the tag writes; Next.js for the page; Python for
-the agents and obsel's own MCP server; the Codex CLI or Claude Code for the real agent sessions,
-whichever the operator has. The traps found on
-the way, including the endpoint that fabricates entities for invented URNs and the search index
-that lags freshly registered tasks, are documented with reproductions in
+(`mcp-server-datahub`, pinned `==0.6.0`) for the tag writes; Next.js for the page; Python for the
+agents and obsel's own MCP server; `node:crypto` for the Ed25519 signature arithmetic behind the
+attestations, with no third-party cryptography added; the Codex CLI or Claude Code for the real
+agent sessions, whichever the operator has.
+
+Where the tables an agent reads are already documented in DataHub, an optional step reads that
+documentation through DataHub's Agent Context Kit (`datahub-agent-context` 1.7.0), read-only, in its
+own environment, and folds it into the agent's prompt as a delimited section marked as data rather
+than instructions. Verified live on 2026-08-09 against a catalogued dbt table: one description and
+22 columns each carrying a native type, three calls at 812, 590 and 626 ms. It plays no part in the
+forty-task demo. obsel registers its own datasets without a description or a schema, so there is
+nothing for the kit to return there, and the worker's prompt came back byte-identical with the kit
+present and with it renamed away.
+
+The traps found on the way, including the endpoint that fabricates entities for invented URNs and
+the search index that lags freshly registered tasks, are documented with reproductions in
 `docs/environment-findings.md` and were submitted through the feedback survey.
 
 ### What is honestly not proven
 
 Forty-task detection has five observations, all on one machine. The other forty-task figures are
 still one or two observations each. The Claude Code pass at that scale is a single run, pinned to
-`claude-sonnet-5` at medium effort so it is repeatable rather than dependent on an account's
-current default.
+`claude-sonnet-5` at medium effort so it is repeatable rather than dependent on an account's current
+default.
+
+The erasure half has a page and no workflow behind it. Opening a request is a curl command, no agent
+drives the tab on its own, and the attestations in those runs were signed by the operator rather
+than routed to the owner of each asset and waited for. Nothing binds an attestation to a version
+obsel derived from the warehouse itself, for the reason the erasure section states.
+
+The Agent Context Kit is verified live for the bring-your-own-data case only. No live worker prompt
+has yet carried a populated catalog section, because no obsel-registered dataset carries a
+description for the kit to read.
 
 obsel's case is the one where no single orchestrator owns the graph: agents from different
-frameworks joining at runtime, each becoming a node in a metadata platform that outlives them.
-The prior-art survey is in `docs/concept.md`.
+frameworks joining at runtime, each becoming a node in a metadata platform that outlives them. The
+prior-art survey is in `docs/concept.md`.
+
+---
+
+## 1a. Gallery captions, in order
+
+1. **card5_erasure.** One erasure request, seeded from one table: the walk reached 23 assets across
+   five platforms at four hops. One Ed25519 signature moved one of them. 1 of 23 attested, 22
+   unattested, and no route can move the rest.
+2. **card1_hero.** Forty agent tasks, each a real DataJob in DataHub with Consumes and Produces
+   edges to the tables it read and wrote. The record belongs to the catalog and outlives the run.
+3. **card2_flagged.** One column renamed on a settled board: 9 of 40 flagged out to three hops, four
+   of the nine never having read that table, the 30 outside it unflagged. Five observations of that
+   change put detection at a median of 666 ms.
+4. **card3_datahub.** The `obsel-stale` tag on a flagged job, read out of DataHub's own interface.
+   obsel writes it through `mcp-server-datahub` and confirms it by reading `globalTags` back off the
+   entity: 3 of 3 tagged.
+5. **card4_repair.** The repair redid 6 of 9 flagged tasks in 37.8 s. The other three cleared
+   without re-running, because an upstream redo came back identical. No endpoint clears a flag, and
+   a live test asserts that.
 
 ---
 

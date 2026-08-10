@@ -827,3 +827,99 @@ timeout is not a measurement of the thing being timed, and obsel's rule is that 
 down only if it was measured. Every detection time recorded before 2026-07-28 was taken on a machine
 that could reach that host, so those figures stand; anything measured on a machine that cannot, and
 without this variable, is a measurement of the timeout.
+
+---
+
+## 15. The Agent Context Kit pins `acryl-datahub` away from the release obsel writes with
+
+Measured 2026-08-09. `datahub-agent-context` is DataHub's Agent Context Kit: the same code as
+`mcp-server-datahub`, published as a library so a Python agent can call the tools directly instead of
+speaking MCP. obsel uses it to put a dataset's description and columns in front of a demo worker.
+
+It pins its DataHub SDK exactly, and not to the release `agents/requirements.txt` pins:
+
+```bash
+unzip -p datahub_agent_context-1.7.0-py3-none-any.whl \
+  datahub_agent_context-1.7.0.dist-info/METADATA | grep '^Requires-Dist: acryl-datahub'
+# Requires-Dist: acryl-datahub[datahub-rest]==1.6.0.6
+```
+
+`agents/requirements.txt` pins `acryl-datahub==1.6.0.15`, the release `agents/graph.py`'s and
+`agents/setup.py`'s writes were verified against on a live GMS. Installing the kit into `agents/.venv`
+downgrades it.
+
+**Three resolutions were tried, in separate throwaway environments so the working one was never at
+risk.**
+
+| Attempt                                       | `pip check`                      | acryl-datahub |
+| --------------------------------------------- | -------------------------------- | ------------- |
+| kit into the worker venv, letting the pin win | clean                            | 1.6.0.6       |
+| kit with `--no-deps` alongside 1.6.0.15       | **reports the version conflict** | 1.6.0.15      |
+| kit in its own venv, `agents/.venv-context`   | clean                            | 1.6.0.6       |
+
+The first two both run. Every datahub symbol obsel imports resolves under 1.6.0.6
+(`MetadataChangeProposalWrapper`, `DataHubGraph`, `DatahubClientConfig`, `DataJobInfoClass`,
+`DataJobInputOutputClass`, `TagPropertiesClass`, `DataFlowInfoClass`), and the kit imports and enters
+its context against 1.6.0.15.
+
+**The resolution is the third, and the reason is what could not be measured rather than what could.**
+Downgrading the worker venv replaces a pin verified against a live GMS with one that has not been,
+and `pnpm test:python` cannot stand in for that check: it runs under the bare system interpreter and
+never loads `agents/.venv` at all, so it would have gone green either way. A green suite would have
+been evidence about nothing. The `--no-deps` variant keeps the verified pin but leaves `pip check`
+permanently reporting a conflict, and `pip check` clean is the evidence `agents/requirements.txt`
+already cites for `mcp==1.28.1`.
+
+A second environment costs a directory and removes the question. The write path keeps the release it
+was verified with, the kit keeps the release it pins, and neither is a claim about the other.
+
+```bash
+python3 -m venv agents/.venv-context
+agents/.venv-context/bin/pip install "datahub-agent-context==1.7.0"
+agents/.venv-context/bin/pip check          # No broken requirements found.
+```
+
+`agents/context.py` runs the kit in that interpreter as a subprocess and reads JSON back, so the
+worker's own interpreter loads neither the kit nor acryl-datahub. That also keeps the rule
+`agents/requirements.txt` states outright: a worker needs nothing beyond the standard library to talk
+to the coordinator.
+
+**Two further things the source settles, both contradicted by the kit's own docstrings.**
+
+`DataHubContext` takes a `DataHubClient`, not a `DataHubGraph`. Several docstrings in the package show
+`DataHubContext(client.graph)`, but `get_graph()` is `get_datahub_client()._graph` — handing it a
+graph makes every tool fail on the attribute. `DataHubContext(DataHubClient(server=GMS_URL))` is
+correct, and constructing the client contacts nothing.
+
+**The kit does not fail fast against a DataHub that is down.** Measured 2026-08-09 on this machine
+with nothing listening on 8080: a single `get_entities` call took **20.1 s** before giving up, because
+acryl-datahub retries a refused connection rather than returning. A refused TCP connection is
+normally instant, so the cost is entirely retry policy. Anything calling the kit in front of
+user-visible work needs its own reachability check first — `agents/context.py` probes `GET /config`
+with a 2 s timeout and spawns nothing when that fails, which takes the same case to 0 ms. This is the
+same shape as section 14: a client library spending real time on a network it cannot reach, invisible
+from the outside because the process is up and idle.
+
+**`list_schema_fields` raises on a dataset that has no schema.** Measured 2026-08-09 against the live
+stack, on `obsel_demo.clean_orders`:
+
+```
+AttributeError: 'NoneType' object has no attribute 'get'
+  entities.py:211  total_fields = len(result.get("schemaMetadata", {}).get("fields", []))
+```
+
+The default in that `.get` never applies: the key is present with a null value, so `.get` is called on
+`None`. Every dataset obsel registers is that shape, because obsel writes no `schemaMetadata` and no
+`datasetProperties` for any of them — they appear nowhere in `src/server/` or `agents/` except in
+`agents/context.py`, which reads them. The consequence is that the kit returns nothing for an
+obsel-registered table however it is called, and any caller must wrap `list_schema_fields` in a
+`try`/`except` rather than trusting the documented return shape.
+
+`get_entities` on the same dataset does answer, with `urn`, `name`, `platform`, `health`, and a
+`relatedDocuments` block that listed 10 of **210** obsel evidence-ledger documents. Anything reading
+more of that response than a description and a field list should expect the ledger in it.
+
+`get_entities` and `list_schema_fields` do not touch `searchAcrossLineage`; `get_lineage` does.
+Section 7 is why obsel traverses with `GET /relationships`, and that ruling covers the kit: **the kit's
+`get_lineage` must not be used, and `agents/context.py` says so at the top.** The two calls it does use
+resolve one named URN each, and `get_entities` gates on `graph.exists()`, which section 1 endorses.
