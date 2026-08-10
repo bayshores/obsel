@@ -153,7 +153,7 @@ real rather than invented for a demo.
 
 The strongest anticipated judge question. The answer is the demo scenario, not an argument.
 
-## The second question the same graph answers
+## 4. The second question the same graph answers
 
 Everything above is about agents invalidating each other's finished work. The same wires answer a
 question with far higher stakes, and it is the one this project now leads with.

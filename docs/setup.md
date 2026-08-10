@@ -86,8 +86,8 @@ and it is the step people skip.
 - Python 3, for the demo agents. They get their own virtual environment in step 4 below; the
   `datahub` CLI used to start the stack is a separate, global install of `acryl-datahub`, either
   `uv tool install acryl-datahub` or, without installing anything permanently,
-  `uvx --from 'acryl-datahub==1.6.0.15' datahub docker quickstart`, which is what the launcher uses
-  when the CLI is not already there
+  `uvx --from 'acryl-datahub==1.6.0.15' datahub docker quickstart --version v1.5.0.6 --accept-version-default`,
+  which is what the launcher uses when the CLI is not already there
 - `uv`, for running the DataHub MCP server
 - **An agent CLI, signed in.** Either the Codex CLI (`codex login status` should say so) or Claude
   Code (`claude auth status`). Each demo agent is a real session of one of them, reading the data and

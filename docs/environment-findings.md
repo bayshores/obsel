@@ -96,7 +96,7 @@ Two endpoints on the same server, the same invented URN, opposite answers. The p
 too: a DataJob that really was registered returns 200 from the same `openapi/v3` path.
 
 `src/server/datahub/client.ts` uses this. `readTaskEntity` treats a 404 as "no such task" and
-anything else non-2xx as an error, so `taskExists` is a predicate that can genuinely return false
+anything else non-2xx as an error, so existence can genuinely come back false
 without a Python subprocess in the request path.
 
 **Rule for this repository:** `/entities/` must never be used to establish existence. Entity

@@ -16,7 +16,7 @@ Five configuration files were adapted from an earlier personal project of the au
 - `vitest.config.ts`
 
 They set compiler strictness, lint rules, formatting, the `@/` path alias, and the test runner.
-They contain no product logic. All five are in this repository's first commit, `0755e93`.
+They contain no product logic. All five are in this repository's first commit, `e2071e5`.
 
 **The mmux design system.** obsel's interface is built in mmux, a design system the author wrote
 before this project. Two things were carried in from it:
@@ -24,7 +24,8 @@ before this project. Two things were carried in from it:
 - Its design tokens (colour, typography, spacing, motion) copied into `app/globals.css`.
 - Eight of its presentational components, ported from `.jsx` to `.tsx` in
   `src/features/dashboard/mmux.tsx`: `Wordmark`, `Divider`, `Panel`, `StatCell`, `StatRibbon`,
-  `Eyebrow`, `PulseDot`, `Badge`.
+  `Eyebrow`, `PulseDot`, `Badge`. `Eyebrow` and `Badge` were later deleted as unused in commit
+  `9659ee0`; the other six remain.
 
 They are styling only. Not one of them knows what a task, a dataset, a fingerprint or a stale mark
 is; every decision obsel makes is in `src/server/coordinator/` and `src/features/dashboard/`, all
