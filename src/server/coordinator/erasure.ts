@@ -427,22 +427,50 @@ function residueFromDirect(
     }));
   }
 
-  // Every identifier the request covers must have been searched for. An
-  // attestor that looked for two of three answered a narrower question, and the
-  // third is unexamined rather than absent.
-  const asked = new Set(input.identifiers);
-  const searched = new Set(verified.flatMap((record) => record.predicate.identifiers));
-  const missing = [...asked].filter((id) => !searched.has(id)).sort();
-  if (missing.length > 0) reasons.push({ kind: "predicate-gap", missing });
+  /*
+   * Every identifier the request covers must have been searched for, and by
+   * ONE record — the specification's Direct check names a single attestation
+   * `D` satisfying the predicate condition and the scope condition together.
+   *
+   * **Do not read the two halves off different records.** The union of the
+   * identifiers everybody searched for, checked against the scope of whoever
+   * happened to claim the whole table, lets a record that looked for one
+   * identifier in 1 of 730 partitions borrow the whole-table scope of a record
+   * that never looked for that identifier at all. Both conditions then pass and
+   * the asset reports as attested absent over ground nobody covered, which is
+   * counterexample case 2 arriving through the predicate rather than through
+   * the scope.
+   */
+  const asked = input.identifiers;
+  const qualifying = verified.filter((record) => {
+    const searched = new Set(record.predicate.identifiers);
+    return asked.every((id) => searched.has(id));
+  });
 
-  const whole = verified.some((record) => record.scope.kind === "whole");
+  if (qualifying.length === 0) {
+    // Nobody answered the whole question. The smallest gap any single attestor
+    // left is the shortest route to closing this, so that is the one named;
+    // sorted so the sentence cannot depend on the order records arrived in.
+    const gaps = verified
+      .map((record) => {
+        const searched = new Set(record.predicate.identifiers);
+        return asked.filter((id) => !searched.has(id)).sort();
+      })
+      .sort((a, b) => a.length - b.length || a.join().localeCompare(b.join()));
+    reasons.push({ kind: "predicate-gap", missing: gaps[0] });
+    return reasons;
+  }
+
+  const whole = qualifying.some((record) => record.scope.kind === "whole");
   if (!whole) {
-    // Named partitions union, because a union of names is checkable. The total
-    // is taken from the attestations themselves; they disagreeing about it is
-    // itself uncovered ground, so the largest claim is used.
+    // Named partitions union, because a union of names is checkable — and only
+    // across the records that each answered the whole question, for the reason
+    // above. The total is taken from the attestations themselves; they
+    // disagreeing about it is itself uncovered ground, so the largest claim is
+    // used.
     const covered = new Set<string>();
     let total = 0;
-    for (const record of verified) {
+    for (const record of qualifying) {
       if (record.scope.kind !== "partitions") continue;
       for (const part of record.scope.covered) covered.add(part);
       total = Math.max(total, record.scope.total);

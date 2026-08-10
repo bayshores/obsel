@@ -483,6 +483,80 @@ describe("the cases the table does not list", () => {
     });
   });
 
+  it("refuses a whole-scope record for one identifier stitched to a partition record for the other", () => {
+    /*
+     * The Direct check names ONE attestation that covers all of K and speaks
+     * for the whole of V at the same time. Reading the two halves off
+     * different records lets a search of 1 of 730 partitions for
+     * `hash-9f2a` borrow the whole-table scope of a record that never looked
+     * for `hash-9f2a` at all, and the asset comes out attested absent on
+     * ground nobody covered. Composition across records is allowed only
+     * between records that each answered the whole question.
+     */
+    const coverage = coverageFor(
+      input({
+        identifiers: ["cust_88213", "hash_9f2a"],
+        attestations: [
+          direct({
+            predicate: {
+              identifiers: ["cust_88213"],
+              expression: "customer_id = 'cust_88213'",
+              columns: ["customer_id"],
+            },
+            scope: { kind: "whole" },
+          }),
+          direct({
+            predicate: {
+              identifiers: ["hash_9f2a"],
+              expression: "email_hash = 'hash_9f2a' and dt = '2026-01-01'",
+              columns: ["email_hash"],
+            },
+            scope: { kind: "partitions", covered: ["2026-01-01"], total: 730 },
+          }),
+        ],
+      }),
+    );
+
+    expect(stateOf(coverage, CUSTOMERS)).toBe("UNPROVEN");
+    expect(residueKinds(coverage, CUSTOMERS)).toContain("predicate-gap");
+  });
+
+  it("composes named partitions only across records that each searched every identifier", () => {
+    // The graded partition output stays: two records that each answered the
+    // whole question and together name every partition do cover the version,
+    // and one that leaves partitions out reports how many are left.
+    const both = {
+      identifiers: ["cust_88213", "hash_9f2a"],
+      expression: "customer_id = 'cust_88213' or email_hash = 'hash_9f2a'",
+      columns: ["customer_id", "email_hash"],
+    };
+    const covered = coverageFor(
+      input({
+        identifiers: ["cust_88213", "hash_9f2a"],
+        attestations: [
+          direct({ predicate: both, scope: { kind: "partitions", covered: ["p1"], total: 2 } }),
+          direct({ predicate: both, scope: { kind: "partitions", covered: ["p2"], total: 2 } }),
+        ],
+      }),
+    );
+    expect(stateOf(covered, CUSTOMERS)).toBe("ATTESTED");
+
+    const partial = coverageFor(
+      input({
+        identifiers: ["cust_88213", "hash_9f2a"],
+        attestations: [
+          direct({ predicate: both, scope: { kind: "partitions", covered: ["p1"], total: 2 } }),
+        ],
+      }),
+    );
+    expect(stateOf(partial, CUSTOMERS)).toBe("UNPROVEN");
+    expect(partial.find((entry) => entry.asset === CUSTOMERS)?.residue).toContainEqual({
+      kind: "partitions-uncovered",
+      covered: 1,
+      total: 2,
+    });
+  });
+
   it("keeps one request's answer out of another's", () => {
     // State is per request, never per asset. Bob's request being open must not
     // be answered by Alice's attestation, and an asset-keyed store would.

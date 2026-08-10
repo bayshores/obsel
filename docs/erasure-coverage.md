@@ -62,6 +62,14 @@ contradictions, which is what admits the self-certifying cycle in case 5.
 - `D.scope` is the whole of `V`, not a partition or filtered subset
 - `D.result = absent`
 
+Every condition is checked on one record. Several direct attestations compose only when each of
+them covers the whole of `K`, and then only by the union of the partitions they name, which is
+checkable because partitions are named. Reading the predicate condition off one record and the
+scope condition off another admits a search of 1 of 730 partitions for an identifier the
+whole-scope record never looked for, and that composition is refused
+([`tests/erasure.test.ts`](../tests/erasure.test.ts), "refuses a whole-scope record for one
+identifier stitched to a partition record for the other").
+
 **Derived coverage.** A rebuild attestation `P` where all of the following hold:
 
 - `P` solely produced version `V` of `A`. Not "was one of the producers of".
