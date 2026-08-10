@@ -128,7 +128,7 @@ describe("bundles the CLI refuses, over the committed real bundle", () => {
     keys: { publicKeyPem: string }[];
     challenges: unknown[];
     attestations: { body?: { envelope?: { payload?: unknown } } }[];
-    report: { coverage: unknown[] };
+    report: { coverage: unknown[]; summary: unknown };
   };
 
   it("refuses a public key whose base64 body lost its padding, as node does", async () => {
@@ -210,6 +210,28 @@ describe("bundles the CLI refuses, over the committed real bundle", () => {
       expect(inBrowser.lines.some((line) => line.includes(refusal))).toBe(true);
     });
   }
+
+  it("refuses a null recorded summary by shape, rather than reading it in compare", async () => {
+    /*
+     * `typeof null` is "object", so a summary set to null passed the shape check
+     * and was then read field by field once every signature had been verified
+     * and printed. The CLI ended with a stack trace and no verdict, and the page
+     * threw on the same bundle. Refused by shape, the way the report itself
+     * already was, so the run never starts.
+     *
+     * Exit 2, not 1: the file could not be read as a bundle at all, which is the
+     * same code `request.seeds` gets.
+     */
+    const edited = structuredClone(bundle) as Bundle;
+    edited.report.summary = null;
+
+    expect(core.shapeProblem(edited)).toContain("report.summary");
+    const cli = cliVerdict(edited, "null-summary");
+    expect(cli.status, cli.stdout).toBe(2);
+    expect(cli.stdout).toContain("is not an obsel evidence bundle");
+    expect(cli.stdout).toContain("report.summary");
+    expect(cli.stdout).not.toContain("TypeError");
+  });
 });
 
 describe("every tamper the page offers", () => {

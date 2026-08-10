@@ -6533,3 +6533,44 @@ typecheck clean, the Python self-checks green, and `next build` green.
 **Unrun:** still no browser test for the hosted page. `pnpm e2e` has no spec for it, so the verdict
 element's text after each of these edits is asserted through the built core under Node and not in a
 browser.
+
+## 2026-08-10 — a null recorded summary, admitted by the shape check
+
+Commit: this change, on top of `961b41a`. The two entries above shape-checked every list the
+verifier reads. One field that is not a list had the same hole, and it is the field the shape check
+itself was supposed to cover.
+
+`shapeProblem` guarded `bundle.report` against null and then tested `bundle.report.summary` with
+`typeof ... !== "object"` alone. `typeof null` is `"object"`, so a summary set to null passed. The
+run then verified both signatures, printed every coverage row, printed `recomputed 2 of 18 assets
+covered, 16 unattested, 0 contradicted`, and ended in `compare` at `recorded.attested` with a
+`TypeError` on stderr and no verdict line. Reproduced first on a real mutated copy of
+`examples/erasure-evidence/bundle.json` with `report.summary = null` and nothing else changed.
+
+The fix is the null test the sibling loop three lines above already writes, and the refusal now names
+which of the two fields is wrong rather than naming both. A file refused by shape exits 2, the same
+code `request.seeds` gets: it could not be read as a bundle at all.
+
+Measured after the fix, same file: `... is not an obsel evidence bundle: report.summary is missing or
+is not an object`, stderr empty, exit 2.
+
+The rest of the file was then swept the same way. Every other `typeof x === "object"` check in
+`scripts/verify-bundle.mjs` already carries `x === null` beside it: the bundle itself, the three
+object fields, a key's `status`, a challenge entry, a key entry, a ledger record, its body, its
+envelope and a recorded coverage row. That was confirmed by running rather than by reading, with a
+null written into each of 24 fields of the committed capture in turn — `report`, `report.summary`,
+`report.coverage`, `report.coverage[0]`, `request` and its four fields, `upstreamOf`, `reachable`,
+`keys`, `keys[0]`, `keys[0].status`, `keys[0].scope`, `challenges`, `challenges[0]`, `attestations`,
+`attestations[0]`, its `body`, `envelope`, `signatures` and `at`, `capturedAt` and `formatVersion`.
+All 24 either refuse by shape at exit 2 or reach a printed verdict; none produces a `TypeError`.
+
+One test was added and watched failing first, in `tests/site-verify.test.ts` over the committed real
+capture, holding `shapeProblem` and a spawned CLI to the same named refusal. `site/dist` is rebuilt
+by that test's own `beforeAll`, and `site/core.js` re-exports this function rather than restating it,
+so the page and the CLI cannot split on it.
+
+`pnpm verify` on this commit: 664 passing across 35 files, `prettier --check` clean, lint clean,
+typecheck clean, the Python self-checks green, and `next build` green.
+
+**Unrun:** still no browser test for the hosted page, as the entry above says. The refusal this file
+now returns is asserted through the built core under Node, not in a browser.

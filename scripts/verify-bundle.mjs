@@ -185,8 +185,19 @@ export function shapeProblem(bundle) {
   if (!Array.isArray(bundle.request.seeds)) {
     return "request.seeds is missing or is not an array";
   }
-  if (!Array.isArray(bundle.report.coverage) || typeof bundle.report.summary !== "object") {
-    return "report.coverage or report.summary is missing";
+  if (!Array.isArray(bundle.report.coverage)) {
+    return "report.coverage is missing or is not an array";
+  }
+  /*
+   * `=== null` beside the `typeof`, the same way the loop above writes it.
+   * `typeof null` is "object", so a summary set to null passed this check and
+   * was then read field by field in `compare`, after every signature had been
+   * verified and printed. The run ended with a stack trace where its verdict
+   * line belonged, which is the one outcome this whole function exists to
+   * prevent.
+   */
+  if (typeof bundle.report.summary !== "object" || bundle.report.summary === null) {
+    return "report.summary is missing or is not an object";
   }
   return null;
 }
