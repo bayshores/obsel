@@ -70,6 +70,7 @@ describe("what the board is colored by", () => {
       watching: true,
       coverage: ENTRIES,
       everRead: true,
+      missing: false,
     });
     expect(reading.kind).toBe("coverage");
     if (reading.kind !== "coverage") return;
@@ -79,10 +80,22 @@ describe("what the board is colored by", () => {
 
   it("reads as the staleness board when nobody asked for coverage", () => {
     expect(
-      boardReading({ graphMode: false, watching: true, coverage: ENTRIES, everRead: true }).kind,
+      boardReading({
+        graphMode: false,
+        watching: true,
+        coverage: ENTRIES,
+        everRead: true,
+        missing: false,
+      }).kind,
     ).toBe("staleness");
     expect(
-      boardReading({ graphMode: false, watching: false, coverage: null, everRead: false }).kind,
+      boardReading({
+        graphMode: false,
+        watching: false,
+        coverage: null,
+        everRead: false,
+        missing: false,
+      }).kind,
     ).toBe("staleness");
   });
 
@@ -97,6 +110,7 @@ describe("what the board is colored by", () => {
       watching: true,
       coverage: null,
       everRead: true,
+      missing: false,
     });
     expect(reading.kind).toBe("withheld");
   });
@@ -107,6 +121,7 @@ describe("what the board is colored by", () => {
       watching: true,
       coverage: null,
       everRead: false,
+      missing: false,
     });
     if (waiting.kind !== "withheld") throw new Error("a board with no report colors nothing");
     // The colors are withheld either way. What differs is which of the two
@@ -127,11 +142,35 @@ describe("what the board is colored by", () => {
       watching: false,
       coverage: null,
       everRead: false,
+      missing: false,
     });
     if (none.kind !== "withheld") throw new Error("a board with no report colors nothing");
     expect(none.notice).not.toContain("is reading the erasure report");
     expect(none.notice).not.toContain("could not read");
     expect(none.notice).toContain("No erasure request has been named");
+  });
+
+  /*
+   * The fourth way there is no report, which the other three readings reported
+   * as the first: obsel answered 404, meaning it holds no such request. The
+   * ledger was read and the request is not in it, so "obsel could not read the
+   * erasure report" names a failure that did not happen, and a reader who
+   * mistyped a request id is sent to look at obsel's connection instead of at
+   * what they typed.
+   */
+  it("says the request is not in the ledger rather than that the read failed", () => {
+    const none = boardReading({
+      graphMode: true,
+      watching: true,
+      coverage: null,
+      everRead: true,
+      missing: true,
+    });
+    if (none.kind !== "withheld") throw new Error("a board with no report colors nothing");
+    expect(none.notice).toContain("not in obsel's ledger");
+    expect(none.notice).not.toContain("could not read");
+    expect(none.notice).not.toContain("is reading the erasure report");
+    expect(none.notice).not.toContain("No erasure request has been named");
   });
 
   it("says where the colors are why they are missing", () => {
@@ -140,6 +179,7 @@ describe("what the board is colored by", () => {
       watching: true,
       coverage: null,
       everRead: true,
+      missing: false,
     });
     if (reading.kind !== "withheld") throw new Error("a withheld board has to carry a notice");
     expect(reading.notice.length).toBeGreaterThan(20);

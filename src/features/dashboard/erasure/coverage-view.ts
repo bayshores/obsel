@@ -78,20 +78,27 @@ export function boardReading(input: {
   coverage: readonly { asset: string; state: ErasureState }[] | null;
   /** Whether a read has come back at all, which separates a failure from a wait. */
   everRead: boolean;
+  /** Whether obsel answered that it holds no such request, which is not a failure. */
+  missing: boolean;
 }): BoardReading {
   if (!input.graphMode) return { kind: "staleness" };
   if (input.coverage === null) {
-    // Three ways there is no report, and obsel may only say the one that
+    // Four ways there is no report, and obsel may only say the one that
     // happened. No request named means nothing is being read at all: a reader
     // who clears the field while the colors are on was told obsel was reading a
-    // report it had never been given. Of the remaining two, a read still in
-    // flight is not a failed one, and calling it one reports an outcome obsel
-    // does not have. All three withhold the colors, for the same reason.
+    // report it had never been given. A 404 is not a failed read either: obsel
+    // read its ledger and the request is not in it, and reporting that as a
+    // failure sends a reader who mistyped a request id to look at obsel's
+    // connection. Of the remaining two, a read still in flight is not a failed
+    // one, and calling it one reports an outcome obsel does not have. All four
+    // withhold the colors, for the same reason.
     const cause = !input.watching
       ? "No erasure request has been named, so there is no report to color this board by."
-      : input.everRead
-        ? "obsel could not read the erasure report, so there is nothing to color this board by."
-        : "obsel is reading the erasure report.";
+      : input.missing
+        ? "That erasure request is not in obsel's ledger, so there is no report to color this board by."
+        : input.everRead
+          ? "obsel could not read the erasure report, so there is nothing to color this board by."
+          : "obsel is reading the erasure report.";
     return {
       kind: "withheld",
       notice: `${cause} The board is left uncolored rather than falling back to the out-of-date colors, where green means finished work rather than attested absent.`,

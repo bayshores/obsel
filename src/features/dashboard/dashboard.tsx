@@ -132,8 +132,11 @@ export function Dashboard() {
         watching: erasure.request !== null,
         coverage: erasure.report?.coverage ?? null,
         everRead: erasure.everRead,
+        // A 404 is an answer, not a failure, and the notice has to say which
+        // one happened: obsel read its ledger and that request is not in it.
+        missing: erasure.missing,
       }),
-    [graphMode, erasure.request, erasure.report, erasure.everRead],
+    [graphMode, erasure.request, erasure.report, erasure.everRead, erasure.missing],
   );
   const coverage: CoverageMode =
     reading.kind === "coverage" ? reading.states : reading.kind === "withheld" ? "withheld" : null;
