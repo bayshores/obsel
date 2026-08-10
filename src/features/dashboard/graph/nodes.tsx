@@ -75,8 +75,13 @@ export interface DataNodeData {
    * the second as a state would turn an asset nobody looked at into an asset
    * somebody cleared, which is the exact substitution the whole erasure design
    * exists to prevent.
+   *
+   * `"withheld"` is the third: the board is in erasure mode and the report could
+   * not be read at all. The box then carries no color and no word, because
+   * "not reached" would be a claim about a walk that did not happen. The canvas
+   * says why, once, rather than every box saying it.
    */
-  coverage?: ErasureState | null;
+  coverage?: ErasureState | null | "withheld";
   [key: string]: unknown;
 }
 
@@ -166,6 +171,10 @@ export function TaskNode({ data }: { data: TaskNodeData }) {
 export function DataNode({ data }: { data: DataNodeData }) {
   const { urn, isOrigin, columns, external, coverage } = data;
   const reading = coverage !== undefined;
+  // The erasure board with nothing read: no color, no state word, and no
+  // staleness treatment either.
+  const withheld = coverage === "withheld";
+  const state = coverage === undefined || withheld ? null : coverage;
 
   return (
     <div
@@ -181,13 +190,13 @@ export function DataNode({ data }: { data: DataNodeData }) {
        */
       style={
         reading
-          ? coverage === null
+          ? state === null
             ? undefined
-            : { borderLeft: `3px solid ${coverageTone(coverage).fill}` }
+            : { borderLeft: `3px solid ${coverageTone(state).fill}` }
           : { borderColor: isOrigin ? STALE : undefined }
       }
       data-origin={!reading && isOrigin ? "true" : undefined}
-      data-coverage={reading ? (coverage ?? "not-reached") : undefined}
+      data-coverage={reading && !withheld ? (state ?? "not-reached") : undefined}
     >
       <Ports />
       <span className={styles.dataName}>{datasetTitle(urn)}</span>
@@ -199,14 +208,14 @@ export function DataNode({ data }: { data: DataNodeData }) {
         absent claim and a clean one look identical on a board, and only one of
         them is true here.
       */}
-      {reading && (
+      {reading && !withheld && (
         <span
           className={styles.coverage}
           style={{
-            color: coverage === null ? "var(--mm-cream-mute)" : coverageTone(coverage).fill,
+            color: state === null ? "var(--mm-cream-mute)" : coverageTone(state).fill,
           }}
         >
-          {coverage === null ? "not reached" : stateWord(coverage)}
+          {state === null ? "not reached" : stateWord(state)}
         </span>
       )}
 

@@ -6640,3 +6640,63 @@ up as a failure rather than as an empty method list.
 route composes `mutationRoute` and has been gated all along, so nothing is open; what was
 missing is the guard that would catch a future ungating of it, and that route can raise stale
 marks across the board. **Unrun here:** the live suite was not executed for this change.
+
+## 2026-08-10 — The erasure board reports a failed read where the colors are
+
+Two ways the erasure half reported a read it had not made.
+
+**A read that fails while the board is colored by coverage.** Ticking "color the graph by
+erasure coverage" and then losing the read set the report to null while the reader's choice
+stayed on, and the canvas fell back to the staleness colors. Green went from "attested absent"
+to "finished", the agents got their colors back, and the only failure text was in the erasure
+tab, which the reader may have switched away from. `boardReading` in `coverage-view.ts` now
+decides between three readings rather than two, and a read with no report is the third:
+the canvas draws no coverage states and does not draw the staleness board either, and it
+carries one line saying so, under the sentence that says what the board is. `CoverageMode`
+in `lineage.tsx` carries the third case, and a table box then shows no state word, because
+"not reached" would describe a walk that did not happen.
+
+**A tab re-opened after being away.** The poll stops when nothing is showing the report, and
+what had been read stayed, so the frame a returning reader opened rendered the previous read
+as the current one, until a fresh read landed or the read timed out eight seconds later.
+
+The first attempt at this was `shownRead`, which masks the read while nothing is showing it,
+and it fixed nothing: the tab is open again on the frame a returning reader sees, so the
+function was the identity on exactly that frame, and while the tab was closed there was no
+component left to return the masked value to. The read is now dropped rather than masked.
+`showingReport` in `use-erasure.ts` takes the same flag and, when it goes false, publishes
+`NOT_READ` to the store the last read lives in, which happens while the tab is unmounted; by
+the time it re-opens there is nothing held to render. `shownRead` stays as a second check
+over the render in which the drop has not run yet.
+
+The read moved out of `useState` into a module store beside the watched request, for the
+reason the request is already there: there is one board and one last read of it, and a store
+is where the rule about dropping it can be a function that a node test can call. The server
+never reads it, because `serverRead` answers there with the constant, so nothing is shared
+between two requests to the server.
+
+**Three things the first fix dragged with it.** A read still in flight has also produced no
+report, and the same notice would have called it a failure obsel does not have, so the
+sentence names which of the two it is. A third case was missing from that pair and reachable
+by submitting an empty request field with the colors on: no request named at all, which the
+board reported as "obsel is reading the erasure report" about a report obsel had never been
+given. `boardReading` now takes whether a request is being watched and says so instead. And
+the tab's toggle was disabled whenever there was no report, which after this change would
+have stranded a reader on a board with its colors withheld and no way back to the staleness
+board; it is now disabled only before the first report, which is the state its "needs a
+report to be read first" sentence describes.
+
+All three are asserted by `tests/dashboard-erasure-honesty.test.ts`, 10 tests, run here and
+passing. The re-open test was run red first against a `showingReport` that dropped nothing:
+it reported the held report where null was expected, which is the defect itself. `pnpm verify`
+is clean on this commit: `format:check`, `lint`, `typecheck`, 36 test files and 651 tests, the
+Python self-checks, and `next build`.
+
+**Not run here.** Two browser tests in `e2e/erasure.spec.ts` cover the same behaviors in a
+real page, one asserting that a failed read after the colors are on leaves no coverage state
+and no cascade on the canvas and prints the notice, the other that a re-opened tab holds no
+asset rows on the frame it opens. This work had no browser stack, so both are unexecuted. The
+second serves a read that answers nothing for thirty seconds rather than one that fails,
+because a failing read can answer between the re-open and the assertion, and the test would
+then be passing on the failure having landed rather than on nothing being held. The fixture
+flag that holds a read open, `"hang"` in `e2e/fixtures/mount.ts`, is unexecuted with it.

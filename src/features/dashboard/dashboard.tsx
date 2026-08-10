@@ -28,12 +28,14 @@ import { Panel } from "./panel/panel";
 import type { TabId } from "./panel/tabs";
 import { usePanel } from "./panel/use-panel";
 import { ErasureTab } from "./erasure/erasure-tab";
+import { boardReading } from "./erasure/coverage-view";
 import { useErasure } from "./erasure/use-erasure";
 import { guide } from "./guide/guide";
 import type { GuideInput } from "./guide/guide";
 import { DetailsSurface } from "./details/details-surface";
 import { joining } from "./joining/joining";
 import { Lineage } from "./graph/lineage";
+import type { CoverageMode } from "./graph/lineage";
 import { yourData } from "./your-data/your-data";
 import { PulseDot } from "./mmux";
 import { useToken } from "./token/use-token";
@@ -113,17 +115,28 @@ export function Dashboard() {
   const changes = useChanges(activeTab === "history");
 
   /*
-   * The report as a lookup the graph can use, or nothing.
+   * How the board is being read: by staleness, by a report, or by neither.
    *
-   * Built here rather than in the canvas so the rule is in one place: the board
-   * is colored by coverage only when a reader asked for that AND a report has
-   * actually been read. A mode with no report would paint every table as
-   * unreached, which is a claim about an estate obsel has not looked at.
+   * The third answer is what a failed read produces while a reader still has
+   * the coverage colors switched on. `boardReading` decides all three, and its
+   * own comment records why the failure cannot be answered by quietly drawing
+   * the staleness colors instead.
    */
-  const coverage = useMemo(() => {
-    if (!graphMode || erasure.report === null) return null;
-    return new Map(erasure.report.coverage.map((entry) => [entry.asset, entry.state]));
-  }, [graphMode, erasure.report]);
+  const reading = useMemo(
+    () =>
+      boardReading({
+        graphMode,
+        // Whether obsel is reading anything, which is not the same question as
+        // whether a read came back. With no request named there is no read to
+        // wait for, and the notice said obsel was reading one.
+        watching: erasure.request !== null,
+        coverage: erasure.report?.coverage ?? null,
+        everRead: erasure.everRead,
+      }),
+    [graphMode, erasure.request, erasure.report, erasure.everRead],
+  );
+  const coverage: CoverageMode =
+    reading.kind === "coverage" ? reading.states : reading.kind === "withheld" ? "withheld" : null;
 
   const tasks = inDependencyOrder(data?.snapshot.tasks ?? []);
   const t = totals(tasks);
@@ -353,6 +366,21 @@ export function Dashboard() {
               Each agent reads a table another agent wrote, so a change in one can make
               another&apos;s finished work wrong
             </h2>
+
+            {/*
+              Why the board carries no colors, over the board that carries none.
+
+              On the canvas rather than only in the erasure tab, because the tab
+              can be closed while the coloring is switched on, and the reader
+              who cannot see the tab is exactly the reader who would otherwise
+              read a recolored board as an answer. The tab states which read
+              failed; this states what that did to the picture.
+            */}
+            {reading.kind === "withheld" && tasks.length > 0 && (
+              <p className={styles.withheld} role="status">
+                {reading.notice}
+              </p>
+            )}
           </div>
 
           {/*
@@ -367,7 +395,7 @@ export function Dashboard() {
             Hidden while the details card is open: the two would otherwise share
             the bottom edge of a narrow canvas.
           */}
-          {tasks.length > 0 && !showingDetails && coverage === null && (
+          {tasks.length > 0 && !showingDetails && reading.kind === "staleness" && (
             <ul className={styles.legend} aria-label="What the boxes mean">
               <li>
                 <span className={styles.keyAgent} aria-hidden="true" /> an agent
@@ -391,7 +419,7 @@ export function Dashboard() {
             asset; obsel has nothing to say about an agent's own erasure state,
             and a board that dimmed them silently would look like it did.
           */}
-          {tasks.length > 0 && !showingDetails && coverage !== null && (
+          {tasks.length > 0 && !showingDetails && reading.kind === "coverage" && (
             <ul className={styles.legend} aria-label="What the colors mean">
               <li>
                 <span
@@ -446,9 +474,9 @@ export function Dashboard() {
              * two answers to two different questions in one panel.
              */
             coverageFor={(dataset) =>
-              coverage === null
+              reading.kind !== "coverage"
                 ? null
-                : (coverage.get(dataset) ?? "not reached by the lineage walk")
+                : (reading.states.get(dataset) ?? "not reached by the lineage walk")
             }
             populated={tasks.length > 0}
             onClose={() => setSelectedUrn(null)}

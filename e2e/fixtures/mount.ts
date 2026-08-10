@@ -144,8 +144,13 @@ export async function openDashboard(
    * `"missing"` is a 404, which is not a fault: it is obsel saying it holds no
    * such request, and the tab reads differently for it than for a broken
    * connection. `"fail"` is the broken connection.
+   *
+   * `"hang"` answers nothing for half a minute, which is what a test asserting
+   * on the frame before a read lands needs: with `"fail"` the answer can arrive
+   * between the click and the assertion, and the test would then be passing
+   * because the failure landed rather than because nothing was held.
    */
-  serveErasure: (next: PublishedErasureReport | "missing" | "fail") => void;
+  serveErasure: (next: PublishedErasureReport | "missing" | "fail" | "hang") => void;
   /**
    * What `GET /api/changes` answers.
    *
@@ -162,7 +167,7 @@ export async function openDashboard(
   const registrations: SeenRegistration[] = [];
   const mutationAuth: (string | null)[] = [];
   let refusal: { status: number; error: string } | null = null;
-  let currentErasure: PublishedErasureReport | "missing" | "fail" = "missing";
+  let currentErasure: PublishedErasureReport | "missing" | "fail" | "hang" = "missing";
   // An empty history by default: most tests are not about it, and an empty one is
   // what a board nothing has happened on genuinely has.
   let currentChanges: ChangeHistory | "fail" = { flowId: "orders_pipeline", entries: [] };
@@ -296,6 +301,18 @@ export async function openDashboard(
    * covers the rule, against the kernel that decides it.
    */
   await page.route("**/api/erasure/**", async (route) => {
+    if (currentErasure === "hang") {
+      // Longer than the hook's own read timeout, so nothing this route serves
+      // can reach the page inside a test. The page aborts its own request at
+      // eight seconds; whatever this eventually answers is discarded.
+      await new Promise((resolve) => setTimeout(resolve, 30_000));
+      await route.fulfill({
+        status: 504,
+        contentType: "application/json",
+        body: JSON.stringify({ error: "the ledger could not be read" }),
+      });
+      return;
+    }
     if (currentErasure === "fail") {
       await route.fulfill({
         status: 500,

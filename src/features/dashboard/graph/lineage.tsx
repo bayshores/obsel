@@ -174,7 +174,9 @@ function graphSignature(
     origin && [origin.causedBy, origin.causedByTask, origin.columns],
     // Sorted, so a report re-read every five seconds with the same answers
     // produces the same string and the graph is not rebuilt for nothing.
-    coverage === null ? null : [...coverage.entries()].sort((a, b) => a[0].localeCompare(b[0])),
+    coverage === null || coverage === "withheld"
+      ? coverage
+      : [...coverage.entries()].sort((a, b) => a[0].localeCompare(b[0])),
   ]);
 }
 
@@ -186,8 +188,15 @@ function graphSignature(
  * what an erasure report says about each table. A table absent from the map was
  * not reached by that report, which the nodes render as its own state rather
  * than as an absence of color.
+ *
+ * `"withheld"` is the erasure board with no report to color it: the reader
+ * asked the erasure question and the read failed. The board stays off the
+ * staleness colors, because reverting to them would answer a question nobody
+ * asked in a green that then means something else, and it states no coverage
+ * either, because there is none to state. `boardReading` decides which of the
+ * three this is.
  */
-export type CoverageMode = ReadonlyMap<string, ErasureState> | null;
+export type CoverageMode = ReadonlyMap<string, ErasureState> | "withheld" | null;
 
 /** Pure: the swarm in, React Flow's nodes, edges and layout bounds out. */
 function buildGraph(
@@ -255,8 +264,14 @@ function buildGraph(
       columns: originDataset === urn ? (origin?.columns ?? null) : null,
       external: !writers.has(urn),
       // `undefined` off the erasure board, `null` on it for a table the report
-      // did not reach. `nodes.tsx` records why those must stay distinguishable.
-      coverage: coverage === null ? undefined : (coverage.get(urn) ?? null),
+      // did not reach. `nodes.tsx` records why those must stay distinguishable,
+      // and why a withheld read is a third thing again.
+      coverage:
+        coverage === null
+          ? undefined
+          : coverage === "withheld"
+            ? "withheld"
+            : (coverage.get(urn) ?? null),
     };
     return { id: node.id, type: "data", data, ...box };
   });

@@ -47,6 +47,62 @@ export function stateWord(state: ErasureState): string {
   }
 }
 
+/**
+ * How the board is being read, decided in one place rather than in the canvas.
+ *
+ * Three answers, and the third exists because the first two are not enough. A
+ * reader who asked for coverage colors and whose next read failed has no report
+ * to color with, and the board must not answer that by drawing the staleness
+ * colors: the same green would go from "attested absent" to "finished", under a
+ * reader who is still asking the erasure question, with the only failure text
+ * on a tab that may not be open. So the colors are withheld and the board says
+ * so where the colors were.
+ *
+ * This is the erasure half's default rule applied to the canvas: nothing said is
+ * not an all-clear, and it is not a different question's answer either.
+ */
+export type BoardReading =
+  /** Not colored by coverage. Amber where finished work went out of date. */
+  | { kind: "staleness" }
+  /** Colored by a report that was read. */
+  | { kind: "coverage"; states: ReadonlyMap<string, ErasureState> }
+  /** Coverage was asked for and there is no report to color with. */
+  | { kind: "withheld"; notice: string };
+
+export function boardReading(input: {
+  /** Whether a reader asked for the board to be colored by coverage. */
+  graphMode: boolean;
+  /** Whether obsel is watching a request at all, which is what a read needs. */
+  watching: boolean;
+  /** What the last read produced, or nothing when it failed or has not landed. */
+  coverage: readonly { asset: string; state: ErasureState }[] | null;
+  /** Whether a read has come back at all, which separates a failure from a wait. */
+  everRead: boolean;
+}): BoardReading {
+  if (!input.graphMode) return { kind: "staleness" };
+  if (input.coverage === null) {
+    // Three ways there is no report, and obsel may only say the one that
+    // happened. No request named means nothing is being read at all: a reader
+    // who clears the field while the colors are on was told obsel was reading a
+    // report it had never been given. Of the remaining two, a read still in
+    // flight is not a failed one, and calling it one reports an outcome obsel
+    // does not have. All three withhold the colors, for the same reason.
+    const cause = !input.watching
+      ? "No erasure request has been named, so there is no report to color this board by."
+      : input.everRead
+        ? "obsel could not read the erasure report, so there is nothing to color this board by."
+        : "obsel is reading the erasure report.";
+    return {
+      kind: "withheld",
+      notice: `${cause} The board is left uncolored rather than falling back to the out-of-date colors, where green means finished work rather than attested absent.`,
+    };
+  }
+  return {
+    kind: "coverage",
+    states: new Map(input.coverage.map((entry) => [entry.asset, entry.state])),
+  };
+}
+
 /** What each state resolves to. Never a color value, always an mmux token. */
 export interface CoverageTone {
   /** Tints the asset's marker and its state word. */

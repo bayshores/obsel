@@ -320,6 +320,24 @@
 }
 
 /*
+ * Why the picture below carries no colors, under the sentence saying what the
+ * picture is.
+ *
+ * In the caption block rather than in the key's corner, because the key stands
+ * down whenever the details card is open and this may not: it is the only thing
+ * on the canvas stating that the board is not answering the question its colors
+ * were answering a moment ago.
+ */
+.withheld {
+  margin: var(--mm-space-xs) 0 0;
+  color: var(--mm-cream-mute);
+  font-family: var(--mm-font-mono);
+  font-size: var(--mm-text-cap);
+  line-height: 1.4;
+  letter-spacing: var(--mm-track);
+}
+
+/*
  * The color key, bottom-left over the graph.
  *
  * Amber is the whole message of this board, and until now nothing on screen

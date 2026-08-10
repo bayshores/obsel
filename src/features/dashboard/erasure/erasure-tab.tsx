@@ -85,16 +85,22 @@ export function ErasureTab({
           A control that vanishes when it cannot be used teaches nothing. This
           one says what it needs, which is a report to color the graph with.
         */}
+        {/*
+          Switched on, it stays switchable. A read that fails after the colors
+          are on leaves no report, and disabling the control then would strand
+          the board with its colors withheld and no way back to the staleness
+          board until the read recovered.
+        */}
         <label className={styles.mode}>
           <input
             type="checkbox"
-            checked={graphMode && report !== null}
-            disabled={report === null}
+            checked={graphMode}
+            disabled={report === null && !graphMode}
             onChange={(event) => onGraphMode(event.currentTarget.checked)}
           />
           <span>
             color the graph by erasure coverage
-            {report === null && (
+            {report === null && !graphMode && (
               <span className={styles.modeReason}> (needs a report to be read first)</span>
             )}
           </span>

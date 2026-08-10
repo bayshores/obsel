@@ -293,6 +293,59 @@ test.describe("the graph read as an erasure report", () => {
     await expect(panel).not.toContainText("erasure report says");
   });
 
+  /*
+   * The failure a reader is least likely to notice: the read that fails after
+   * the colors are already on the canvas.
+   *
+   * The report goes, the reader's choice stays, and the board used to answer
+   * that by drawing the staleness colors again. The same green then means
+   * "finished" instead of "attested absent", under a reader who is still asking
+   * the erasure question, with the only failure text on a tab they closed.
+   */
+  test("a failed read withholds the colors instead of swapping what they mean", async ({
+    page,
+  }) => {
+    const handle = await arrive(page, mixed());
+    await colorTheGraph(page);
+    expect(await page.locator("[data-coverage]").count()).toBeGreaterThan(0);
+
+    await openTab(page, "activity");
+    handle.serveErasure("fail");
+    // One poll of the erasure read, which runs at five seconds.
+    await page.waitForTimeout(6000);
+
+    // No coverage states, because there is no report to state them from.
+    await expect(page.locator("[data-coverage]")).toHaveCount(0);
+    // And no cascade either: the staleness board is a different question's
+    // answer, and nobody asked it.
+    await expect(page.locator('[data-origin="true"]')).toHaveCount(0);
+    await expect(page.locator("main")).toContainText("could not read the erasure report");
+  });
+
+  test("a re-opened tab reads the ledger again rather than showing the last report", async ({
+    page,
+  }) => {
+    const handle = await arrive(page, mixed());
+    await watch(page, "dsr-2f9c");
+    await expect(page.locator("li[data-state]").first()).toBeVisible();
+
+    /*
+     * Away from the tab the poll stops, so what was read stops being current.
+     *
+     * The read is then held open rather than failed, and that is what makes
+     * this test decide anything: with a failing read the answer can arrive
+     * between the re-open and the count, and the assertion would pass because
+     * the failure landed rather than because nothing was held. Nothing can land
+     * here, so a report on screen could only be the old one.
+     */
+    await openTab(page, "activity");
+    handle.serveErasure("hang");
+    await openTab(page, "erasure");
+
+    await expect(page.locator("li[data-state]")).toHaveCount(0);
+    await expect(page.locator('[role="tabpanel"]')).toContainText("Reading the ledger");
+  });
+
   test("puts the staleness board back when it is switched off", async ({ page }) => {
     await arrive(page, mixed());
     await colorTheGraph(page);
