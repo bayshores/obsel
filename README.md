@@ -448,7 +448,7 @@ with one CLI cannot be read as evidence about both. See
 
 [![The runtime architecture: an operator's browser talks to the obsel dashboard, which talks to the obsel server, which reads and writes DataHub. The server launches agent workers through the agent integration layer, which runs a real agent CLI and keeps demo tables on the local filesystem. An MCP-capable agent joins through the same MCP tools.](docs/images/architecture.png)](docs/images/architecture.png)
 
-<div align="center"><em>The container diagram, modeled in Structurizr from <a href="docs/architecture.dsl"><code>docs/architecture.dsl</code></a>. Click for full size.</em></div>
+<div align="center"><em>The container diagram, drawn from the model in <a href="docs/architecture.dsl"><code>docs/architecture.dsl</code></a>. Click for full size.</em></div>
 
 ```
 app/                     routing, and the seventeen HTTP routes
