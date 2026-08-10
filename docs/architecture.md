@@ -377,7 +377,7 @@ The split that matters most is between deciding and doing.
   network, no clock, no DataHub. Every rule obsel's trustworthiness rests on is decided in this file
   and tested without standing anything up: an identical re-run marks nothing, the cascade is
   transitive, unfinished work is not eligible, a cycle terminates, the shortest path wins.
-  [`tests/staleness.test.ts`](../tests/staleness.test.ts) holds 38 tests against it, about half of
+  [`tests/staleness.test.ts`](../tests/staleness.test.ts) holds 83 tests against it, about half of
   which assert that nothing is marked and nothing propagates.
 - [`src/server/coordinator/engine.ts`](../src/server/coordinator/engine.ts) is the IO half. It
   reads, calls the pure functions, and writes the answers back. It decides nothing.
@@ -572,7 +572,7 @@ What has been verified directly, and what has not.
 
 **Verified:**
 
-- The staleness rules, by 34 deterministic tests in `tests/staleness.test.ts`.
+- The staleness rules, by 83 deterministic tests in `tests/staleness.test.ts`.
   These cover the negative cases specifically: identical re-run marks nothing, an unrelated branch
   is untouched, a running task is neither marked nor walked through, a cycle terminates, a task
   reachable two ways is reported once at its shortest distance.
@@ -824,7 +824,7 @@ What has been verified directly, and what has not.
 
 ## 11. The HTTP API
 
-Sixteen routes. All of them are `force-dynamic`; nothing here is cached. They fall into four groups.
+Seventeen routes. All of them are `force-dynamic`; nothing here is cached. They fall into four groups.
 
 **obsel's own protocol, eight routes.** `GET /api/swarm`, `GET /api/trace`, and the five under
 `/api/tasks/`: `register`, `start`, `complete`, `abandon`, `report`, plus
@@ -1140,7 +1140,7 @@ clearing failed.
 
 Run one demo step on this machine, the same `agents/.venv/bin/python -m agents.run <step>` the
 README documents, spawned verbatim with no shell and no interpolation: the step name is a Zod enum
-of the seven commands, and nothing else from the request reaches the spawn. Answers immediately;
+of the twelve commands, and nothing else from the request reaches the spawn. Answers immediately;
 progress is read from `/api/demo/activity` and from the swarm itself.
 
 One step at a time, enforced server-side with a 409, because the steps share the demo's tables, so a
@@ -1153,7 +1153,9 @@ explicitly decided against.
 
 ```jsonc
 // request
-{ "step": "run" } // "setup" | "register" | "run" | "rerun-same" | "change" | "repair" | "reset"
+{ "step": "run" } // "setup" | "register" | "run" | "rerun-same" | "change" | "repair" | "reset",
+// plus the taxi swarm's "scale-register" | "scale-run" | "scale-change" |
+// "scale-change-mid" | "scale-repair"
 ```
 
 ```jsonc
@@ -1235,9 +1237,9 @@ panel explaining what obsel is doing is most useful when something is wrong.
 steps, in memory, process-local, gone on restart. Section 12 sets out what this panel may and may not
 claim, and why the buffer is deliberately something nothing else depends on.
 
-Steps are written at log length rather than as sentences, and the panel renders only the newest
-eight. Both are deliberate. The route still returns the full tail, so nothing is dropped from what
-callers can read; what is bounded is how much of the page a 21-step run is allowed to occupy.
+Steps are written at log length rather than as sentences, deliberately. The panel renders the whole
+trace, bounded by the buffer's 200 steps; section 12 records why the earlier newest-eight slice was
+removed.
 
 ```jsonc
 // 200

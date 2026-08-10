@@ -56,20 +56,20 @@ were found.
 | File                | What it is                                                                                                                                                                                                                                                |
 | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `graph.py`          | Walks the lineage graph to find what a change breaks. Also holds the Python reference implementation of task registration, which the demo does not use, because `run.py register` goes through obsel's HTTP API instead.                                  |
-| `fingerprint.py`    | Reduces a produced table to a schema hash and a content hash. 7 self-checks.                                                                                                                                                                              |
+| `fingerprint.py`    | Reduces a produced table to a schema hash and a content hash. 12 self-checks.                                                                                                                                                                             |
 | `seed_data.py`      | The synthetic `raw_orders` table the swarm starts from, from a fixed seed.                                                                                                                                                                                |
 | `pipeline.py`       | The four agents, their instructions, and the shape they form. Data only.                                                                                                                                                                                  |
 | `worker.py`         | One agent: load inputs, announce the start, let the agent do the work, hold the output to its contract, fingerprint the output and the inputs as read, report both to obsel. 17 self-checks.                                                              |
 | `agent_contract.py` | What an agent is told and what it is held to, shared by both runners. Refuses anything unusable it writes back. 23 self-checks.                                                                                                                           |
-| `runner_select.py`  | Which CLI runs the agents: `OBSEL_RUNNER`, or whichever is installed, Codex first. 9 self-checks.                                                                                                                                                         |
+| `runner_select.py`  | Which CLI runs the agents: `OBSEL_RUNNER`, or whichever is installed, Codex first. 10 self-checks.                                                                                                                                                        |
 | `codex_runner.py`   | Runs one agent as a real `codex exec` session.                                                                                                                                                                                                            |
 | `claude_runner.py`  | Runs one agent as a real `claude -p` session.                                                                                                                                                                                                             |
 | `setup.py`          | One-time DataHub setup: creates obsel's tag and the demo DataFlow.                                                                                                                                                                                        |
-| `run.py`            | The command line that drives the demo: argument parsing, dispatch, and 42 self-checks over the guards behind what every step prints.                                                                                                                      |
+| `run.py`            | The command line that drives the demo: argument parsing, dispatch, and 48 self-checks over the guards behind what every step prints.                                                                                                                      |
 | `run_demo.py`       | The four-agent steps: register, run, rerun-same, change, repair, reset.                                                                                                                                                                                   |
 | `run_scale.py`      | The forty-agent taxi steps, including the change that lands mid-run.                                                                                                                                                                                      |
 | `demo_output.py`    | What both of those print, and how both read obsel's replies. A missing key is refused rather than read as an empty list.                                                                                                                                  |
-| `mcp_core.py`       | Everything obsel's MCP server decides about a swarm before it speaks: reply guards, output resolution, freshness verdicts, the completion body, tables handed over as file paths. Standard library only, so `pnpm verify` can check it. 49 self-checks.   |
+| `mcp_core.py`       | Everything obsel's MCP server decides about a swarm before it speaks: reply guards, output resolution, freshness verdicts, the completion body, tables handed over as file paths. Standard library only, so `pnpm verify` can check it. 58 self-checks.   |
 | `mcp_erasure.py`    | The erasure half of the same, kept apart because this one may never default to "nothing is wrong": turning a coverage report into sorted, actionable gaps. 9 self-checks.                                                                                 |
 | `mcp_server.py`     | obsel's own MCP server: the ten tools any MCP-capable agent joins through, seven for the page and three for erasure. Wiring only; covered by `tests/live/obsel-mcp.live.test.ts`.                                                                         |
 | `observe.py`        | Tells obsel what a table holds right now, for writers that never report: a cron entry, a change-data-capture bridge, a person after a hand edit. Hashes the file with the producer's registered exclusions. Covered by `tests/live/observe.live.test.ts`. |
@@ -469,7 +469,9 @@ agents/.venv/bin/python -m agents.pipeline
 agents/.venv/bin/python -m agents.seed_data
 ```
 
-All five run together, and are part of `pnpm verify`:
+The five self-check commands above are part of `pnpm verify`, whose `pnpm test:python` also runs
+the `context`, `mcp_core`, `mcp_erasure`, `scale` and `swarm` checks. `pipeline` and `seed_data`
+print state rather than run checks:
 
 ```bash
 pnpm test:python

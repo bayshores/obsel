@@ -19,10 +19,10 @@ And a row names its evidence precisely enough to re-run it or look it up.
 | browser | Playwright against the built app                                       | `pnpm e2e`         |
 | run     | a dated, measured run recorded in [`verification.md`](verification.md) | see its entry      |
 
-Counts measured on 2026-08-02, after every mutating route was gated: **626 unit tests across 35
-files, 222 python self-checks across 9 modules**, **297 browser checks across two viewports** with
-one skipped, and **the whole live suite green end to end: 163 tests across 15 files**
-against a real DataHub, with one real Codex and one real Claude Code session in the run. The live
+Counts measured on 2026-08-10 (unit, python, browser) and 2026-08-09 (live): **651 unit tests
+across 37 files, 235 python self-checks across 10 modules**, **297 browser checks across two
+viewports** with one skipped, and **the whole live suite green end to end: 176 tests across 16
+files** against a real DataHub, with one real Codex and one real Claude Code session in the run. The live
 suite's first execution of `task-auth`, `volatile` and `observe` was 2026-07-30, which is when those
 rows left `## Not covered`. Live runs are single observations unless their entry says otherwise.
 

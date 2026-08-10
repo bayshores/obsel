@@ -433,11 +433,11 @@ pnpm e2e         # browser checks; builds and serves the app itself
 
 **`pnpm verify` is the one to run first.** It needs no Docker and no browser download.
 
-As of 2026-08-02, `pnpm verify` passes end to end, with 626 unit tests across 35 files and 222
-Python self-checks across nine modules. `pnpm e2e` passes 297 browser checks across two viewports,
+As of 2026-08-10, `pnpm verify` passes end to end, with 651 unit tests across 37 files and 235
+Python self-checks across ten modules. `pnpm e2e` passes 297 browser checks across two viewports,
 with one skipped by design, half of them against a forty-task pipeline recorded off a real run.
 
-`pnpm test:live` passes 163 tests across fifteen files, including one real agent session per
+`pnpm test:live` passes 176 tests across sixteen files, including one real agent session per
 installed CLI. Its closing line names any runner it did not exercise, so a green run on a machine
 with one CLI cannot be read as evidence about both. See
 [docs/verification.md](docs/verification.md).
@@ -452,7 +452,7 @@ with one CLI cannot be read as evidence about both. See
 
 ```
 app/                     routing, and the seventeen HTTP routes
-src/features/dashboard/    the dashboard UI
+src/features/dashboard/  the dashboard UI
 src/server/coordinator/  the staleness rules, and the part that talks to DataHub
 src/server/datahub/      DataHub client, tag and incident writes, id shapes
 src/server/runner/       the demo runner behind the buttons, and the bench's reporter

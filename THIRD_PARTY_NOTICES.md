@@ -19,7 +19,7 @@ the one judgement call is written out in full rather than summarised.
 | `geist` (Vercel)             | SIL OFL-1.1 / MIT | Geist and Geist Mono, self-hosted                  |
 | Codex CLI (`openai/codex`)   | Apache-2.0        | Running each demo agent, see the note below        |
 | Claude Code (Anthropic)      | proprietary       | The same, as the alternative runner, see below     |
-| Remotion 4.0.502             | source-available  | Assembling the demo video, see the note below      |
+| Remotion 4.0.503             | source-available  | Assembling the demo video, see the note below      |
 | `@xterm/xterm` 6.0.0         | MIT               | Replaying the recorded terminal sessions on screen |
 
 The fonts are installed from npm and served by obsel itself, never fetched from
@@ -62,7 +62,7 @@ full component API throws and only the feature bundle this uses is shipped.
 **The Model Context Protocol SDKs, both ends, MIT.** `@modelcontextprotocol/sdk` (TypeScript) is how
 obsel talks to DataHub's MCP server to write the stale tag, and how the live suite drives obsel's own
 server as a real client. `mcp` (Python, pinned `==1.28.1` in `agents/requirements.txt`) is what
-`agents/mcp_server.py` serves obsel's six tools over. Both are Anthropic's official SDKs for the
+`agents/mcp_server.py` serves obsel's ten tools over. Both are Anthropic's official SDKs for the
 protocol, used through their documented interfaces.
 
 Node and Python dependency licences are recorded in `pnpm-lock.yaml` and
@@ -84,7 +84,7 @@ nothing is fetched from the TLC at demo time.
 
 ## The demo video
 
-The submission video is assembled by `video/` with **Remotion 4.0.502**, driven by
+The submission video is assembled by `video/` with **Remotion 4.0.503**, driven by
 `scripts/trailer-assets.mjs`. Remotion is source-available rather than open source, and
 its licence is the one dependency here that is not permissive: individuals, non-profits,
 and for-profit organizations up to three employees may use it for free, including
