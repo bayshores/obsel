@@ -211,34 +211,32 @@ prior-art survey is in `docs/concept.md`.
 
 ## 1a. Gallery captions, in order
 
-1. **card5a_erasure_covered.** One erasure request against somebody else's catalog, seeded from one
-   table: the walk reached 18 assets at two hops, and two Ed25519 signatures from two different
-   teams covered two of them. 2 of 18 covered, 16 unattested, and no route can move the rest.
-2. **card5b_erasure_compromised.** The same report 4.0 s after both signing keys were reported
-   compromised. No asset was written and no version moved, so nothing else in obsel would have
-   noticed: the coverage is derived on every read, both attestations are dropped with the reason
-   named, and the report says 0 of 18 covered, 18 unattested.
-3. **card1_hero.** Forty agent tasks, each a real DataJob in DataHub with Consumes and Produces
+All six are in `~/Desktop/devpost-gallery/annotated/`, built by `scripts/gallery.mjs` on 2026-08-10
+from real captures of a live run. Each card magnifies the part of its screenshot the caption is
+about and draws a line back to the rectangle the browser measured while the shot was taken.
+
+1. **card5_erasure.** One erasure request against somebody else's catalog, seeded from one table:
+   the walk reached 18 assets at two hops, and two Ed25519 signatures from two different teams
+   covered two of them. Beside it, the same report after both signing keys were reported
+   compromised: no asset was written and no version moved, so nothing else in obsel would have
+   noticed, and the report goes from 2 of 18 covered to 0 of 18, naming each dropped attestation
+   and why.
+2. **card1_hero.** Forty agent tasks, each a real DataJob in DataHub with Consumes and Produces
    edges to the tables it read and wrote. The record belongs to the catalog and outlives the run.
-4. **card2_flagged.** One column renamed on a settled board: 9 of 40 flagged out to three hops, four
-   of the nine never having read that table, the 30 outside it unflagged. Five observations of that
-   change put detection at a median of 666 ms.
-5. **card3_datahub.** The `obsel-stale` tag on a flagged job, read out of DataHub's own interface.
-   obsel writes it through `mcp-server-datahub` and confirms it by reading `globalTags` back off the
-   entity: 3 of 3 tagged.
-6. **card4_repair.** The repair redid 6 of 9 flagged tasks in 37.8 s. The other three cleared
-   without re-running, because an upstream redo came back identical. No endpoint clears a flag, and
-   a live test asserts that.
-7. **card6_verifier.** The evidence bundle checked in a browser tab, on GitHub Pages, by the same
+3. **card2_flagged.** One column renamed on a settled board: 9 of 40 flagged out to three hops, four
+   of the nine never having read that table, the 30 outside it unflagged. The card numbers four
+   places on the board: the rewritten table, a job three hops out, the measured detection time, and
+   the marks written into DataHub.
+4. **card3_datahub.** DataHub's own interface, twice: the flow holding forty tasks, and the
+   `obsel-stale` tag on a flagged job. obsel writes the tag through `mcp-server-datahub` and
+   confirms it by reading `globalTags` back off the entity.
+5. **card4_repair.** obsel's decision record, read as a column: what changed, what went out of date
+   and how far out, and how long each decision took. One flag came off without its own task
+   re-running, because a redo upstream came back identical. No endpoint clears a flag, and a live
+   test asserts that.
+6. **card6_verifier.** The evidence bundle checked in a browser tab, on GitHub Pages, by the same
    verifier the repository runs. One character of one signature has been changed, the edit is on
    screen as a field with a before and an after, and the page refuses the record it belongs to.
-
-`scripts/gallery.mjs` builds the cards. Each one carries two callouts: a magnified crop of the
-screenshot, a caption at reading size, and a line back to the rectangle the crop came from, which
-the browser measured while the shot was taken. `card1_hero` and `card6_verifier` were rebuilt that
-way on 2026-08-10 and are in `~/Desktop/devpost-gallery/annotated/`. The other four are still the
-2026-08-01 versions, which carry a headline and nothing else, because each needs its board state
-before it can be retaken.
 
 ---
 

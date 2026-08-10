@@ -6050,47 +6050,85 @@ three surfaces still describe the previous take and must change with it: the REA
 erasure take), and `docs/demo-script.md`'s description of the finished cut (request id and
 the same 4.0 s).
 
-## 2026-08-10 — Gallery cards rebuilt with callouts, and a card for the hosted verifier
+## 2026-08-10 — Six gallery cards rebuilt, six layouts, and a history tab that was rendering empty
 
-The 2026-08-01 gallery cards carried a headline, a dim sub-line and a whole screenshot. At
-gallery size that sentence was the only legible thing on the card: the report line or the
-flagged box it described was a few pixels tall, so the card asserted something a reader could
-not check on the card itself. `scripts/gallery.mjs` replaces the one-off image tool that made
-them.
+The 2026-08-01 gallery cards carried a headline, a dim sub-line and a whole screenshot. At gallery
+size that sentence was the only legible thing on the card: the report line or the flagged box it
+described was a few pixels tall, so the card asserted something a reader could not check on the
+card itself. `scripts/gallery.mjs` replaces the one-off image tool that made them.
 
-A card is now the same screenshot, dimmed, with two callouts on it. Each callout is a crop of
-that screenshot magnified, sitting under a caption in the card's own type size, with a line
-running back to the rectangle it was cut from; the rectangle itself is redrawn undimmed on the
-shot, so the region a caption is about is the lit part of the picture. The panel and the region
-are one image at two scales, which is why the crop is taken from the capture rather than
-redrawn.
+A card is now the same screenshot with the part it is about singled out: a magnified crop of that
+same screenshot, a caption at reading size, and a line back to the rectangle it was cut from. The
+rest of the shot is dimmed and the named rectangle is redrawn undimmed on top, so the region a
+caption is about is the lit part of the picture. The panel and the region are one image at two
+scales, which is why a crop is cut from the capture rather than redrawn.
 
-Rectangles are measured, never placed by eye. Every callout names a CSS selector, the page
-reports that element's box while the shot is being taken, and the card converts the box into
-card coordinates. A selector matching nothing stops the card rather than pointing at empty
-space, which is the failure the script is most likely to hit after a copy edit. Board cards
-also refuse to save unless `/api/swarm` says the board is in the state the card claims, the
-same rule and for the same reason as `scripts/capture.mjs`.
+Rectangles are measured, never placed by eye. Every anchor names a CSS selector, the browser reports
+that element's box while the shot is being taken, and the layout converts the box into card
+coordinates. An anchor matching nothing stops the shot rather than pointing at empty space, which is
+the failure this is most likely to hit after a copy edit. Board shots also refuse to save unless
+`/api/swarm` says the board is in the state the card claims, the same rule and the same reason as
+`scripts/capture.mjs`.
 
-Two cards were built on 2026-08-10, both at 1536x1024, into `~/Desktop/devpost-gallery/annotated/`
-so the set the Devpost page is currently showing stays where it is:
+Shots and cards are separate commands because the six cards want the board in four states and a
+state costs a real agent run. A shot is captured once into `.shots/` beside the cards; a card is
+composed from what is cached and says so if a shot has never been taken.
 
-- `card6_verifier.png`, new, for the hosted verifier. The page is served from `site/dist/` by
-  the script itself, the first tamper button is pressed, and the shot is taken once `#verdict`
-  reports the refusal. Its callouts are the edit table and the verdict line: one character of
-  one signature before and after, and the refusal the page computed from the signed bytes.
-- `card1_hero.png`, rebuilt, from the live board on the `obsel_taxi_video` flow, 40 tasks, no
-  marks held. Its callouts are one agent box and the board headline reading
-  `all 40 finished, nothing out of date`.
+### Six layouts, one per card
 
-Both were captured against the running stack: DataHub up, and the dashboard served by
-`next start` on port 3100 with `OBSEL_FLOW_ID=obsel_taxi_video`, because the operator's
-server on port 3000 was serving 500s for its JavaScript chunks after a later `pnpm build`
-replaced the ones its markup asks for. The board's own token warning is not in the shot: the
-script pastes `OBSEL_API_TOKEN` into `localStorage` the way an operator pastes it, and nothing
-serves it to the page.
+The first two cards built this way were the same composition twice, which the owner called out: past
+the words, they were one design. A layout now belongs to what its card is about.
 
-**Not done.** `flagged` has a card spec and refused to build, correctly, because the board
-holds no marks: `flagged: skipped, obsel holds 0 mark(s) on the board`. The repair, DataHub
-and erasure cards have no spec yet. All four need their board state, so they are a run rather
-than a re-render, and the 2026-08-01 versions of them are still what the Devpost page shows.
+| Card             | Layout      | Why that one                                                                                           |
+| ---------------- | ----------- | ------------------------------------------------------------------------------------------------------ |
+| `card1_hero`     | `spotlight` | two small things on one screen, so two crops hang under the shot on one baseline                       |
+| `card2_flagged`  | `legend`    | how far a change reached, so the graph stays whole and numbered markers key a row of captions under it |
+| `card3_datahub`  | `pair`      | a record in another product, so both pages are shown whole with one inset each                         |
+| `card4_repair`   | `record`    | a list rather than a line, so the history reads as a tall column with the board small beside it        |
+| `card5_erasure`  | `diff`      | a difference, so the two states are the whole card and nothing else competes                           |
+| `card6_verifier` | `detail`    | one line of output, so that line is the picture and the page is a locator under it                     |
+
+### What was captured, and against what
+
+All six cards, 1536x1024, in `~/Desktop/devpost-gallery/annotated/`, beside the 2026-08-01 set
+rather than over it. DataHub up; the dashboard served by `next start` on port 3100 with
+`OBSEL_FLOW_ID=obsel_taxi_video`, because the operator's server on port 3000 was serving 500s for
+its JavaScript chunks after a later `pnpm build` replaced the ones its markup asks for. The board's
+token warning is not in any shot: the script pastes `OBSEL_API_TOKEN` into `localStorage` the way an
+operator pastes it, and nothing serves it to the page.
+
+The board states were reached by real runs on the `obsel_taxi_video` flow, not staged:
+
+- `scale-change` renamed `passenger_total` to `riders` and obsel marked 9 of 40 out to 3 hops.
+  `board-flagged` is that board, with the changed table, a 3-hop flagged job, the detection cell and
+  the write-back cell as its four anchors, reading 2090 ms and 9 of 9.
+- `scale-repair` redid 8 of the 9 in a measured 104.9 s and obsel cleared the ninth,
+  `report_riders`, without a re-run, against about 267 s of agent time to redo all nine. Every flag
+  came off through a redo or a proof.
+- A later `scale-change` on the settled board marked 9 again and obsel then cleared all 9 on its
+  own: renaming the column back produced a table identical to the one every downstream task was
+  built on, which is the restoration rule doing exactly what it is for. Worth recording because it
+  means the change and repair steps do not simply alternate.
+- The erasure pair is a fresh take from `scripts/erasure-broll.mts`: `deletion-request-1658`, 18
+  assets reached, 2 covered, the report on screen 1627 ms after the request was submitted, and the
+  callout on the panel's own next read 3317 ms after the registry was rewritten. The card crops both
+  frames to the panel rectangle that recording measured for itself, read out of its `timeline.json`.
+  The pair in `docs/images/` was not reused: those frames predate the 2026-08-09 spelling sweep and
+  still show "colour the graph by erasure coverage", which the product no longer says.
+
+### A defect this found: the history tab rendered its record count above an empty box
+
+Building `card4_repair` needed the history tab, and in a fresh browser it showed
+`what obsel has decided`, `32 records`, and nothing else. The records were in the DOM the whole
+time and were measurable, which is why no test caught it and why a screenshot was the first thing
+to notice.
+
+`HistoryPanel` renders a `Panel` with no sizing of its own, while the activity tab beside it passes
+`flex: 1 1 0; min-height: 0` to its feed. Inside the column's flex layout the history section
+therefore had no basis, collapsed, and `.rows`, which is `flex: 1 1 0` with `overflow-y: auto`, got
+zero height to be one of. Fixed by giving the section and its body the same sizing the feed has,
+in `src/features/dashboard/history/history-panel.tsx`. Verified by measurement rather than by eye:
+the list's own box went from 0 px to 523 px, and the card built from that shot shows six records.
+
+`pnpm verify` green at this commit: 658 tests passed, 26 skipped, 38 files passed, 3 skipped, with
+typecheck, lint, formatting and build.

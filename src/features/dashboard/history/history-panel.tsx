@@ -60,7 +60,22 @@ export function HistoryPanel({
       title="what obsel has decided"
       meta={metaOf(rows.length, error, everRead)}
       tour="history"
-      bodyStyle={{ padding: 0, display: "flex", flexDirection: "column", minHeight: 0 }}
+      /*
+       * The same sizing the activity tab gives its feed, and for the same
+       * reason. Without it this section has no basis in the column's flex
+       * layout, so it collapses to nothing, `.rows` gets a zero height to be
+       * `flex: 1 1 0` of, and the tab renders its record count above an empty
+       * box. The records were in the DOM the whole time, which is why nothing
+       * else caught it.
+       */
+      style={{ flex: "1 1 0", minHeight: 0, display: "flex", flexDirection: "column" }}
+      bodyStyle={{
+        padding: 0,
+        display: "flex",
+        flexDirection: "column",
+        flex: "1 1 0",
+        minHeight: 0,
+      }}
     >
       {error !== null ? (
         <p className={styles.quiet}>
