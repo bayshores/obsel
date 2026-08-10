@@ -585,6 +585,40 @@ describe("what an agent is refused", () => {
     expect(message).toContain("127.0.0.1:1");
   }, 120_000);
 
+  it("reads the board for the request id it was given, or refuses", async () => {
+    /*
+     * `erasure_board` puts the id in the URL path; `request_challenge` and
+     * `submit_attestation` put the same string in a JSON body. urllib builds a
+     * request selector by cutting at the first `#`, so an unencoded path let one
+     * id mean two different requests depending on which tool read it, and the
+     * read is the one an agent trusts before it acts. Request ids are free text
+     * on obsel's side, so nothing upstream rules the character out.
+     */
+    const client = await connect(obselServer.url);
+    const opened = await fetch(`${obselServer.url}/api/erasure`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", authorization: `Bearer ${API_TOKEN}` },
+      body: JSON.stringify({
+        request: `mcpjoin-dsr-${Date.now()}`,
+        identifiers: ["cust_88213"],
+        seeds: [datasetUrn(CLEAN_OUT)],
+        hops: 2,
+      }),
+      signal: AbortSignal.timeout(120_000),
+    });
+    expect(opened.status).toBe(200);
+    const request = ((await opened.json()) as { request: { request: string } }).request.request;
+
+    const board = await call(client, "erasure_board", { request });
+    expect(board.total).toBeGreaterThan(0);
+
+    // Same id with a fragment marker on the end: a different request id, which
+    // obsel has never been told about, so the answer is a refusal naming it.
+    const message = await callError(client, "erasure_board", { request: `${request}#elsewhere` });
+    expect(message).not.toBe("");
+    expect(message).toContain(`${request}%23elsewhere`);
+  }, 180_000);
+
   it("names a port that is answering but is not obsel", async () => {
     // The real GMS: listening, healthy, and genuinely not obsel. This is the mistake an
     // operator actually makes, because 8080 is the port they were last told to use.

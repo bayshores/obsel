@@ -25,7 +25,7 @@
     "video:preview": "remotion render Trailer --scale=0.5 --jpeg-quality=70 --crf=30 --concurrency=8",
     "video:render": "remotion render Trailer --concurrency=6",
     "test:live": "pnpm build && vitest run --config vitest.live.config.ts",
-    "test:python": "python3 -m agents.fingerprint && python3 -m agents.context && python3 -m agents.worker && python3 -m agents.agent_contract && python3 -m agents.runner_select && python3 -m agents.mcp_core && python3 -m agents.mcp_erasure && python3 -m agents.scale && python3 -m agents.swarm && python3 -m agents.run self-check"
+    "test:python": "python3 -m agents.fingerprint && python3 -m agents.context && python3 -m agents.worker && python3 -m agents.obsel_client && python3 -m agents.agent_contract && python3 -m agents.runner_select && python3 -m agents.mcp_core && python3 -m agents.mcp_erasure && python3 -m agents.scale && python3 -m agents.swarm && python3 -m agents.run self-check"
   },
   "dependencies": {
     "@dagrejs/dagre": "3.0.0",

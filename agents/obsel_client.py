@@ -70,6 +70,20 @@ def _env_local_token(path: Path = REPO_ROOT / ".env.local") -> str:
 
 
 
+def _page_not_json(url: str, status: Any) -> RuntimeError:
+    """The refusal for a reply that is a page rather than an API answer.
+
+    A page on that port means something else is answering it. Dumping the markup
+    buries the actual problem, so name it instead.
+    """
+    got = f"returned {status} and" if status is not None else "returned"
+    return RuntimeError(
+        f"{url} {got} an HTML page rather than JSON. "
+        "Something other than obsel is answering on that port -- start obsel "
+        "with `pnpm dev`, or point the agents elsewhere with --obsel-url."
+    )
+
+
 def _send(request: urllib.request.Request, url: str, timeout: float) -> Any:
     """Do the call and parse the reply, or raise with the real reason.
 
@@ -78,17 +92,18 @@ def _send(request: urllib.request.Request, url: str, timeout: float) -> Any:
     """
     try:
         with urllib.request.urlopen(request, timeout=timeout) as response:
-            return json.loads(response.read())
+            body = response.read()
+            # The same guard as the error branch below, on the success path too.
+            # A proxy sign-in page, a captive portal, or another Next app on port
+            # 3000 answers 200 with markup, and `json.loads` would raise a
+            # JSONDecodeError naming neither the url nor anything to do about it.
+            if body.lstrip().startswith(b"<"):
+                raise _page_not_json(url, getattr(response, "status", None))
+            return json.loads(body)
     except urllib.error.HTTPError as error:
         detail = error.read().decode("utf-8", "replace").strip()
-        # A page rather than an API reply means something else is on that port.
-        # Dumping the markup buries the actual problem, so name it instead.
         if detail.startswith("<"):
-            raise RuntimeError(
-                f"{url} returned {error.code} and an HTML page rather than JSON. "
-                "Something other than obsel is answering on that port -- start obsel "
-                "with `pnpm dev`, or point the agents elsewhere with --obsel-url."
-            ) from error
+            raise _page_not_json(url, error.code) from error
         raise RuntimeError(f"{url} returned {error.code}: {detail[:500]}") from error
     except urllib.error.URLError as error:
         raise RuntimeError(
@@ -257,3 +272,74 @@ def report_completion(
         f"{obsel_url}/api/tasks/complete", body, timeout=MUTATION_TIMEOUT,
         headers=auth_headers(),
     )
+
+
+def _self_check() -> int:
+    """Check what an agent is told when something other than obsel answers.
+
+    Run directly: `python -m agents.obsel_client`
+
+    Real replies read over real `file://` URLs, because the failure being checked
+    is what `_send` does with bytes it did not expect, and no server is needed to
+    hand it those bytes.
+    """
+    import tempfile
+
+    failures: list[str] = []
+
+    def check(name: str, condition: bool, detail: str) -> None:
+        print(f"  {'pass' if condition else 'FAIL'}  {name}: {detail}")
+        if not condition:
+            failures.append(name)
+
+    def served(body: str, suffix: str) -> str:
+        handle = tempfile.NamedTemporaryFile("w", suffix=suffix, delete=False, encoding="utf-8")
+        with handle:
+            handle.write(body)
+        return f"file://{handle.name}"
+
+    page = served("<html><body>hi</body></html>", ".html")
+    try:
+        get_json(page)
+        raised: BaseException | None = None
+    except BaseException as error:  # noqa: BLE001 -- the type is what is being checked
+        raised = error
+
+    check(
+        "a success reply carrying a page is refused with the reason, not a parse error",
+        isinstance(raised, RuntimeError),
+        f"got {type(raised).__name__}; a JSONDecodeError buries what actually went wrong",
+    )
+    check(
+        "the refusal names the url that answered",
+        page in str(raised),
+        "an agent cannot act on 'Expecting value: line 1 column 1'",
+    )
+    check(
+        "and says what to do about it",
+        "pnpm dev" in str(raised) and "--obsel-url" in str(raised),
+        "the two ways out: start obsel, or point the agent at the one that is running",
+    )
+
+    reply = get_json(served('{"snapshot": {"tasks": []}}', ".json"))
+    check(
+        "a real JSON reply still parses",
+        reply == {"snapshot": {"tasks": []}},
+        "the guard must not cost obsel's own replies",
+    )
+    check(
+        "a JSON reply whose first character is a bracket is not mistaken for markup",
+        get_json(served("[1, 2]", ".json")) == [1, 2],
+        "only `<` opens a page; a list is a legitimate obsel reply",
+    )
+
+    print()
+    if failures:
+        print(f"FAILED: {', '.join(failures)}")
+        return 1
+    print("all checks hold")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(_self_check())

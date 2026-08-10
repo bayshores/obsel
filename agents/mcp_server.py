@@ -443,7 +443,7 @@ def build_server(obsel_url: str = OBSEL_URL) -> Any:
             request: the erasure request id.
             scope: optional URN prefixes, e.g. ["urn:li:dataset:(urn:li:dataPlatform:snowflake,*"].
         """
-        report = worker.get_json(f"{obsel_url}/api/erasure/{request}")
+        report = worker.get_json(mcp_erasure.board_url(obsel_url, request))
         return mcp_erasure.open_obligations(report, scope)
 
     @server.tool()

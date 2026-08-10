@@ -564,8 +564,7 @@ readable", not as "covered by end-to-end evidence". See [Evidence](#9-evidence) 
 | Demo reset                                  | `app/api/demo/reset/route.ts`, `engine.resetSwarm`                                                             | shipped, exercised by the engine and incidents live suites       |
 | Agent output contract                       | `agents/tables.py` (`canonicalise_numbers`)                                                                    | shipped, exercised by the worker and mcp_core self-checks        |
 | Sample outputs                              | `examples/`                                                                                                    | shipped, captured from a real run                                |
-| obsel's own MCP server                      | `agents/mcp_server.py` over `agents/mcp_core.py` and `agents/mcp_erasure.py`                                   | shipped, 68 self-checks + 21 integration                         |
-| The agent skill                             | `skills/obsel-collaboration/SKILL.md`                                                                          | shipped, instructions rather than code                           |
+| obsel's own MCP server                      | `agents/mcp_server.py` over `agents/mcp_core.py` and `agents/mcp_erasure.py`                                   | shipped, 73 self-checks + 21 integration                         |     | The agent skill | `skills/obsel-collaboration/SKILL.md` | shipped, instructions rather than code |
 | The hosted evidence verifier                | `site/`, `scripts/build-site.mjs`, published at bayshores.github.io/obsel                                      | shipped, 7 tests holding the page's answers to the CLI's         |
 
 ## 9. Evidence

@@ -15,7 +15,9 @@ vary.
 
 from __future__ import annotations
 
+import urllib.request
 from typing import Any, Sequence
+from urllib.parse import quote
 
 from agents.mcp_core import dataset_short_name, required_dict, required_list
 
@@ -101,6 +103,21 @@ _PRIORITY = {
     "catalog-gap": 5,
     "unknown": 6,
 }
+
+
+def board_url(obsel_url: str, request: str) -> str:
+    """Where one erasure request's report is read from, with the id encoded.
+
+    The id is percent-encoded rather than dropped into the path as typed.
+    urllib builds a request selector by cutting at the first `#`, so the id
+    `dsr-1#dsr-2` in a raw path would read `dsr-1`'s report, while
+    `request_challenge` and `submit_attestation` send the same string in the
+    JSON body and mean `dsr-1#dsr-2`. obsel's request ids are free text, so
+    nothing upstream rules that string out. One id has to name one request on
+    every surface: a coverage answer about a request nobody asked about reads
+    exactly like an answer about the one they did.
+    """
+    return f"{obsel_url}/api/erasure/{quote(request, safe='')}"
 
 
 def next_step_for(residue: Sequence[Any]) -> tuple[str, str]:
@@ -283,19 +300,50 @@ def _self_check() -> int:
         "Any",
         "Sequence",
         "annotations",
+        "board_url",
         "dataset_short_name",
         "next_step_for",
         "open_obligations",
+        "quote",
         "required_dict",
         "required_list",
+        "urllib",
     ]
     check(
-        "this module exposes two functions, and neither one sets a coverage verdict",
+        "this module exposes three functions, and none of them sets a coverage verdict",
         surface == expected_surface,
         "a function that could declare work done is a function for silencing the one thing obsel is for"
         if surface == expected_surface
         else f"unexpected public name, found {surface}",
     )
+
+    print()
+    print("which request a board read is about")
+
+    check(
+        "an id with a fragment marker still names the whole id in the path",
+        urllib.request.Request(board_url("http://localhost:3000", "dsr-1#dsr-2")).selector
+        == "/api/erasure/dsr-1%23dsr-2",
+        "urllib cuts a raw path at the first `#`, and the read would answer about dsr-1",
+    )
+    check(
+        "an id with a slash stays one path segment",
+        urllib.request.Request(board_url("http://localhost:3000", "dsr/1")).selector
+        == "/api/erasure/dsr%2F1",
+        "a raw slash asks obsel for a route that is not this one",
+    )
+    check(
+        "an id with a query marker keeps it in the path, not in a query string",
+        urllib.request.Request(board_url("http://localhost:3000", "dsr-1?x=1")).selector
+        == "/api/erasure/dsr-1%3Fx%3D1",
+        "the mutation tools send the id in the body, where nothing is cut off it",
+    )
+    check(
+        "an ordinary id is unchanged",
+        board_url("http://localhost:3000", "dsr-1") == "http://localhost:3000/api/erasure/dsr-1",
+        "encoding must not move the ids every existing request already uses",
+    )
+
     # `open_obligations` skips the single spelling "ATTESTED". Feed it a state it
     # has never heard of and it must carry that state out untouched: a reader
     # that quietly rewrote or dropped an unfamiliar state would be deciding
