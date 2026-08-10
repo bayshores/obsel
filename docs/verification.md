@@ -6475,3 +6475,61 @@ covered by `tests/erasure-seeds.test.ts` — 5 tests, run under `pnpm verify` on
 36 files and 646 tests passing. The HTTP round trip is written in
 `tests/live/erasure.live.test.ts` ("refuses a seed DataHub has no dataset for, and names it")
 and is **unrun**: it needs the live stack, which was out of bounds for this change.
+
+## 2026-08-10 — the entry-shape discipline, carried to the other three lists
+
+Commit: this change, on top of `f3ca0e3`. The commit above shape-checked every entry of the
+attestations list before a field of it was read. The same fault survived one list over: the
+challenges, the key registry and the recorded coverage rows are each read field by field, and
+`shapeProblem` says only that all three are lists.
+
+Three crashes, each reproduced first over a real mutated copy of `examples/erasure-evidence/bundle.json`
+and each ending the run with a `TypeError` on stderr, no verdict line, and exit 1 — the code that
+means "read and found wanting", for a file that was never finished:
+
+- a null entry in `bundle.challenges`, at `challenge.nonce`, where `checkRecords` maps the list to
+  mark spent nonces before verifying a record;
+- a null entry in `bundle.keys`, at `key.keyId`, inside `verifyAttestation`'s registry lookup;
+- a null row in `bundle.report.coverage`, at `row.asset`, in `compare`, after every signature had
+  been verified and printed.
+
+All three are now shape-checked entry by entry against the fields this file and `attestation.ts`
+actually read. An unreadable challenge or key is dropped and named under a new heading, `evidence
+entries this file could not read`, printed before the attestations, because dropping it changes what
+follows: a record answering a dropped challenge fails with `unknown-challenge`, and one signed by a
+dropped key with `unknown-key`. That is the honest reading — a challenge or key this file cannot read
+is one it does not have, and no coverage may rest on it. An unreadable coverage row is a difference
+against the recorded report instead, because the recorded report is the answer under test rather than
+evidence.
+
+The verdict sentence gained a middle clause and now reads `N record(s) failed verification, K
+unreadable evidence entry(s), M disagreement(s) with the recorded report`, so the line quoted in the
+entry above prints with that clause today. Unreadable entries are counted apart from failed records
+because an entry that could not be read is not a signature that failed to verify; `site/main.js`
+carries the same three numbers in the same order.
+
+Measured on the committed capture, one edit each, stderr empty in all three:
+
+- `challenges[0] = null`: `FAILED challenges[0]` / `malformed-entry: the challenge entry is not an
+object`, then the record that answered it failing with `unknown-challenge`, and `verdict this
+bundle does not check out: 1 record(s) failed verification, 1 unreadable evidence entry(s), 2
+disagreement(s) with the recorded report`, exit 1.
+- `keys[0] = null`: the same refusal for `keys[0]`, both records failing with `unknown-key`, 2 failed
+  records, 1 unreadable entry, 3 disagreements, exit 1.
+- `report.coverage[0] = null`: both records still `ok`, and `report.coverage[0]: the recorded coverage
+row is not an object` among the differences, 0 failed records, 0 unreadable entries, 2
+  disagreements, exit 1.
+
+Eleven tests were added and all eleven were watched failing first, six in
+`tests/verify-evidence.test.ts` over the hand-built bundle with real Ed25519 signatures and three in
+`tests/site-verify.test.ts` holding the built browser core and a spawned CLI to the same refusal over
+the real capture, plus two on the new count: that it appears for an unreadable entry and that a sound
+bundle never mentions it. A null in `bundle.reachable` was checked by hand and reaches a verdict
+already, so nothing was added for it.
+
+`pnpm verify` on this commit: 663 passing across 35 files, `prettier --check` clean, lint clean,
+typecheck clean, the Python self-checks green, and `next build` green.
+
+**Unrun:** still no browser test for the hosted page. `pnpm e2e` has no spec for it, so the verdict
+element's text after each of these edits is asserted through the built core under Node and not in a
+browser.

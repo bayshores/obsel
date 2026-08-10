@@ -55,6 +55,7 @@ async function render(bundle, { heading, change = null, expect = null } = {}) {
   verdict.textContent = result.ok
     ? "Checks out: every record verified, and the recomputed answer matches the recorded one."
     : `Refused: ${result.failedRecords} record(s) failed verification, ` +
+      `${result.unreadableEntries} unreadable evidence entry(s), ` +
       `${result.disagreements} disagreement(s) with the recorded report.`;
 
   const output = el("output");

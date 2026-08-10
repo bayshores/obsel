@@ -19,7 +19,7 @@ And a row names its evidence precisely enough to re-run it or look it up.
 | browser | Playwright against the built app                                       | `pnpm e2e`         |
 | run     | a dated, measured run recorded in [`verification.md`](verification.md) | see its entry      |
 
-Counts measured on 2026-08-10 (unit, python, browser) and 2026-08-09 (live): **652 unit tests
+Counts measured on 2026-08-10 (unit, python, browser) and 2026-08-09 (live): **663 unit tests
 across 35 files, 235 python self-checks across 10 modules**, **297 browser checks across two
 viewports** with one skipped, and **the whole live suite green end to end: 176 tests across 16
 files** against a real DataHub, with one real Codex and one real Claude Code session in the run. The live
@@ -265,6 +265,7 @@ code, because two earlier drafts of the rule were unsound.
 | a public key whose base64 padding was stripped              | `tests/site-verify.test.ts`: `atob` accepted what node's `createPublicKey` refuses, so the page and the CLI split verdicts on one bundle; both now report `bad-signature`                                                                                                                                                                         | unit             |
 | a recorded summary edited away from its own rows            | `tests/verify-evidence.test.ts`: the rows agree with the recomputation and only the counts do not, which the row-by-row comparison could not see                                                                                                                                                                                                  | unit             |
 | the same bundle read in two locales                         | `tests/verify-evidence.test.ts` runs the real script under `LC_ALL=en_US.UTF-8` and `sv_SE.UTF-8` over one bundle whose asset names sort differently in the two, and compares the lines                                                                                                                                                           | unit             |
+| a challenge, key or recorded coverage row that is not one   | `tests/verify-evidence.test.ts` over six shapes, and the three null cases held to the browser core over the committed real capture in `tests/site-verify.test.ts`: each is refused by name and the verdict is still printed                                                                                                                       | unit             |
 
 ## Not covered
 

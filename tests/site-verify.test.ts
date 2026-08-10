@@ -126,7 +126,9 @@ describe("bundles the CLI refuses, over the committed real bundle", () => {
 
   type Bundle = {
     keys: { publicKeyPem: string }[];
+    challenges: unknown[];
     attestations: { body?: { envelope?: { payload?: unknown } } }[];
+    report: { coverage: unknown[] };
   };
 
   it("refuses a public key whose base64 body lost its padding, as node does", async () => {
@@ -165,6 +167,49 @@ describe("bundles the CLI refuses, over the committed real bundle", () => {
     expect(inBrowser.ok).toBe(false);
     expect(inBrowser.lines.some((line) => line.includes("the record carries no body"))).toBe(true);
   });
+
+  /*
+   * The lists beside the attestations, over the real capture. Each entry below
+   * was read field by field on both sides, so a null in it threw: the CLI ended
+   * with a stack trace and no verdict, and the page's render threw before its
+   * first DOM write, leaving the previous bundle's verdict on screen.
+   */
+  const entries: [string, (bundle: Bundle) => void, string][] = [
+    [
+      "a challenge entry that is null",
+      (target) => {
+        target.challenges[0] = null;
+      },
+      "the challenge entry is not an object",
+    ],
+    [
+      "a key entry that is null",
+      (target) => {
+        (target.keys as unknown[])[0] = null;
+      },
+      "the key entry is not an object",
+    ],
+    [
+      "a recorded coverage row that is null",
+      (target) => {
+        target.report.coverage[0] = null;
+      },
+      "the recorded coverage row is not an object",
+    ],
+  ];
+
+  for (const [name, edit, refusal] of entries) {
+    it(`names ${name}, on both sides, instead of throwing`, async () => {
+      const { edited, cli } = bothWays(name.replace(/\s+/g, "-"), edit);
+
+      const inBrowser = await core.verifyBundle(edited);
+      expect(cli.status, cli.stdout).toBe(1);
+      expect(cli.stdout).toContain(refusal);
+      expect(cli.stdout).toContain("verdict   this bundle does not check out");
+      expect(inBrowser.ok).toBe(false);
+      expect(inBrowser.lines.some((line) => line.includes(refusal))).toBe(true);
+    });
+  }
 });
 
 describe("every tamper the page offers", () => {

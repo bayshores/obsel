@@ -101,8 +101,9 @@ export async function verifyBundle(bundle, { print = false, source = "" } = {}) 
   );
   say();
 
-  const checked = checkRecords(bundle);
-  const dropped = invalidatedByKeys(checked.accepted, bundle.keys);
+  const evidence = checkEvidenceEntries(bundle);
+  const checked = checkRecords(bundle, evidence.challenges, evidence.keys);
+  const dropped = invalidatedByKeys(checked.accepted, evidence.keys);
   reportDropped(dropped);
 
   const recomputed = recompute(bundle, checked.accepted, dropped);
@@ -117,16 +118,22 @@ export async function verifyBundle(bundle, { print = false, source = "" } = {}) 
   for (const limit of ASSURANCE_LIMITS) say(`  ${limit}`);
 
   say();
-  const ok = checked.failed === 0 && disagreements === 0;
+  const ok = checked.failed === 0 && disagreements === 0 && evidence.unreadable === 0;
   if (!ok) {
     /*
      * "disagreement(s)", not "asset(s)": one of them can be the summary counts,
      * which are not an asset, and a sentence that miscounts what it found is the
      * same class of error as not checking.
+     *
+     * Unreadable entries are counted apart from failed records for the same
+     * reason. An entry this file could not read is not a signature that failed
+     * to verify, and folding the two together would report a torn file as a
+     * failed attestation.
      */
     say(
       `verdict   this bundle does not check out: ${checked.failed} record(s) failed ` +
-        `verification, ${disagreements} disagreement(s) with the recorded report.`,
+        `verification, ${evidence.unreadable} unreadable evidence entry(s), ` +
+        `${disagreements} disagreement(s) with the recorded report.`,
     );
   } else {
     say("verdict   every record verified, and the recomputed answer matches the recorded one.");
@@ -135,6 +142,7 @@ export async function verifyBundle(bundle, { print = false, source = "" } = {}) 
   return {
     ok,
     failedRecords: checked.failed,
+    unreadableEntries: evidence.unreadable,
     disagreements,
     droppedForKeys: dropped.length,
     recomputedSummary: recomputed.summary,
@@ -184,6 +192,84 @@ export function shapeProblem(bundle) {
 }
 
 /**
+ * The two lists the records are checked against, entry by entry, before any
+ * field of either is read.
+ *
+ * `shapeProblem` says these are lists and says nothing about what is in them.
+ * Both are then read field by field: the replay check maps every challenge for
+ * its `nonce`, and `verifyAttestation` looks a key up by `keyId` and reads its
+ * status, scope and PEM. An entry that is not an entry threw out of the whole
+ * check from inside either, which is the same fault the attestations list had
+ * and has the same answer: name the entry and carry on.
+ *
+ * An unreadable entry is dropped rather than repaired, and dropping it is
+ * visible in the result: a record answering a dropped challenge fails with
+ * `unknown-challenge`, and one signed by a dropped key with `unknown-key`. That
+ * is the honest reading. A challenge or a key this file cannot read is one it
+ * does not have, and no coverage may rest on it.
+ */
+function checkEvidenceEntries(bundle) {
+  const refusals = [];
+  const keep = (list, name, problemOf) =>
+    list.filter((entry, index) => {
+      const problem = problemOf(entry);
+      if (problem) refusals.push({ where: `${name}[${index}]`, problem });
+      return !problem;
+    });
+
+  const challenges = keep(bundle.challenges, "challenges", challengeShapeProblem);
+  const keys = keep(bundle.keys, "keys", keyShapeProblem);
+
+  if (refusals.length > 0) {
+    say("evidence entries this file could not read");
+    for (const refusal of refusals) {
+      say(`  FAILED  ${refusal.where}`);
+      say(`            malformed-entry: ${refusal.problem}`);
+    }
+    say();
+  }
+  return { challenges, keys, unreadable: refusals.length };
+}
+
+/** Every field of a challenge this check or `verifyAttestation` reads. */
+function challengeShapeProblem(entry) {
+  if (typeof entry !== "object" || entry === null || Array.isArray(entry)) {
+    return "the challenge entry is not an object";
+  }
+  if (typeof entry.nonce !== "string" || entry.nonce === "") {
+    return "the challenge entry carries no nonce";
+  }
+  if (typeof entry.request !== "string" || typeof entry.asset !== "string") {
+    return "the challenge entry names no request or no asset";
+  }
+  if (typeof entry.issuedAt !== "string" || typeof entry.expiresAt !== "string") {
+    return "the challenge entry carries no issuedAt or no expiresAt";
+  }
+  return null;
+}
+
+/** Every field of a registered key `verifyAttestation` and `invalidatedByKeys` read. */
+function keyShapeProblem(entry) {
+  if (typeof entry !== "object" || entry === null || Array.isArray(entry)) {
+    return "the key entry is not an object";
+  }
+  if (typeof entry.keyId !== "string" || entry.keyId === "") {
+    return "the key entry carries no key id";
+  }
+  if (typeof entry.attestor !== "string" || entry.attestor === "") {
+    return "the key entry names no attestor";
+  }
+  if (typeof entry.publicKeyPem !== "string") return "the key entry carries no public key";
+  if (typeof entry.notBefore !== "string") return "the key entry carries no notBefore";
+  if (typeof entry.status !== "object" || entry.status === null) {
+    return "the key entry carries no status";
+  }
+  if (typeof entry.status.state !== "string") return "the key entry's status names no state";
+  if (!Array.isArray(entry.scope)) return "the key entry carries no scope list";
+  return null;
+}
+
+/**
  * Verify every record, in the ledger's own order, and print one line each.
  *
  * Order matters for exactly one check. A challenge is single use, and a replay is
@@ -192,7 +278,7 @@ export function shapeProblem(bundle) {
  * order they were appended in. Every nonce already spent is marked `consumed`
  * before the next record is verified, and `verifyAttestation` refuses it.
  */
-function checkRecords(bundle) {
+function checkRecords(bundle, soundChallenges, soundKeys) {
   const accepted = [];
   const spent = new Set();
   let failed = 0;
@@ -231,17 +317,17 @@ function checkRecords(bundle) {
     const name = `${record.asset} #${record.sequence}`;
     const failures = recordedFieldProblems(record);
 
-    const challenges = bundle.challenges.map((challenge) =>
+    const challenges = soundChallenges.map((challenge) =>
       spent.has(challenge.nonce) ? { ...challenge, consumed: true } : challenge,
     );
     const result = verifyAttestation(record.body.envelope, {
-      keys: bundle.keys,
+      keys: soundKeys,
       challenges,
       now: record.at,
     });
     if (!result.ok) failures.push(...result.failures.map(describeFailure));
     else {
-      failures.push(...beforeItsChallenge(record, bundle.challenges));
+      failures.push(...beforeItsChallenge(record, soundChallenges));
       spent.add(record.body.nonce);
     }
 
@@ -297,6 +383,21 @@ function recordShapeProblem(record) {
   // `Buffer.from(x, "base64")` throws on anything that is not a string, and it
   // is reached both here and inside `verifyAttestation`.
   if (typeof envelope.payload !== "string") return "the envelope's payload is not a string";
+  return null;
+}
+
+/** The three fields `compare` reads off a recorded coverage row. */
+function coverageRowShapeProblem(row) {
+  if (typeof row !== "object" || row === null || Array.isArray(row)) {
+    return "the recorded coverage row is not an object";
+  }
+  if (typeof row.asset !== "string" || row.asset === "") {
+    return "the recorded coverage row names no asset";
+  }
+  if (typeof row.state !== "string" || row.state === "") {
+    return "the recorded coverage row carries no state";
+  }
+  if (typeof row.version !== "string") return "the recorded coverage row carries no version";
   return null;
 }
 
@@ -501,8 +602,29 @@ function compare(bundle, recomputed) {
       `${recorded.unproven} unattested, ${recorded.contradicted} contradicted`,
   );
 
-  const claimed = new Map(bundle.report.coverage.map((row) => [row.asset, row]));
+  /*
+   * Each recorded row is examined before it is indexed by its asset.
+   *
+   * Same discipline as the lists above, and the last place a bundle could still
+   * end the run with a stack trace: `row.asset` was read while the recorded
+   * report was turned into a map, so one row that is not a row threw after every
+   * signature had already been verified and printed, and the verdict those lines
+   * were leading up to never arrived.
+   *
+   * An unreadable row counts as a disagreement rather than as an unreadable
+   * evidence entry: the recorded report is the answer being checked, not
+   * evidence, and a row that cannot be read is a row that cannot support the
+   * state it claims.
+   */
+  const rows = [];
   const differences = [];
+  bundle.report.coverage.forEach((row, index) => {
+    const problem = coverageRowShapeProblem(row);
+    if (problem) differences.push(`report.coverage[${index}]: ${problem}`);
+    else rows.push(row);
+  });
+
+  const claimed = new Map(rows.map((row) => [row.asset, row]));
 
   /*
    * The counts are compared, not merely printed beside each other.
@@ -538,7 +660,7 @@ function compare(bundle, recomputed) {
       );
     }
   }
-  for (const row of bundle.report.coverage) {
+  for (const row of rows) {
     if (!recomputed.coverage.some((entry) => entry.asset === row.asset)) {
       differences.push(`${row.asset}: recorded, and not among the assets this bundle reaches`);
     }

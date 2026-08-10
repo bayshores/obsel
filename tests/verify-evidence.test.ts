@@ -528,6 +528,99 @@ describe("an attestations list holding something that is not a record", () => {
   });
 });
 
+describe("the other lists, holding something that is not an entry", () => {
+  /*
+   * The same discipline as the attestations list above, one list over. The
+   * challenge list, the key registry and the recorded coverage rows are all
+   * read field by field, and each one ended the run with a stack trace when the
+   * field was not there: `challenge.nonce` while the replay check maps the
+   * challenges, `key.status.state` inside `verifyAttestation`, `row.asset` while
+   * the recorded report is indexed. Same requirement as before: a named
+   * refusal, a printed verdict, exit 1, nothing on stderr.
+   */
+  const cases: [string, (bundle: Bundle) => void, string][] = [
+    [
+      "a challenge entry that is null",
+      (bundle) => {
+        (bundle.challenges as unknown[])[0] = null;
+      },
+      "the challenge entry is not an object",
+    ],
+    [
+      "a challenge entry with no nonce",
+      (bundle) => {
+        delete (bundle.challenges[0] as { nonce?: unknown }).nonce;
+      },
+      "the challenge entry carries no nonce",
+    ],
+    [
+      "a key entry that is null",
+      (bundle) => {
+        (bundle.keys as unknown[])[0] = null;
+      },
+      "the key entry is not an object",
+    ],
+    [
+      "a key entry with no status",
+      (bundle) => {
+        delete (bundle.keys[0] as { status?: unknown }).status;
+      },
+      "the key entry carries no status",
+    ],
+    [
+      "a recorded coverage row that is null",
+      (bundle) => {
+        (bundle.report.coverage as unknown[])[0] = null;
+      },
+      "the recorded coverage row is not an object",
+    ],
+    [
+      "a recorded coverage row filed under no asset",
+      (bundle) => {
+        delete (bundle.report.coverage[0] as { asset?: unknown }).asset;
+      },
+      "the recorded coverage row names no asset",
+    ],
+  ];
+
+  for (const [name, edit, refusal] of cases) {
+    it(`refuses ${name} by name, and still reaches a verdict`, () => {
+      // Cloned, because the edits below reach into the challenge and key
+      // objects `soundBundle` hands out by reference, and an edit to one of
+      // those would follow every later test in this file.
+      const bundle = structuredClone(soundBundle());
+      edit(bundle);
+
+      const run = verify(bundle);
+      expect(run.stderr).toBe("");
+      expect(run.stdout, run.stderr).toContain(refusal);
+      expect(run.stdout).toContain("verdict   this bundle does not check out");
+      expect(run.code, run.stdout).toBe(1);
+    });
+  }
+
+  it("counts an unreadable challenge or key entry apart from the records", () => {
+    /*
+     * An entry the file could not read is not a record that failed
+     * verification, and the verdict says so with its own number. The record
+     * answering the dropped challenge fails too, by name, because a challenge
+     * this file cannot read is a challenge it does not have.
+     */
+    const bundle = structuredClone(soundBundle());
+    (bundle.challenges as unknown[])[0] = null;
+
+    const run = verify(bundle);
+    expect(run.stdout).toContain("1 unreadable evidence entry(s)");
+    expect(run.stdout).toContain("unknown-challenge");
+  });
+
+  it("says nothing about unreadable entries when every list reads", () => {
+    const run = verify(soundBundle());
+    expect(run.stdout).not.toContain("unreadable evidence entry");
+    expect(run.code, run.stdout).toBe(0);
+  });
+});
+
 describe("the recorded summary counts, against the recomputation", () => {
   it("reports a summary edited away from the rows it summarizes", () => {
     /*
