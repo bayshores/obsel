@@ -9,8 +9,9 @@
 # app, whose first read of the board is a real read. A reader working down eight
 # numbered steps has no way to tell that the wait in step 1 is load-bearing.
 #
-# What it does not do: install Docker, install Node, or sign in to Codex. Those
-# need a human, so each is detected and named with the one thing to do next. Only
+# What it does not do: install Docker, install Node, or sign in to an agent
+# CLI. Those need a human, so each is detected and named with the one thing to
+# do next. Only
 # `uv` is installed here, because it is needed twice, its own installer is the one
 # docs/setup.md already documents, and it is the single tool a judge is otherwise
 # most likely to lack.

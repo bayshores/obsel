@@ -7,7 +7,7 @@ import { parseBody, refuseUnauthorized } from "@/src/server/http/route";
 export const dynamic = "force-dynamic";
 
 // Exactly agents.run's commands. The enum is the allowlist: nothing from the
-// request reaches the spawn except one of these seven literals.
+// request reaches the spawn except one of these literals.
 const Body = z.object({
   step: z.enum([
     "setup",

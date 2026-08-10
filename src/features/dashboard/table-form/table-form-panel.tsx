@@ -318,7 +318,7 @@ export function TableFormPanel({
 /**
  * The table the table form opens with.
  *
- * Obsel's recorded columns when it has them, so somebody coming back to change
+ * obsel's recorded columns when it has them, so somebody coming back to change
  * one thing starts from the shape obsel is actually comparing against. The rows
  * come up blank because obsel does not have them — it holds a hash of the
  * values, and a hash does not run backwards — and `heldLine` says so out loud

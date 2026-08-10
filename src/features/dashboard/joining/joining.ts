@@ -62,7 +62,7 @@ export const TAXI_NAMESPACE = "obsel_taxi";
  * belief, with a `finance.` prefix no real caller produces. What caught it was
  * asking what the MCP door actually emits, and then a real session through it.
  *
- * So the rule is inverted, which also puts the risk on the safe side. Obsel's
+ * So the rule is inverted, which also puts the risk on the safe side. obsel's
  * own work is the closed set: these four names, plus anything writing into the
  * taxi namespace. Everything else is a visitor. An unknown task is therefore a
  * visitor, so the panel works for a stranger and only an exact collision with

@@ -24,9 +24,10 @@ import { authorizeMutation } from "./auth";
  * The refusal a caller without a valid token gets, or `null` to carry on.
  *
  * For the routes that cannot compose `mutationRoute`: `register` and `report`
- * do their own work between parsing and running, and `demo/reset` answers in a
- * shape of its own. Each one gates through here so the four refusals read
- * identically and none of them can drift.
+ * do their own work between parsing and running, `demo/launch` answers in a
+ * shape of its own, and the evidence bundle is a gated GET. Each one gates
+ * through here so the four refusals read identically and none of them can
+ * drift.
  */
 export function refuseUnauthorized(request: Request): NextResponse | null {
   const auth = authorizeMutation(request);
