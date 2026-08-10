@@ -6768,8 +6768,8 @@ and `agents/report.py` post here directly, and so can anything holding the token
 the task record and the reported map to the sentence to refuse with or `null`.
 `decideCompletion` calls it as its first act after finding the task, before any emit, comparison or
 write, and throws `UnevidencedCompletion`; the route answers 400 for that class and keeps answering
-500 for everything else. The empty map is refused only when the task declared a write, because a
-read-only task has no fingerprint it could send. The comparison is over whole URNs, which is the
+500 for everything else. The empty map was first refused only when the task declared a write; the
+next entry below removes that exemption. The comparison is over whole URNs, which is the
 space the recorder keys `fingerprints` in and the space every caller sends — `register` builds the
 URNs and hands them back, and both `mcp_core.completion_body` and `agents/worker.py` key their
 report off the record's own `writes`. Short names would accept `finance.clean_orders` as evidence
@@ -6791,3 +6791,43 @@ session had no live stack. It posts both refused bodies to a real `next start` s
 token and reads the flagged task back off DataHub, asserting the mark and the `obsel-stale` tag are
 both still standing and that no baseline was recorded for the undeclared table. Nothing here
 exercises the route handler's 400 mapping deterministically, because reaching it needs a snapshot.
+
+## 2026-08-10 — The empty report is refused whatever the task declared
+
+Commit: this change, in the same isolated worktree, on top of the entry above.
+
+The entry above scoped its empty-map refusal to tasks that declared a write, reasoning that a task
+producing nothing has no fingerprint it could send. That left the two doors disagreeing.
+`resolve_outputs` in `agents/mcp_core.py` refuses every empty report; the HTTP door accepted this
+one. A task registered with `writes: []` is still flagged as a reader when an upstream output
+moves, and `recordCompletion` still strips its stale properties and removes its `obsel-stale` tag
+when it reports, so the empty map cleared that flag with nothing compared — the same clear-by-
+assertion the first refusal exists to stop, reached through a different registration.
+
+`evidenceProblem` now refuses an empty map on any task. The two cases carry different sentences: a
+refusal for a task with no declared writes has no dataset to name and cannot ask for the tables it
+produced, so it says the task is registered as writing nothing and asks for registration with the
+tables it writes, or for the completion to be left unreported.
+
+A task registered writing nothing therefore has no route to `finished` at all. That is the intended
+answer rather than a side effect: obsel records a completion so it can compare the next one, and a
+report carrying no fingerprint gives it nothing to hold.
+
+**What legitimately posted an empty map before this change.** Nothing found. Every task in
+`agents/pipeline.py` and `agents/run_scale.py` declares exactly one written table; the live suite's
+completions all carry a fingerprint (`engine.live.test.ts` line 808's empty map is a task read back
+after `POST /api/demo/reset`, not a completion); `e2e/fixtures/swarm.ts` builds registered records
+with empty fingerprint maps, which is a starting state and not a report, and those specs intercept
+the API rather than reaching the route.
+
+**Measured.** The unit case that had asserted the exemption was rewritten to its inverted form
+first and run against the unchanged function: it failed with `expected null not to be null`, the
+defect's reason. With the rule changed, `tests/completion-evidence.test.ts` is 12 of 12.
+`pnpm verify` on this worktree: 743 unit tests across 45 files, plus the python self-checks,
+typecheck, lint, formatting and build, all green.
+
+**Not covered.** The live case added to `tests/live/completion-evidence.live.test.ts` for a task
+registered with no writes has not been run, as with the rest of that file: this session had no live
+stack. It registers a reader with `writes: []`, posts an empty map with a real token, and asserts
+the 400, the sentence, and that the task is still `registered` with no `finishedAt` and no recorded
+fingerprint.

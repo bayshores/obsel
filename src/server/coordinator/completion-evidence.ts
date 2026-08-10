@@ -26,8 +26,13 @@ import { taskLabel } from "./staleness";
  * `recordCompletion` takes the reporter's own flag and its DataHub tag off
  * whenever the flagged task reports, and with an empty map there is nothing to
  * compare it against. That is a flag cleared by assertion rather than by redone
- * work, which `CLAUDE.md` forbids. Refused only when the task declared it
- * writes something: a task that produces nothing has no fingerprint to send.
+ * work, which `CLAUDE.md` forbids. Refused whatever the task declared. A task
+ * registered with no writes is still flagged as a reader when an upstream
+ * output moves, and `recordCompletion` still takes that flag off when it
+ * reports, so the empty map clears it with nothing compared there too. The two
+ * cases need different sentences, because the refusal for a task with no
+ * declared writes has no dataset to name and cannot ask for the tables it
+ * produced.
  *
  * **A fingerprint for an undeclared dataset is evidence about a table this task
  * has no `Produces` edge to.** It becomes obsel's baseline for that dataset,
@@ -54,7 +59,15 @@ export function evidenceProblem(
   const declared = finishing.writes;
   const reported = Object.keys(fingerprints);
 
-  if (declared.length > 0 && reported.length === 0) {
+  if (reported.length === 0) {
+    if (declared.length === 0) {
+      return (
+        `${taskLabel(finishing)} is registered as writing nothing, and this completion ` +
+        "carried no output fingerprint, so obsel has nothing to compare. Register the task " +
+        "with the tables it writes and report those. If it really produces none, leave the " +
+        "completion unreported: a stale flag comes off only through redone work."
+      );
+    }
     return (
       `${taskLabel(finishing)} declared that it writes ${declared.join(", ")}, and this ` +
       "completion carried no output fingerprint. Report the tables it produced. If it " +

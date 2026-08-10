@@ -75,10 +75,22 @@ describe("a completion carrying no fingerprint at all", () => {
     expect(evidenceProblem(task(["clean_orders"], { status: "running" }), {})).not.toBeNull();
   });
 
-  it("is allowed for a task that declared no writes, which has nothing to report", () => {
-    // Refusing here would refuse a read-only task's honest completion. There is
-    // also no fingerprint it could send: it produces nothing.
-    expect(evidenceProblem(task([]), {})).toBeNull();
+  it("is refused for a task that declared no writes too", () => {
+    /*
+     * A task registered with no writes is still flagged as a reader when an
+     * upstream output moves, and `recordCompletion` still takes that flag and
+     * its DataHub tag off when it reports. So the empty map clears a flag with
+     * nothing compared, exactly as it does for a task that declared a write.
+     * How the task was registered does not change what the report carries.
+     */
+    const problem = evidenceProblem(task([]), {});
+
+    expect(problem).not.toBeNull();
+    expect(problem).toContain("Clean orders");
+    // Its own sentence: there are no declared datasets to name, and telling
+    // this caller to report the tables it produced names nothing it can act on.
+    expect(problem).toContain("registered as writing nothing");
+    expect(problem).not.toContain("declared that it writes");
   });
 });
 

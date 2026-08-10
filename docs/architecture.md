@@ -201,11 +201,13 @@ The flow, in [`src/server/coordinator/engine.ts`](../src/server/coordinator/engi
 3. Refuse the report if it carries no evidence, before anything is compared or written.
    [`completion-evidence.ts`](../src/server/coordinator/completion-evidence.ts) answers two
    questions off the task's own record, which is why it happens here and not in the route's schema:
-   a task that declared a write must send at least one fingerprint, and every fingerprint must be
-   for a dataset that task declared it writes. The first is the no-clear rule stated at the door —
-   step 5 below takes a flag off whenever the flagged task reports, and an empty map leaves nothing
-   to compare it against. The second keeps obsel from holding a baseline for a table its recorded
-   author has no `Produces` edge to. Both are refused with a 400; both are the refusals
+   a completion must send at least one fingerprint, and every fingerprint must be for a dataset
+   that task declared it writes. The first is the no-clear rule stated at the door — step 5 below
+   takes a flag off whenever the flagged task reports, and an empty map leaves nothing to compare
+   it against. It holds whatever the task declared, so a task registered writing nothing has no
+   route to `finished`, and the refusal it gets is worded for a caller with no declared datasets to
+   name. The second keeps obsel from holding a baseline for a table its recorded author has no
+   `Produces` edge to. Both are refused with a 400; both are the refusals
    `resolve_outputs` in `agents/mcp_core.py` makes at obsel's MCP door, which agents posting
    straight to the HTTP route never pass through.
 4. For each reported output, compare its fingerprint against the one recorded when that task last

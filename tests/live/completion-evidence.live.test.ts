@@ -8,7 +8,8 @@
  * prevent, on a real board: that a flagged task's mark and its DataHub
  * `obsel-stale` tag are both still standing after a report with no fingerprint
  * is refused, and that obsel holds no baseline for a table the reporter never
- * declared it writes.
+ * declared it writes. The empty report is refused whatever the task declared,
+ * so a task registered writing nothing is posted here as well.
  *
  * The refusals are the same two `resolve_outputs` makes at obsel's MCP door
  * (`agents/mcp_core.py`). This suite goes in the front, because the MCP door is
@@ -44,6 +45,8 @@ const FOREIGN = `${NS}.foreign_table`;
 
 const SEED_TASK = "evidence_seed";
 const WRITER = "evidence_writer";
+/** Registered reading the seed and writing nothing. */
+const READER = "evidence_reader";
 
 let server: ObselServer;
 
@@ -64,6 +67,7 @@ beforeAll(async () => {
 
   await registerTask(SEED_TASK, [`${NS}.raw`], [SEED], "writes the seed", "Evidence seed");
   await registerTask(WRITER, [SEED], [OUT], "reads the seed", "Evidence writer");
+  await registerTask(READER, [SEED], [], "reads the seed and writes nothing", "Evidence reader");
 
   // Both finish honestly, then the seed moves. That leaves the writer flagged,
   // which is the state in which a fingerprint-free completion would clear a
@@ -119,6 +123,39 @@ describe("a completion with no fingerprint, from a task that declared a write", 
     expect(after?.status).toBe("stale");
     expect(after?.stale?.reason).toBe(before?.stale?.reason);
     expect(after?.staleTagged).toBe(true);
+  }, 120_000);
+});
+
+describe("a completion with no fingerprint, from a task that declared no writes", () => {
+  it("is refused too, in its own words, and obsel records no completion", async () => {
+    /*
+     * The half the first version of this rule let through. A task registered
+     * writing nothing is still flagged as a reader when the seed moves, and
+     * `recordCompletion` still takes that flag off when it reports, so the
+     * empty map cleared a mark with nothing compared. How the task was
+     * registered never made the report any more evidenced.
+     *
+     * It is asserted here in the state the rule now leaves reachable:
+     * registered and never finished. Under the fix there is no route by which
+     * this task can reach `finished` at all, which is the intended answer -- a
+     * task that reports nothing has nothing obsel can stand behind.
+     */
+    const { status, error } = await postCompletion({
+      taskUrn: taskUrn(READER),
+      fingerprints: {},
+      finishedAt: new Date().toISOString(),
+    });
+
+    expect(status).toBe(400);
+    expect(error).toContain("registered as writing nothing");
+    // The writer's sentence names declared datasets. This one has none to name,
+    // so a refusal borrowing that wording would point at an empty list.
+    expect(error).not.toContain("declared that it writes");
+
+    const after = await readTask(taskUrn(READER));
+    expect(after?.status).toBe("registered");
+    expect(after?.finishedAt).toBeNull();
+    expect(after?.fingerprints).toEqual({});
   }, 120_000);
 });
 
