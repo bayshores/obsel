@@ -8,3 +8,8 @@ agents/seeds/raw_zones.json
 # They are evidence, not source: reformatting them would leave the file claiming
 # to be a verbatim capture of bytes it no longer holds.
 e2e/fixtures/captures/
+
+# Local competitor research, excluded from git in .git/info/exclude. Scraped
+# pages, not source; formatting them fails `pnpm verify` on the one machine
+# that holds them.
+competition/
