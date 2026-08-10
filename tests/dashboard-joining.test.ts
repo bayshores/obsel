@@ -287,6 +287,39 @@ describe("when the steps are painted rather than folded away", () => {
   });
 });
 
+describe("what the panel heading says beside the title", () => {
+  it("says nobody has joined yet only when obsel actually looked", () => {
+    expect(view([]).meta).toBe("nobody has joined yet");
+  });
+
+  it("counts the steps once a visiting agent is on the board", () => {
+    expect(view([yourData("clean_expenses")]).meta).toBe("1 of 4");
+  });
+
+  it("says nothing about the board when the read failed", () => {
+    /*
+     * The same screen carries the guide's lost-connection headline. A meta line
+     * reading "nobody has joined yet" under it is a statement about a board
+     * obsel cannot see, and it contradicts the headline beside it. The sibling
+     * your-data panel is the precedent: it renders no meta rather than a claim.
+     */
+    const blind = joining({ trusted: false, tasks: [yourData("clean_expenses")], command: null });
+    expect(blind.meta).toBeNull();
+  });
+
+  it("is the panel's only source for that line", () => {
+    // Pins the rendering side: the panel prints `view.meta` rather than
+    // rebuilding the sentence from `waiting`, which is what asserted the claim
+    // on a failed read.
+    const panel = readFileSync(
+      new URL("../src/features/dashboard/joining/joining-panel.tsx", import.meta.url),
+      "utf8",
+    );
+    expect(panel).not.toContain("nobody has joined yet");
+    expect(panel).toContain("view.meta");
+  });
+});
+
 describe("the panel carries this machine's own command", () => {
   it("passes it through when the runner knows it", () => {
     expect(view([]).command).toBe("claude mcp add obsel -- x");

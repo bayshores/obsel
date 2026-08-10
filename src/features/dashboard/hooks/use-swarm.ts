@@ -143,11 +143,45 @@ function explain(cause: unknown): string {
   return "obsel could not read the agents, and the failure gave no reason.";
 }
 
-function isSwarmResponse(body: unknown): body is SwarmResponse {
+/**
+ * Shape-checked rather than trusted, entry by entry.
+ *
+ * An array of tasks was once the whole check, and a record missing `reads` and
+ * `writes` — what a server or proxy that does not match this build answers with
+ * — passed it, reached `inDependencyOrder`, and threw during render. The board
+ * then goes blank: no snapshot, no error row, nothing saying obsel read
+ * anything at all. A body this page cannot render honestly has to read as a
+ * failed read, which is the state the banner and the guide already describe.
+ *
+ * `stale` is required for the same reason rather than for tidiness: `totals`
+ * counts a task as flagged on `stale !== null`, which holds for a field that is
+ * absent, so a partial record would be counted as marked work.
+ */
+export function isSwarmResponse(body: unknown): body is SwarmResponse {
   if (typeof body !== "object" || body === null) return false;
   const candidate = body as Partial<SwarmResponse>;
   const snapshot = candidate.snapshot;
   if (typeof snapshot !== "object" || snapshot === null) return false;
-  if (!Array.isArray((snapshot as SwarmSnapshot).tasks)) return false;
+  const tasks = (snapshot as SwarmSnapshot).tasks;
+  if (!Array.isArray(tasks)) return false;
+  if (!tasks.every(isTaskRecord)) return false;
   return Array.isArray(candidate.ready) && Array.isArray(candidate.blocked);
+}
+
+/**
+ * Every field a `TaskRecord` is required to carry.
+ *
+ * The nullable ones are checked for presence rather than for type, because
+ * absent and null differ here: an absent key is a record from something that is
+ * not this build, and the board reads each of them without asking.
+ */
+function isTaskRecord(task: unknown): task is TaskRecord {
+  if (typeof task !== "object" || task === null) return false;
+  const candidate = task as Partial<TaskRecord>;
+  if (typeof candidate.urn !== "string") return false;
+  if (typeof candidate.name !== "string") return false;
+  if (typeof candidate.status !== "string") return false;
+  if (!Array.isArray(candidate.reads) || !Array.isArray(candidate.writes)) return false;
+  if (typeof candidate.fingerprints !== "object" || candidate.fingerprints === null) return false;
+  return ["finishedAt", "startedAt", "run", "stale"].every((field) => field in candidate);
 }

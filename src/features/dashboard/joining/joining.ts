@@ -127,6 +127,17 @@ export interface JoinView {
   /** No visiting agent is on the board at all. */
   waiting: boolean;
   /**
+   * The line beside the panel's title, or null for no line at all.
+   *
+   * Null on a failed read, and that is the point of deriving it here. `waiting`
+   * is true then too, because a read that failed leaves no visitors to count —
+   * but printing "nobody has joined yet" for it states a fact about a board
+   * obsel could not see, on the same screen as the guide's lost-connection
+   * headline. The sibling your-data panel already withholds its meta line rather
+   * than assert one, and this is that posture.
+   */
+  meta: string | null;
+  /**
    * Whether the steps should be painted rather than folded behind the heading.
    *
    * Open for the two readers who want them: somebody looking at a board with
@@ -215,6 +226,7 @@ export function joining(input: JoinInput): JoinView {
     steps,
     done,
     waiting,
+    meta: !input.trusted ? null : waiting ? "nobody has joined yet" : `${done} of ${steps.length}`,
     expanded:
       input.trusted && ((input.tasks.length === 0 && waiting) || (!waiting && done < steps.length)),
     command: input.command,

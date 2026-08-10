@@ -78,7 +78,9 @@ export function JoiningPanel({ view }: { view: JoinView }) {
     <Panel
       label="Bring your own agent"
       title="bring your own agent"
-      meta={view.waiting ? "nobody has joined yet" : `${view.done} of ${view.steps.length}`}
+      /* Withheld rather than composed here when the read failed. `JoinView.meta`
+         says why, and it is the only place that sentence exists. */
+      meta={view.meta ?? undefined}
       tour="joining"
       style={{ marginTop: "var(--mm-space-md)" }}
       bodyStyle={{ padding: 0 }}
