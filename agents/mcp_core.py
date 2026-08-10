@@ -1068,6 +1068,52 @@ def _self_check() -> int:
         moved_prints[dataset]["content"] != prints[dataset]["content"],
         "canonicalizing must not flatten a genuine difference",
     )
+    # `_validate_table` checks shape and never value types, so whatever an
+    # outside agent's JSON layer puts in a numeric column arrives here.
+    sentinel_int = {
+        "clean_orders": {
+            "columns": ["order_id", "order_total"],
+            "rows": [{"order_id": 1, "order_total": 217}, {"order_id": 2, "order_total": "N/A"}],
+        }
+    }
+    sentinel_float = {
+        "clean_orders": {
+            "columns": ["order_id", "order_total"],
+            "rows": [{"order_id": 1, "order_total": 217.0}, {"order_id": 2, "order_total": "N/A"}],
+        }
+    }
+    _, sentinel_int_prints = completion_body(clean_task, sentinel_int, "2026-07-23T00:00:00Z")
+    _, sentinel_float_prints = completion_body(clean_task, sentinel_float, "2026-07-23T00:00:00Z")
+    check(
+        "a non-numeric value in the column does not split 217 from 217.0",
+        sentinel_int_prints[dataset] == sentinel_float_prints[dataset],
+        "the rule is per value; one sentinel used to switch it off for the column "
+        "and hand obsel a change nobody made",
+    )
+    # The two large ints and the fractional value share ONE column, which is what
+    # the old per-column rule needed to do the damage: a column that is all
+    # numbers but not all whole sent every int in it through `float()`, and above
+    # 2^53 a float holds only every second integer, so these two tables reached
+    # one content hash.
+    def big(value: int) -> dict[str, Any]:
+        return {
+            "clean_orders": {
+                "columns": ["order_id", "order_total"],
+                "rows": [
+                    {"order_id": 1, "order_total": value},
+                    {"order_id": 2, "order_total": 0.5},
+                ],
+            }
+        }
+
+    _, big_a_prints = completion_body(clean_task, big(9007199254740993), "2026-07-23T00:00:00Z")
+    _, big_b_prints = completion_body(clean_task, big(9007199254740992), "2026-07-23T00:00:00Z")
+    check(
+        "two ints above 2^53 beside a fraction reach two fingerprints",
+        big_a_prints[dataset]["content"] != big_b_prints[dataset]["content"],
+        "an int is never floated, whatever else is in its column, so a real change "
+        "cannot arrive carrying the previous run's content hash",
+    )
 
     undeclared = raises(
         ToolInputError,

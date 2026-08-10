@@ -569,7 +569,7 @@ readable", not as "covered by end-to-end evidence". See [Evidence](#9-evidence) 
 | Fingerprinting                              | `agents/fingerprint.py`                                                                                        | shipped, 12 self-check properties                                |
 | Demo shape, jobs and seed data              | `agents/pipeline.py`, `agents/seed_data.py`                                                                    | shipped                                                          |
 | Vocabulary setup                            | `agents/setup.py`                                                                                              | shipped                                                          |
-| Agent worker                                | `agents/worker.py`                                                                                             | shipped, 17 self-checks + 6 integration                          |
+| Agent worker                                | `agents/worker.py`                                                                                             | shipped, 22 self-checks + 6 integration                          |
 | Demo command line                           | `agents/run.py` over `run_demo.py`, `run_scale.py` and `demo_output.py`                                        | shipped, 48 self-checks + 12 integration                         |
 | What an agent is told and held to           | `agents/agent_contract.py`                                                                                     | shipped, 23 self-checks                                          |
 | Which CLI runs the agents                   | `agents/runner_select.py`                                                                                      | shipped, 10 self-checks                                          |
@@ -577,7 +577,7 @@ readable", not as "covered by end-to-end evidence". See [Evidence](#9-evidence) 
 | Demo reset                                  | `app/api/demo/reset/route.ts`, `engine.resetSwarm`                                                             | shipped, exercised by the engine and incidents live suites       |
 | Agent output contract                       | `agents/tables.py` (`canonicalise_numbers`)                                                                    | shipped, exercised by the worker and mcp_core self-checks        |
 | Sample outputs                              | `examples/`                                                                                                    | shipped, captured from a real run                                |
-| obsel's own MCP server                      | `agents/mcp_server.py` over `agents/mcp_core.py` and `agents/mcp_erasure.py`                                   | shipped, 73 self-checks + 21 integration                         |
+| obsel's own MCP server                      | `agents/mcp_server.py` over `agents/mcp_core.py` and `agents/mcp_erasure.py`                                   | shipped, 77 self-checks + 21 integration                         |
 | The agent skill                             | `skills/obsel-collaboration/SKILL.md`                                                                          | shipped, instructions rather than code                           |
 | The hosted evidence verifier                | `site/`, `scripts/build-site.mjs`, published at bayshores.github.io/obsel                                      | shipped, 7 tests holding the page's answers to the CLI's         |
 
@@ -709,7 +709,7 @@ What has been verified directly, and what has not.
   foreign DataJob because task registration derives the URN inside obsel's configured flow. The
   real status aspect and the restored snapshot are covered in `tests/live/removed.live.test.ts`.
 
-- **`agents/worker.py`'s contract and its state on disk**, by 16 self-checks in
+- **`agents/worker.py`'s contract and its state on disk**, by 22 self-checks in
   `pnpm test:python`, wired into `pnpm verify` so they actually run. Real files in real temporary
   directories: the canonicalization properties, a table surviving a save and load byte-stably, a
   missing table naming its path, a file that is not a table being rejected rather than half-read, and

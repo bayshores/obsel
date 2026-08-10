@@ -561,11 +561,6 @@ def _self_check() -> int:
         "1011, not 1011.0 -- an id is not money and must not gain a decimal",
     )
     check(
-        "a column with a fractional value writes every value as a float",
-        isinstance(canonicalise_numbers(table(217))["rows"][1]["order_total"], float),
-        "233.08 sits in the column, so 217 is written 217.0",
-    )
-    check(
         "a real change to the data still moves the fingerprint",
         printed(217) != printed(218),
         "canonicalizing must not make obsel blind to a value that genuinely moved",
@@ -575,6 +570,58 @@ def _self_check() -> int:
         printed(217) != printed(217.5),
         "217.5 is not 217, and no rounding may hide that",
     )
+    # ----------------------------------------------------------------------
+    # Values, not columns. Each case below broke while the rule was per column:
+    # one value decided the form of every other value beside it.
+    # ----------------------------------------------------------------------
+
+    def printed_rows(rows: list[dict[str, Any]], cols: list[str]) -> str:
+        canonical = canonicalise_numbers({"columns": cols, "rows": rows})
+        return fingerprint(canonical["rows"], canonical["columns"])["content"]
+
+    sentinel_int = [{"order_id": 1, "order_total": 217}, {"order_id": 2, "order_total": "N/A"}]
+    sentinel_float = [{"order_id": 1, "order_total": 217.0}, {"order_id": 2, "order_total": "N/A"}]
+    check(
+        "a non-numeric value beside them does not stop 217 and 217.0 agreeing",
+        printed_rows(sentinel_int, ["order_id", "order_total"])
+        == printed_rows(sentinel_float, ["order_id", "order_total"]),
+        "an 'N/A' in the column used to switch canonicalization off for the whole "
+        "column, so the same table hashed two ways",
+    )
+    bool_int = [{"amount": True}, {"amount": 217}]
+    bool_float = [{"amount": True}, {"amount": 217.0}]
+    check(
+        "a bool in the same column does not stop it either",
+        printed_rows(bool_int, ["amount"]) == printed_rows(bool_float, ["amount"]),
+        "a True/False column is not numeric, and that is a fact about the bool, "
+        "not about the number written next to it",
+    )
+    check(
+        "True is not 1",
+        printed_rows([{"flag": True}], ["flag"]) != printed_rows([{"flag": 1}], ["flag"]),
+        "bool is a subclass of int in Python, and collapsing them would be a real "
+        "difference reported as none",
+    )
+    big_a = [{"amount": 9007199254740993}, {"amount": 0.5}]
+    big_b = [{"amount": 9007199254740992}, {"amount": 0.5}]
+    check(
+        "two ids above 2^53 stay two values beside a fractional one",
+        printed_rows(big_a, ["amount"]) != printed_rows(big_b, ["amount"]),
+        "both used to go through float() and land on 9007199254740992.0, so a real "
+        "change carried an identical content hash",
+    )
+    check(
+        "an integer keeps its integer form beside a fractional value",
+        canonicalise_numbers(table(217))["rows"][1]["order_total"] == 217
+        and not isinstance(canonicalise_numbers(table(217))["rows"][1]["order_total"], float),
+        "233.08 sits in the column and no longer decides how 217 is written",
+    )
+    check(
+        "a fractional value keeps its float form",
+        canonicalise_numbers(table(217))["rows"][0]["order_total"] == 233.08,
+        "canonicalizing rewrites the spelling of a value, never the value",
+    )
+
     check(
         "text columns are untouched",
         canonicalise_numbers(table(217))["rows"][0]["customer"] == "Ada Okafor",

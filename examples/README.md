@@ -208,7 +208,7 @@ Codex is a live agent, so this capture is one run rather than the run.
 **Held to a contract, so any run gives these:** the column names, which
 [`agents/pipeline.py`](../agents/pipeline.py) names explicitly and the worker enforces; the three
 `["section", "heading", "text"]` columns on both write tasks; and the serialized form of every
-number, which `worker.canonicalise_numbers` fixes per column. That last one exists because it went
+number, which `worker.canonicalise_numbers` fixes value by value. That last one exists because it went
 wrong: one run wrote a money value `217` where another wrote `217.0`, which is the same number,
 different bytes, and a moved content digest for a table nobody changed.
 

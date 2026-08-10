@@ -43,23 +43,36 @@ def load_table(short_name: str, root: Path = REPO_ROOT) -> Table:
     return table
 
 
-def _is_whole(value: Any) -> bool:
-    """True for a number with nothing after the decimal point. Ints without a
-    float round-trip, so a large id cannot lose precision on the way through."""
+# Above this magnitude a float no longer holds every integer, so two distinct
+# ints can share one float. Only below it does int(float) return the integer the
+# float was written from.
+EXACT_INTEGER_LIMIT = 2**53
+
+
+def _canonical_number(value: Any) -> Any:
+    """The one serialized form of a single value. Anything else is returned as it
+    came in, so a sentinel string or a bool changes nothing about its neighbors.
+
+    - A bool is not a number here. `bool` is a subclass of `int` in Python, and
+      writing `True` as `1` would report a real difference as none.
+    - An int is left alone at any magnitude. No float round trip, so a large id
+      cannot lose precision on the way through.
+    - A whole float below `EXACT_INTEGER_LIMIT` becomes that int, which is what
+      makes `217` and `217.0` one value. Above the limit, and for any fractional
+      float, the float is kept: converting it would claim a precision the float
+      does not carry.
+    """
     if isinstance(value, bool):
-        return False
+        return value
     if isinstance(value, int):
-        return True
-    return isinstance(value, float) and value.is_integer()
-
-
-def _is_number(value: Any) -> bool:
-    # bool is a subclass of int in Python, and a True/False column is not numeric.
-    return isinstance(value, (int, float)) and not isinstance(value, bool)
+        return value
+    if isinstance(value, float) and value.is_integer() and abs(value) <= EXACT_INTEGER_LIMIT:
+        return int(value)
+    return value
 
 
 def canonicalise_numbers(table: Table) -> Table:
-    """Put each numeric column into one serialized form, decided by its own values.
+    """Put every number into one serialized form, decided value by value.
 
     Part of the contract the worker holds the agent to, alongside the column
     names. The agent decides *what* the numbers are; this decides how they are
@@ -74,11 +87,23 @@ def canonicalise_numbers(table: Table) -> Table:
     identical, and `change`'s pure column rename reported `both` instead of
     `schema` because the values appeared to have moved too.
 
-    The rule is per column and derived from the data, never declared: if every
-    value in a column is a whole number it is written as an integer, and
-    otherwise every value in that column is written as a float. Both spellings of
-    the run above therefore land on floats, because `233.08` sits in the same
-    column and forces it.
+    The rule is per VALUE, and derived from the value, never declared: a whole
+    number is written as an integer, a fractional one as a float, and anything
+    that is not a number is written as it arrived. Both spellings of the run
+    above therefore land on the integer `217`, and the `233.08` beside it decides
+    nothing about them.
+
+    Per value rather than per column, and each half of that is a defect this file
+    used to have. The rule was once "canonicalize a column only if every value in
+    it is a number, and float the whole column unless every value is whole", so:
+
+    - one `"N/A"` anywhere in the column switched canonicalization off for the
+      column, and `217` against `217.0` hashed differently again -- a change
+      nobody made, reported against every finished task downstream; and
+    - in a column holding one fractional value, every int in it went through
+      `float()`, so two distinct ids above `EXACT_INTEGER_LIMIT` collapsed to one
+      value and a real change carried an identical content hash. That is the
+      direction that must never happen.
 
     Derived rather than declared on purpose. A declaration would have to be
     restated for `change`, which renames `order_total` to `order_total_usd` --
@@ -88,24 +113,26 @@ def canonicalise_numbers(table: Table) -> Table:
     **This does not weaken what obsel treats as evidence.** obsel still hashes
     bytes and still calls two different byte sequences different. What changed is
     upstream of it: the agent's output is now written down one way, so a genuine
-    change in the data is the only thing that can move the hash. A column that
-    really does gain a fractional value still flips to float and is still
+    change in the data is the only thing that can move the hash. A value that
+    really does gain a fraction is still written as a float and is still
     reported, because that is a real change to the data.
+
+    One migration consequence, in the over-marking direction. A column that used
+    to canonicalize through the all-numeric float branch -- ints beside floats --
+    now keeps its ints as ints, so its content hash differs from one recorded
+    before this change. The first re-run against such a fingerprint reports a
+    change once and marks the finished work below it stale. Those flags clear the
+    only way any flag clears: through the redo.
     """
     columns = list(table["columns"])
     rows = [dict(row) for row in table["rows"]]
 
-    for column in columns:
-        present = [row[column] for row in rows if row.get(column) is not None]
-        if not present or not all(_is_number(value) for value in present):
-            continue
-
-        whole = all(_is_whole(value) for value in present)
-        for row in rows:
-            value = row.get(column)
-            if value is None:
-                continue
-            row[column] = int(value) if whole else float(value)
+    # Declared columns only. A key a row carries that the table does not declare
+    # is not hashed and is not this function's to rewrite.
+    for row in rows:
+        for column in columns:
+            if column in row:
+                row[column] = _canonical_number(row[column])
 
     return {**table, "columns": columns, "rows": rows}
 

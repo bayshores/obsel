@@ -703,6 +703,99 @@ describe("tables reported as files, and reads reported alongside writes", () => 
     });
   }, 120_000);
 
+  /*
+   * The file form is also the only way this suite can put a genuine `217.0` on the
+   * wire. JSON has one number type and TypeScript has one too, so an inline
+   * `217.0` in a tool call is already `217` by the time it leaves this process.
+   * Written as bytes and read by the MCP server's own `json.loads`, it arrives at
+   * `canonicalise_numbers` as a Python float, which is the drift a live agent
+   * produced on 2026-07-22.
+   */
+  it("a sentinel in the column does not make two spellings of one number a change", async () => {
+    const client = await connect(obselServer.url);
+    const dir = await fs.mkdtemp(join(tmpdir(), "obsel-mcp-live-"));
+
+    // A non-numeric value sits in a column of numbers, which is what an outside
+    // agent's JSON layer produces for a missing amount. It used to switch
+    // canonicalization off for the whole column.
+    const asInteger = join(dir, "sentinel-int.json");
+    const asFloat = join(dir, "sentinel-float.json");
+    const body = (spelling: string) =>
+      `{"columns":["order_id","order_total"],"rows":` +
+      `[{"order_id":1,"order_total":${spelling}},{"order_id":2,"order_total":"N/A"}]}`;
+    await fs.writeFile(asInteger, body("217"), "utf-8");
+    await fs.writeFile(asFloat, body("217.0"), "utf-8");
+
+    await call(client, "report_complete", {
+      taskUrn: taskUrn(CLEAN),
+      outputs: { [CLEAN_OUT]: { path: asInteger } },
+    });
+    const again = await call(client, "report_complete", {
+      taskUrn: taskUrn(CLEAN),
+      outputs: { [CLEAN_OUT]: { path: asFloat } },
+    });
+    expect(again.coordination.changedOutputs).toEqual([]);
+    expect(again.coordination.affected).toEqual([]);
+
+    // And a real change in the same shape is still reported, so the line above is
+    // not the engine having gone quiet.
+    const moved = join(dir, "sentinel-moved.json");
+    await fs.writeFile(moved, body("218"), "utf-8");
+    const changed = await call(client, "report_complete", {
+      taskUrn: taskUrn(CLEAN),
+      outputs: { [CLEAN_OUT]: { path: moved } },
+    });
+    expect(
+      changed.coordination.changedOutputs.map((change: { dataset: string; kind: string }) => ({
+        dataset: change.dataset,
+        kind: change.kind,
+      })),
+    ).toEqual([{ dataset: datasetUrn(CLEAN_OUT), kind: "content" }]);
+
+    await call(client, "report_complete", {
+      taskUrn: taskUrn(CLEAN),
+      outputs: { [CLEAN_OUT]: CLEAN_TABLE },
+    });
+  }, 180_000);
+
+  it("two ints a float cannot tell apart, beside a fraction, are still two tables", async () => {
+    const client = await connect(obselServer.url);
+    const dir = await fs.mkdtemp(join(tmpdir(), "obsel-mcp-live-"));
+
+    // The two large ints and the fractional 0.5 sit in ONE column, order_total,
+    // because that is the shape the old per-column rule got wrong: a column that
+    // was all numbers but not all whole sent every int in it through float(), and
+    // above 2^53 a float holds only every second integer, so these two tables
+    // reached obsel as one content hash and this change as no change at all.
+    const body = (amount: string) =>
+      `{"columns":["order_id","order_total"],"rows":` +
+      `[{"order_id":1,"order_total":${amount}},{"order_id":2,"order_total":0.5}]}`;
+    const first = join(dir, "big-id-first.json");
+    const second = join(dir, "big-id-second.json");
+    await fs.writeFile(first, body("9007199254740993"), "utf-8");
+    await fs.writeFile(second, body("9007199254740992"), "utf-8");
+
+    await call(client, "report_complete", {
+      taskUrn: taskUrn(CLEAN),
+      outputs: { [CLEAN_OUT]: { path: first } },
+    });
+    const answer = await call(client, "report_complete", {
+      taskUrn: taskUrn(CLEAN),
+      outputs: { [CLEAN_OUT]: { path: second } },
+    });
+    expect(
+      answer.coordination.changedOutputs.map((change: { dataset: string; kind: string }) => ({
+        dataset: change.dataset,
+        kind: change.kind,
+      })),
+    ).toEqual([{ dataset: datasetUrn(CLEAN_OUT), kind: "content" }]);
+
+    await call(client, "report_complete", {
+      taskUrn: taskUrn(CLEAN),
+      outputs: { [CLEAN_OUT]: CLEAN_TABLE },
+    });
+  }, 180_000);
+
   it("refuses a path with no file behind it, naming the path", async () => {
     const client = await connect(obselServer.url);
     const message = await callError(client, "report_complete", {

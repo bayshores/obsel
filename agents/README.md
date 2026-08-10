@@ -59,7 +59,7 @@ were found.
 | `fingerprint.py`    | Reduces a produced table to a schema hash and a content hash. 12 self-checks.                                                                                                                                                                             |
 | `seed_data.py`      | The synthetic `raw_orders` table the swarm starts from, from a fixed seed.                                                                                                                                                                                |
 | `pipeline.py`       | The four agents, their instructions, and the shape they form. Data only.                                                                                                                                                                                  |
-| `worker.py`         | One agent: load inputs, announce the start, let the agent do the work, hold the output to its contract, fingerprint the output and the inputs as read, report both to obsel. 17 self-checks.                                                              |
+| `worker.py`         | One agent: load inputs, announce the start, let the agent do the work, hold the output to its contract, fingerprint the output and the inputs as read, report both to obsel. 22 self-checks.                                                              |
 | `agent_contract.py` | What an agent is told and what it is held to, shared by both runners. Refuses anything unusable it writes back. 23 self-checks.                                                                                                                           |
 | `runner_select.py`  | Which CLI runs the agents: `OBSEL_RUNNER`, or whichever is installed, Codex first. 10 self-checks.                                                                                                                                                        |
 | `codex_runner.py`   | Runs one agent as a real `codex exec` session.                                                                                                                                                                                                            |
@@ -69,7 +69,7 @@ were found.
 | `run_demo.py`       | The four-agent steps: register, run, rerun-same, change, repair, reset.                                                                                                                                                                                   |
 | `run_scale.py`      | The forty-agent taxi steps, including the change that lands mid-run.                                                                                                                                                                                      |
 | `demo_output.py`    | What both of those print, and how both read obsel's replies. A missing key is refused rather than read as an empty list.                                                                                                                                  |
-| `mcp_core.py`       | Everything obsel's MCP server decides about a swarm before it speaks: reply guards, output resolution, freshness verdicts, the completion body, tables handed over as file paths. Standard library only, so `pnpm verify` can check it. 58 self-checks.   |
+| `mcp_core.py`       | Everything obsel's MCP server decides about a swarm before it speaks: reply guards, output resolution, freshness verdicts, the completion body, tables handed over as file paths. Standard library only, so `pnpm verify` can check it. 61 self-checks.   |
 | `mcp_erasure.py`    | The erasure half of the same, kept apart because this one may never default to "nothing is wrong": turning a coverage report into sorted, actionable gaps. 10 self-checks.                                                                                |
 | `mcp_server.py`     | obsel's own MCP server: the ten tools any MCP-capable agent joins through, seven for the page and three for erasure. Wiring only; covered by `tests/live/obsel-mcp.live.test.ts`.                                                                         |
 | `observe.py`        | Tells obsel what a table holds right now, for writers that never report: a cron entry, a change-data-capture bridge, a person after a hand edit. Hashes the file with the producer's registered exclusions. Covered by `tests/live/observe.live.test.ts`. |
@@ -237,7 +237,7 @@ the serialized value. Two things were wrong, and both are now fixed:
    the comparison behind them establishes.
 
 2. **The agent was writing the same number two ways.** `canonicalise_numbers` in
-   [`worker.py`](worker.py) now fixes the serialized form per column before
+   [`worker.py`](worker.py) now fixes the serialized form value by value before
    anything is saved or hashed, so a value that did not change cannot move the
    hash. It has its own self-check: `agents/.venv/bin/python -m agents.worker`.
 
@@ -408,15 +408,25 @@ of `schema`, because the values appeared to have moved as well as the name.
 
 So the worker now holds the agent's output to a contract on **two** axes, not
 one: the exact column names, which was always enforced, and one serialized form
-per numeric column, which is `canonicalise_numbers`. The agent still decides what
+for every number, which is `canonicalise_numbers`. The agent still decides what
 the numbers are; the worker decides how they are written down.
+
+The rule is per value: a whole number is written as an integer, a fractional one
+as a float, and anything that is not a number is written as it arrived. It used
+to be per column, and both halves of that were wrong. One `"N/A"` in a column of
+numbers switched canonicalization off for the whole column, so `217` against
+`217.0` moved the hash again. And in a column holding one fractional value every
+integer in it went through `float()`, so two ids above 2^53 collapsed to one
+value and a real change carried the previous run's content hash. The self-checks
+in `worker.py` and `mcp_core.py` cover both.
 
 That is deliberately placed in the worker rather than in the fingerprint. obsel
 still hashes bytes and still calls two different byte sequences different, so what
 counts as evidence has not been loosened. What changed is upstream of obsel: the
 agent's output is written one way, so a genuine change to the data is the only
-thing left that can move the hash. A column that really does gain a fractional
-value still flips and is still reported, and the self-check asserts exactly that.
+thing left that can move the hash. A value that really does gain a fraction is
+still written as a float and is still reported, and the self-check asserts
+exactly that.
 
 Worth being precise about what was ever in question. obsel's rule is "compare the
 recorded fingerprint, never the fact that a write happened", and that rule held in

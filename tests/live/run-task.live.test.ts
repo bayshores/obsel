@@ -77,11 +77,11 @@ const INSTRUCTION =
 /**
  * Two rows, so "did the agent do the work" has exactly one right answer.
  *
- * One amount is fractional on purpose. Doubling gives 21.0 and 64, which puts a whole number
- * in a column that holds a fractional one, and that is precisely what `canonicalise_numbers`
- * exists to normalize: a live run wrote a money value as `217` where the run before wrote
- * `217.0`, and the two hash differently. With whole numbers throughout, canonicalization is a
- * no-op here and the fingerprint check below would not be exercising anything.
+ * One amount is fractional on purpose. Doubling 10.5 gives a whole number an agent may hand
+ * over as either `21` or `21.0`, and that is precisely what `canonicalise_numbers` exists to
+ * normalize: a live run wrote a money value as `217` where the run before wrote `217.0`, and
+ * the two hash differently. With whole inputs throughout, the agent has no occasion to write
+ * a `.0` at all and the check on the saved file below would not be exercising anything.
  */
 const INPUT_ROWS = [
   { id: 1, amount: 10.5 },
@@ -282,19 +282,23 @@ describe("a full run, from announcement to confirmed completion", () => {
       expect(doubled).toEqual([21, 64]);
 
       /*
-       * Canonicalization actually did something to this table, which is what makes the
-       * fingerprint check below meaningful rather than vacuous.
+       * The serialized form the next agent will read, which is what the recorded fingerprint
+       * below was taken over.
        *
-       * `amount` is passed through unchanged by the agent's own instruction, and the input
-       * file holds a plain `32`, because `save_table` writes what it is given and does not
-       * canonicalize. The output file holds `32.0`: the column also carries 10.5, so every
-       * value in it is written as a float. Nothing but `canonicalise_numbers` could have made
-       * that conversion between the two files.
+       * `canonicalise_numbers` decides value by value: a whole number is written as an integer
+       * whichever way the agent spelled it, and the 10.5 beside it decides nothing. So the file
+       * must hold `32` and `64` and `21`, and must not hold `32.0`, `64.0` or `21.0` -- the
+       * doubling of 10.5 is the one an agent is most likely to hand over as a float, and if it
+       * does, this is the conversion that removed the `.0`. An agent that already wrote an
+       * integer leaves nothing to convert, and the assertion then holds without exercising it;
+       * a surviving `.0` fails it either way.
        */
       expect(readFileSync(join(root, ".obsel", "data", `${INPUT_TABLE}.json`), "utf8")).toContain(
         '"amount": 32,',
       );
-      expect(readFileSync(result.output_path, "utf8")).toContain('"amount": 32.0,');
+      const savedText = readFileSync(result.output_path, "utf8");
+      expect(savedText).toContain('"amount": 32,');
+      expect(savedText).not.toMatch(/"(amount|amount_doubled)": \d+\.0\b/);
 
       /*
        * The fingerprint obsel recorded describes the bytes on disk, not the table as the agent

@@ -599,18 +599,22 @@ its token field. See "The gate the board's own routes did not have" below.
   silently. Registration now confirms the edge too. A stand-in derives its edges from its own entity
   map, so they are never late and this could not exist in one.
 
-- **The Python agents, by 125 self-checks** in `pnpm test:python`, now wired into `pnpm verify` so they
-  actually run rather than sitting unrun. All over real files in real temporary directories. `worker.py`
-  contributes 17, including the instruction remembered together with the columns it produced, the pair
-  whose separation reverted a rename live. `codex_runner.py` contributes 22 over `_validate`, the only
+- **The Python agents, by 256 self-checks** in `pnpm test:python`, now wired into `pnpm verify` so they
+  actually run rather than sitting unrun. All over real files in real temporary directories. The total
+  and every count below were measured on 2026-08-10 by running `pnpm test:python` and counting the
+  printed check lines, per module: `mcp_core.py` 61, `run.py` 48, `scale.py` 30, `agent_contract.py`
+  23, `worker.py` 22, `context.py` 16, `swarm.py` 15, `mcp_erasure.py` 14, `fingerprint.py` 12,
+  `runner_select.py` 10, `obsel_client.py` 5. `worker.py`'s 22 include the per-value canonicalization
+  cases added on 2026-08-10 and the instruction remembered together with the columns it produced, the
+  pair whose separation reverted a rename live. `agent_contract.py` covers `validate`, the only
   thing between a live model's output and obsel's fingerprint: a table the agent never wrote, one that
   is not JSON, one with no rows, a row missing a declared column, and the right columns in the wrong
   order are each refused, because a plausible-looking bad table hashes cleanly and would mark the whole
-  chain stale for nothing. `run.py` contributes 38 over the guards behind its printed claims, the
+  chain stale for nothing. `run.py` covers the guards behind its printed claims, the
   sharpest being that `_required_list` refuses a missing key rather than reading it as an empty list:
   mutating it to `reply.get(key) or []` fails six of them; the newest cover the repair's redo order
   and the refusal to read a reply that lost its `restored` key as "nothing was cleared".
-  `mcp_core.py` contributes 49, and `mcp_erasure.py` a further 10, over what
+  `mcp_core.py` and `mcp_erasure.py` cover what
 
   obsel's own MCP server decides before it speaks: the same refusal of a missing key (the same
   mutation fails five of these), an output the task never declared it writes, a table with no
@@ -3068,11 +3072,30 @@ The reference video lock is still of the old layout and still has to be re-shot.
   customer-name casing (fixed by pinning the instruction, see `agents/pipeline.py`), numeric
   serialisation, with `order_id` 1012's money value written `217` on three runs and `217.0` on a
   fourth, which broke `rerun-same` and made `change` report `both` instead of `schema` (handled by
-  `canonicalise_numbers` in `agents/tables.py`, which fixes the serialised form per column before
+  `canonicalise_numbers` in `agents/tables.py`, which fixes the serialised form value by value before
   anything is hashed), and averaging precision, found by the first live `repair` on 2026-07-24 and
   pinned in the instruction the same day. All three were caught by the demo's own assertions rather
   than seen on camera, which is the property worth keeping. obsel itself called every one of those
   runs correctly.
+- **A fingerprint recorded before 2026-08-10 can report one change that nobody made.**
+  `canonicalise_numbers` decided the serialised form per column until that date: a column holding
+  ints beside floats had every value written as a float. It now decides value by value, so the ints
+  in such a column stay ints and the column's content hash differs from the one recorded under the
+  old rule. The first re-run compared against an old fingerprint therefore reports a change and
+  marks the finished work below it stale, once. That is the over-marking direction, never a false
+  clean, and the flags clear the only way any flag clears: through the redo. Nothing in the repo
+  carries a stored fingerprint across that boundary — `agents/run.py reset` and each live suite's
+  `beforeAll` re-establish their own baselines — so this is a note for anyone with a DataHub
+  instance whose records predate it, not a step in the demo. The captured tables in `examples/` are
+  already unchanged by the new rule, checked on 2026-08-10 by running `canonicalise_numbers` over
+  all ten of them and by `examples/reproduce_fingerprints.py` still reproducing every digest. The
+  two defects the change closes are written out in `agents/tables.py`'s own docstring, and both are
+  covered by the `worker.py` and `mcp_core.py` self-checks. Each of those checks puts the values it
+  is about in one column, because the old rule decided per column and a check that spreads them over
+  two columns passes against the defect. Verified on 2026-08-10 by checking out the old
+  `agents/tables.py` and running `python3 -m agents.mcp_core`, which fails by name on "a non-numeric
+  value in the column does not split 217 from 217.0" and "two ints above 2^53 beside a fraction reach
+  two fingerprints", and passes on both once the file is restored.
 - **An outside agent joining the demo's own page has not been watched visually.** The join path is
   real and proven, since the MCP live suite registers, works and cascades through it against the
   integration flow and the layout suite proves a fifth joined task lays out on the demo's shape,
