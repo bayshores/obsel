@@ -340,14 +340,28 @@ export async function writeChangeRecord(
   sequence: number,
   record: { at: string; body: string; assets: string[] },
 ): Promise<string> {
-  return await writeLedgerRecord({
-    id: `${flowSlug(flowId)}.${sequence}`,
-    kind: "change",
-    request: flowId,
-    at: record.at,
-    body: record.body,
-    assets: record.assets,
-  });
+  try {
+    const urn = await writeLedgerRecord({
+      id: `${flowSlug(flowId)}.${sequence}`,
+      kind: "change",
+      request: flowId,
+      at: record.at,
+      body: record.body,
+      assets: record.assets,
+    });
+    noteChangeWritten(flowId, sequence);
+    return urn;
+  } catch (error) {
+    /*
+     * A failed write may have landed anyway: `writeLedgerRecord` also throws when
+     * the record was accepted and the read-back did not confirm it inside 15 s.
+     * Neither keeping nor advancing the cached head is safe on that evidence, so
+     * the cache is dropped and the next reservation walks DataHub, which is the
+     * only thing that knows whether the record is there.
+     */
+    forgetChangeHeads(flowId);
+    throw error;
+  }
 }
 
 /**
@@ -379,54 +393,64 @@ function heads(): Map<string, number> {
 /**
  * Reserve the next sequence number for a change record on this board.
  *
- * Seeded once per flow per process by counting up to the first genuine 404, then
- * incremented in memory. Safe against two completions racing because every
- * caller holds the coordination lock in `completion.ts` while it writes — the
+ * One past the head, which `changeHeadFor` seeds once per flow per process by
+ * counting up to the first genuine 404 and holds in memory after that. Safe
+ * against two completions racing because every caller holds the coordination
+ * lock in `completion.ts` while it writes — the
  * same single-server scope the erasure mutation lock already accepts and states.
  *
+ * **Reserving does not advance the cached head.** The head moves in
+ * `noteChangeWritten`, once the record is confirmed present, and that ordering is
+ * the whole point: `writeChangeRecord`'s only caller swallows a failed write, so
+ * a head advanced first would leave a sequence reserved and never written. This
+ * sequence is dense, and every reader counts up to the first genuine 404, so an
+ * empty position does not cost the record at it — it hides every record above it,
+ * for good. A reservation reused after a failed write costs at most one
+ * unconfirmed record overwritten by the next one.
+ *
  * `SEED_CEILING` bounds the seeding walk. A board with more history than that
- * keeps recording: the walk stops looking, the head lands at the ceiling, and
- * the next write goes above it. That can leave a gap in the sequence, which the
- * reader tolerates by design — it stops at the first 404 and reports what it
- * found, so a gap costs visibility of the older records rather than correctness
- * of the newer ones. The alternative, refusing to record, would lose the record
- * entirely.
+ * keeps recording: the walk stops looking, the head lands at the ceiling, and the
+ * next write goes above it, leaving position 2001 empty. Every record from 2002
+ * up is then unreachable to the readers below. That is accepted rather than
+ * repaired here, because the alternative at the ceiling is refusing to record at
+ * all, and the ceiling sits far above any board obsel has run.
  */
 const SEED_CEILING = 2_000;
 
 export async function nextChangeSequence(flowId: string): Promise<number> {
+  return (await changeHeadFor(flowId)) + 1;
+}
+
+/**
+ * Move the cached head to a sequence whose record is confirmed written.
+ *
+ * The commit half of `nextChangeSequence`'s reservation, called by
+ * `writeChangeRecord` and by nothing else in obsel: no route and no tool reaches
+ * it, because a caller that could move the head without writing a record is the
+ * gap this ordering exists to prevent. Exported so the sequence bookkeeping can
+ * be exercised without DataHub, in `tests/change-sequence.test.ts`.
+ *
+ * Takes the higher of the two, so a write at a sequence below the head — a retry
+ * refilling a position, say — cannot walk the head backwards.
+ */
+export function noteChangeWritten(flowId: string, sequence: number): void {
   const cache = heads();
   const known = cache.get(flowId);
-  if (known !== undefined) {
-    const next = known + 1;
-    cache.set(flowId, next);
-    return next;
-  }
-
-  let sequence = 0;
-  while (sequence < SEED_CEILING) {
-    const record = await readLedgerRecord(changeUrn(flowId, sequence + 1));
-    if (record === null) break;
-    sequence += 1;
-  }
-  const next = sequence + 1;
-  cache.set(flowId, next);
-  return next;
+  cache.set(flowId, known === undefined ? sequence : Math.max(known, sequence));
 }
 
 /**
  * The highest sequence this board has written, without reserving anything.
  *
- * `nextChangeSequence` cannot answer this: it increments, so a reader asking it
- * where the history ends would burn a sequence number and leave a permanent gap
- * in the ledger. This shares that function's seeding walk and its cache, and
- * hands back the head itself.
+ * The one place the seeding walk lives. `nextChangeSequence` reserves the
+ * position after this and writers commit through `noteChangeWritten`, so a reader
+ * asking where the history ends changes nothing.
  *
  * Zero means the board has never recorded a decision.
  */
 export async function changeHeadFor(flowId: string): Promise<number> {
   const cache = heads();
-  // The cache holds the sequence most recently handed out, which is the head.
+  // The cache holds the highest sequence confirmed written, which is the head.
   // Seeding it with anything else makes the next writer skip a number, and a
   // gap stops the walk permanently: every record above it becomes unreachable.
   const known = cache.get(flowId);

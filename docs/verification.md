@@ -6264,3 +6264,40 @@ python self-checks, and the build.
 written into the real ledger and read back, a second write onto record 26's URN refused with the
 record left byte-identical, and `nextAttestationSequence` answering 27. They are in the file and
 nobody has executed them.
+
+## 2026-08-10 — A failed ledger write no longer hides every record after it
+
+`nextChangeSequence` incremented and cached the head before the record was written, and its only
+caller, `recordChange` in `src/server/coordinator/completion-writes.ts`, catches a failed ledger
+write and carries on by design. So a write that threw left the position it had reserved empty for
+good. The change ledger is a dense sequence and every reader counts up to the first genuine 404, so
+that empty position does not cost the record at it: it hides every record above it. `changeHeadFor`
+in a fresh process stops there too, and `resolveClosedIncidents` and `resolveResetIncidents` take
+their lookback window from that head, so a DataHub incident raised after the gap would never be
+found again and the table's health would read `FAIL` with nothing to resolve it.
+
+This is the same failure the 2026-08-02 entry above records making by hand, arriving through a
+different door: there, a head seeded one too high skipped 224 and orphaned 225.
+
+**What changed.** Reserving no longer moves the head. `nextChangeSequence` is now
+`changeHeadFor(flow) + 1`, and the head moves in a new `noteChangeWritten`, which
+`writeChangeRecord` calls after `writeLedgerRecord` has confirmed the record is readable. A write
+that throws drops the cached head for that board instead, because `writeLedgerRecord` also throws
+when the record was accepted and the read-back did not confirm it inside 15 s: on that evidence
+neither keeping nor advancing the head is safe, and the next reservation walks DataHub, which is the
+only thing that knows. The readers are untouched.
+
+The trade this makes is the right way round. A reused reservation costs at most one unconfirmed
+record overwritten by the next one; the gap it replaces cost the whole history above it.
+
+**Evidence.** `tests/change-sequence.test.ts`, six tests, no DataHub and no stand-in for it: the
+head cache is the real one and is seeded through `noteChangeWritten`, the same call the writer
+makes. Against the old reservation the case named "leaves the head where it was" failed with
+`expected 2 to be 1` — the head had moved with nothing written at 2. All six pass after the change.
+`tests/live/ledger-gap.live.test.ts` was added for the part only a real board shows, on a flow id
+unique to the run: reserve, write, reserve and abandon, reserve again, write, then forget the cache
+and read the history back out of DataHub. **It has not been run**, because DataHub was out of bounds
+for this pass.
+
+The `SEED_CEILING` comment stated its own consequence backwards, saying a gap costs visibility of
+the older records. It costs the newer ones. Corrected in place.
