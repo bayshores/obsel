@@ -5890,3 +5890,10 @@ Live, in `tests/live/incidents.live.test.ts`: a real cascade raised an incident,
 /api/demo/reset` came back with the table named under `incidentsResolved`, the incident read
 RESOLVED from the aspect store with "reset" in its message, and every mark it had named was gone.
 11 of 11 in that file, 18.8 s, on the same `v1.7.0` stack.
+
+### The expired login, refreshed (2026-08-09, later)
+
+The one failure in the full-suite run above was retested after the operator refreshed the
+machine's Claude Code CLI login: `runners.live.test.ts` 8 of 8. With it, every live test in the
+repository has passed on this stack today — 176 of 176, across the full run and the two
+re-verifications.
