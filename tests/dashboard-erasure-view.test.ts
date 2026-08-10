@@ -39,6 +39,11 @@ const REASONS: ResidueReason[] = [
     version: "v4",
   },
   { kind: "predicate-gap", missing: ["email_hash"] },
+  {
+    kind: "predicate-split",
+    identifiers: ["cust_88213", "hash_9f2a"],
+    partial: [{ identifier: "hash_9f2a", covered: 1, total: 730 }],
+  },
   { kind: "unverified-signature", attestor: "warehouse-team" },
   { kind: "attested-other-version", attestedVersion: "v3" },
 ];
@@ -161,7 +166,7 @@ describe("the assurance line", () => {
 });
 
 describe("every residue reason says something", () => {
-  it("words all ten kinds without leaving one to a fallback", () => {
+  it("words all eleven kinds without leaving one to a fallback", () => {
     for (const reason of REASONS) {
       const sentence = reasonSentence(reason, "customers");
       expect(sentence.length, `${reason.kind} says nothing`).toBeGreaterThan(10);

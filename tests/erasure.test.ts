@@ -518,7 +518,68 @@ describe("the cases the table does not list", () => {
     );
 
     expect(stateOf(coverage, CUSTOMERS)).toBe("UNPROVEN");
-    expect(residueKinds(coverage, CUSTOMERS)).toContain("predicate-gap");
+    expect(residueKinds(coverage, CUSTOMERS)).toContain("predicate-split");
+  });
+
+  it("does not say nobody searched for an identifier somebody searched", () => {
+    /*
+     * The refusal above is right and the sentence beside it was not. Both
+     * identifiers here were searched for; what is missing is a record that
+     * searched both AND spoke for the whole version, and `hash_9f2a` was only
+     * ever searched over 1 of 730 partitions. "nobody searched for cust_88213"
+     * is a false statement about a named attestor's work, and an operator who
+     * checks it finds the search and stops believing the board.
+     */
+    const coverage = coverageFor(
+      input({
+        identifiers: ["cust_88213", "hash_9f2a"],
+        attestations: [
+          direct({
+            predicate: {
+              identifiers: ["cust_88213"],
+              expression: "customer_id = 'cust_88213'",
+              columns: ["customer_id"],
+            },
+            scope: { kind: "whole" },
+          }),
+          direct({
+            predicate: {
+              identifiers: ["hash_9f2a"],
+              expression: "email_hash = 'hash_9f2a' and dt = '2026-01-01'",
+              columns: ["email_hash"],
+            },
+            scope: { kind: "partitions", covered: ["2026-01-01"], total: 730 },
+          }),
+        ],
+      }),
+    );
+
+    const found = coverage.find((entry) => entry.asset === CUSTOMERS);
+    expect(found?.explanation).toBe(
+      "customers at version v1 is unattested: no single attestation searched for both " +
+        "cust_88213 and hash_9f2a, and hash_9f2a was searched over 1 of 730 partitions",
+    );
+    expect(found?.residue).toContainEqual({
+      kind: "predicate-split",
+      identifiers: ["cust_88213", "hash_9f2a"],
+      partial: [{ identifier: "hash_9f2a", covered: 1, total: 730 }],
+    });
+  });
+
+  it("still says nobody searched when nobody did", () => {
+    // The honest case keeps the honest sentence: an identifier no verified
+    // record looked for at all is unexamined, and saying so is true.
+    const coverage = coverageFor(
+      input({
+        identifiers: ["cust_88213", "hash_9f2a"],
+        attestations: [direct()],
+      }),
+    );
+
+    const found = coverage.find((entry) => entry.asset === CUSTOMERS);
+    expect(found?.explanation).toBe(
+      "customers at version v1 is unattested: nobody searched for hash_9f2a",
+    );
   });
 
   it("composes named partitions only across records that each searched every identifier", () => {

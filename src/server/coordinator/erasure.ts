@@ -174,7 +174,24 @@ export type ResidueReason =
   | { kind: "no-recorded-lineage" }
   | { kind: "closure-mismatch"; undeclared: string[] }
   | { kind: "unattested-input"; input: string; version: Version }
+  /** Identifiers no verified record searched for at all. */
   | { kind: "predicate-gap"; missing: string[] }
+  /**
+   * Every identifier was searched for, but never all of them by one record.
+   *
+   * Separate from `predicate-gap` because the two say different things to the
+   * operator and only one of them is true here. Reporting this as a gap names
+   * an identifier an attestor did search, which is a false statement about that
+   * attestor's work; the reader checks it, finds the search, and stops
+   * believing the rest of the board.
+   */
+  | {
+      kind: "predicate-split";
+      /** Every identifier the request covers. No one record searched all of them. */
+      identifiers: string[];
+      /** Those somebody searched, but only over named partitions and not all of them. */
+      partial: { identifier: string; covered: number; total: number }[];
+    }
   | { kind: "unverified-signature"; attestor: string }
   | { kind: "attested-other-version"; attestedVersion: Version };
 
@@ -448,16 +465,30 @@ function residueFromDirect(
   });
 
   if (qualifying.length === 0) {
-    // Nobody answered the whole question. The smallest gap any single attestor
-    // left is the shortest route to closing this, so that is the one named;
-    // sorted so the sentence cannot depend on the order records arrived in.
-    const gaps = verified
-      .map((record) => {
-        const searched = new Set(record.predicate.identifiers);
-        return asked.filter((id) => !searched.has(id)).sort();
-      })
-      .sort((a, b) => a.length - b.length || a.join().localeCompare(b.join()));
-    reasons.push({ kind: "predicate-gap", missing: gaps[0] });
+    /*
+     * Nobody answered the whole question, and there are two different reasons
+     * that happens. Naming the wrong one is not a rounding error: the earlier
+     * form picked the smallest gap any single attestor left, so two records
+     * that between them searched everything produced "nobody searched for
+     * cust_88213" while a signed record searching exactly that sat in the
+     * ledger. The state was right and the sentence was false, which is the
+     * failure mode that costs the whole report its credibility.
+     */
+    const unsearched = asked
+      .filter((id) => !verified.some((record) => record.predicate.identifiers.includes(id)))
+      .sort();
+    if (unsearched.length > 0) {
+      reasons.push({ kind: "predicate-gap", missing: unsearched });
+      return reasons;
+    }
+
+    // Everything was searched for, just never all of it by one record. Say that,
+    // and say how far the partial searches reached, which is the work left.
+    reasons.push({
+      kind: "predicate-split",
+      identifiers: [...asked],
+      partial: asked.flatMap((id) => partialReach(verified, id)),
+    });
     return reasons;
   }
 
@@ -482,6 +513,33 @@ function residueFromDirect(
 
   void version;
   return reasons;
+}
+
+/**
+ * How far the searches for one identifier reached, when they stopped short.
+ *
+ * Empty when somebody searched that identifier over the whole version, or when
+ * no partition counts were recorded to report. This is an explanation of a gap
+ * already decided above, never a decision: unioning partitions per identifier
+ * would let two records be stitched together, which is the thing the caller
+ * refuses. Nothing here is read back into `qualifying`.
+ */
+function partialReach(
+  verified: DirectAttestation[],
+  identifier: string,
+): { identifier: string; covered: number; total: number }[] {
+  const searchers = verified.filter((record) => record.predicate.identifiers.includes(identifier));
+  if (searchers.some((record) => record.scope.kind === "whole")) return [];
+
+  const covered = new Set<string>();
+  let total = 0;
+  for (const record of searchers) {
+    if (record.scope.kind !== "partitions") continue;
+    for (const part of record.scope.covered) covered.add(part);
+    total = Math.max(total, record.scope.total);
+  }
+  if (total === 0 || covered.size >= total) return [];
+  return [{ identifier, covered: covered.size, total }];
 }
 
 /** Null when no rebuild attestation was offered at all. */
@@ -667,6 +725,26 @@ export function reasonSentence(reason: ResidueReason | undefined, table: string)
         : `it was built from ${assetLabel(reason.input)} at version ${reason.version}, which is itself unattested`;
     case "predicate-gap":
       return `nobody searched for ${reason.missing.join(", ")}`;
+    case "predicate-split": {
+      /*
+       * This sentence may not say nobody searched for anything. Every
+       * identifier it names was searched for by somebody; what is missing is
+       * one record that searched all of them and spoke for the whole version.
+       */
+      const named =
+        reason.identifiers.length === 2
+          ? `both ${reason.identifiers[0]} and ${reason.identifiers[1]}`
+          : `all of ${reason.identifiers.join(", ")}`;
+      const head = `no single attestation searched for ${named}`;
+      if (reason.partial.length === 0) return head;
+      const reach = reason.partial
+        .map(
+          (entry) =>
+            `${entry.identifier} was searched over ${entry.covered} of ${entry.total} partitions`,
+        )
+        .join(", ");
+      return `${head}, and ${reach}`;
+    }
     case "unverified-signature":
       return `the attestation from ${reason.attestor} has no verified signature`;
   }

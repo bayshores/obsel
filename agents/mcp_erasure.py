@@ -76,6 +76,12 @@ _NEXT_STEP: dict[str, tuple[str, str]] = {
         "the attestation searched for fewer identifiers than the request "
         "covers, so part of the question is unanswered.",
     ),
+    "predicate-split": (
+        "direct-check",
+        "the identifiers were searched for, but across separate attestations "
+        "and never all of them by one. Ask for a single check covering all of "
+        "them over the whole version.",
+    ),
     "unverified-signature": (
         "attestor-setup",
         "an attestation arrived that obsel could not verify. Check the key is "

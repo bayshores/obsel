@@ -70,6 +70,13 @@ whole-scope record never looked for, and that composition is refused
 ([`tests/erasure.test.ts`](../tests/erasure.test.ts), "refuses a whole-scope record for one
 identifier stitched to a partition record for the other").
 
+The residue for that refusal is `predicate-split`, and it is a separate reason from
+`predicate-gap` because the two are true in different situations. `predicate-gap` names
+identifiers no verified record searched for. `predicate-split` is what is left when every
+identifier was searched for and no one record searched all of them, so its sentence names the
+missing single record and how far the partial searches reached, and never says nobody searched
+for an identifier somebody searched.
+
 **Derived coverage.** A rebuild attestation `P` where all of the following hold:
 
 - `P` solely produced version `V` of `A`. Not "was one of the producers of".
