@@ -109,6 +109,30 @@ export async function startObsel(
       }
       setTimeout(() => resolve(), 5_000);
     });
+    /*
+     * The exit above is the parent's. Next 16's worker outlives the group
+     * SIGTERM and keeps serving the port — measured 2026-08-10, still answering
+     * 15 s later — so a stop that returns here lets the NEXT start's readiness
+     * probe be satisfied by this server's corpse: the probe breaks, the corpse
+     * dies, and the caller holds a url nothing listens on, ECONNREFUSED on its
+     * first real request. Nothing about obsel is measured by how its test
+     * server dies, so the worker gets SIGKILL, and stop returns only once the
+     * port genuinely refuses, bounded rather than forever.
+     */
+    try {
+      process.kill(-child.pid!, "SIGKILL");
+    } catch {
+      /* already gone */
+    }
+    const gone = Date.now() + 10_000;
+    while (Date.now() < gone) {
+      try {
+        await fetch(url, { signal: AbortSignal.timeout(1_000) });
+      } catch (error) {
+        if ((error as { cause?: { code?: string } }).cause?.code === "ECONNREFUSED") return;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    }
   };
 
   const deadline = Date.now() + 120_000;
