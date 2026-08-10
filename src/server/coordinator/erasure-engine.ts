@@ -20,6 +20,7 @@ import "server-only";
 import { createHash, randomUUID } from "node:crypto";
 
 import { readLineageDownstream } from "@/src/server/datahub/client";
+import { datasetExists } from "@/src/server/datahub/incidents";
 import {
   attestationUrn,
   ledgerUrn,
@@ -40,6 +41,7 @@ import {
 } from "./attestation";
 import { ASSURANCE_LIMITS, coverageFor, summarize, type Attestation } from "./erasure";
 import { NoSuchErasureRequest } from "./erasure-missing";
+import { UnknownSeedsError, unknownSeeds } from "./erasure-seeds";
 import type { ErasureReport, ErasureRequest } from "./erasure-report";
 import { emit } from "./trace";
 
@@ -182,6 +184,20 @@ export async function openErasureRequest(input: {
     hops: input.hops ?? DEFAULT_HOPS,
     openedAt: new Date().toISOString(),
   };
+
+  /*
+   * Every seed is established BEFORE anything is written, against the endpoint
+   * that genuinely 404s. A URN DataHub never saw walks nowhere, because
+   * `/relationships` answers it with an empty list rather than an error, and the
+   * report that comes back is one UNPROVEN row with `assetsReached: 1` — the
+   * same shape a subject whose data really did stop at one table produces. The
+   * refusal is in `erasure-seeds.ts`; nothing about it marks or clears anything.
+   */
+  const checked = await Promise.all(
+    request.seeds.map(async (seed) => ({ seed, exists: await datasetExists(seed) })),
+  );
+  const unknown = unknownSeeds(checked);
+  if (unknown.length > 0) throw new UnknownSeedsError(unknown);
 
   return await serialized(async () => {
     emit("read", `opening ${request.request}`, `${request.seeds.length} seed assets`);

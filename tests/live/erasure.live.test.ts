@@ -123,6 +123,36 @@ describe("the routes refuse before they do anything", () => {
     expect(response.status).toBe(401);
   }, 120_000);
 
+  it("refuses a seed DataHub has no dataset for, and names it", async () => {
+    /*
+     * The typo case. `/relationships` answers a URN nobody ever wrote with an
+     * empty list rather than an error, so before the seed check this opened a
+     * request, walked nowhere and answered 200 with one UNPROVEN row and
+     * `assetsReached: 1` — the same report the postgres copy of this table
+     * genuinely produces. The refusal names every unknown seed, and no ledger
+     * record is written for a request that was refused.
+     */
+    const typo = `urn:li:dataset:(${SNOWFLAKE},b2fd91.order_entry_db.order_entry.custmers,PROD)`;
+    const refused = await api("/api/erasure", {
+      method: "POST",
+      body: JSON.stringify({
+        request: `${REQUEST}-unknown-seed`,
+        identifiers: ["cust_88213"],
+        seeds: [CUSTOMERS, typo],
+        hops: 2,
+      }),
+    });
+
+    expect(refused.status).toBe(400);
+    expect(refused.body.unknownSeeds).toEqual([typo]);
+    expect(String(refused.body.error)).toContain(typo);
+    expect(refused.body.coverage).toBeUndefined();
+
+    // Nothing was opened, so reading it back finds no request.
+    const status = await api(`/api/erasure/${REQUEST}-unknown-seed`, { method: "GET" });
+    expect(status.status).toBe(500);
+  }, 120_000);
+
   it("has no route that marks an asset covered", async () => {
     /*
      * The rule this product cannot bend. Coverage is derived from the ledger on

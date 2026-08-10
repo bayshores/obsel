@@ -6387,3 +6387,30 @@ before the fix with the old text rule extracted verbatim, the second case failed
 suite serves them. What is covered is the classifier they both now call, and the engine error it
 switches on. A live check that `GET /api/erasure/<id>` answers 500 while GMS is unreachable is
 unrun.
+
+## 2026-08-10 — A mistyped seed is refused instead of answered over one asset
+
+`POST /api/erasure` checked that each seed was a non-empty string and nothing else. A URN
+DataHub has never held walks nowhere, because `GET /relationships` answers it with an empty
+relationship list rather than an error, so `analytics.ordres` for `analytics.orders` opened a
+request, reached exactly that one string, and answered 200 with one `UNPROVEN` row and
+`assetsReached: 1`.
+
+That number is not obviously wrong, which is the problem. The 2026-07-26 run above records a
+real one-asset estate: the postgres copy of `order_entry.customers` reaches one asset because
+DataHub records no downstream edges from it. The typo's report and that report carry the same
+fields, the same counts and the same row state, and a reader has nothing to tell them apart
+while the subject's data has actually reached 23.
+
+Seeds are now established before anything is written, one
+`GET /openapi/v3/entity/dataset/<urn>` per seed — the endpoint that genuinely 404s (§1 of
+`environment-findings.md`), never `GET /entities/<urn>`, which answers for any syntactically
+valid URN. Unknown seeds are refused with a 400 that lists all of them, and no ledger record is
+written for a request that was refused. The check is additive: it adds no state, no vocabulary,
+and no claim about any asset.
+
+The decision, given the existence answers, is `src/server/coordinator/erasure-seeds.ts` and is
+covered by `tests/erasure-seeds.test.ts` — 5 tests, run under `pnpm verify` on this commit,
+36 files and 646 tests passing. The HTTP round trip is written in
+`tests/live/erasure.live.test.ts` ("refuses a seed DataHub has no dataset for, and names it")
+and is **unrun**: it needs the live stack, which was out of bounds for this change.

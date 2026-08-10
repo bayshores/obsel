@@ -425,6 +425,10 @@ spoken for and the most useful thing in the report on day one. `summary` counts 
 unattested; `assurance` says how far the walk went and how many evidence records the answer rests
 on, so a small estate cannot be mistaken for a covered one.
 
+A seed DataHub holds no dataset for is refused with a 400 listing it, and nothing is opened. A
+mistyped table name would otherwise walk nowhere and answer over that one URN, which reads the
+same as a subject whose data really did stop at one table.
+
 **How an attestor answers.** Ask for a challenge, look in the asset, sign the record with the
 challenge bound into it, and submit. `signAttestation` in
 `src/server/coordinator/attestation.ts` produces the DSSE envelope, and shipping it rather than

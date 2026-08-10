@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { openErasureRequest, RequestAlreadyOpen } from "@/src/server/coordinator/erasure-engine";
+import { UnknownSeedsError } from "@/src/server/coordinator/erasure-seeds";
 import { mutationRoute } from "@/src/server/http/route";
 
 export const dynamic = "force-dynamic";
@@ -29,6 +30,10 @@ const Body = z.object({
  *
  * A request id the ledger already holds is a 409 naming the existing record,
  * not a second open. The reason is in `refuseReopen`.
+ *
+ * A seed DataHub has no dataset for is a 400 naming it, not a narrow report.
+ * The schema above can only see that a seed is a non-empty string, and a
+ * mistyped one walks to an empty answer that looks exactly like a small estate.
  */
 export async function POST(request: Request) {
   return mutationRoute(request, Body, "could not open the request", async (body) => {
@@ -37,6 +42,12 @@ export async function POST(request: Request) {
     } catch (error) {
       if (error instanceof RequestAlreadyOpen) {
         return NextResponse.json({ error: error.message }, { status: error.status });
+      }
+      if (error instanceof UnknownSeedsError) {
+        return NextResponse.json(
+          { error: error.message, unknownSeeds: error.unknownSeeds },
+          { status: 400 },
+        );
       }
       throw error;
     }
