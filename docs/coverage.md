@@ -19,12 +19,12 @@ And a row names its evidence precisely enough to re-run it or look it up.
 | browser | Playwright against the built app                                       | `pnpm e2e`         |
 | run     | a dated, measured run recorded in [`verification.md`](verification.md) | see its entry      |
 
-Counts measured on 2026-08-10, every suite on the merged audit tree: **748 unit tests across 47
-files**, with 26 more conditionally skipped in the 3 video files, **249 python self-checks across
-10 modules**, **301 browser checks across two viewports** with one skipped, and **the whole live
+Counts measured on 2026-08-10, every suite on the merged audit tree: **792 unit tests across 50
+files**, with 26 more conditionally skipped in the 3 video files, **258 python self-checks across
+11 modules**, **301 browser checks across two viewports** with one skipped, and **the whole live
 suite green end to end: 189 tests across 17 files** against a real DataHub, with one real Codex
-and one real Claude Code session in the run. The livesuite's first execution of `task-auth`, `volatile` and `observe` was 2026-07-30, which is when those
-rows left `## Not covered`. Live runs are single observations unless their entry says otherwise.
+and one real Claude Code session in the run. The live suite's first execution of `task-auth`,
+`volatile` and `observe` was 2026-07-30, which is when those rows left `## Not covered`. Live runs are single observations unless their entry says otherwise.
 
 Nothing in the unit or python columns uses a stand-in for a system boundary; that rule and its
 origin are in [`CLAUDE.md`](../CLAUDE.md). The browser suite replays recorded or invented

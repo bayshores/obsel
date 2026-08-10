@@ -139,8 +139,8 @@ above.
 
 ### Check it yourself
 
-`pnpm verify` runs the typecheck, lint, 658 unit tests and the Python self-checks, no Docker needed.
-`pnpm test:live` runs 176 tests against a real DataHub, the real `mcp-server-datahub`, a real obsel
+`pnpm verify` runs the typecheck, lint, 792 unit tests and the Python self-checks, no Docker needed.
+`pnpm test:live` runs 189 tests against a real DataHub, the real `mcp-server-datahub`, a real obsel
 server and real agent CLI sessions. Nothing in the repository is tested against a stand-in.
 Everything that crosses a process boundary is covered against the real thing, and the one in-memory
 stand-in that ever existed was deleted for cause, recorded in `docs/verification.md`. Every screen

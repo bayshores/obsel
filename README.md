@@ -446,11 +446,11 @@ pnpm site:build  # the hosted verifier, into site/dist
 
 **`pnpm verify` is the one to run first.** It needs no Docker and no browser download.
 
-As of 2026-08-10, `pnpm verify` passes end to end, with 658 unit tests across 38 files and 235
-Python self-checks across ten modules. `pnpm e2e` passes 297 browser checks across two viewports,
+As of 2026-08-10, `pnpm verify` passes end to end, with 792 unit tests across 50 files and 258
+Python self-checks across eleven modules. `pnpm e2e` passes 301 browser checks across two viewports,
 with one skipped by design, half of them against a forty-task pipeline recorded off a real run.
 
-`pnpm test:live` passes 176 tests across sixteen files, including one real agent session per
+`pnpm test:live` passes 189 tests across seventeen files, including one real agent session per
 installed CLI. Its closing line names any runner it did not exercise, so a green run on a machine
 with one CLI cannot be read as evidence about both. See
 [docs/verification.md](docs/verification.md).
