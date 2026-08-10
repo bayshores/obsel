@@ -10,6 +10,7 @@ import "server-only";
  */
 
 import { PROP, readSnapshot, updateTaskProperties } from "@/src/server/datahub/client";
+import { UnevidencedCompletion, evidenceProblem } from "./completion-evidence";
 import {
   clearRestored,
   markAllStale,
@@ -114,6 +115,18 @@ async function decideCompletion(
   if (!finishing) {
     throw new Error(`completion reported for ${report.taskUrn}, which is not a registered agent`);
   }
+
+  /*
+   * Before anything is emitted, compared or written. Both halves of what
+   * follows act on `report.fingerprints` unconditionally — the comparison loop
+   * below iterates its keys without consulting `finishing.writes`, and
+   * `recordCompletion` clears the reporter's flag whether or not any
+   * fingerprint arrived — so a report that fails this is refused rather than
+   * partly acted on. `completion-evidence.ts` states each rule against the
+   * wrong answer it prevents.
+   */
+  const problem = evidenceProblem(finishing, report.fingerprints);
+  if (problem) throw new UnevidencedCompletion(problem);
 
   emit("read", `${label(finishing)} finished`, `read ${snapshot.tasks.length} tasks from DataHub`);
 

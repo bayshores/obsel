@@ -6740,3 +6740,54 @@ Still unexecuted, named rather than implied: the hosted verifier page has no bro
 page's clear-before-verify ordering rests on the shared implementation and the unit-run site
 tests; and the live check that `GET /api/erasure/<id>` answers 500 while GMS is unreachable exists
 nowhere yet.
+
+## 2026-08-10 — A completion with no evidence, or evidence about somebody else's table
+
+Commit: this change, in an isolated worktree on top of `c0128c1`.
+
+`POST /api/tasks/complete` validated `fingerprints` as a shape and nothing more, so two bodies got
+through that obsel's own MCP door has always refused.
+
+**An empty map.** `z.record(z.string(), Fingerprint)` accepts `{}`, and `decideCompletion` then
+compared nothing, found nothing changed, and called `recordCompletion`, which strips the reporter's
+own stale properties and removes its `obsel-stale` tag whenever the flagged task reports. The route
+answered 200 with `affected: []`. That is a flag taken off by an assertion rather than by redone
+work, and the recorded baseline is merged rather than replaced, so nothing later noticed.
+
+**A fingerprint for a table the task does not write.** `decideCompletion` iterated
+`Object.keys(report.fingerprints)` and never consulted `finishing.writes`, so the first such report
+was recorded silently — there is no baseline to compare a first version against — and the second
+one, with different content, ran `affectedBy` over every finished reader of a dataset the reporter
+has no `Produces` edge to, attributing the marks to it.
+
+`resolve_outputs` in `agents/mcp_core.py` refuses both, and its docstring already named the
+consequence of this route not doing so. The MCP door is not a gate on this one: `agents/worker.py`
+and `agents/report.py` post here directly, and so can anything holding the token.
+
+`src/server/coordinator/completion-evidence.ts` now holds `evidenceProblem`, a pure function from
+the task record and the reported map to the sentence to refuse with or `null`.
+`decideCompletion` calls it as its first act after finding the task, before any emit, comparison or
+write, and throws `UnevidencedCompletion`; the route answers 400 for that class and keeps answering
+500 for everything else. The empty map is refused only when the task declared a write, because a
+read-only task has no fingerprint it could send. The comparison is over whole URNs, which is the
+space the recorder keys `fingerprints` in and the space every caller sends — `register` builds the
+URNs and hands them back, and both `mcp_core.completion_body` and `agents/worker.py` key their
+report off the record's own `writes`. Short names would accept `finance.clean_orders` as evidence
+about `obsel_demo.clean_orders`.
+
+A task reporting some of its declared outputs and not others is still accepted. Comparison is per
+dataset and an unreported table keeps its previous baseline; requiring every declared output each
+run would refuse an honest partial report, and the way out of that refusal would be to invent a
+fingerprint.
+
+**Measured.** `tests/completion-evidence.test.ts`, 12 cases. Run against a stub returning `null`,
+which is exactly today's behavior at the route, 8 of the 12 failed for the defect's reason —
+nothing was refused — and the 4 honest cases passed. Both pass counts flipped to 12 with the
+function in place. `pnpm verify` on this worktree: 743 unit tests across 45 files, plus the python
+self-checks, typecheck, lint, formatting and build, all green.
+
+**Not covered.** `tests/live/completion-evidence.live.test.ts` was added and has not been run: this
+session had no live stack. It posts both refused bodies to a real `next start` server with a real
+token and reads the flagged task back off DataHub, asserting the mark and the `obsel-stale` tag are
+both still standing and that no baseline was recorded for the undeclared table. Nothing here
+exercises the route handler's 400 mapping deterministically, because reaching it needs a snapshot.

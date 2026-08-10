@@ -198,7 +198,17 @@ The flow, in [`src/server/coordinator/engine.ts`](../src/server/coordinator/engi
    per output dataset and a finish time.
 2. Read the whole swarm out of DataHub. One snapshot, used for every decision that follows, so the
    answer is consistent even if the graph changes underneath.
-3. For each reported output, compare its fingerprint against the one recorded when that task last
+3. Refuse the report if it carries no evidence, before anything is compared or written.
+   [`completion-evidence.ts`](../src/server/coordinator/completion-evidence.ts) answers two
+   questions off the task's own record, which is why it happens here and not in the route's schema:
+   a task that declared a write must send at least one fingerprint, and every fingerprint must be
+   for a dataset that task declared it writes. The first is the no-clear rule stated at the door —
+   step 5 below takes a flag off whenever the flagged task reports, and an empty map leaves nothing
+   to compare it against. The second keeps obsel from holding a baseline for a table its recorded
+   author has no `Produces` edge to. Both are refused with a 400; both are the refusals
+   `resolve_outputs` in `agents/mcp_core.py` makes at obsel's MCP door, which agents posting
+   straight to the HTTP route never pass through.
+4. For each reported output, compare its fingerprint against the one recorded when that task last
    finished. **A task that re-ran and produced exactly what it produced before yields nothing
    here**, and the rest of the work is skipped. This is the single most important branch in the
    product: without it every scheduled re-run marks the whole pipeline stale and the marks stop
@@ -215,19 +225,19 @@ The flow, in [`src/server/coordinator/engine.ts`](../src/server/coordinator/engi
    re-emits the same rows in a different order has produced the same table, and marking its
    readers stale for that would be exactly the false alarm this branch exists to prevent.
 
-4. Record the finishing task's new fingerprints and clear its own stale mark, if it had one. It has
+5. Record the finishing task's new fingerprints and clear its own stale mark, if it had one. It has
    re-run, so it is trustworthy again.
-5. Ask [`staleness.ts`](../src/server/coordinator/staleness.ts) which finished tasks the changed
+6. Ask [`staleness.ts`](../src/server/coordinator/staleness.ts) which finished tasks the changed
    outputs invalidate, excluding the task that just ran so nothing marks itself.
-6. Write each mark back: custom properties first, then the tag, so a tag never points at a task
+7. Write each mark back: custom properties first, then the tag, so a tag never points at a task
    with no recorded cause. A tag write is confirmed by reading `globalTags` back, not by trusting
    the MCP server's acknowledgement.
-7. Stamp the measured `detectedMs` onto every mark that was just written. This happens after the
+8. Stamp the measured `detectedMs` onto every mark that was just written. This happens after the
    marks are already visible, on purpose: it is bookkeeping, and a failure here must not undo flags
    that landed. It is recorded rather than derived, because the dashboard subtracting two timestamps
    stamped in two different processes measures neither end of the real work and goes negative as
    soon as the upstream task runs again.
-8. Return a `CoordinationResult` with a measured `elapsedMs` covering all of the above.
+9. Return a `CoordinationResult` with a measured `elapsedMs` covering all of the above.
 
 The page is a separate, dumber path: it polls `GET /api/swarm` once a second and renders
 whatever DataHub currently says. It never computes staleness.
@@ -534,6 +544,7 @@ readable", not as "covered by end-to-end evidence". See [Evidence](#9-evidence) 
 | ------------------------------------------- | -------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
 | The contracts                               | `src/server/coordinator/types.ts`                                                                              | shipped                                                          |
 | Staleness rules                             | `src/server/coordinator/staleness.ts`                                                                          | shipped, 83 passing tests                                        |
+| What a completion must carry                | `src/server/coordinator/completion-evidence.ts`                                                                | shipped, 12 passing tests, live refusals unrun                   |
 | Coordinator IO                              | `src/server/coordinator/engine.ts`                                                                             | shipped, 27 integration tests vs a live DataHub                  |
 | GMS client                                  | `src/server/datahub/{client,gms,lineage,task-record,properties,errors}.ts`                                     | shipped, exercised by those 27 plus 8 on `tags.ts`               |
 | MCP tag writes                              | `src/server/datahub/mcp.ts`                                                                                    | shipped, 9 integration tests vs the real MCP server              |
@@ -1042,6 +1053,10 @@ The one that matters. An agent reporting that it finished is what triggers the w
   },
 }
 ```
+
+The fingerprint map is refused, with a 400, when it is empty and the task declared a write, and when
+it names a dataset the task did not declare it writes. Step 3 of the flow above says what each
+refusal prevents.
 
 `run.ms` is the **agent's** measurement of its own run, taken in one process, and obsel stores it
 verbatim. It is deliberately not derived from `finishedAt` minus `startedAt`: those two are stamped

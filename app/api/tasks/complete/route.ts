@@ -1,6 +1,8 @@
+import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { coordinateCompletion } from "@/src/server/coordinator/engine";
+import { UnevidencedCompletion } from "@/src/server/coordinator/completion-evidence";
 import { mutationRoute } from "@/src/server/http/route";
 import { ClientBody } from "@/src/server/http/client-body";
 
@@ -64,6 +66,14 @@ const Observation = Fingerprint.extend({
 
 const Body = z.object({
   taskUrn: z.string().min(1),
+  /*
+   * Keyed by the full dataset URN, and `{}` parses. What the map may contain is
+   * not a shape question: it is a relationship between this body and obsel's
+   * record of the task, which only the snapshot holds. `evidenceProblem` in
+   * `src/server/coordinator/completion-evidence.ts` is where an empty map and a
+   * dataset this task does not write are refused, and the handler below turns
+   * that refusal into a 400 rather than a 500.
+   */
   fingerprints: z.record(z.string(), Fingerprint),
   finishedAt: z.string().min(1),
   run: Run.optional(),
@@ -92,5 +102,17 @@ const Body = z.object({
  * only against callers polite enough not to lie.
  */
 export async function POST(request: Request) {
-  return mutationRoute(request, Body, "coordination failed", (body) => coordinateCompletion(body));
+  return mutationRoute(request, Body, "coordination failed", async (body) => {
+    try {
+      return await coordinateCompletion(body);
+    } catch (error) {
+      // 400, beside the schema's own refusals: obsel read this report and will
+      // not act on it, and what has to change is in the caller's body. A 500
+      // would send the caller to obsel's logs for a fault that is not obsel's.
+      if (error instanceof UnevidencedCompletion) {
+        return NextResponse.json({ error: error.message }, { status: 400 });
+      }
+      throw error;
+    }
+  });
 }

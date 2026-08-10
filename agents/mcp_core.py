@@ -420,11 +420,17 @@ def _resolve_table_value(table_name: str, value: Any) -> Table:
 def resolve_outputs(record: Mapping[str, Any], outputs: Mapping[str, Any]) -> dict[str, Table]:
     """Map the short table names an agent reported to the URNs it declared.
 
-    Refuses a table this task never declared it writes. obsel would accept the
-    fingerprint -- the completion route takes whatever URN map it is given -- and
-    record evidence about a dataset with no `Produces` edge to this task, so a real
-    change to it could never reach anything downstream. The failure would be
-    silent and permanent, which is why it is refused here rather than reported.
+    Refuses a table this task never declared it writes, and refuses an empty
+    report. Recording either would put evidence in obsel about a dataset with no
+    `Produces` edge to this task, or clear the task's own flag with nothing to
+    compare.
+
+    Refused here so the agent is told in the words of the tool it called, naming
+    the short table it typed. The same two refusals are made again at obsel's
+    own door by `evidenceProblem` in
+    `src/server/coordinator/completion-evidence.ts`, which is the one that
+    holds: `agents/worker.py` and `agents/report.py` post to
+    `/api/tasks/complete` without passing through here.
     """
     declared = {dataset_short_name(urn): urn for urn in record.get("writes") or []}
     if not outputs:
