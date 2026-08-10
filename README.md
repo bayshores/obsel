@@ -127,7 +127,7 @@ Codex CLI. Not mockups, and not assembled from separate sessions.
 
 ### Recordings
 
-The full three-minute demo, [on YouTube](https://youtu.be/qQNA59VADNc), is cut from recordings of
+The full three-minute demo, [on YouTube](https://youtu.be/LhOvqAJ96Zw), is cut from recordings of
 real runs. It follows the forty-agent run, the mid-swarm change and the repair end to end, then
 closes on a real erasure request opened against a real catalog. Its report on camera reads 2 of 18
 assets covered and 16 unattested, and then both signing keys are reported compromised and the same
@@ -151,7 +151,7 @@ through, from that same recording on 2026-08-09.
 |                                                                                   The coverage report                                                                                    |                                                                                                  After the keys are reported compromised                                                                                                   |
 | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: |
 | ![The erasure panel reading 2 of 18 assets covered, 16 unattested, with one row attested absent over version rebuild-2026-07-31 by the analytics team.](docs/images/erasure-covered.png) | ![The same panel reading 0 of 18 assets covered, 18 unattested, above a callout saying obsel dropped 2 attestations because the key that signed them is not trusted, naming each asset and attestor.](docs/images/erasure-compromised.png) |
-|                                                                     2 of 18 covered, each by a different team's key.                                                                     |                                                                                      0 of 18, 4.0 s later. No asset was written and no version moved.                                                                                      |
+|                                                                     2 of 18 covered, each by a different team's key.                                                                     |                                                                                      0 of 18, 3.8 s later. No asset was written and no version moved.                                                                                      |
 
 "Identical" is the fingerprint's word, not the file system's. Rows are sorted before hashing, and
 any column the task registered as volatile is left out. Two tables that differ only in row order, or
@@ -402,8 +402,8 @@ The full record of what has been measured, and what has not, is in
   two observations each.
 - The graph has been checked in a real browser on two pipeline shapes, four tasks and forty, plus
   a joined fifth agent in the unit suite. Nothing between or beyond those.
-- The submission video is cut, rendered and [on YouTube](https://youtu.be/qQNA59VADNc) (2:59.6,
-  1920x1080 at 25 fps), made from recordings of real runs against a real DataHub. It has no
+- The submission video is cut, rendered and [on YouTube](https://youtu.be/LhOvqAJ96Zw) (2:59.9,
+  3840x2160 at 25 fps), made from recordings of real runs against a real DataHub. It has no
   narration, by choice, and its production project is not committed here.
 - **Bringing your own data is half on the page.** Declaring tasks is a form, driven against a real
   DataHub on 2026-07-26. Reporting a file is not. obsel takes the fingerprint from rows itself, and
