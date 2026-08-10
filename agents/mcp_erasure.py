@@ -6,7 +6,8 @@ there and would be a certificate of erasure here. Nothing in this file may
 import that default.
 
 **Nothing here marks an asset covered.** There is no function, argument or
-return value that can, and the self-check below asserts it. What closes a gap is
+return value that can, and the self-check below asserts it by listing this
+module's whole public surface and comparing the list. What closes a gap is
 the lookup table `_STEP_FOR` and nothing else: the mapping is fixed, and a model
 choosing an action per row would produce variation where the answer does not
 vary.
@@ -200,7 +201,6 @@ def _self_check() -> int:
 
     print("erasure coverage as work")
     print()
-    print("erasure coverage as work")
 
     def row(asset: str, state: str, residue: list[dict[str, Any]]) -> dict[str, Any]:
         return {
@@ -264,10 +264,55 @@ def _self_check() -> int:
         open_obligations(report, scope=["urn:li:dataset:(urn:li:dataPlatform:looker,*"])["actionable"] == 0,
         "nothing here is on a platform this agent can reach",
     )
+    # The inventory is the door. Listing what this module exposes, and comparing
+    # the whole list, is the only form of this check that a later `mark_covered`
+    # would fail: any assertion made over one return value is satisfied by a
+    # function nobody called. Same idiom as the ten-tool equality in
+    # `tests/live/obsel-mcp.live.test.ts`. A new public name here is meant to
+    # fail this check and be looked at.
+    # Imported rather than read off `globals()`: run as `python3 -m`, this file's
+    # own globals hold only what was defined above the line that called us, so a
+    # function added below it would be missed. Imported here rather than at the
+    # top of the file so that `importlib` does not itself land on the surface
+    # this check is counting.
+    import importlib
+
+    module = importlib.import_module("agents.mcp_erasure")
+    surface = sorted(name for name in vars(module) if not name.startswith("_"))
+    expected_surface = [
+        "Any",
+        "Sequence",
+        "annotations",
+        "dataset_short_name",
+        "next_step_for",
+        "open_obligations",
+        "required_dict",
+        "required_list",
+    ]
     check(
-        "no function here returns anything that marks an asset covered",
-        "ATTESTED" not in str(work),
-        "a tool that could declare work done is a tool for silencing the one thing obsel is for",
+        "this module exposes two functions, and neither one sets a coverage verdict",
+        surface == expected_surface,
+        "a function that could declare work done is a function for silencing the one thing obsel is for"
+        if surface == expected_surface
+        else f"unexpected public name, found {surface}",
+    )
+    # `open_obligations` skips the single spelling "ATTESTED". Feed it a state it
+    # has never heard of and it must carry that state out untouched: a reader
+    # that quietly rewrote or dropped an unfamiliar state would be deciding
+    # coverage, which is `erasure.ts`'s decision and not this file's.
+    probe = {
+        "request": {"request": "dsr-probe"},
+        "summary": {"total": 2, "attested": 0, "unproven": 2, "contradicted": 0},
+        "coverage": [
+            row("invented", "COVERED", [{"kind": "no-attestation"}]),
+            row("lowercased", "attested", [{"kind": "no-attestation"}]),
+        ],
+    }
+    probed = open_obligations(probe)
+    check(
+        "a state this file does not know is carried out as work, spelled as it arrived",
+        [item["state"] for item in probed["obligations"]] == ["COVERED", "attested"],
+        "reading a state as covered is a coverage decision, and it belongs to erasure.ts",
     )
 
     print()

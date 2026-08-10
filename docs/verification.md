@@ -609,7 +609,7 @@ its token field. See "The gate the board's own routes did not have" below.
   sharpest being that `_required_list` refuses a missing key rather than reading it as an empty list:
   mutating it to `reply.get(key) or []` fails six of them; the newest cover the repair's redo order
   and the refusal to read a reply that lost its `restored` key as "nothing was cleared".
-  `mcp_core.py` contributes 49, and `mcp_erasure.py` a further 9, over what
+  `mcp_core.py` contributes 49, and `mcp_erasure.py` a further 10, over what
   obsel's own MCP server decides before it speaks: the same refusal of a missing key (the same
   mutation fails five of these), an output the task never declared it writes, a table with no
   registered producer reported as exactly that rather than as fresh, `217` and `217.0` reaching
@@ -2759,7 +2759,7 @@ no `server-only` marker, so the parsers that decide what a stored fingerprint me
 by a test for the first time — the reason `tags.ts` states for having none. And `mcp_erasure.py` is
 kept apart from `mcp_core.py` because the staleness half defaults to "nothing contradicts this" where
 there is no record, which would be a certificate of erasure in the other half; the two must not be
-able to drift into each other. Its nine self-checks run under `pnpm test:python`.
+able to drift into each other. Its ten self-checks run under `pnpm test:python`.
 
 **134 lines of dead JSON plan schemas came out of `agents/worker.py`.** They were the applier-based
 design that module's own docstring already describes as abandoned, and nothing in the repository read

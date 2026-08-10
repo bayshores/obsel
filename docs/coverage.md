@@ -19,10 +19,9 @@ And a row names its evidence precisely enough to re-run it or look it up.
 | browser | Playwright against the built app                                       | `pnpm e2e`         |
 | run     | a dated, measured run recorded in [`verification.md`](verification.md) | see its entry      |
 
-Counts measured on 2026-08-10 (unit, python, browser) and 2026-08-09 (live): **664 unit tests
-across 35 files, 235 python self-checks across 10 modules**, **297 browser checks across two
 Counts measured on 2026-08-10 (unit, python, browser) and 2026-08-09 (live): **658 unit tests
-across 38 files, 238 python self-checks across 10 modules**, **297 browser checks across twoviewports** with one skipped, and **the whole live suite green end to end: 176 tests across 16
+across 38 files, 235 python self-checks across 10 modules**, **297 browser checks across two
+viewports** with one skipped, and **the whole live suite green end to end: 176 tests across 16
 files** against a real DataHub, with one real Codex and one real Claude Code session in the run. The live
 suite's first execution of `task-auth`, `volatile` and `observe` was 2026-07-30, which is when those
 rows left `## Not covered`. Live runs are single observations unless their entry says otherwise.
@@ -271,6 +270,7 @@ code, because two earlier drafts of the rule were unsound.
 | a challenge, key or recorded coverage row that is not one   | `tests/verify-evidence.test.ts` over six shapes, and the three null cases held to the browser core over the committed real capture in `tests/site-verify.test.ts`: each is refused by name and the verdict is still printed                                                                                                                       | unit             |
 | a recorded summary set to null                              | `tests/site-verify.test.ts` over the committed real capture: `typeof null` is `"object"`, so the shape check admitted a null summary and `compare` then read it, ending in a stack trace where the verdict belonged                                                                                                                               | unit             |
 | the HTTP surface being exactly the routes written down      | `tests/http-routes.test.ts` reads every `app/**/route.*` off the filesystem and asserts the path and method inventory, so a route added at a path nobody guessed fails by name                                                                                                                                                                    | unit             |
+| no covering function in the agent-side erasure module       | `agents/mcp_erasure.py`'s self-check compares that module's whole public name list; a copy with `mark_covered` added fails it, 2026-08-10                                                                                                                                                                                                         | python           |
 
 ## Not covered
 
