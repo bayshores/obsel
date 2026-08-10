@@ -138,7 +138,10 @@ test.describe("bring your own agent", () => {
 
     serve("fail");
     await expect(obselAlert(page)).toBeVisible();
-    await expect(panel(page).getByText("nobody has joined yet")).toBeVisible();
+    // Withheld, not replaced: "nobody has joined yet" is itself a claim about
+    // the board, and a board obsel cannot read supports no claim at all.
+    await expect(panel(page).getByText("3 of 4")).toBeHidden();
+    await expect(panel(page).getByText("nobody has joined yet")).toBeHidden();
     await expect(panel(page).locator("li[data-done]").first()).toBeHidden();
   });
 });
