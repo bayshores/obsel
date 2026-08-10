@@ -234,4 +234,12 @@ Filed with owner approval, each from a dated reproduction in
   the telemetry stall also blocks `initialize` for a measured 162.5 s, with a one-frame
   reproduction (§14).
 
-All six links are in the Devpost submission's contributions field.
+All six links are in the Devpost submission's contributions field, joined by the skill PR below.
+
+## 5. A skill filed to the datahub-skills registry, 2026-08-09
+
+[datahub-project/datahub-skills#131](https://github.com/datahub-project/datahub-skills/pull/131):
+`obsel-collaboration`, the order of operations an agent follows in a swarm obsel is watching,
+adapted to that repository's frontmatter and README conventions from this repository's own
+`skills/obsel-collaboration/SKILL.md`. Filed as a pull request, open at the time of writing. The
+two copies must not drift: a change to the skill here needs the same change on the PR.
