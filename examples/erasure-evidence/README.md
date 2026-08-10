@@ -12,6 +12,11 @@ answer obsel recorded is the one the evidence supports. Change any byte of any e
 status, or any lineage edge, and it exits 1 naming the record and what failed. Node 24 or newer, no
 install step, no network.
 
+Without a checkout, the same check runs in a browser at
+[bayshores.github.io/obsel](https://bayshores.github.io/obsel/), over this same file, with buttons
+that make those edits for you. `docs/verification.md` records what that page substitutes and what
+holds the two to the same answers.
+
 ## What this capture is
 
 |              |                                                                               |

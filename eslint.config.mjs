@@ -93,6 +93,12 @@ export default defineConfig([
      * reported 92 errors in documentation nobody here maintains.
      */
     ".agents/**",
+    /*
+     * The hosted verifier's build output. It embeds the vendored @noble and
+     * buffer code, which is other people's JavaScript; `site/` itself, the
+     * source, is linted like everything else.
+     */
+    "site/dist/**",
   ]),
   noServerImports,
 ]);

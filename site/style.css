@@ -1,0 +1,425 @@
+/*
+ * The hosted verifier, in obsel's own design system.
+ *
+ * The token block below is copied from `app/globals.css`, not reinvented: the
+ * page a judge opens must look like the dashboard the video shows, and a second
+ * palette invented for one static page would read as a different product. Only
+ * the tokens this page actually uses are carried over.
+ *
+ * The font is the same Geist Mono the app self-hosts, copied out of the `geist`
+ * package by `scripts/build-site.mjs` and served from this origin. There is no
+ * font CDN, because the page states it makes no network request after loading
+ * and a webfont fetch would make that untrue.
+ *
+ * mmux house style, kept here as it is kept in the app: monospace is the
+ * instrument voice and Geist sans the prose voice; labels are lowercase
+ * fragments and real prose is sentence case; uppercase is never a styling
+ * choice; radius is 2px and the pill radius belongs to status dots alone.
+ */
+
+@font-face {
+  font-family: "Geist Mono";
+  src: url("./GeistMono-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Geist Mono";
+  src: url("./GeistMono-Medium.woff2") format("woff2");
+  font-weight: 500;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Geist";
+  src: url("./Geist-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Geist";
+  src: url("./Geist-Medium.woff2") format("woff2");
+  font-weight: 500;
+  font-display: swap;
+}
+
+:root {
+  --mm-ink: #0b0a0e;
+  --mm-ink-2: #131118;
+  --mm-surface: rgba(245, 238, 240, 0.025);
+
+  --mm-cream: #f5eef0;
+  --mm-cream-dim: rgba(245, 238, 240, 0.56);
+  --mm-cream-mute: rgba(245, 238, 240, 0.28);
+
+  --mm-rose: #e85d92;
+  --mm-rose-hot: #f7a8c4;
+  --mm-rose-line: rgba(232, 93, 146, 0.18);
+  --mm-rose-soft: rgba(232, 93, 146, 0.07);
+
+  --mm-green: #78d7a3;
+  --mm-red: #ef476f;
+
+  --mm-font-mono:
+    "Geist Mono", "IBM Plex Mono", "JetBrains Mono", "SFMono-Regular", Menlo, Consolas, monospace;
+  --mm-font-sans: "Geist", "Inter", "Helvetica Neue", system-ui, sans-serif;
+
+  --mm-text-sm: 10px;
+  --mm-text-cap: 11px;
+  --mm-text-md: 12px;
+  --mm-text-lg: 13px;
+  --mm-text-body: 14px;
+  --mm-text-xl: 20px;
+
+  --mm-weight-normal: 400;
+  --mm-weight-medium: 500;
+
+  --mm-track: 0.04em;
+  --mm-track-label: 0.05em;
+  --mm-track-word: 0.2em;
+
+  --mm-leading-tight: 1.1;
+  --mm-leading: 1.45;
+  --mm-leading-body: 1.6;
+
+  --mm-space-2xs: 2px;
+  --mm-space-xs: 4px;
+  --mm-space-sm: 8px;
+  --mm-space-md: 12px;
+  --mm-space-lg: 16px;
+  --mm-space-xl: 24px;
+  --mm-space-2xl: 36px;
+  --mm-space-3xl: 52px;
+
+  --mm-radius-md: 2px;
+  --mm-border-hair: 1px solid var(--mm-rose-line);
+
+  --mm-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --mm-dur-short: 180ms;
+
+  --mm-grid-lines:
+    linear-gradient(rgba(232, 93, 146, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(232, 93, 146, 0.035) 1px, transparent 1px);
+  --mm-grid-size: 48px 48px;
+
+  /* obsel's focus ring: rose-hot, never lantern, so a ring cannot be mistaken
+     for a staleness mark. Same reason as `app/globals.css`. */
+  --obsel-focus: var(--mm-rose-hot);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0 auto;
+  padding: var(--mm-space-3xl) var(--mm-space-xl) var(--mm-space-3xl);
+  max-width: 60rem;
+  background-color: var(--mm-ink);
+  background-image: var(--mm-grid-lines);
+  background-size: var(--mm-grid-size);
+  color: var(--mm-cream);
+  font-family: var(--mm-font-sans);
+  font-size: var(--mm-text-body);
+  line-height: var(--mm-leading-body);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── the one wordmark, and the one accent it carries ────────────── */
+
+h1 {
+  display: flex;
+  align-items: center;
+  gap: var(--mm-space-md);
+  margin: 0;
+  font-family: var(--mm-font-mono);
+  font-size: var(--mm-text-xl);
+  font-weight: var(--mm-weight-medium);
+  line-height: var(--mm-leading-tight);
+  letter-spacing: var(--mm-track-word);
+  text-transform: lowercase;
+  color: var(--mm-cream);
+}
+
+/* obsel's own mark, `app/icon.svg`, the same file the app serves as its icon. */
+h1 img {
+  width: 26px;
+  height: 26px;
+  display: block;
+}
+
+.tagline {
+  margin: var(--mm-space-sm) 0 var(--mm-space-xl);
+  font-family: var(--mm-font-mono);
+  font-size: var(--mm-text-lg);
+  letter-spacing: var(--mm-track);
+  color: var(--mm-cream-dim);
+}
+
+/* ── one heading level, on a hairline ───────────────────────────── */
+
+h2 {
+  margin: var(--mm-space-3xl) 0 var(--mm-space-md);
+  padding-top: var(--mm-space-lg);
+  border-top: var(--mm-border-hair);
+  font-family: var(--mm-font-mono);
+  font-size: var(--mm-text-lg);
+  font-weight: var(--mm-weight-medium);
+  letter-spacing: var(--mm-track-label);
+  text-transform: lowercase;
+  color: var(--mm-cream);
+}
+
+p {
+  margin: var(--mm-space-md) 0;
+  max-width: 46rem;
+}
+
+a {
+  color: var(--mm-rose-hot);
+  text-decoration-color: var(--mm-rose-line);
+  text-underline-offset: 3px;
+}
+
+a:hover {
+  text-decoration-color: var(--mm-rose-hot);
+}
+
+:focus-visible {
+  outline: 1px solid var(--obsel-focus);
+  outline-offset: 2px;
+}
+
+/* ── monospace surfaces ─────────────────────────────────────────── */
+
+pre,
+code,
+#change td,
+#bundle-facts {
+  font-family: var(--mm-font-mono);
+}
+
+pre {
+  margin: var(--mm-space-md) 0;
+  padding: var(--mm-space-md) var(--mm-space-lg);
+  background: var(--mm-surface);
+  border: var(--mm-border-hair);
+  border-radius: var(--mm-radius-md);
+  overflow-x: auto;
+  font-size: var(--mm-text-md);
+  line-height: var(--mm-leading);
+  color: var(--mm-cream-dim);
+  white-space: pre;
+}
+
+code {
+  font-size: 0.92em;
+  color: var(--mm-cream);
+}
+
+.command {
+  color: var(--mm-cream);
+  user-select: all;
+}
+
+#bundle-facts {
+  font-size: var(--mm-text-md);
+  line-height: var(--mm-leading);
+  color: var(--mm-cream-dim);
+}
+
+#bundle-json {
+  max-height: 22rem;
+  overflow-y: auto;
+  font-size: var(--mm-text-sm);
+}
+
+summary {
+  font-family: var(--mm-font-mono);
+  font-size: var(--mm-text-md);
+  letter-spacing: var(--mm-track);
+  color: var(--mm-cream-dim);
+  cursor: pointer;
+}
+
+summary:hover {
+  color: var(--mm-cream);
+}
+
+.links {
+  font-family: var(--mm-font-mono);
+  font-size: var(--mm-text-md);
+  letter-spacing: var(--mm-track);
+  color: var(--mm-cream-mute);
+}
+
+/* ── the verdict, the one thing that must be unmistakable ───────── */
+
+#verdict {
+  margin: var(--mm-space-lg) 0;
+  padding: var(--mm-space-md) var(--mm-space-lg);
+  border: 1px solid var(--mm-cream-mute);
+  border-left-width: 2px;
+  border-radius: var(--mm-radius-md);
+  font-family: var(--mm-font-mono);
+  font-size: var(--mm-text-lg);
+  line-height: var(--mm-leading);
+  letter-spacing: var(--mm-track);
+  color: var(--mm-cream);
+}
+
+/* Green and red are status, not decoration: mmux ships both, and the app
+   already colours a board by state. Rose stays the accent and is never a
+   verdict. */
+#verdict.ok {
+  border-color: var(--mm-green);
+  color: var(--mm-green);
+}
+
+#verdict.refused {
+  border-color: var(--mm-red);
+  color: var(--mm-red);
+}
+
+.line-ok {
+  color: var(--mm-green);
+}
+
+.line-failed {
+  color: var(--mm-red);
+}
+
+#output {
+  max-height: 30rem;
+  overflow-y: auto;
+  font-size: var(--mm-text-sm);
+}
+
+#explain {
+  margin: var(--mm-space-md) 0;
+  padding-left: var(--mm-space-lg);
+  border-left: 2px solid var(--mm-rose-line);
+  font-size: var(--mm-text-lg);
+  color: var(--mm-cream-dim);
+}
+
+/* ── what was edited ────────────────────────────────────────────── */
+
+#change {
+  margin: var(--mm-space-lg) 0;
+  padding: var(--mm-space-md) var(--mm-space-lg);
+  background: var(--mm-rose-soft);
+  border: var(--mm-border-hair);
+  border-radius: var(--mm-radius-md);
+}
+
+#change p {
+  margin: 0 0 var(--mm-space-sm);
+  font-family: var(--mm-font-mono);
+  font-size: var(--mm-text-cap);
+  font-weight: var(--mm-weight-normal);
+  letter-spacing: var(--mm-track-label);
+  text-transform: lowercase;
+  color: var(--mm-cream-mute);
+}
+
+#change table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+#change th {
+  padding: var(--mm-space-2xs) var(--mm-space-lg) var(--mm-space-2xs) 0;
+  font-family: var(--mm-font-mono);
+  font-size: var(--mm-text-md);
+  font-weight: var(--mm-weight-normal);
+  letter-spacing: var(--mm-track);
+  text-align: left;
+  vertical-align: top;
+  white-space: nowrap;
+  color: var(--mm-cream-mute);
+}
+
+#change td {
+  padding: var(--mm-space-2xs) 0;
+  font-size: var(--mm-text-md);
+  line-height: var(--mm-leading);
+  word-break: break-all;
+  color: var(--mm-cream);
+}
+
+/* ── the edits, as a list of labelled actions ───────────────────── */
+
+.tamper {
+  display: grid;
+  grid-template-columns: 19rem 1fr;
+  gap: var(--mm-space-md) var(--mm-space-xl);
+  align-items: start;
+  padding: var(--mm-space-md) 0;
+  border-bottom: var(--mm-border-hair);
+}
+
+.tamper p {
+  margin: 0;
+  font-size: var(--mm-text-lg);
+  line-height: var(--mm-leading);
+  color: var(--mm-cream-dim);
+}
+
+button {
+  width: 100%;
+  padding: var(--mm-space-sm) var(--mm-space-md);
+  background: transparent;
+  border: 1px solid var(--mm-rose-line);
+  border-radius: var(--mm-radius-md);
+  font-family: var(--mm-font-mono);
+  font-size: var(--mm-text-md);
+  letter-spacing: var(--mm-track);
+  text-align: left;
+  text-transform: lowercase;
+  color: var(--mm-cream);
+  cursor: pointer;
+  transition:
+    border-color var(--mm-dur-short) var(--mm-ease),
+    background var(--mm-dur-short) var(--mm-ease);
+}
+
+button:hover {
+  background: var(--mm-rose-soft);
+  border-color: var(--mm-rose);
+}
+
+input[type="file"] {
+  font-family: var(--mm-font-mono);
+  font-size: var(--mm-text-md);
+  color: var(--mm-cream-dim);
+}
+
+.problem {
+  font-family: var(--mm-font-mono);
+  font-size: var(--mm-text-md);
+  color: var(--mm-red);
+}
+
+footer {
+  margin-top: var(--mm-space-3xl);
+  padding-top: var(--mm-space-lg);
+  border-top: var(--mm-border-hair);
+  font-family: var(--mm-font-mono);
+  font-size: var(--mm-text-md);
+  line-height: var(--mm-leading);
+  letter-spacing: var(--mm-track);
+  color: var(--mm-cream-mute);
+}
+
+@media (max-width: 44rem) {
+  body {
+    padding: var(--mm-space-xl) var(--mm-space-lg);
+  }
+
+  .tamper {
+    grid-template-columns: 1fr;
+  }
+}

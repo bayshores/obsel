@@ -6,21 +6,25 @@ the one judgement call is written out in full rather than summarized.
 
 ## Open-source dependencies
 
-| Component                    | License           | Used for                                           |
-| ---------------------------- | ----------------- | -------------------------------------------------- |
-| DataHub (`datahub-project`)  | Apache-2.0        | The metadata platform obsel is built on            |
-| `mcp-server-datahub` 0.6.0   | Apache-2.0        | The MCP Server, for writing the stale tag          |
-| `acryl-datahub` (Python SDK) | Apache-2.0        | Creating entities and the tag, which MCP cannot do |
-| `@modelcontextprotocol/sdk`  | MIT               | Speaking MCP from TypeScript                       |
-| Next.js, React               | MIT               | The page                                           |
-| `@xyflow/react` 12.11.2      | MIT               | The lineage graph on the page                      |
-| `@dagrejs/dagre` 3.0.0       | MIT               | Laying that graph out left to right                |
-| `motion` 12.42.2             | MIT               | The guide's entrance and its moving rail cursor    |
-| `geist` (Vercel)             | SIL OFL-1.1 / MIT | Geist and Geist Mono, self-hosted                  |
-| Codex CLI (`openai/codex`)   | Apache-2.0        | Running each demo agent, see the note below        |
-| Claude Code (Anthropic)      | proprietary       | The same, as the alternative runner, see below     |
-| Remotion 4.0.503             | source-available  | Assembling the demo video, see the note below      |
-| `@xterm/xterm` 6.0.0         | MIT               | Replaying the recorded terminal sessions on screen |
+| Component                    | License           | Used for                                                      |
+| ---------------------------- | ----------------- | ------------------------------------------------------------- |
+| DataHub (`datahub-project`)  | Apache-2.0        | The metadata platform obsel is built on                       |
+| `mcp-server-datahub` 0.6.0   | Apache-2.0        | The MCP Server, for writing the stale tag                     |
+| `acryl-datahub` (Python SDK) | Apache-2.0        | Creating entities and the tag, which MCP cannot do            |
+| `@modelcontextprotocol/sdk`  | MIT               | Speaking MCP from TypeScript                                  |
+| Next.js, React               | MIT               | The page                                                      |
+| `@xyflow/react` 12.11.2      | MIT               | The lineage graph on the page                                 |
+| `@dagrejs/dagre` 3.0.0       | MIT               | Laying that graph out left to right                           |
+| `motion` 12.42.2             | MIT               | The guide's entrance and its moving rail cursor               |
+| `geist` (Vercel)             | SIL OFL-1.1 / MIT | Geist and Geist Mono, self-hosted                             |
+| `@noble/ed25519` 3.1.0       | MIT               | Ed25519 in the hosted verifier, where `node:crypto` cannot go |
+| `@noble/hashes` 2.3.0        | MIT               | SHA-256 and SHA-512 in that same page                         |
+| `buffer` (feross) 6.0.3      | MIT               | The `Buffer` polyfill that page's bundle needs                |
+| `esbuild` 0.28.2             | MIT               | Bundling that page                                            |
+| Codex CLI (`openai/codex`)   | Apache-2.0        | Running each demo agent, see the note below                   |
+| Claude Code (Anthropic)      | proprietary       | The same, as the alternative runner, see below                |
+| Remotion 4.0.503             | source-available  | Assembling the demo video, see the note below                 |
+| `@xterm/xterm` 6.0.0         | MIT               | Replaying the recorded terminal sessions on screen            |
 
 The fonts are installed from npm and served by obsel itself, never fetched from
 `fonts.googleapis.com`. That is not a preference: obsel's Content Security Policy sets

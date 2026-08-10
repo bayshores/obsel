@@ -22,6 +22,19 @@
  * arithmetic (`erasure-engine.ts`, `attestationOf`). Every signature in a bundle
  * is verified here from the bytes.
  *
+ * ## One driver, two rooms
+ *
+ * The whole check below is exported as `verifyBundle`, and the hosted page at
+ * `site/` runs that export in the browser, over the same two kernel files,
+ * bundled unchanged. The page swaps exactly one thing: the Ed25519 and SHA-256
+ * arithmetic, which comes from `node:crypto` here and cannot in a browser
+ * (WebCrypto's API is asynchronous, and `verifyAttestation` is deliberately
+ * synchronous). `site/node-crypto.js` maps those three calls onto audited
+ * primitives, and `tests/site-verify.test.ts` holds the built page's answers
+ * equal to this script's over the same tampered bundles. Everything else —
+ * encoding, challenge binding, key lifecycle, coverage — is this one file and
+ * the two it imports.
+ *
  * ## Why `now` is each record's own `at`, and not the clock
  *
  * `verifyAttestation` takes `now` because freshness is part of what it decides:
@@ -59,60 +72,58 @@
  * other warning is still printed. Removing the default listener is how Node
  * documents replacing warning output; the imports below are dynamic so this runs
  * before they resolve, since static imports are hoisted above everything.
+ * Guarded, because the browser bundle has no `process`.
  */
-process.removeAllListeners("warning");
-process.on("warning", (warning) => {
-  // `code`, not `name`. The name is the generic "Warning"; the code is what
-  // identifies this one, and filtering on the name would silence every warning
-  // Node has.
-  if (warning.code === "MODULE_TYPELESS_PACKAGE_JSON") return;
-  console.error(warning.stack ?? String(warning));
-});
-
-const { createHash } = await import("node:crypto");
-const { readFile } = await import("node:fs/promises");
-
-const KERNEL = new URL("../src/server/coordinator/", import.meta.url);
-const { verifyAttestation, invalidatedByKeys } = await import(
-  new URL("attestation.ts", KERNEL).href
-);
-const { ASSURANCE_LIMITS, assetLabel, coverageFor, summarize } = await import(
-  new URL("erasure.ts", KERNEL).href
-);
-
-/**
- * Everything this script reports goes to stdout, findings included, so one
- * redirect captures the whole verdict rather than half of it.
- */
-function say(line = "") {
-  console.log(line);
+if (typeof process !== "undefined" && typeof process.on === "function") {
+  process.removeAllListeners("warning");
+  process.on("warning", (warning) => {
+    // `code`, not `name`. The name is the generic "Warning"; the code is what
+    // identifies this one, and filtering on the name would silence every warning
+    // Node has.
+    if (warning.code === "MODULE_TYPELESS_PACKAGE_JSON") return;
+    console.error(warning.stack ?? String(warning));
+  });
 }
 
-process.exitCode = await main(process.argv.slice(2));
+/*
+ * Literal specifiers rather than `new URL(...)` construction, for one reason:
+ * the site build has to follow these imports statically to bundle the same
+ * files, and a computed URL is opaque to it. Node resolves a relative dynamic
+ * import against this module either way, so the CLI behavior is unchanged.
+ */
+const { createHash } = await import("node:crypto");
+const { verifyAttestation, invalidatedByKeys } =
+  await import("../src/server/coordinator/attestation.ts");
+const { ASSURANCE_LIMITS, assetLabel, coverageFor, summarize } =
+  await import("../src/server/coordinator/erasure.ts");
 
-async function main(argv) {
-  const path = argv.find((entry) => !entry.startsWith("-"));
-  if (!path) {
-    console.log("usage: node scripts/verify-erasure-evidence.mjs <bundle.json>");
-    return 2;
-  }
+export { ASSURANCE_LIMITS };
 
-  let bundle;
-  try {
-    bundle = JSON.parse(await readFile(path, "utf8"));
-  } catch (error) {
-    console.log(`cannot read a bundle from ${path}: ${error.message}`);
-    return 2;
-  }
+/**
+ * Everything this check reports goes through one sink, findings included, so
+ * the CLI's one redirect captures the whole verdict — and so the hosted page
+ * can show the identical lines rather than a retelling of them.
+ */
+const collected = [];
+let echo = true;
+function say(line = "") {
+  collected.push(line);
+  if (echo) console.log(line);
+}
 
-  const shape = shapeProblem(bundle);
-  if (shape) {
-    console.log(`${path} is not an obsel evidence bundle: ${shape}`);
-    return 2;
-  }
+/**
+ * The whole check, over a parsed bundle.
+ *
+ * Returns the verdict and every line the CLI would have printed, in order.
+ * `print` echoes them to the console as they are produced, which is what the
+ * CLI wants and a page does not.
+ */
+export async function verifyBundle(bundle, { print = false, source = "" } = {}) {
+  collected.length = 0;
+  echo = print;
 
   say("obsel offline evidence verifier");
-  say(`bundle    ${path}`);
+  if (source) say(`bundle    ${source}`);
   say(`captured  ${bundle.capturedAt}, format ${bundle.formatVersion}`);
   say(
     `request   ${bundle.request.request}, opened ${bundle.request.openedAt}, ` +
@@ -141,15 +152,51 @@ async function main(argv) {
   for (const limit of ASSURANCE_LIMITS) say(`  ${limit}`);
 
   say();
-  if (checked.failed > 0 || disagreements > 0) {
+  const ok = checked.failed === 0 && disagreements === 0;
+  if (!ok) {
     say(
       `verdict   this bundle does not check out: ${checked.failed} record(s) failed ` +
         `verification, ${disagreements} asset(s) disagree with the recorded report.`,
     );
-    return 1;
+  } else {
+    say("verdict   every record verified, and the recomputed answer matches the recorded one.");
   }
-  say("verdict   every record verified, and the recomputed answer matches the recorded one.");
-  return 0;
+
+  return {
+    ok,
+    failedRecords: checked.failed,
+    disagreements,
+    droppedForKeys: dropped.length,
+    recomputedSummary: recomputed.summary,
+    coverage: recomputed.coverage,
+    lines: [...collected],
+  };
+}
+
+async function main(argv) {
+  const path = argv.find((entry) => !entry.startsWith("-"));
+  if (!path) {
+    console.log("usage: node scripts/verify-erasure-evidence.mjs <bundle.json>");
+    return 2;
+  }
+
+  const { readFile } = await import("node:fs/promises");
+  let bundle;
+  try {
+    bundle = JSON.parse(await readFile(path, "utf8"));
+  } catch (error) {
+    console.log(`cannot read a bundle from ${path}: ${error.message}`);
+    return 2;
+  }
+
+  const shape = shapeProblem(bundle);
+  if (shape) {
+    console.log(`${path} is not an obsel evidence bundle: ${shape}`);
+    return 2;
+  }
+
+  const result = await verifyBundle(bundle, { print: true, source: path });
+  return result.ok ? 0 : 1;
 }
 
 /**
@@ -159,7 +206,7 @@ async function main(argv) {
  * rather than an answer, and a stack trace tells the reader nothing about what
  * was wrong with their file.
  */
-function shapeProblem(bundle) {
+export function shapeProblem(bundle) {
   if (typeof bundle !== "object" || bundle === null || Array.isArray(bundle)) {
     return "the file is not a JSON object";
   }
@@ -464,4 +511,22 @@ function compare(bundle, recomputed) {
     for (const difference of differences) say(`  ${difference}`);
   }
   return differences.length;
+}
+
+/*
+ * Run as a CLI only when this file IS the script Node was started with. The
+ * basename comparison is deliberately dependency-free: `node:path` and
+ * `node:url` would both need stubs in the browser bundle for a check the
+ * browser never takes. A different file with this exact name run through a
+ * runner that imports this one would false-positive, and no such file exists
+ * in this repository.
+ */
+const runningAsCli =
+  typeof process !== "undefined" &&
+  typeof process.argv?.[1] === "string" &&
+  import.meta.url.endsWith("/scripts/verify-erasure-evidence.mjs") &&
+  process.argv[1].replace(/\\/g, "/").endsWith("/scripts/verify-erasure-evidence.mjs");
+
+if (runningAsCli) {
+  process.exitCode = await main(process.argv.slice(2));
 }

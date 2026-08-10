@@ -1,0 +1,52 @@
+# Build and publish the hosted evidence verifier (site/) to GitHub Pages.
+#
+# The deploy is gated on the real CLI verifier passing over the committed
+# bundle, and on the equivalence test that holds the browser bundle to the
+# CLI's answers. A page that cannot re-derive the committed evidence must not
+# ship.
+
+name: pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Verify the committed bundle with the CLI
+        run: node scripts/verify-erasure-evidence.mjs examples/erasure-evidence/bundle.json
+      - name: Hold the browser bundle to the CLI's answers
+        run: npx vitest run tests/site-verify.test.ts
+      - name: Build the page
+        run: node scripts/build-site.mjs
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site/dist
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>obsel: erasure evidence, verified in your browser</title>
+    <link rel="icon" href="./icon.svg" />
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <header>
+      <h1><img src="./icon.svg" alt="" /><span>obsel</span></h1>
+      <p class="tagline">erasure evidence, verified in your browser</p>
+      <p>
+        obsel answers one question about a right-to-erasure request: which of the assets the
+        subject's data reached has anybody actually accounted for? It walks the lineage DataHub
+        records, holds every reachable asset at UNPROVEN, and lifts one only when a signed
+        attestation covers it. It holds no warehouse credentials and reads no warehouse data, so it
+        cannot establish absence itself and never claims to.
+      </p>
+      <p>
+        The bundle below is real, captured from a live run against a real DataHub on 2026-08-10. It
+        is checked when this page loads and again every time you press a button, by the same script
+        you can run yourself with Node and nothing else:
+      </p>
+      <pre class="command">
+node scripts/verify-erasure-evidence.mjs examples/erasure-evidence/bundle.json</pre>
+      <p class="links">
+        <a href="https://github.com/bayshores/obsel">repository</a>
+        <span aria-hidden="true">·</span>
+        <a href="https://github.com/bayshores/obsel/blob/main/src/server/coordinator/attestation.ts"
+          >attestation.ts</a
+        >
+        <span aria-hidden="true">·</span>
+        <a href="https://github.com/bayshores/obsel/blob/main/src/server/coordinator/erasure.ts"
+          >erasure.ts</a
+        >
+        <span aria-hidden="true">·</span>
+        <a href="https://github.com/bayshores/obsel/blob/main/scripts/verify-erasure-evidence.mjs"
+          >the verifier this page runs</a
+        >
+      </p>
+    </header>
+
+    <section>
+      <h2>the evidence bundle</h2>
+      <p id="bundle-facts"></p>
+      <details>
+        <summary>the bundle, verbatim</summary>
+        <pre id="bundle-json"></pre>
+      </details>
+      <p>
+        A bundle is what <code>GET /api/erasure/&lt;id&gt;/evidence</code> returns: the signed
+        envelopes as they were signed, the attestor key registry, the challenges obsel issued, the
+        lineage as DataHub recorded it, and obsel's own answer. The subject's identifiers are
+        replaced by salted digests before a bundle leaves the server.
+      </p>
+    </section>
+
+    <section id="run" hidden>
+      <h2 id="run-heading"></h2>
+      <div id="change" hidden>
+        <p>what was edited</p>
+        <table>
+          <tr>
+            <th scope="row">field</th>
+            <td id="change-field"></td>
+          </tr>
+          <tr>
+            <th scope="row">before</th>
+            <td id="change-before"></td>
+          </tr>
+          <tr>
+            <th scope="row">after</th>
+            <td id="change-after"></td>
+          </tr>
+          <tr>
+            <th scope="row">expected refusal</th>
+            <td id="change-expect"></td>
+          </tr>
+        </table>
+      </div>
+      <p id="verdict"></p>
+      <p id="explain" hidden></p>
+      <pre id="output"></pre>
+    </section>
+
+    <section>
+      <h2>tamper with it</h2>
+      <p>
+        Each button edits one field of a copy of the bundle and re-runs the same verification. The
+        edit is shown next to the result, before and after, so you can hold the outcome against the
+        change. The original is never modified.
+      </p>
+      <div id="tampers"></div>
+      <div class="tamper">
+        <button id="reset">back to the bundle as captured</button>
+        <p>Re-runs verification over the unedited bundle.</p>
+      </div>
+    </section>
+
+    <section>
+      <h2>verify a bundle of your own</h2>
+      <p>
+        If you are running obsel, the same check accepts the bundle your server returns. The file
+        stays in your browser; this page makes no network request after loading.
+      </p>
+      <input type="file" id="own-bundle" accept="application/json" />
+      <p id="own-bundle-problem" class="problem"></p>
+    </section>
+
+    <section>
+      <h2>what runs where</h2>
+      <p>
+        The signature check, the challenge and key rules, and the coverage computation on this page
+        are <code>attestation.ts</code>, <code>erasure.ts</code> and
+        <code>verify-erasure-evidence.mjs</code> from the repository, bundled unchanged. One thing
+        is substituted: the Ed25519 and SHA-256 arithmetic, which the server takes from
+        <code>node:crypto</code> and this page takes from @noble/ed25519 and @noble/hashes, because
+        the browser's own crypto API is asynchronous and the verifier is deliberately not. A test in
+        the repository holds the two arithmetics to the same answers over the same bundles, tampered
+        and not.
+      </p>
+      <p>
+        What this page cannot establish: that the data is gone. An attestation is a signed claim by
+        a named attestor, not a measurement obsel took. The page shows who said what, over which
+        version, under which key, and what nobody has said anything about.
+      </p>
+    </section>
+
+    <footer>
+      <p>
+        Built from commit <code id="commit">__COMMIT__</code>. obsel is an entry in Build with
+        DataHub: The Agent Hackathon, category Agents That Do Real Work.
+      </p>
+    </footer>
+
+    <script type="module" src="./main.js"></script>
+  </body>
+</html>

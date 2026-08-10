@@ -1,6 +1,7 @@
 .next/
 node_modules/
 coverage/
+site/dist/
 playwright-report/
 test-results/
 .env

@@ -10,6 +10,7 @@ reaches stays unattested until an operator who can look signs for it.**
 Built for [Build with DataHub: The Agent Hackathon](https://datahub.devpost.com/) &nbsp;·&nbsp;
 Category: _Agents That Do Real Work_ &nbsp;·&nbsp; Apache-2.0
 
+[Verify it in your browser](https://bayshores.github.io/obsel/) &nbsp;·&nbsp;
 [Try it](#try-it) &nbsp;·&nbsp; [Bring your own agent](#bring-your-own-agent) &nbsp;·&nbsp;
 [Check the claims](#check-the-claims-yourself) &nbsp;·&nbsp; [Commands](#commands) &nbsp;·&nbsp;
 [Docs](#more-reading)
@@ -161,6 +162,17 @@ about identical output in these documents. Nothing else is excluded.
 ---
 
 ## Try it
+
+**Nothing to install:
+[bayshores.github.io/obsel](https://bayshores.github.io/obsel/)** holds a real evidence bundle from a
+live run and re-checks it in your browser, including the signatures. Seven buttons edit one field of
+it each — flip a byte of a signature, report the signing key compromised, replay a record, edit
+obsel's own answer — and the check runs again on the edit. The page shows what changed and what the
+refusal was. It is running `attestation.ts`, `erasure.ts` and
+`scripts/verify-erasure-evidence.mjs` from this repository, not a recording of them.
+
+That page is the erasure half without a stack. For the whole thing, including staleness and the
+agents, run it locally.
 
 Start Docker Desktop, then download this repository and **double-click `scripts/Start obsel.command`**.
 
@@ -429,11 +441,12 @@ pnpm verify      # format, lint, typecheck, tests, Python self-checks, build
 pnpm test        # pure logic only, no Docker
 pnpm test:live   # against live services; needs DataHub up, uvx, and an agent CLI on PATH
 pnpm e2e         # browser checks; builds and serves the app itself
+pnpm site:build  # the hosted verifier, into site/dist
 ```
 
 **`pnpm verify` is the one to run first.** It needs no Docker and no browser download.
 
-As of 2026-08-10, `pnpm verify` passes end to end, with 651 unit tests across 37 files and 235
+As of 2026-08-10, `pnpm verify` passes end to end, with 658 unit tests across 38 files and 235
 Python self-checks across ten modules. `pnpm e2e` passes 297 browser checks across two viewports,
 with one skipped by design, half of them against a forty-task pipeline recorded off a real run.
 
@@ -458,6 +471,7 @@ src/server/datahub/      DataHub client, tag and incident writes, id shapes
 src/server/runner/       the demo runner behind the buttons, and the bench's reporter
 agents/                  the four demo agents, obsel's own MCP server, the bench's reporter
 skills/                  instructions for an agent working in a swarm obsel is watching
+site/                    the hosted verifier, which runs the kernel above in a browser
 docs/                    setup, concept, architecture, findings, demo script, verification
 examples/                sample outputs, so you can judge them without running anything
 tests/                   deterministic tests, no browser and no DataHub

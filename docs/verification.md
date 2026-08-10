@@ -5753,6 +5753,89 @@ reporting `bad-signature`.
 which is excluded through `.git/info/exclude` and is not part of the repository, and prettier does
 not read that file.
 
+## 2026-08-10 — the same verifier, running in a judge's browser
+
+Commit: this change, on top of `3f807cb`. Nothing here is new machinery; it is the verifier above,
+reached without installing anything, at
+[bayshores.github.io/obsel](https://bayshores.github.io/obsel/).
+
+**Why this exists.** Every path into obsel until now asked for a stack. `pnpm verify` needs a
+checkout and Node; `scripts/verify-erasure-evidence.mjs` needs the same; the dashboard needs Docker
+and DataHub. Somebody reading the repository for ten minutes could only take the video's word for
+it. The page closes that and nothing else: it does not host obsel, and it cannot, because DataHub is
+a multi-container stack no static host will run.
+
+**What runs.** `site/main.js` imports `scripts/verify-erasure-evidence.mjs`, which imports
+`attestation.ts` and `erasure.ts`. esbuild bundles that graph for the browser with three
+substitutions, and they are the complete list:
+
+| Substituted        | With                              | Why                                                                  |
+| ------------------ | --------------------------------- | -------------------------------------------------------------------- |
+| `node:crypto`      | `site/node-crypto.js` over @noble | `verifyAttestation` is synchronous; WebCrypto's API is not           |
+| `node:fs/promises` | a stub that throws                | only the CLI's `main()` imports it, and the browser never reaches it |
+| `Buffer`           | the feross/buffer polyfill        | the kernel encodes base64 and utf8 through it                        |
+
+Only three functions of `node:crypto` are reimplemented — `createPublicKey`, `verify`, and a
+`createHash("sha256")` that takes utf8 and returns hex — and everything a signature actually depends
+on stays the repository's own code: the canonical encoder, DSSE PAE, the challenge and scope rules,
+the key lifecycle, the coverage fixpoint. `site/node-crypto.js` implements nothing else on purpose,
+so a new `node:crypto` call in the kernel breaks the site build's test rather than passing vacuously.
+
+**The refactor this required.** `verify-erasure-evidence.mjs` was a script with its logic in
+`main()`. The whole check is now exported as `verifyBundle`, which returns the verdict and every line
+the CLI prints; `main()` is a thin CLI wrapper, and the CLI branch is entered only when the file is
+the script Node was started with. Two dynamic `new URL(...)` imports became literal specifiers,
+because a computed URL is opaque to a bundler. The CLI's behavior is unchanged, and
+`tests/verify-evidence.test.ts` — the thirteen-case tamper matrix above, which spawns a real `node`
+process — still passes unedited, which is what establishes that.
+
+**What is asserted, and how.** `tests/site-verify.test.ts` runs `scripts/build-site.mjs` for real and
+imports `site/dist/core.js`, the built artifact with the substitutions in it. Seven tests, all
+passing:
+
+| Assertion                                                                              |
+| -------------------------------------------------------------------------------------- |
+| the built browser core verifies the committed real bundle, 0 failures, 0 disagreements |
+| its output lines equal the CLI's, line for line, minus the CLI's `bundle <path>` line  |
+| its output holds to the forbidden-vocabulary regex on every line                       |
+| it refuses a non-bundle by shape, before reading a field                               |
+| each of the seven page edits produces the refusal its own button promises              |
+| the CLI, spawned on the same edited JSON, returns the same verdict and the same kind   |
+| no edit mutates the bundle it was handed                                               |
+
+The second and sixth rows are the ones that matter: they hold @noble's arithmetic and `node:crypto`'s
+to the same answers over real signatures, in both directions, rather than asserting they agree.
+
+**The seven edits the page offers**, each one field of a copy, shown before-and-after beside the
+re-run:
+
+| Edit                                   | Reported                               |
+| -------------------------------------- | -------------------------------------- |
+| one character of a signature           | `bad-signature`                        |
+| the version inside a signed payload    | `bad-signature`                        |
+| the signing key reported compromised   | `key-compromised`, 0 of 18 covered     |
+| the same key retired instead           | every record verified, 2 of 18, exit 0 |
+| a record submitted twice               | `challenge-replayed`                   |
+| obsel's recorded answer edited         | `the evidence here supports UNPROVEN`  |
+| the challenge a record answers removed | `unknown-challenge`                    |
+
+The third and fourth rows are deliberately adjacent. They look like the same edit and mean opposite
+things, which is the asymmetry `keyUsable` encodes, and a reader can now produce both outcomes
+themselves in about four seconds.
+
+**What the page cannot establish**, printed under every run from `ASSURANCE_LIMITS` exactly as the
+CLI prints it: that anybody looked in a table, and that an uncatalogued export exists. It also cannot
+establish that the bundle came from a real DataHub — that claim rests on the live capture recorded
+above, not on anything the page does.
+
+**Deployment.** `.github/workflows/pages.yml` runs the CLI verifier over the committed bundle and the
+equivalence test, and publishes only if both pass. The page carries the commit it was built from.
+Both Geist faces are served from the same origin, out of the `geist` package the app already uses, so
+the page's claim that it makes no network request after loading stays true.
+
+`pnpm verify` passes on this commit: 658 passing across 38 files with 26 skipped, typecheck clean,
+lint clean, `prettier --check` clean, and `next build` green.
+
 ## 2026-08-09 — DataHub incidents, raised by a real cascade and resolved by a real repair
 
 Commit: this change, on top of `96d4cb0`. Stack: DataHub `v1.7.0` (`GET /config`, `commit

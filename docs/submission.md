@@ -139,7 +139,7 @@ above.
 
 ### Check it yourself
 
-`pnpm verify` runs the typecheck, lint, 651 unit tests and the Python self-checks, no Docker needed.
+`pnpm verify` runs the typecheck, lint, 658 unit tests and the Python self-checks, no Docker needed.
 `pnpm test:live` runs 176 tests against a real DataHub, the real `mcp-server-datahub`, a real obsel
 server and real agent CLI sessions. Nothing in the repository is tested against a stand-in.
 Everything that crosses a process boundary is covered against the real thing, and the one in-memory
@@ -155,14 +155,24 @@ That re-runs obsel's own signature check and coverage kernel over a committed ca
 exits 0 only if the answer obsel recorded is the one the evidence supports. Change any signature,
 key status or lineage edge in the file and it exits 1 naming the record and what failed.
 
+With nothing installed at all, [bayshores.github.io/obsel](https://bayshores.github.io/obsel/) runs
+that same check over that same file, in your browser, and gives you seven buttons that each edit one
+field of it: flip a character of a signature, report the signing key compromised, replay a record,
+edit obsel's own recorded answer. The page shows the edit and the refusal side by side. It is
+`attestation.ts`, `erasure.ts` and `scripts/verify-erasure-evidence.mjs` bundled for a browser, not a
+recording of them, and `tests/site-verify.test.ts` holds the built page's answers line for line
+against a spawned `node` on the CLI.
+
 ### Built with
 
 DataHub (quickstart; the forty-task numbers were measured on GMS v1.5.0.6 and the 2026-08-09 runs on
 v1.7.0, each run's stack named in `docs/verification.md`) for the graph and the record; DataHub's
 MCP server (`mcp-server-datahub`, pinned `==0.6.0`) for the tag writes; Next.js for the page; Python
 for the agents and obsel's own MCP server; `node:crypto` for the Ed25519 signature arithmetic behind
-the attestations, with no third-party cryptography added; the Codex CLI or Claude Code for the agent
-sessions, whichever the operator has.
+the attestations, everywhere obsel itself runs; the Codex CLI or Claude Code for the agent
+sessions, whichever the operator has. The hosted page is the one place that cannot use
+`node:crypto`, and it substitutes @noble for those three calls alone, which
+`tests/site-verify.test.ts` holds to the same answers.
 
 Where the tables an agent reads are already documented in DataHub, an optional step reads that
 documentation through DataHub's Agent Context Kit (`datahub-agent-context` 1.7.0), read-only, in its

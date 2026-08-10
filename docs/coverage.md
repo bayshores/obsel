@@ -19,8 +19,8 @@ And a row names its evidence precisely enough to re-run it or look it up.
 | browser | Playwright against the built app                                       | `pnpm e2e`         |
 | run     | a dated, measured run recorded in [`verification.md`](verification.md) | see its entry      |
 
-Counts measured on 2026-08-10 (unit, python, browser) and 2026-08-09 (live): **651 unit tests
-across 37 files, 235 python self-checks across 10 modules**, **297 browser checks across two
+Counts measured on 2026-08-10 (unit, python, browser) and 2026-08-09 (live): **658 unit tests
+across 38 files, 235 python self-checks across 10 modules**, **297 browser checks across two
 viewports** with one skipped, and **the whole live suite green end to end: 176 tests across 16
 files** against a real DataHub, with one real Codex and one real Claude Code session in the run. The live
 suite's first execution of `task-auth`, `volatile` and `observe` was 2026-07-30, which is when those
@@ -249,6 +249,7 @@ code, because two earlier drafts of the rule were unsound.
 | a bundle's lineage edited under a rebuild claim            | `tests/verify-evidence.test.ts`: every signature still verifies and the answer falls to `closure-mismatch`, which is the disagreement that gets reported                                | unit       |
 | a record dated before the challenge it answers             | `tests/verify-evidence.test.ts`, `at-before-challenge-issued`; the lower bound `verifyAttestation` has no live reason to check, and a real capture tripped it                           | unit, run  |
 | the ledger's own copy of a key id or nonce edited          | `tests/verify-evidence.test.ts`: neither is read by the signature check, so an edited copy would otherwise verify while describing the record wrongly                                   | unit       |
+| the same verifier, built for a browser, answering the same | `tests/site-verify.test.ts` runs `scripts/build-site.mjs` and holds `site/dist/core.js` line for line against a spawned CLI, over the real bundle and all seven of the page's edits     | unit       |
 
 ## Not covered
 
