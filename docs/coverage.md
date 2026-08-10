@@ -258,6 +258,7 @@ code, because two earlier drafts of the rule were unsound.
 | the ledger's own copy of a key id or nonce edited          | `tests/verify-evidence.test.ts`: neither is read by the signature check, so an edited copy would otherwise verify while describing the record wrongly                                                                                                                                             | unit             |
 | more attestations on one asset than a reader's ceiling     | `tests/erasure-ledger-sequence.test.ts`: the walk returns all 40 of 40 records and stops at the first absence, so no ceiling hides a record from the report or from the spent-nonce check. The write-side refusal of an occupied URN is in `tests/live/erasure.live.test.ts` and has not been run | unit, live unrun |
 | the same verifier, built for a browser, answering the same | `tests/site-verify.test.ts` runs `scripts/build-site.mjs` and holds `site/dist/core.js` line for line against a spawned CLI, over the real bundle and all seven of the page's edits                                                                                                               | unit             |
+| a request id opened a second time                          | `tests/erasure-reopen.test.ts`: refused, and the sentence names the id and the existing record's time; the 409 on the route and the unchanged ledger body are in `tests/live/erasure.live.test.ts`, not yet run                                                                                   | unit, live unrun |
 
 ## Not covered
 

@@ -6331,3 +6331,26 @@ ceiling, and a head one below it still reserves 2000. All nine pass after the ch
 **What this does not do.** It does not raise the ceiling, and it does not let obsel record past it.
 A board that reaches 2000 records loses its chronicle from that point until somebody raises
 `SEED_CEILING`, which is a code change, not a runtime setting. No board obsel has run is near it.
+
+## 2026-08-10 — A second open of one erasure request id is refused
+
+`openErasureRequest` wrote the request record with no prior read, and `writeLedgerRecord` upserts:
+a second `POST /api/erasure` carrying an id already in the ledger replaced that record's
+identifiers, seeds, hops and opened time in place, and answered 200. The attestations written under
+that id were untouched and still read back, so the report and the evidence bundle would have shown
+attestations answering challenges issued under a question that had been overwritten and was
+recoverable from nowhere. The ledger's own rule is that a record is written once and never edited.
+
+obsel now reads `urn:li:document:obsel.request.<id>` before writing it, under the same mutation lock
+as the write, and refuses a second open. The route answers 409 with a sentence naming the id and the
+time the existing record was opened.
+
+`tests/erasure-reopen.test.ts` covers the decision: refused when a record exists, allowed when the
+read returned nothing, and the sentence carries the id, the opened time and the fact that the
+earlier record stands. Written first and seen failing against the unguarded code
+(`refuseReopen is not a function`), then passing. `pnpm verify` is green on this worktree.
+
+**Not run here.** The end-to-end case is a new test in `tests/live/erasure.live.test.ts` — a second
+`POST /api/erasure` under the request the suite already opened, asserting 409 and that
+`readLedgerRecord` returns the same body and the same `at` afterwards. It needs DataHub, which this
+work was not permitted to touch, so it is unrun.

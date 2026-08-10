@@ -1,6 +1,7 @@
+import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { openErasureRequest } from "@/src/server/coordinator/erasure-engine";
+import { openErasureRequest, RequestAlreadyOpen } from "@/src/server/coordinator/erasure-engine";
 import { mutationRoute } from "@/src/server/http/route";
 
 export const dynamic = "force-dynamic";
@@ -25,9 +26,19 @@ const Body = z.object({
  * Everything found starts UNPROVEN, which is the point rather than a
  * placeholder: the list of assets nobody has spoken for is the thing a data
  * protection officer has never been handed.
+ *
+ * A request id the ledger already holds is a 409 naming the existing record,
+ * not a second open. The reason is in `refuseReopen`.
  */
 export async function POST(request: Request) {
-  return mutationRoute(request, Body, "could not open the request", (body) =>
-    openErasureRequest(body),
-  );
+  return mutationRoute(request, Body, "could not open the request", async (body) => {
+    try {
+      return await openErasureRequest(body);
+    } catch (error) {
+      if (error instanceof RequestAlreadyOpen) {
+        return NextResponse.json({ error: error.message }, { status: error.status });
+      }
+      throw error;
+    }
+  });
 }

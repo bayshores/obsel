@@ -24,7 +24,8 @@ import { requireDataHub } from "./reachable";
 import { startObsel, type ObselServer } from "./obsel-server";
 
 const { signAttestation } = await import("@/src/server/coordinator/attestation");
-const { readAttestationsFor } = await import("@/src/server/datahub/documents");
+const { ledgerUrn, readAttestationsFor, readLedgerRecord } =
+  await import("@/src/server/datahub/documents");
 
 const PORT = 3117;
 const FLOW_ID = "obsel_integration_tests";
@@ -190,6 +191,36 @@ describe("one erasure request, from opening to covered and back", () => {
     for (const limit of limits) {
       expect(/\b(proof|proven|proves|complete|completely)\b/i.test(limit), limit).toBe(false);
     }
+  }, 300_000);
+
+  it("refuses a second open under the same id, and leaves the first record as it was", async () => {
+    /*
+     * The write path is an upsert, so DataHub would accept the second open and
+     * replace the request record in place: identifiers, seeds, hops and the
+     * opened time. The attestations under that id would stay, still read back
+     * by the report, now beside a question they were never asked. obsel reads
+     * the ledger URN first and refuses.
+     */
+    const urn = ledgerUrn("request", REQUEST);
+    const before = await readLedgerRecord(urn);
+    expect(before).not.toBeNull();
+
+    const reopened = await api("/api/erasure", {
+      method: "POST",
+      body: JSON.stringify({
+        request: REQUEST,
+        identifiers: ["cust_88213", "cust_99001"],
+        seeds: [CUSTOMERS],
+        hops: 5,
+      }),
+    });
+
+    expect(reopened.status).toBe(409);
+    expect(reopened.body.error).toContain(REQUEST);
+
+    const after = await readLedgerRecord(urn);
+    expect(after?.body).toBe(before?.body);
+    expect(after?.at).toBe(before?.at);
   }, 300_000);
 
   it("does not echo the subject's identifiers back in the report", async () => {

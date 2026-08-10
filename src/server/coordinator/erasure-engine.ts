@@ -27,6 +27,7 @@ import {
   readAttestationsFor,
   readLedgerRecord,
   writeLedgerRecord,
+  type LedgerRecord,
 } from "@/src/server/datahub/documents";
 import {
   canonicalJson,
@@ -112,6 +113,48 @@ async function serialized<T>(work: () => Promise<T>): Promise<T> {
 }
 
 /**
+ * A request id that has already been opened, refused rather than rewritten.
+ *
+ * Carries the status the route answers with, so the sentence and its code are
+ * decided in one place instead of the route inventing a second wording.
+ */
+export class RequestAlreadyOpen extends Error {
+  readonly status = 409;
+
+  constructor(message: string) {
+    super(message);
+    this.name = "RequestAlreadyOpen";
+  }
+}
+
+/**
+ * Refuse a request id the ledger already holds a record for.
+ *
+ * The write path is an upsert: `writeLedgerRecord` POSTs `documentInfo` to
+ * DataHub, which replaces the aspect at that URN. So a second open under the
+ * same id would silently replace the identifiers, seeds, hops and opened time
+ * of the first, while the attestations written under that id stay where they
+ * are. Every one of them answered a challenge issued against the question that
+ * was just overwritten, and the report and the evidence bundle would present
+ * the new question beside them with nothing to show that the old one existed.
+ * The ledger is append-only, and this is the read that keeps the request record
+ * inside that rule.
+ *
+ * Pure, so the decision is tested without a network. The read that produces
+ * `existing` is the caller's, and it happens under the mutation lock so two
+ * opens of one id cannot both see nothing.
+ */
+export function refuseReopen(id: string, existing: LedgerRecord | null): void {
+  if (existing === null) return;
+  throw new RequestAlreadyOpen(
+    `erasure request ${id} was already opened at ${existing.at}. A request record is written ` +
+      `once and never rewritten, so this open would replace the question the attestations ` +
+      `already in the ledger answered. The existing record stands. Open a new request under a ` +
+      `different id, or read ${id} as it is.`,
+  );
+}
+
+/**
  * Open a request: walk the graph from the seeds, and record what was found.
  *
  * Everything reached starts `UNPROVEN`, which is not a placeholder. It is the
@@ -141,6 +184,9 @@ export async function openErasureRequest(input: {
 
   return await serialized(async () => {
     emit("read", `opening ${request.request}`, `${request.seeds.length} seed assets`);
+    // Read before write, and inside the lock. The URN is derived, never
+    // searched for, so a record written a moment ago is visible here.
+    refuseReopen(request.request, await readLedgerRecord(ledgerUrn("request", request.request)));
     await writeLedgerRecord({
       id: request.request,
       kind: "request",

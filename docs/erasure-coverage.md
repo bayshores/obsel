@@ -129,6 +129,27 @@ attestation regardless of its bytes.
 This inversion is written down here because it looks like a bug to anyone who knows the staleness
 rule, and the next reader will otherwise "fix" it back into unsoundness.
 
+## A request id is opened once
+
+The request record is what an evidence bundle is re-derived against: the identifiers, the seeds and
+the hop bound the attestations were collected under. `writeLedgerRecord` POSTs `documentInfo` to
+`/openapi/v3/entity/document`, which upserts, so DataHub will happily accept a second `POST
+/api/erasure` under an id it already holds and replace all of it, opened time included. The
+attestations stay where they are, under
+`urn:li:document:obsel.attestation.<request>.<asset>.<n>`, and the report goes on reading them, so
+the bundle would show attestations answering challenges issued under a question that no longer
+exists anywhere.
+
+obsel therefore reads the request's ledger URN before writing it and refuses a second open with a
+409 naming the existing record and when it was opened (`refuseReopen` in
+[`erasure-engine.ts`](../src/server/coordinator/erasure-engine.ts)). The read happens under the
+same mutation lock as the write, so two opens of one id cannot both see nothing. The decision is
+`tests/erasure-reopen.test.ts`; the 409 over a real server, and the ledger body left as it was, is
+in `tests/live/erasure.live.test.ts`.
+
+Nothing here reopens the underlying obligation. A caller that wants a wider walk opens a new
+request id; obsel does not offer an edit, because an edit is the thing this refusal exists to stop.
+
 ## The default flip
 
 [staleness.ts:692](../src/server/coordinator/staleness.ts#L692) and
