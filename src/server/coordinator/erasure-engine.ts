@@ -39,6 +39,7 @@ import {
   type VerificationFailure,
 } from "./attestation";
 import { ASSURANCE_LIMITS, coverageFor, summarize, type Attestation } from "./erasure";
+import { NoSuchErasureRequest } from "./erasure-missing";
 import type { ErasureReport, ErasureRequest } from "./erasure-report";
 import { emit } from "./trace";
 
@@ -616,7 +617,7 @@ function nonceOf(envelope: Envelope): string {
 /** The request record, read by its own URN. No search, so no index lag. */
 async function readRequest(requestId: string): Promise<ErasureRequest> {
   const found = await readLedgerRecord(ledgerUrn("request", requestId));
-  if (!found) throw new Error(`no erasure request ${requestId} in the ledger`);
+  if (!found) throw new NoSuchErasureRequest(requestId);
   return JSON.parse(found.body) as ErasureRequest;
 }
 

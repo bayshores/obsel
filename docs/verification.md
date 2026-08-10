@@ -2940,8 +2940,8 @@ which is the gate, then `parseBody`, then `readRoute`. `swarm`, `changes` and `d
 buffer -- and keeps none.
 
 Two routes are deliberately still their own shape, and both are marked as such where they are.
-`erasure/[id]` maps a domain error to 404 by reading the message, which no shared helper should
-generalise for one caller. And `demo/reset` answers `{ ok: false, error }` where every other route
+`erasure/[id]` maps a domain error to 404, which no shared helper should generalise for one caller.
+And `demo/reset` answers `{ ok: false, error }` where every other route
 answers a bare `{ error }`; the page reads that `ok`, so narrowing it is an API change and out of a
 structure pass.
 
@@ -6354,3 +6354,36 @@ earlier record stands. Written first and seen failing against the unguarded code
 `POST /api/erasure` under the request the suite already opened, asserting 409 and that
 `readLedgerRecord` returns the same body and the same `at` afterwards. It needs DataHub, which this
 work was not permitted to touch, so it is unrun.
+
+## 2026-08-10 — a failed ledger read can no longer answer "this request does not exist"
+
+Commit: this change, on top of `e0d1bf8`.
+
+Both erasure GET routes decided 404 against 500 by looking for the substring `no erasure request`
+in the thrown message. Only `readRequest` in `erasure-engine.ts` was meant to produce that phrase.
+But the request id is caller-chosen, validated as nothing beyond non-empty, and interpolated into
+the ledger URN; `readLedgerRecord` interpolates that URN into the message it throws for a non-404
+status (`reading ledger record <urn> answered <status>`). So a request opened under the id
+`no erasure request in the ledger x` turned every transient GMS failure for that request — a 503
+during a restart, a proxy 502 — into a 404 whose body said the request had never been opened. That
+is the one substitution an erasure report must never make: an auditor told an absence obsel did not
+observe.
+
+The classification now reads the type of the thrown value.
+`src/server/coordinator/erasure-missing.ts` holds `NoSuchErasureRequest`, thrown only where the
+ledger genuinely answered 404 for the request's own URN, and `erasureReadStatus`, which returns 404
+for that class and 500 for everything else. Both routes call it. No message is inspected anywhere in
+the decision, so no request id can reach it.
+
+**Measured.** `tests/erasure-read-failure.test.ts`, two cases, both over a real `node:http` server
+on a real ephemeral port with `DATAHUB_GMS_URL` pointed at it — no DataHub, no stand-in for the
+process boundary, and the hostile input is a server that really answers 503 to everything. Against
+the 404 server, `erasureStatus("dsr-never-opened")` fails with `NoSuchErasureRequest` and classifies 404. Against the 503 server, `erasureStatus("no erasure request in the ledger x")` fails with a
+message that does contain the old sentinel phrase, asserted in the test, and classifies 500. Run
+before the fix with the old text rule extracted verbatim, the second case failed with
+`expected 404 to be 500`; after it, both pass.
+
+**Not covered by this change.** The routes themselves are not exercised here: nothing in the local
+suite serves them. What is covered is the classifier they both now call, and the engine error it
+switches on. A live check that `GET /api/erasure/<id>` answers 500 while GMS is unreachable is
+unrun.

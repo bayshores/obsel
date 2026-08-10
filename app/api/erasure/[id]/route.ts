@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { erasureStatus } from "@/src/server/coordinator/erasure-engine";
+import { erasureReadStatus } from "@/src/server/coordinator/erasure-missing";
 
 export const dynamic = "force-dynamic";
 
@@ -28,7 +29,6 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     return NextResponse.json({ ...report, request });
   } catch (error) {
     const message = error instanceof Error ? error.message : "could not read the request";
-    const missing = message.includes("no erasure request");
-    return NextResponse.json({ error: message }, { status: missing ? 404 : 500 });
+    return NextResponse.json({ error: message }, { status: erasureReadStatus(error) });
   }
 }
