@@ -116,7 +116,13 @@ describe("the HTTP door and the MCP door agree", () => {
    * the two disagreeing about which names are legal, because then the tool refuses
    * work obsel would have accepted, or promises work it will not.
    */
-  function fromPython(): { pattern: string; comma: boolean; namespaced: boolean } {
+  function fromPython(): {
+    pattern: string;
+    comma: boolean;
+    namespaced: boolean;
+    trailingNewlineTask: boolean;
+    trailingNewlineDataset: boolean;
+  } {
     const script = [
       "import json",
       "from agents import mcp_core",
@@ -124,6 +130,8 @@ describe("the HTTP door and the MCP door agree", () => {
       '  "pattern": mcp_core.NAME_PATTERN.pattern,',
       '  "comma": mcp_core.dataset_name_problem("clean,orders") is not None,',
       '  "namespaced": mcp_core.dataset_name_problem("obsel_taxi.clean_trips") is None,',
+      '  "trailingNewlineTask": mcp_core.task_name_problem("clean_orders\\n") is not None,',
+      '  "trailingNewlineDataset": mcp_core.dataset_name_problem("clean_orders\\n") is not None,',
       "}))",
     ].join("\n");
     const out = execFileSync("python3", ["-c", script], {
@@ -142,6 +150,24 @@ describe("the HTTP door and the MCP door agree", () => {
     const python = fromPython();
     expect(python.comma).toBe(true);
     expect(python.namespaced).toBe(true);
+  });
+
+  it("refuses a trailing newline on both sides", () => {
+    /*
+     * The same pattern text does not mean the same behavior. Python's `$` also
+     * matches immediately before a newline at the end of the string, and
+     * JavaScript's `$` without the `m` flag does not. So `re.match` on
+     * "clean_orders\n" succeeded here while `NAME_PATTERN.test` refused it, and
+     * an agent registering that name cleared the MCP guard whose whole purpose is
+     * to deliver the actionable message locally, then got a 400 from the route
+     * instead. Compared by behavior, because the pattern-text check above cannot
+     * see this.
+     */
+    const python = fromPython();
+    expect(python.trailingNewlineTask).toBe(true);
+    expect(python.trailingNewlineDataset).toBe(true);
+    expect(problem({ ...GOOD, name: "clean_orders\n" })).toContain("task name");
+    expect(problem({ ...GOOD, writes: ["clean_orders\n"] })).not.toBeNull();
   });
 });
 

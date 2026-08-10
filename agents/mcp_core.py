@@ -145,6 +145,13 @@ def short_names(dataset_urns: Iterable[str]) -> list[str]:
 #: URN that comes back as something shorter, so obsel registers a real DataJob whose
 #: lineage points at an entity nobody can look up. The board draws it and nothing
 #: downstream can tell.
+#:
+#: Matched with `fullmatch` everywhere below, never `match`. The pattern text is the
+#: same on both sides, and that is not enough on its own: Python's `$` also matches
+#: immediately before a newline at the end of the string, and JavaScript's `$`
+#: without the `m` flag does not, so `re.match` accepted "clean_orders\n" while the
+#: TypeScript door refused it. `fullmatch` closes that without changing the text the
+#: two doors are asserted equal on.
 NAME_PATTERN = re.compile(r"^[a-z0-9][a-z0-9_]*$")
 
 #: One phrasing of the rule, so the two doors and the docs do not drift apart.
@@ -157,7 +164,7 @@ def task_name_problem(name: str) -> str | None:
     Returns the reason rather than a boolean because the caller is handing the
     message to a model, and "invalid name" gives it nothing to correct.
     """
-    if NAME_PATTERN.match(name):
+    if NAME_PATTERN.fullmatch(name):
         return None
     return (
         f"task name {name!r} is not a code identifier. Use {_SHAPE}, "
@@ -180,7 +187,7 @@ def dataset_name_problem(name: str) -> str | None:
     matches.
     """
     segments = name.split(".")
-    if len(segments) <= 2 and all(NAME_PATTERN.match(segment) for segment in segments):
+    if len(segments) <= 2 and all(NAME_PATTERN.fullmatch(segment) for segment in segments):
         return None
     tail = (
         "obsel takes SHORT names here and builds the URNs itself; a URN would be "
@@ -872,6 +879,12 @@ def _self_check() -> int:
         "an empty name is refused",
         task_name_problem("") is not None and dataset_name_problem("") is not None,
         "the URN would carry an empty segment rather than fail",
+    )
+    check(
+        "a trailing newline is refused, the way the TypeScript door refuses it",
+        task_name_problem("clean_orders\n") is not None
+        and dataset_name_problem("clean_orders\n") is not None,
+        "Python's `$` also matches before a final newline and JavaScript's does not",
     )
     check(
         "the message names the offending value and the shape wanted",

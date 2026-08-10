@@ -1556,6 +1556,15 @@ truncated name and nothing downstream could tell. `NAME_PATTERN` in `urns.ts` is
 pattern out of the real Python module and asserts it identical, the way `tests/urns.test.ts` does for
 the two URN builders.
 
+**Identical pattern text was not identical behavior.** Python's `$` also matches immediately before
+a newline at the end of the string; JavaScript's `$` without the `m` flag does not. `re.match` in
+`agents/mcp_core.py` therefore accepted `clean_orders\n`, which `register-body.ts` refuses, so an
+MCP agent cleared the local guard whose whole purpose is to deliver an actionable message and got a
+400 from the route instead. Both name guards now use `fullmatch`, the pattern text is unchanged, and
+the two doors are compared by verdict on that name in `tests/register-body.test.ts` as well as by
+pattern text. The Python self-check in `agents/mcp_core.py` covers the same name, so
+`pnpm test:python` fails if it comes back.
+
 The page's form keeps its own copy, because browser code here does not import server modules, and
 `tests/dashboard-your-data.test.ts` holds the two together by comparing the form's verdict against
 `taskNameProblem` and `datasetNameProblem` over a shared list of names. **That comparison

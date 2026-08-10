@@ -913,7 +913,8 @@ optionally with one namespace segment (`obsel_taxi.clean_trips`, which the scale
 name must be the same without the namespace. The rule lives in `NAME_PATTERN` in `urns.ts`, is
 mirrored by `agents/mcp_core.py` so the MCP door refuses the same names before the round trip, and
 `tests/register-body.test.ts` asserts the two patterns are identical the way `tests/urns.test.ts`
-asserts the two URN builders are.
+asserts the two URN builders are, and separately compares the two verdicts on a name ending in a
+newline, which identical pattern text does not settle.
 
 Every route answers `400 {"error": string}` on a body that fails validation and
 `500 {"error": string}` when the work fails. Errors are never an empty success: a swarm that cannot
