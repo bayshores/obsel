@@ -47,6 +47,13 @@ let tokenless: ObselServer;
  * must refuse them: a run where it answers anything but a refusal has also
  * cleared the integration flow's board, which is the failure this asserts
  * against. The erasure mutations have their own suite.
+ *
+ * `datasets/observe` is here because it is a mutation, and reading it as a
+ * report of what somebody saw is how it got left out. It takes the
+ * coordination lock and can raise stale marks across the board, so an
+ * unauthenticated caller of it can flag finished work.
+ * `tests/http-routes.test.ts` holds the route inventory this list is drawn
+ * from.
  */
 const MUTATIONS = [
   "/api/tasks/start",
@@ -54,6 +61,7 @@ const MUTATIONS = [
   "/api/tasks/abandon",
   "/api/tasks/register",
   "/api/tasks/report",
+  "/api/datasets/observe",
   "/api/demo/launch",
   "/api/demo/reset",
 ];

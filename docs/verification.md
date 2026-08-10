@@ -6605,3 +6605,28 @@ through except `GET /openapi/v3/entity/incident/*`, which it answers 503. The ra
 urn reported unconfirmed, the incident reads `ACTIVE` against the real GMS on that urn, and the
 test resolves it. This has not been run: it needs the live stack. The measured raise and resolve
 figures above are unaffected, but they predate this change and were not retaken.
+
+## 2026-08-10 — The route list is read off the filesystem instead of guessed at
+
+Every assertion that a forbidden route does not exist sent a request to a path somebody had
+typed out in advance: `/api/erasure/<id>/clear`, `/api/erasure/cover`, `/api/changes/clear`.
+Nothing read the route tree, so a convenience route at any other path was invisible to the
+whole suite. Demonstrated rather than argued: with
+`app/api/erasure/[id]/close/route.ts` present, exporting a `POST` that answers `{ ok: true }`,
+`npx vitest run` over the 35 other unit files reported 641 passed, 0 failed.
+
+`tests/http-routes.test.ts` now walks `app/` for `route.*` files and asserts the path and
+method inventory against a list written into the test, the way the MCP suite asserts its exact
+ten tool names. Against the same invented route it failed by name, printing
+`+ "/api/erasure/[id]/close": ["POST"]`; with the file removed, 3 passed. It reads source
+files only, so it runs in `pnpm verify` with no server and no DataHub.
+
+Method detection covers `export function`, `export const` and `export { x as POST }`, not only
+the `export async function POST` every route here uses today, and a third assertion fails any
+route file in which it finds no handler at all, so an export form it does not understand shows
+up as a failure rather than as an empty method list.
+
+`/api/datasets/observe` was added to `MUTATIONS` in `tests/live/task-auth.live.test.ts`. The
+route composes `mutationRoute` and has been gated all along, so nothing is open; what was
+missing is the guard that would catch a future ungating of it, and that route can raise stale
+marks across the board. **Unrun here:** the live suite was not executed for this change.
