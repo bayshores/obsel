@@ -478,7 +478,7 @@ subscribes to no events and polls nothing.
 | [`docs/architecture.md`](docs/architecture.md)                     | How the pieces fit, and why each decision was made             |
 | [`docs/verification.md`](docs/verification.md)                     | What is built, what is proven, and what is not                 |
 | [`docs/coverage.md`](docs/coverage.md)                             | The executed matrix: every shape, change and edge case tested  |
-| [`docs/environment-findings.md`](docs/environment-findings.md)     | DataHub behaviour measured directly, including several traps   |
+| [`docs/environment-findings.md`](docs/environment-findings.md)     | DataHub behavior measured directly, including several traps    |
 | [`docs/upstream-contributions.md`](docs/upstream-contributions.md) | A DataHub CLI bug found here, root caused, with a proposed fix |
 | [`agents/README.md`](agents/README.md)                             | The demo agents, and what each command prints                  |
 | [`examples/README.md`](examples/README.md)                         | Sample outputs, and exactly which parts of them are real       |

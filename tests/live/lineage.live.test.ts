@@ -24,7 +24,7 @@ const { LINEAGE_EDGE } = await import("@/src/server/datahub/urns");
  *
  * Written out rather than searched for, because a test that discovers its own
  * subject cannot fail when the subject is missing — it just tests nothing. If
- * the datapack is absent these fail loudly, which is the intended behaviour and
+ * the datapack is absent these fail loudly, which is the intended behavior and
  * the same stance `reachable.ts` takes about DataHub itself.
  */
 const SNOWFLAKE = "urn:li:dataPlatform:snowflake";

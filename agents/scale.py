@@ -605,7 +605,7 @@ def change_for(current_columns: tuple[str, ...] | list[str] | None) -> ColumnRen
     run says the column currently sits, and the button can be pressed forever.
 
     Unknown columns fall back to the forward direction, which is exactly the
-    old behaviour: a board with no recorded run is a board the change has
+    old behavior: a board with no recorded run is a board the change has
     never touched.
     """
     if current_columns is not None and CHANGE_FORWARD.added in current_columns:

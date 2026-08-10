@@ -16,7 +16,7 @@ Two deliberate invariances, both chosen in the direction of fewer false alarms:
 - Renaming a column does not touch `content`. Rows are hashed as their values in
   the table's declared column order, with the names left out; the names are
   already covered by `schema`.
-- Reordering rows does not touch `content`. The serialised rows are sorted before
+- Reordering rows does not touch `content`. The serialized rows are sorted before
   hashing, so a task that emits the same rows in a different order is correctly
   treated as having produced the same table. The cost is that a pure reordering
   of a table where order carries meaning goes unreported; put an explicit
@@ -91,8 +91,8 @@ def content_fingerprint(
             "nothing and could never report a change. Exclude fewer columns, or if the whole "
             "table is genuinely volatile, do not register it as an output obsel watches."
         )
-    serialised = sorted(_serialise_row(row, kept) for row in rows)
-    return _sha256("\n".join(serialised))
+    serialized = sorted(_serialise_row(row, kept) for row in rows)
+    return _sha256("\n".join(serialized))
 
 
 def fingerprint(

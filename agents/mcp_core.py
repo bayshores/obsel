@@ -587,7 +587,7 @@ def summarise_coordination(coordination: Any) -> list[str]:
     changed = required_list(coordination, "changedOutputs", where)
     affected = required_list(coordination, "affected", where)
     # Read as strictly as `affected`, and for the same reason pointed the other
-    # way: a lost key read as an empty list would summarise "nothing was
+    # way: a lost key read as an empty list would summarize "nothing was
     # cleared" over a reply that cleared two tasks, and the operator being told
     # about work that silently flipped back to sound is the entire point of the
     # field.
@@ -633,7 +633,7 @@ def board_summary(swarm: Any) -> dict[str, Any]:
     tasks = required_list(snapshot, "tasks", "a board read")
 
     counts = {"registered": 0, "running": 0, "complete": 0, "stale": 0}
-    summarised: list[dict[str, Any]] = []
+    summarized: list[dict[str, Any]] = []
     for record in tasks:
         if not isinstance(record, dict):
             continue
@@ -641,7 +641,7 @@ def board_summary(swarm: Any) -> dict[str, Any]:
         if status in counts:
             counts[status] += 1
         mark = record.get("stale")
-        summarised.append(
+        summarized.append(
             {
                 "urn": record.get("urn"),
                 "name": record.get("name"),
@@ -673,7 +673,7 @@ def board_summary(swarm: Any) -> dict[str, Any]:
         "flow": snapshot.get("flow"),
         "at": snapshot.get("at"),
         "counts": counts,
-        "tasks": summarised,
+        "tasks": summarized,
     }
 
 
@@ -923,7 +923,7 @@ def _self_check() -> int:
         "a marked producer reads stale and carries its reason",
         by_table["daily_revenue"]["status"] == "stale"
         and by_table["daily_revenue"]["stale"]["reason"] == "clean_orders changed its columns",
-        "the mark is passed through untouched, not summarised",
+        "the mark is passed through untouched, not summarized",
     )
     check(
         "a table nothing produces is not called fresh",
@@ -1018,7 +1018,7 @@ def _self_check() -> int:
     check(
         "a real change still moves the fingerprint",
         moved_prints[dataset]["content"] != prints[dataset]["content"],
-        "canonicalising must not flatten a genuine difference",
+        "canonicalizing must not flatten a genuine difference",
     )
 
     undeclared = raises(
@@ -1167,7 +1167,7 @@ def _self_check() -> int:
         {"changedOutputs": [], "affected": [], "restored": [], "elapsedMs": 89}
     )
     check(
-        "an identical re-run summarises as nothing marked",
+        "an identical re-run summarizes as nothing marked",
         quiet == ["no outputs changed; nothing was marked stale (89 ms)"],
         "the quiet case is the one that makes the loud case trustworthy",
     )
@@ -1183,7 +1183,7 @@ def _self_check() -> int:
         }
     )
     check(
-        "a cascade summarises with each mark's own reason",
+        "a cascade summarizes with each mark's own reason",
         loud[0] == "changed clean_orders (schema)"
         and "marked 2 finished task(s) stale in 213 ms" in loud[1]
         and "revenue (1 hop):" in loud[2]
@@ -1206,7 +1206,7 @@ def _self_check() -> int:
         }
     )
     check(
-        "an identical redo of flagged work summarises the clears it earned",
+        "an identical redo of flagged work summarizes the clears it earned",
         redone[0] == "no outputs changed; nothing was marked stale (60 ms)"
         and redone[1] == "cleared docs without a re-run: revenue redid daily revenue and it came out identical",
         "the quiet half and the loud half of the same event, in that order",

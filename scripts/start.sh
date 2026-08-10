@@ -531,9 +531,9 @@ case "${OBSEL_RUNNER:-}" in
   *) chosen=unknown ;;
 esac
 
-# Two forms of the name, because the two products capitalise differently:
+# Two forms of the name, because the two products capitalize differently:
 # "the Codex CLI" mid-sentence is "The Codex CLI" at the start of one, while
-# "Claude Code" is the same in both. Capitalising the first letter at the point
+# "Claude Code" is the same in both. Capitalizing the first letter at the point
 # of use would print "The claude Code".
 if [ "$chosen" = codex ]; then
   chosen_label="the Codex CLI"

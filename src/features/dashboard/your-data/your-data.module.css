@@ -4,7 +4,7 @@
  * rather than shadows, square corners, monospace throughout, one rose accent
  * on the state that has happened.
  *
- * Every colour is a token. `tests/dashboard-tokens.test.ts` reads this directory
+ * Every color is a token. `tests/dashboard-tokens.test.ts` reads this directory
  * from disk and fails on a hex literal in any stylesheet it finds, so a new file
  * is inside that gate the moment it exists.
  */

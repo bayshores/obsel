@@ -4,7 +4,7 @@
  * **Why not a shader library.** shaders.com cannot ship in this repository.
  * Its agreement makes integration code derivative and still subject to that
  * agreement, and forbids providing source access to third parties outside your
- * organisation — both of which a public Apache-2.0 repository does. It is also
+ * organization — both of which a public Apache-2.0 repository does. It is also
  * WebGPU-only (zero `getContext("webgl"` matches in its dist tree, 29
  * `navigator.gpu`), so on a judge's browser without WebGPU it would render
  * nothing, silently, with no fallback — the exact failure mode obsel exists to
@@ -19,7 +19,7 @@
  * **It is a bezel, not a wash.** The vignette multiplies rather than offsets,
  * so the middle of the panel — where every node, fingerprint and edge is drawn
  * — goes to exactly zero and the graph is read against flat ink. Anything that
- * lifts the centre competes with the data, which this layer may never do.
+ * lifts the center competes with the data, which this layer may never do.
  *
  * **The composite is premultiplied.** The canvas keeps WebGL's default
  * `premultipliedAlpha`, the blend func is `ONE / ONE_MINUS_SRC_ALPHA`, and the
@@ -72,7 +72,7 @@ void main() {
   // hairline scan rows, locked to device pixels so they never shimmer
   float rows = 0.70 + 0.30 * (0.5 + 0.5 * sin(gl_FragCoord.y * 1.55));
 
-  // MULTIPLIES. at the centre this is 0 and the panel is flat ink.
+  // MULTIPLIES. at the center this is 0 and the panel is flat ink.
   float edge = smoothstep(0.36, 1.04, length((uv - 0.5) * vec2(1.0, 1.32)));
 
   float amt = (n * 0.42 + bar * 0.58) * rows * edge;
@@ -84,7 +84,7 @@ void main() {
 /**
  * mmux rose and obsel amber as the shader wants them: 0–1 triples.
  *
- * These are the only two colour literals in the whole dashboard that a `var()`
+ * These are the only two color literals in the whole dashboard that a `var()`
  * cannot reach — a GL uniform takes numbers, not a computed style. They are
  * pinned to their tokens by a test that parses `app/globals.css`, rather than
  * by a linter rule that cannot see inside an array.

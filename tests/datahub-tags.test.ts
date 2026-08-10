@@ -65,7 +65,7 @@ describe("parseTagUrns", () => {
 });
 
 describe("hasStaleTag", () => {
-  it("recognises obsel's own tag and nothing else", () => {
+  it("recognizes obsel's own tag and nothing else", () => {
     expect(hasStaleTag([STALE_TAG_URN])).toBe(true);
     expect(hasStaleTag([])).toBe(false);
     expect(hasStaleTag(["urn:li:tag:pii"])).toBe(false);

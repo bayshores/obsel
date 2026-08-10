@@ -144,7 +144,7 @@ describe("this suite writes to its own flow, never the demo's", () => {
     /*
      * First, because it is the assertion that caught the isolation silently failing.
      * These tests register real DataJobs and call `resetSwarm`, so if the override ever
-     * stops being honoured they would clear whatever board the operator had on screen.
+     * stops being honored they would clear whatever board the operator had on screen.
      * A green suite that had quietly done that is the worst outcome available here.
      */
     const swarm = await readSwarm();

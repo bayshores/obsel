@@ -3,7 +3,7 @@
  *
  * Same chrome as the two panels it sits inside and beside — hairline borders,
  * square corners, monospace throughout, one rose accent on the thing that has
- * happened. No shadows, no radius, no colour that is not a token.
+ * happened. No shadows, no radius, no color that is not a token.
  * `tests/dashboard-tokens.test.ts` reads this directory from disk and fails on a
  * hex literal in any stylesheet it finds, so this file is inside that gate.
  *

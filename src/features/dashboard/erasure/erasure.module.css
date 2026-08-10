@@ -2,7 +2,7 @@
  * The erasure tab.
  *
  * It reports gaps, so the thing it must never look like is a scoreboard. There
- * is no progress bar, no percentage and no green tick summarising the whole
+ * is no progress bar, no percentage and no green tick summarizing the whole
  * report, because every one of those invites a reader to round up to done and
  * the assets in the remainder are the entire point of the exercise.
  */
@@ -109,7 +109,7 @@
   line-height: var(--mm-leading-body);
 }
 
-/* The toggle that recolours the graph by coverage instead of by staleness. */
+/* The toggle that recolors the graph by coverage instead of by staleness. */
 .mode {
   display: flex;
   align-items: center;

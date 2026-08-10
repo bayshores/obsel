@@ -115,7 +115,7 @@ export function GuidePanel({
   const log = activity?.log ?? [];
 
   /*
-   * Motion is a preference, and honouring it here means rendering the finished
+   * Motion is a preference, and honoring it here means rendering the finished
    * picture rather than a hurried version of the animation.
    *
    * motion's own reduced-motion handling keeps opacity transitions and drops

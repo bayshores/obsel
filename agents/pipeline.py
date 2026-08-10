@@ -96,7 +96,7 @@ TASKS: tuple[AgentTask, ...] = (
             "You are cleaning a raw orders export before anyone reports on it. "
             "Produce a plan that keeps four columns named exactly order_id, customer, "
             "order_total and order_date. Customer names arrive with stray whitespace and "
-            # Pinned, not left to judgment. "normalise them" was the whole
+            # Pinned, not left to judgment. "normalize them" was the whole
             # instruction here, and it is genuinely ambiguous: 'Ben RUIZ' can be
             # read as a name to title-case or as an all-caps surname to leave
             # alone, and both are defensible. Two real runs took the two
@@ -106,8 +106,8 @@ TASKS: tuple[AgentTask, ...] = (
             # "same rows, same values, just the name" beat became untrue. Found
             # by running the demo end to end on 2026-07-21; the harness's own
             # UNEXPECTED assertion is what caught it.
-            "inconsistent capitalisation: trim the ends, collapse any run of spaces to a "
-            "single space, and capitalise the first letter of each word with the rest "
+            "inconsistent capitalization: trim the ends, collapse any run of spaces to a "
+            "single space, and capitalize the first letter of each word with the rest "
             "lower case, so 'Ben RUIZ' becomes 'Ben Ruiz'. Some order_date values are "
             "full timestamps where a calendar date is wanted. Money should be a number "
             "rounded to two decimal places. Drop any row whose order_total is missing or "

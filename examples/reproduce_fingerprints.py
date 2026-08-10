@@ -22,7 +22,7 @@ Codex agents actually produced.
 
 What it does not prove is that a *different* run would produce the same tables.
 Codex is a live agent. Column names are held to the contract in
-`agents/pipeline.py` and numeric values to one serialised form by
+`agents/pipeline.py` and numeric values to one serialized form by
 `worker.canonicalise_numbers`, but the row values and the prose in the two written
 documents are the agents' own work and would differ on another run. The properties
 checked below are the parts that must hold for any run at all.

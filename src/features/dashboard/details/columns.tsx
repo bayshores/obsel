@@ -6,7 +6,7 @@
  * This was a drawing called `Schematic`: column names over six blank blocks per
  * column, standing in for rows, inside a bordered box under a heading reading
  * "shape". The blocks went first — they stated nothing the panel's own fields did
- * not state better, and grey blocks in a column are how the rest of the web
+ * not state better, and gray blocks in a column are how the rest of the web
  * spells "loading" — and the box and the heading went with them, because a
  * container around a single line of names is scaffolding for something that is
  * no longer there. What was ever real is here: the names.

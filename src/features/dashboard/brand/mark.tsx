@@ -8,11 +8,11 @@
  * the letter itself to match a box most of which is empty, and the "o" beside
  * the wordmark would read a size smaller than the type next to it.
  *
- * The fill is `currentColor` and there is no colour prop. The mark sits on
+ * The fill is `currentColor` and there is no color prop. The mark sits on
  * `--mm-ink` in the dashboard and on nothing in particular elsewhere, and a baked
- * colour is exactly how the traced original arrived: two greys that would both
+ * color is exactly how the traced original arrived: two grays that would both
  * have been invisible against the dashboard's background. Inheriting means the
- * mark cannot be left behind by a change to the text colour around it.
+ * mark cannot be left behind by a change to the text color around it.
  *
  * Decorative by default. In the header it sits inside a lockup that already
  * spells "obsel" in text, so announcing it would make a screen reader say the
@@ -84,7 +84,7 @@ const SETTLE = { duration: 0.5, ease: [0.22, 0.61, 0.36, 1] } as const;
 const DISPERSE = { duration: 0.34, ease: [0.33, 0.9, 0.4, 1] } as const;
 
 /**
- * Scale and displacement are measured from each shape's own centre.
+ * Scale and displacement are measured from each shape's own center.
  *
  * A CSS transform on an SVG child takes its origin from the SVG's user space,
  * not the shape, so without `fill-box` every fragment would scale toward the

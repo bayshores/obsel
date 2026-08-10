@@ -8,7 +8,7 @@ import { AMBER, ROSE } from "@/src/features/dashboard/backdrop/backdrop-shader";
  * The backdrop shader is the one place in the dashboard that cannot use a token.
  *
  * A WebGL uniform takes three numbers; it cannot resolve `var(--mm-rose)`. So
- * the two colours it needs are written out as 0–1 triples, and this file is
+ * the two colors it needs are written out as 0–1 triples, and this file is
  * what stops them drifting from the stylesheet. A linter cannot see inside an
  * array of floats — nothing else would catch mmux retuning its rose and the
  * backdrop quietly keeping the old one for the rest of the project's life.
@@ -27,7 +27,7 @@ function hexToTriple(hex: string): [number, number, number] {
   return [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255];
 }
 
-describe("shader colours equal their design tokens", () => {
+describe("shader colors equal their design tokens", () => {
   it("ROSE is --mm-rose", () => {
     const expected = hexToTriple(tokenHex("mm-rose"));
     for (let i = 0; i < 3; i += 1) {
@@ -48,7 +48,7 @@ describe("shader colours equal their design tokens", () => {
     }
   });
 
-  it("would notice a drift — the two colours are not interchangeable", () => {
+  it("would notice a drift — the two colors are not interchangeable", () => {
     expect(ROSE).not.toEqual(AMBER);
     expect(tokenHex("mm-rose")).not.toBe(tokenHex("obsel-stale"));
   });
@@ -61,7 +61,7 @@ describe("the obsel token block is complete", () => {
     }
   });
 
-  it("derives the stale wash and line from the stale hue, not a second colour", () => {
+  it("derives the stale wash and line from the stale hue, not a second color", () => {
     const [r, g, b] = hexToTriple(tokenHex("obsel-stale")).map((c) => Math.round(c * 255));
     for (const token of ["obsel-stale-wash", "obsel-stale-line"]) {
       const match = new RegExp(`--${token}:\\s*rgba\\((\\d+),\\s*(\\d+),\\s*(\\d+)`).exec(CSS);
@@ -76,7 +76,7 @@ describe("the obsel token block is complete", () => {
   });
 });
 
-describe("no stray colour literals in the page's own source", () => {
+describe("no stray color literals in the page's own source", () => {
   /*
    * Enumerated from disk, not listed by hand.
    *
@@ -87,7 +87,7 @@ describe("no stray colour literals in the page's own source", () => {
    * moment it exists.
    *
    * `backdrop-shader.ts` is the one exemption, and it is exempt by name because
-   * GLSL has no custom properties to reference: its colours are float triples
+   * GLSL has no custom properties to reference: its colors are float triples
    * that a test elsewhere asserts against the tokens they mirror.
    *
    * The walk is recursive because the stylesheets live in a folder per concern.
@@ -118,9 +118,9 @@ describe("no stray colour literals in the page's own source", () => {
       const code = source
         // comments legitimately quote hex values while explaining them
         .replace(/\/\*[\s\S]*?\*\//g, "")
-        // A mask-image's colours are an alpha ramp, not paint: `#000` there
+        // A mask-image's colors are an alpha ramp, not paint: `#000` there
         // means "fully opaque at this stop" and never reaches a pixel as a
-        // colour. Exempted by declaration rather than by loosening the rule,
+        // color. Exempted by declaration rather than by loosening the rule,
         // so a real hex sneaking into `background` or `fill` still fails.
         .replace(/mask-image:[^;]+;/g, "");
       for (const hit of code.matchAll(/#[0-9a-fA-F]{3,8}\b/g)) offenders.push(`${file}: ${hit[0]}`);

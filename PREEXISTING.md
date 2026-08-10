@@ -21,7 +21,7 @@ They contain no product logic. All five are in this repository's first commit, `
 **The mmux design system.** obsel's interface is built in mmux, a design system the author wrote
 before this project. Two things were carried in from it:
 
-- Its design tokens (colour, typography, spacing, motion) copied into `app/globals.css`.
+- Its design tokens (color, typography, spacing, motion) copied into `app/globals.css`.
 - Eight of its presentational components, ported from `.jsx` to `.tsx` in
   `src/features/dashboard/mmux.tsx`: `Wordmark`, `Divider`, `Panel`, `StatCell`, `StatRibbon`,
   `Eyebrow`, `PulseDot`, `Badge`. `Eyebrow` and `Badge` were later deleted as unused in commit
@@ -42,12 +42,12 @@ Everything else, meaning every file under `src/`, `app/`, `agents/`, `tests/`, `
 ## Two notes for completeness
 
 **Findings gathered under an earlier idea.** `docs/environment-findings.md` records DataHub
-behaviour measured on this machine on 2026-07-21. Some of it was measured earlier that same day
+behavior measured on this machine on 2026-07-21. Some of it was measured earlier that same day
 while a different project was being scoped, before obsel existed. The measurements are about
 DataHub, not about that project, so they carried over unchanged; the document says so in its own
 opening. Everything there is inside the submission period.
 
 **Third-party dependencies.** The libraries in `package.json` and the Python packages the agents
 use (`acryl-datahub`, and `mcp-server-datahub` run through `uvx`) are standard tools used under
-their own licences, which the rules permit and which are not pre-existing code in the sense above.
+their own licenses, which the rules permit and which are not pre-existing code in the sense above.
 This project is Apache-2.0; see `LICENSE`.

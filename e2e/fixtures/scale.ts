@@ -71,7 +71,7 @@ type JsonShape<T> = T extends string
  *
  * TypeScript reads `"status": "stale"` in a capture as `string`, so a capture
  * holding `"stalé"` or `"complet"` type-checks perfectly and renders as an
- * unknown status with no colour. Asserted here at import instead, over the real
+ * unknown status with no color. Asserted here at import instead, over the real
  * bytes, so a bad capture fails the whole suite on its first line rather than
  * producing a board that is subtly wrong in a screenshot.
  *

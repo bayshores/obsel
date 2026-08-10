@@ -61,7 +61,7 @@ const NEAR_BOTTOM_PX = 48;
  */
 
 /**
- * Each phase's colour, from the same four the rest of the dashboard uses.
+ * Each phase's color, from the same four the rest of the dashboard uses.
  *
  * Amber appears for exactly one phase, holding the invariant the whole board
  * keeps: amber means work went out of date, and nothing else.
@@ -111,7 +111,7 @@ export function TracePanel({
    * out: a panel that animated eighty-six existing steps on load would be putting
    * on a performance of work that finished before anybody was watching.
    *
-   * State with a lazy initialiser, so it is computed from the first render's own
+   * State with a lazy initializer, so it is computed from the first render's own
    * events and never again. A ref would do the same job and cannot be read during
    * render, which is exactly when the first list of rows needs it.
    */

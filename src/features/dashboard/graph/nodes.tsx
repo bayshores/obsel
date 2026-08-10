@@ -9,9 +9,9 @@
  * most can carry a two-line column diff without anything being measured in
  * advance.
  *
- * Colour comes from `nodeTone(status, hasMark)` and nowhere else, which is the
+ * Color comes from `nodeTone(status, hasMark)` and nowhere else, which is the
  * invariant `tone.ts` documents: amber fill means the work is out of date, and
- * means nothing else. These components choose no colours of their own.
+ * means nothing else. These components choose no colors of their own.
  */
 
 import { Handle, Position } from "@xyflow/react";
@@ -38,19 +38,19 @@ export interface TaskNodeData {
    * the beginning. Rebuilds that are not a new cascade carry the same string, so
    * nothing remounts and nothing replays.
    *
-   * It is never read for a colour or a state. `nodeTone` decides what this box
+   * It is never read for a color or a state. `nodeTone` decides what this box
    * claims, on its own, from the record.
    */
   ripple: string | null;
   /**
    * True when the board is being read as an erasure report.
    *
-   * An agent then carries no colour and no status word, and that is a statement
+   * An agent then carries no color and no status word, and that is a statement
    * rather than a simplification: coverage is a property of an asset, obsel has
    * nothing to say about an agent's own erasure state, and the amber that says
    * "this finished work went out of date" is answering the other question
    * entirely. Two answers painted on one picture leave a reader unable to tell
-   * which one a colour belongs to, so this board answers one.
+   * which one a color belongs to, so this board answers one.
    */
   neutral: boolean;
   [key: string]: unknown;
@@ -132,7 +132,7 @@ export function TaskNode({ data }: { data: TaskNodeData }) {
         The ripple: one flare, at the moment this box is reached.
 
         It is a sibling element rather than an animation on the box, and that is
-        deliberate rather than tidy. The box's colour is `nodeTone`'s claim about
+        deliberate rather than tidy. The box's color is `nodeTone`'s claim about
         what is true, and `tone.ts` states the rule this obeys: a dropped frame or
         an interrupted transition must not be able to change what the board says.
         A separate element cannot. It flares and it is gone; the amber underneath

@@ -214,7 +214,7 @@ describe("a run declares whatever obsel has no record of, and nothing else", () 
    *
    * The first version of these tests assumed this flow held nothing, which was
    * true exactly once: registration is permanent, obsel deletes nothing, and the
-   * run that proved the behaviour is the run that made the assumption false. Both
+   * run that proved the behavior is the run that made the assumption false. Both
    * tests then failed on the next full-suite run — the same trap
    * `engine.live.test.ts` records having been caught by, arriving here.
    *

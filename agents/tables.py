@@ -59,7 +59,7 @@ def _is_number(value: Any) -> bool:
 
 
 def canonicalise_numbers(table: Table) -> Table:
-    """Put each numeric column into one serialised form, decided by its own values.
+    """Put each numeric column into one serialized form, decided by its own values.
 
     Part of the contract the worker holds the agent to, alongside the column
     names. The agent decides *what* the numbers are; this decides how they are

@@ -6,7 +6,7 @@
  * Deliberately thin, and deliberately holding no state. The shader's own
  * settings live in the handle, not in React, so an `alert` change repaints one
  * frame through a uniform instead of re-rendering a component tree — and so a
- * lost WebGL context can never desynchronise from what the dashboard believes.
+ * lost WebGL context can never desynchronize from what the dashboard believes.
  */
 
 import { useEffect, useRef } from "react";
@@ -36,7 +36,7 @@ export function Backdrop({ alert }: { alert: boolean }) {
     // seed the mount would be the obvious alternative and is forbidden:
     // react-hooks/refs rejects touching a ref while rendering.
     //
-    // Only the colour uniform moves. speed stays 0 — see backdrop-shader.ts on
+    // Only the color uniform moves. speed stays 0 — see backdrop-shader.ts on
     // why nothing animates here during the one shot that matters.
     handleRef.current?.set({ tint: alert ? AMBER : ROSE, alert: alert ? 1 : 0 });
   }, [alert]);

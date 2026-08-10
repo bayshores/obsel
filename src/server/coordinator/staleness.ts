@@ -543,7 +543,7 @@ function causeOf(mark: StaleMark): StaleCause {
  * The mark to write when a task that is ALREADY flagged is flagged again.
  *
  * Two cascades reaching one task is ordinary: a second table changes while the
- * first repair has not happened yet. The old behaviour overwrote the whole mark,
+ * first repair has not happened yet. The old behavior overwrote the whole mark,
  * so the first cause vanished from the record — and then a repair of the second
  * cause left a task whose only remaining reason had already been forgotten.
  *

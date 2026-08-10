@@ -1,5 +1,5 @@
 /**
- * What an erasure state is called on screen, and what colour it is drawn in.
+ * What an erasure state is called on screen, and what color it is drawn in.
  *
  * Pure, and the single place either decision is made, for the same reason
  * `tone.ts` is that place for staleness: two surfaces disagreeing about whether
@@ -47,14 +47,14 @@ export function stateWord(state: ErasureState): string {
   }
 }
 
-/** What each state resolves to. Never a colour value, always an mmux token. */
+/** What each state resolves to. Never a color value, always an mmux token. */
 export interface CoverageTone {
   /** Tints the asset's marker and its state word. */
   fill: string;
 }
 
 /**
- * The colour of each state, and one of the three is deliberately not amber.
+ * The color of each state, and one of the three is deliberately not amber.
  *
  * Amber on this board means exactly one thing, stated in `tone.ts`: finished
  * work went out of date. An erasure gap is not that. Nothing is out of date, no
@@ -62,7 +62,7 @@ export interface CoverageTone {
  * reserved signal on a condition it does not mean, on the same screen, minutes
  * apart. A test asserts amber appears in none of the three.
  *
- * Grey for `UNPROVEN`, because nobody having said anything is genuinely the
+ * Gray for `UNPROVEN`, because nobody having said anything is genuinely the
  * absence of a signal rather than a signal of its own. Red for `CONTRADICTED`,
  * which `globals.css` warns against for staleness and which is right here: a
  * stale task succeeded and was then undermined, whereas a contradicted asset has

@@ -8,7 +8,7 @@ is five steps:
    is in flight.
 3. Let the agent do the work: a real session in the data directory, with its own
    tools, which reads, decides, and writes the output table itself.
-4. Hold that output to its contract -- the exact column names, and one serialised
+4. Hold that output to its contract -- the exact column names, and one serialized
    form per numeric column. See `canonicalise_numbers`.
 5. Save it, fingerprint it, and POST that to obsel, which decides what the change
    breaks.
@@ -86,7 +86,7 @@ from agents.tables import (  # noqa: F401
 #
 # It is not byte-reproducible on its own. Measured 2026-07-22 across four live
 # runs over the identical seed, one wrote a money value `217` where the others
-# wrote `217.0` -- so the worker canonicalises the output before hashing it, and
+# wrote `217.0` -- so the worker canonicalizes the output before hashing it, and
 # the demo's "a re-run marks nothing" step rests on that rather than on luck.
 
 
@@ -145,7 +145,7 @@ def last_run(task_name: str, root: Path = REPO_ROOT) -> dict[str, Any] | None:
     Tolerates the pre-2026-07-22 format, where the value was the instruction
     string alone — `columns` comes back None and the caller falls back to the
     task's standing contract, which is exactly the old (buggy after a `change`)
-    behaviour; a `reset` clears such entries.
+    behavior; a `reset` clears such entries.
     """
     path = root / ".obsel" / "state" / "instructions.json"
     if not path.exists():
@@ -286,7 +286,7 @@ def _snapshot_inputs(
     construction.
 
     The canonical form is written, because the canonical form is what was
-    hashed. Published tables are already canonical (every writer canonicalises
+    hashed. Published tables are already canonical (every writer canonicalizes
     before saving), so for tables written by these workers the copies are
     identical to the originals anyway.
     """
@@ -371,7 +371,7 @@ def run_task(
     # version the work is about to be built on. Reported alongside the output at
     # completion: if what was read here disagrees with what its producer recorded
     # writing, the table was changed by something that never told obsel, and this
-    # report is the only evidence of that anywhere. Canonicalised first, so the
+    # report is the only evidence of that anywhere. Canonicalized first, so the
     # observation uses the same definition of "changed" as every fingerprint.
     #
     # Each input is hashed with ITS PRODUCER'S declared volatile columns, read off
@@ -518,7 +518,7 @@ def run_task(
 
 
 def _self_check() -> int:
-    """Prove the canonicalisation properties the demo's quiet step depends on.
+    """Prove the canonicalization properties the demo's quiet step depends on.
 
     Run directly: `python -m agents.worker`
 
@@ -568,7 +568,7 @@ def _self_check() -> int:
     check(
         "a real change to the data still moves the fingerprint",
         printed(217) != printed(218),
-        "canonicalising must not make obsel blind to a value that genuinely moved",
+        "canonicalizing must not make obsel blind to a value that genuinely moved",
     )
     check(
         "a gained fractional value still moves the fingerprint",
@@ -642,8 +642,8 @@ def _self_check() -> int:
         )
 
         # The property the reader-side check stands on. A writer hashes its
-        # canonicalised table and saves it; the next reader loads that file,
-        # canonicalises, and hashes what it read. If those two fingerprints could
+        # canonicalized table and saves it; the next reader loads that file,
+        # canonicalizes, and hashes what it read. If those two fingerprints could
         # differ for the same file, every honest read would look like a table
         # changed behind obsel's back, and the unreported-change alarm would fire
         # on nothing at all.
@@ -694,7 +694,7 @@ def _self_check() -> int:
         check(
             "an entry written before columns were recorded still reads",
             old is not None and old["instruction"] == "an old instruction" and old["columns"] is None,
-            "columns None makes the caller fall back to the standing contract, which is the old behaviour",
+            "columns None makes the caller fall back to the standing contract, which is the old behavior",
         )
 
     print()

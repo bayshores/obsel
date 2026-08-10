@@ -53,7 +53,7 @@ const Run = z.object({
 
 /**
  * What one input table looked like when this task read it. Optional and
- * additive: a report without it gets exactly the old behaviour. Each one is
+ * additive: a report without it gets exactly the old behavior. Each one is
  * compared against what the dataset's producer recorded writing — a mismatch
  * means the table changed and nothing reported the change, which no producer
  * fingerprint can ever catch, because the producer never sent one.

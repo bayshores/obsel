@@ -67,7 +67,7 @@ const DEFAULT_HOPS = 3;
  *
  * `OBSEL_ATTESTOR_KEYS` is inline JSON or a path to a JSON file. Absent means
  * an empty registry, which means nothing verifies and every asset stays
- * unattested — the correct behaviour for an obsel that has not been told who it
+ * unattested — the correct behavior for an obsel that has not been told who it
  * trusts, and a loud one, because the board says so on every row.
  */
 async function attestorKeys(): Promise<RegisteredKey[]> {
@@ -90,7 +90,7 @@ async function attestorKeys(): Promise<RegisteredKey[]> {
  * consuming it cannot interleave with another submission doing the same. Two
  * attestors answering at once would otherwise both read the nonce unconsumed
  * and both be accepted, which is precisely the replay the challenge exists to
- * stop. `engine.ts` serialises completions for the same class of reason and
+ * stop. `engine.ts` serializes completions for the same class of reason and
  * carries the same honest limit: this holds because obsel is one process, and
  * two obsels against one DataHub would need a lock DataHub does not offer.
  */

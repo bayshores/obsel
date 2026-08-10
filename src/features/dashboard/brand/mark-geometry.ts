@@ -6,10 +6,10 @@
  * apart. The mark is drawn by `mark.tsx` and baked into `app/icon.svg`.
  *
  * The source was a raster image traced in Inkscape. That trace emitted two
- * near-identical filled layers, an outer grey (#5d5d5d) and an inner black
+ * near-identical filled layers, an outer gray (#5d5d5d) and an inner black
  * (#181818), which overlap so closely they read as one shape with a hair of
  * halo. Only the inner layer survives here, for a reason that is not tidiness:
- * two baked greys would both be invisible against `--mm-ink` (#0b0a0e), and no
+ * two baked grays would both be invisible against `--mm-ink` (#0b0a0e), and no
  * token controls either of them. One contour set means one fill, so the mark
  * takes `currentColor` and is legible wherever it is placed.
  *

@@ -220,7 +220,7 @@ two runs was a single value: `order_id` 1012's `order_total`, written `217` by o
 run and `217.0` by the run before. Everything else in all 39 rows was identical.
 
 obsel was right to flag it, because `217` and `217.0` are different bytes and it hashes
-the serialised value. Two things were wrong, and both are now fixed:
+the serialized value. Two things were wrong, and both are now fixed:
 
 1. **This command's own check was weaker than the evidence it was checking.** It
    compared the two tables with Python's `==`, which calls `217` and `217.0`
@@ -237,7 +237,7 @@ the serialised value. Two things were wrong, and both are now fixed:
    the comparison behind them establishes.
 
 2. **The agent was writing the same number two ways.** `canonicalise_numbers` in
-   [`worker.py`](worker.py) now fixes the serialised form per column before
+   [`worker.py`](worker.py) now fixes the serialized form per column before
    anything is saved or hashed, so a value that did not change cannot move the
    hash. It has its own self-check: `agents/.venv/bin/python -m agents.worker`.
 
@@ -407,7 +407,7 @@ that was not identical, and `change`'s pure column rename reported `both` instea
 of `schema`, because the values appeared to have moved as well as the name.
 
 So the worker now holds the agent's output to a contract on **two** axes, not
-one: the exact column names, which was always enforced, and one serialised form
+one: the exact column names, which was always enforced, and one serialized form
 per numeric column, which is `canonicalise_numbers`. The agent still decides what
 the numbers are; the worker decides how they are written down.
 
@@ -455,7 +455,7 @@ agents/.venv/bin/python -m agents.worker
 agents/.venv/bin/python -m agents.agent_contract
 
 # Prove the runner is chosen the same way everywhere, and that an explicit
-# choice is honoured rather than quietly swapped for the other one.
+# choice is honored rather than quietly swapped for the other one.
 agents/.venv/bin/python -m agents.runner_select
 
 # Prove the guards behind what the demo prints, including that a reply obsel

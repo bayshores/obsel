@@ -117,7 +117,7 @@ describe("whose task it is: obsel's own work is the closed set", () => {
   it("counts a visitor that reads one of the demo's tables", () => {
     // Joining onto obsel's own data is a real thing to do, and does not make
     // the joining task obsel's.
-    expect(isVisitor(yourData("summarise", { reads: [ds("obsel_demo", "clean_orders")] }))).toBe(
+    expect(isVisitor(yourData("summarize", { reads: [ds("obsel_demo", "clean_orders")] }))).toBe(
       true,
     );
   });

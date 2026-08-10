@@ -46,7 +46,7 @@ export function ErasureTab({
   missing: boolean;
   everRead: boolean;
   onWatch: (request: string | null) => void;
-  /** Whether the canvas is currently coloured by coverage rather than staleness. */
+  /** Whether the canvas is currently colored by coverage rather than staleness. */
   graphMode: boolean;
   onGraphMode: (on: boolean) => void;
 }) {
@@ -83,7 +83,7 @@ export function ErasureTab({
           The toggle, disabled with its reason stated rather than hidden.
 
           A control that vanishes when it cannot be used teaches nothing. This
-          one says what it needs, which is a report to colour the graph with.
+          one says what it needs, which is a report to color the graph with.
         */}
         <label className={styles.mode}>
           <input
@@ -93,7 +93,7 @@ export function ErasureTab({
             onChange={(event) => onGraphMode(event.currentTarget.checked)}
           />
           <span>
-            colour the graph by erasure coverage
+            color the graph by erasure coverage
             {report === null && (
               <span className={styles.modeReason}> (needs a report to be read first)</span>
             )}

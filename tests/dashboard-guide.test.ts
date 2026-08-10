@@ -666,7 +666,7 @@ describe("a board holding exactly one task", () => {
   it("the re-run button points at one mark with a demonstrative, not with a bare 1", () => {
     /*
      * Two tasks, not `one()`, and the difference is not incidental. The button
-     * under test is the demo's own re-run, and `swarmKind` only recognises the
+     * under test is the demo's own re-run, and `swarmKind` only recognizes the
      * demo by seeing both `clean_orders` and `build_revenue` — a lone
      * `clean_orders` is an unknown swarm and correctly gets no pipeline
      * buttons at all.

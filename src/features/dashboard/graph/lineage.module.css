@@ -31,7 +31,7 @@
 /*
  * The attribution badge, kept.
  *
- * React Flow is MIT, so the licence does not compel this, but removing the badge
+ * React Flow is MIT, so the license does not compel this, but removing the badge
  * is what xyflow asks Pro subscribers to pay for. Keeping it is the honest
  * position for a public hackathon entry, and it is recorded in
  * THIRD_PARTY_NOTICES.md. Toned down rather than hidden: it should not compete
@@ -55,7 +55,7 @@
  * The stock controls are a white card with a drop shadow, which is two
  * anti-patterns on one element here (mmux is dark-only, and elevation comes
  * from hairlines rather than shadows). Restyled rather than rebuilt: the
- * component's behaviour — zoom in, zoom out, fit — is exactly what is wanted,
+ * component's behavior — zoom in, zoom out, fit — is exactly what is wanted,
  * and only its skin is off.
  */
 .canvas :global(.react-flow__controls) {
@@ -167,7 +167,7 @@
  *
  * The only property the animation writes is `stroke-dashoffset`, which is what
  * `tone.ts` permits. The brighter stroke is React state rather than a keyframe,
- * so an interrupted run cannot strand an edge in a colour it should not have.
+ * so an interrupted run cannot strand an edge in a color it should not have.
  */
 .canvas :global(.react-flow__edge.obselFlow path.react-flow__edge-path) {
   stroke-dasharray: 2 6;

@@ -19,7 +19,7 @@ import { boardWords, describeWords } from "./fixtures/words";
  * The clipping regression is the reason the file exists. At four tasks the
  * graph fits its panel at any zoom and every framing assertion passes; at forty
  * the layout needs a zoom below React Flow's `fitView` floor, so `fitView`
- * clamped, centred what it could, and cut the top and bottom rows off with
+ * clamped, centered what it could, and cut the top and bottom rows off with
  * nothing anywhere reporting a fault. Forty nodes were in the DOM, correct,
  * and a quarter of them were not on screen.
  *
@@ -92,7 +92,7 @@ test.describe("the graph at forty tasks", () => {
       /*
        * The whole regression in one assertion. Before the fix this reported
        * about twenty clipped nodes at a zoom pinned to 0.50, which is
-       * `fitView`'s own floor: it will not shrink past it, and it centres what
+       * `fitView`'s own floor: it will not shrink past it, and it centers what
        * it cannot fit, so the rows at each end leave the pane silently.
        *
        * The fix grows the panel to the height the layout needs rather than
@@ -309,7 +309,7 @@ test.describe("precision, where it is finally visible", () => {
         return {
           name: name(node),
           // The token as authored, which is the invariant `tone.ts` states: the
-          // fill is a custom property and never a literal colour.
+          // fill is a custom property and never a literal color.
           token: painted.style.borderLeftColor,
           // And the same property resolved, so a token that stopped resolving
           // shows up as an unpainted board rather than as a passing test.
@@ -326,8 +326,8 @@ test.describe("precision, where it is finally visible", () => {
     // Every other task is painted, and painted differently. Without this the
     // assertion above would pass on a board where the amber token silently
     // stopped resolving and all eighty-two boxes rendered identically.
-    const colours = new Set(painted.map((node) => node.resolved));
-    expect(colours.size, "stale and done must not resolve to the same colour").toBeGreaterThan(1);
+    const colors = new Set(painted.map((node) => node.resolved));
+    expect(colors.size, "stale and done must not resolve to the same color").toBeGreaterThan(1);
     expect(amber.every((node) => node.resolved.startsWith("rgb"))).toBe(true);
   });
 

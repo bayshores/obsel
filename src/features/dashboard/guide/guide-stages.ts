@@ -470,7 +470,7 @@ function changeLine(mark: NonNullable<TaskRecord["stale"]>): string {
 
   if (columns) {
     // "the column order_total" rather than "order_total". A bare identifier in the
-    // middle of a sentence reads as a word the reader is expected to recognise,
+    // middle of a sentence reads as a word the reader is expected to recognize,
     // and this one is invented by the demo two minutes before it appears here.
     const noun = (names: readonly string[]): string =>
       `${names.length === 1 ? "the column" : "the columns"} ${names.join(", ")}`;

@@ -99,7 +99,7 @@ function stageOf(input: GuideInput, walked: boolean): StageView {
   const attention = tokenToPaste(input) ?? lastStepProblem(input.activity);
   const running = input.activity?.running ?? null;
 
-  // While a launched step is live, the buttons go away rather than grey out. The
+  // While a launched step is live, the buttons go away rather than gray out. The
   // launcher would refuse a second step anyway (they share the tables), and a
   // disabled button with no explanation is a puzzle, not guidance.
   const withActions = (view: StageView): StageView =>

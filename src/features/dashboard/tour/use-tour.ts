@@ -47,7 +47,7 @@ const NEW_HERE: Stored = { met: false, at: null };
  * after, which is the supported way to say "this value only exists in a browser".
  */
 function subscribe(onChange: () => void): () => void {
-  // Another tab clearing the record is a real event and worth honouring; it is
+  // Another tab clearing the record is a real event and worth honoring; it is
   // also the only thing that fires here, since a tab's own writes do not.
   window.addEventListener("storage", onChange);
   return () => window.removeEventListener("storage", onChange);

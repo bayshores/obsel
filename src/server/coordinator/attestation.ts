@@ -9,7 +9,7 @@
  * **Nothing here is invented where a standard exists.** The signed bytes are
  * DSSE's Pre-Authentication Encoding, which is the format in-toto and Sigstore
  * sign, and it is used because a hand-rolled "concatenate the fields" scheme is
- * where signature schemes go wrong: two different records that serialise to the
+ * where signature schemes go wrong: two different records that serialize to the
  * same bytes let one signature stand for the other. PAE length-prefixes each
  * field, so no record can be confused with another.
  *
@@ -41,7 +41,7 @@ export const PAYLOAD_TYPE = "application/vnd.obsel.attestation+json";
  *
  * `payload` is base64 of the canonical JSON, not the JSON itself. That matters:
  * a verifier must check the signature over the bytes it received, never over
- * bytes it re-serialised, because any difference in re-serialisation silently
+ * bytes it re-serialized, because any difference in re-serialization silently
  * changes what was verified.
  */
 export interface Envelope {
@@ -152,7 +152,7 @@ export function canonicalJson(value: unknown): string {
   if (typeof value === "boolean") return value ? "true" : "false";
   if (typeof value === "number") {
     if (!Number.isFinite(value)) {
-      throw new Error(`cannot canonicalise ${String(value)}: it would encode as null`);
+      throw new Error(`cannot canonicalize ${String(value)}: it would encode as null`);
     }
     return JSON.stringify(value);
   }
@@ -167,7 +167,7 @@ export function canonicalJson(value: unknown): string {
       .sort();
     return `{${keys.map((name) => `${JSON.stringify(name)}:${canonicalJson(record[name])}`).join(",")}}`;
   }
-  throw new Error(`cannot canonicalise a value of type ${typeof value}`);
+  throw new Error(`cannot canonicalize a value of type ${typeof value}`);
 }
 
 /**
@@ -300,7 +300,7 @@ export function verifyAttestation(
   }
 
   /*
-   * Verified over the bytes that ARRIVED, never over a re-serialisation of the
+   * Verified over the bytes that ARRIVED, never over a re-serialization of the
    * parsed record. Re-encoding before verifying is the classic way to end up
    * checking a signature over something other than what was signed, and it
    * would defeat the canonical encoder entirely.

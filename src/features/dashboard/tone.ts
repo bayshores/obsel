@@ -1,12 +1,12 @@
 /**
- * What colour a task is drawn in, and the word used for its state.
+ * What color a task is drawn in, and the word used for its state.
  *
  * The single place either decision is made, for the graph and the ledger alike.
  * Two surfaces disagreeing about whether a task is stale — on camera, during
  * the one shot the whole demo is built around — is a failure mode worth one
  * shared function to rule out.
  *
- * Nothing here is a colour value. Every field resolves to a custom property so
+ * Nothing here is a color value. Every field resolves to a custom property so
  * the mmux token sheet stays the only definition of the palette.
  */
 
@@ -42,7 +42,7 @@ export interface Tone {
 }
 
 /**
- * The only function that decides a node's colour.
+ * The only function that decides a node's color.
  *
  * It takes exactly two arguments and reads nothing else — no timer, no
  * animation state, no render count. That is deliberate: the cascade animation

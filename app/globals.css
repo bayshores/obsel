@@ -10,7 +10,7 @@
  */
 
 /* ─────────────────────────────────────────────────────────────────
-   mmux — colour
+   mmux — color
    Base is near-black "ink"; the signature is a luminous rose. No light mode.
    ───────────────────────────────────────────────────────────────── */
 :root {
@@ -175,7 +175,7 @@
  * The running task's dot, and the reason this rule is spelled out.
  *
  * The keyframes above shipped without this selector, so `PulseDot pulse` set a
- * class that matched no rule and the dot sat still — a documented behaviour
+ * class that matched no rule and the dot sat still — a documented behavior
  * that had never once run. A @keyframes block with no animation property is
  * inert and silent; nothing warns.
  *

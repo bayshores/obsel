@@ -7,14 +7,14 @@
  * collision test that searched for a clear horizontal lane whenever an edge would
  * otherwise cross a box, two `<marker>` definitions for the arrowheads, and
  * per-character width reservation so a label could never overflow the rectangle
- * it was centred in. It worked. It was also a layered-graph renderer being
+ * it was centered in. It worked. It was also a layered-graph renderer being
  * reinvented, and it looked like one.
  *
  * Two properties of the old version are kept deliberately, because they are about
  * correctness rather than drawing:
  *
  * - **Position never depends on status.** `layoutPositions` is not given a status,
- *   so nothing moves when three tasks flip amber. The cascade arrives as colour
+ *   so nothing moves when three tasks flip amber. The cascade arrives as color
  *   and motion on a stationary graph, which is what makes it followable.
  * - **`cascadeEdges` decides which path is lit**, by reading hop counts off the
  *   marks obsel wrote rather than re-deriving them from topology. A path is drawn
@@ -101,7 +101,7 @@ const READING = {
    * The wheel belongs to the graph now, so the page is told to keep its hands
    * off it. With the page pinned to the viewport there is nothing behind the
    * canvas for a wheel event to scroll anyway; this stops the browser's
-   * overscroll behaviours from firing on top of the zoom.
+   * overscroll behaviors from firing on top of the zoom.
    */
   preventScrolling: true,
 } as const;
@@ -137,7 +137,7 @@ const FIT = {
   maxZoom: 1.25,
   /*
    * Far below React Flow's 0.5 default, which is a floor `fitView` CLAMPS at:
-   * a layout needing 0.38 to fit rendered at 0.5, centred, cut off at the top
+   * a layout needing 0.38 to fit rendered at 0.5, centered, cut off at the top
    * and bottom — found live the first time forty tasks were on the board. The
    * real fix is the panel growing to the layout (`panelHeightFor`); this floor
    * is the backstop that turns any future miscalculation into a small graph
@@ -152,7 +152,7 @@ const FIT = {
  *
  * Deliberately not the whole snapshot. `SwarmSnapshot.at` is restamped on every
  * poll, so no signature that included it could ever match twice, and the point of
- * this is to recognise the common case: a second passed and nothing changed.
+ * this is to recognize the common case: a second passed and nothing changed.
  * Timestamps a node actually displays are absent for the same reason they are
  * absent from the nodes: the graph shows status, hops and the column diff, and
  * nothing that ticks.
@@ -182,10 +182,10 @@ function graphSignature(
  * How the board is being read.
  *
  * `null` is the staleness board: amber where finished work went out of date.
- * A map is the erasure board: the same graph, the same positions, coloured by
+ * A map is the erasure board: the same graph, the same positions, colored by
  * what an erasure report says about each table. A table absent from the map was
  * not reached by that report, which the nodes render as its own state rather
- * than as an absence of colour.
+ * than as an absence of color.
  */
 export type CoverageMode = ReadonlyMap<string, ErasureState> | null;
 
@@ -242,7 +242,7 @@ function buildGraph(
         task: task as TaskRecord,
         isCause: causeTaskUrn === task?.urn,
         ripple,
-        // No colour and no status word on the erasure board. `nodes.tsx` records
+        // No color and no status word on the erasure board. `nodes.tsx` records
         // why an agent carries neither there.
         neutral: coverage !== null,
       };
@@ -389,7 +389,7 @@ function LineageCanvas({
    * the swarm and says nothing at all about whether anybody has accounted for a
    * subject's data, so on the erasure board there is no origin, no lit edge and
    * no amber anywhere. Two answers on one picture would leave a reader unsure
-   * which question a colour was answering.
+   * which question a color was answering.
    */
   const origin = coverage === null ? currentChange(tasks) : null;
 
@@ -541,11 +541,11 @@ function LineageCanvas({
     const node = getNode(taskNodeId(focus)) ?? getNode(dataNodeId(focus));
     if (node === undefined) return;
 
-    const centre = {
+    const center = {
       x: node.position.x + (node.measured?.width ?? 0) / 2,
       y: node.position.y + (node.measured?.height ?? 0) / 2,
     };
-    const at = flowToScreenPosition(centre);
+    const at = flowToScreenPosition(center);
     const pane = element.getBoundingClientRect();
     // A margin, so a node hard against an edge counts as needing the move.
     const inside =
@@ -557,7 +557,7 @@ function LineageCanvas({
     const behindCard = at.x > pane.right - 400 && at.y > pane.bottom - 545;
     if (inside && !behindCard) return;
 
-    void setCenter(centre.x, centre.y, {
+    void setCenter(center.x, center.y, {
       zoom: getZoom(),
       ...(still ? {} : { duration: FLY_MS }),
     });

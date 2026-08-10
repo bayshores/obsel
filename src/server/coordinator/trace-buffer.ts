@@ -3,7 +3,7 @@
  *
  * Separated from `trace.ts` for the same reason `staleness.ts` is separated from
  * `engine.ts`: that file is `server-only`, which cannot be imported under the
- * test runner, and the behaviour worth pinning down — ordering, bounding, that a
+ * test runner, and the behavior worth pinning down — ordering, bounding, that a
  * caller cannot corrupt the buffer, that emitting can never throw — lives here
  * where a test can reach it.
  */

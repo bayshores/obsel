@@ -19,7 +19,7 @@
  *
  * `PipelineStep` is deliberately not ported. Its status enum is
  * idle / active / done / **error**, and error renders red. Mapping obsel's
- * `stale` onto it would paint a task that succeeded in the colour of failure,
+ * `stale` onto it would paint a task that succeeded in the color of failure,
  * which is the opposite of what a stale mark means.
  */
 
@@ -66,7 +66,7 @@ export function Wordmark({
 }
 
 /* ── Divider ────────────────────────────────────────────────────────
-   Hairline separator with an optional centred mono label. */
+   Hairline separator with an optional centered mono label. */
 
 export function Divider({ label, style }: { label?: ReactNode; style?: CSSProperties }) {
   const line: CSSProperties = { height: 1, background: "var(--mm-rose-line)" };
@@ -219,7 +219,7 @@ export function StatCell({
   /** Marks a measured, confirmed figure. The cell's only emphasis. */
   accent?: boolean;
   /**
-   * Leave the label's capitalisation alone.
+   * Leave the label's capitalization alone.
    *
    * obsel: labels are lowercased for a uniform look, which is right for
    * "detection time" and wrong the moment a label contains someone else's product
@@ -299,7 +299,7 @@ export function StatCell({
              * the tour, where the thing being lit is a container. A glowing
              * numeral beside plain mono text was the loudest part of the cell and
              * the clearest reason it read as pasted in from somewhere else. The
-             * accent colour still marks a measured, confirmed figure.
+             * accent color still marks a measured, confirmed figure.
              */
           }}
         >

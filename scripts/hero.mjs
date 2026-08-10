@@ -316,7 +316,7 @@ ff(
   "-i",
   `${OUT}/frames/f%03d.png`,
   "-filter_complex",
-  // No dither: the UI is flat fields of few colours, dithering them adds a
+  // No dither: the UI is flat fields of few colors, dithering them adds a
   // shimmer of per-frame noise that costs a megabyte and looks like grain.
   "split[a][b];[a]palettegen=stats_mode=diff[p];[b][p]paletteuse=dither=none",
   "-loop",

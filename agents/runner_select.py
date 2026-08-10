@@ -62,7 +62,7 @@ def resolve(requested: str | None = None) -> str:
     """The name of the runner to use, or raise saying why there is none.
 
     `requested` defaults to `$OBSEL_RUNNER`. An empty or absent value means
-    detect; an unrecognised one is an error rather than a fallback, because a
+    detect; an unrecognized one is an error rather than a fallback, because a
     typo that silently ran something else would be reported on the board as the
     runner the operator did not ask for.
     """
@@ -128,7 +128,7 @@ def _self_check() -> int:
             return str(error)
         return ""
 
-    print("an explicit choice is honoured exactly")
+    print("an explicit choice is honored exactly")
 
     check(
         "codex asked for is codex returned",
@@ -186,7 +186,7 @@ def _self_check() -> int:
     else:
         # Not an else-branch for tidiness: with neither CLI installed `resolve("")`
         # raises, so the two checks above have nothing to compare and this is the
-        # only observable behaviour left. It is also the case an operator who has
+        # only observable behavior left. It is also the case an operator who has
         # just cloned obsel is most likely to be in.
         check(
             "with neither installed, the error names both and how to get one",

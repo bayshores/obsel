@@ -113,7 +113,7 @@ interface AttestationBase {
    *
    * Set by the attestation layer, never by the attestor and never here. The
    * kernel refuses anything where this is false, so until that layer exists
-   * nothing reaches `ATTESTED` outside a test — which is the correct behaviour
+   * nothing reaches `ATTESTED` outside a test — which is the correct behavior
    * for a system whose whole claim rests on the signatures being real. Presence
    * of a signature is not verification of one, and this field is named for what
    * it means rather than for what was supplied.

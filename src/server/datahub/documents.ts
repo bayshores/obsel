@@ -294,7 +294,7 @@ export async function writeChangeRecord(
  * The highest change sequence obsel has written on this board, cached.
  *
  * On `globalThis` for the same reason the trace buffer is: a module-level `let`
- * is re-initialised by a hot reload, and re-seeding is a run of network reads.
+ * is re-initialized by a hot reload, and re-seeding is a run of network reads.
  * Unlike the trace, losing it costs nothing but time — the seed below recomputes
  * it from DataHub, which is the actual source of truth.
  */

@@ -43,7 +43,7 @@ test.describe("typography", () => {
   /*
    * Two tests used to live here that measured `main svg text`: one checking a
    * table of per-character advances for Geist Mono, one checking that no text
-   * escaped the rectangle it was centred in. Both existed because the graph was
+   * escaped the rectangle it was centered in. Both existed because the graph was
    * hand-positioned SVG whose box widths were reserved by counting characters, so
    * a font substitution clipped labels on camera with nothing to catch it.
    *
@@ -326,7 +326,7 @@ test.describe("paint", () => {
     expect(faults.failedRequests).toEqual([]);
   });
 
-  test("the WebGL backdrop actually painted, and left the centre clear", async ({ page }) => {
+  test("the WebGL backdrop actually painted, and left the center clear", async ({ page }) => {
     await openDashboard(page, cascaded());
 
     const paint = await page.evaluate(() => {
@@ -339,8 +339,8 @@ test.describe("paint", () => {
       gl.readPixels(0, 0, c.width, c.height, gl.RGBA, gl.UNSIGNED_BYTE, buf);
       const alphaAt = (x: number, y: number) => buf[(y * c.width + x) * 4 + 3];
       let max = 0;
-      let centre = 0;
-      let centreN = 0;
+      let center = 0;
+      let centerN = 0;
       for (let y = 0; y < c.height; y += 4) {
         for (let x = 0; x < c.width; x += 4) {
           const a = alphaAt(x, y);
@@ -351,12 +351,12 @@ test.describe("paint", () => {
             y > c.height * 0.35 &&
             y < c.height * 0.65
           ) {
-            centre += a;
-            centreN += 1;
+            center += a;
+            centerN += 1;
           }
         }
       }
-      return { max, centreMean: centre / Math.max(centreN, 1) };
+      return { max, centerMean: center / Math.max(centerN, 1) };
     });
 
     // Null means no WebGL in this environment, which is a legitimate state —
@@ -364,8 +364,8 @@ test.describe("paint", () => {
     test.skip(paint === null, "no WebGL context available here");
     expect(paint?.max ?? 0, "the shader drew something").toBeGreaterThan(4);
     expect(
-      paint?.centreMean ?? 99,
-      "it is a bezel, not a wash — the data sits in the centre",
+      paint?.centerMean ?? 99,
+      "it is a bezel, not a wash — the data sits in the center",
     ).toBeLessThan(2);
   });
 
@@ -469,7 +469,7 @@ test.describe("paint", () => {
   });
 
   /*
-   * The board's colour is a claim, and the flare is not.
+   * The board's color is a claim, and the flare is not.
    *
    * `tone.ts` states the rule: amber fill if and only if a task is out of date,
    * decided by one function from the record and from nothing else. The ripple is

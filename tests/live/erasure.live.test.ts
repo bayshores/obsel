@@ -196,7 +196,7 @@ describe("one erasure request, from opening to covered and back", () => {
     /*
      * Handing the subject key to everyone who reads the report would create
      * fresh copies of the identifier in the act of accounting for its removal,
-     * which is an Article 5(1)(c) minimisation problem of obsel's own making.
+     * which is an Article 5(1)(c) minimization problem of obsel's own making.
      * The identifiers live on the request record and are not echoed.
      */
     const status = await api(`/api/erasure/${REQUEST}`, { method: "GET" });
@@ -653,7 +653,7 @@ describe("a key reported compromised takes its coverage back", () => {
     const summary = status.body.summary as Record<string, number>;
     expect(summary.attested).toBe(0);
 
-    // And it says why, rather than quietly going grey.
+    // And it says why, rather than quietly going gray.
     const dropped = (status.body.assurance as Record<string, unknown>)
       .attestationsDroppedForKeys as { asset: string; reason: string }[];
     // Every attestation this request holds, not a fixed number: the tests above

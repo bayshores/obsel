@@ -139,7 +139,7 @@ export const TOUR: readonly TourStep[] = [
     kind: "read",
     target: "graph",
     title: "the agents and their tables",
-    body: "A box with a coloured bar down its left edge is an agent. A plain filled box is a table. The arrows show which tables each agent reads and writes. Point at any box to preview it and light the arrows around it; click to pin everything obsel holds about it.",
+    body: "A box with a colored bar down its left edge is an agent. A plain filled box is a table. The arrows show which tables each agent reads and writes. Point at any box to preview it and light the arrows around it; click to pin everything obsel holds about it.",
   },
   {
     id: "trace",

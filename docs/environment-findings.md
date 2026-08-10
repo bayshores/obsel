@@ -413,7 +413,7 @@ curl -s "http://localhost:8080/relationships?urn=$F&direction=INCOMING&types=IsP
 
 ### The paging is real and has to be followed
 
-`start` and `count` are honoured, and `total` is the full size rather than the size of the page.
+`start` and `count` are honored, and `total` is the full size rather than the size of the page.
 Four requests against the same four-member flow:
 
 | Request              | Response                                                         |
@@ -539,7 +539,7 @@ than quietly matched.
 
 **This could not have been found against a stand-in.** obsel had an in-memory GMS for one
 commit, and it derived relationship answers from its own entity map, so its edges were
-never late and this behaviour did not exist in it. The fake was deleted and the suite runs
+never late and this behavior did not exist in it. The fake was deleted and the suite runs
 against a real DataHub, which is what surfaced this within one run.
 
 ## 12. Two halves of DataHub fail separately, and the shallow probe cannot tell

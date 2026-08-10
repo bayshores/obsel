@@ -5897,3 +5897,63 @@ The one failure in the full-suite run above was retested after the operator refr
 machine's Claude Code CLI login: `runners.live.test.ts` 8 of 8. With it, every live test in the
 repository has passed on this stack today — 176 of 176, across the full run and the two
 re-verifications.
+
+## 2026-08-09 — The three source recordings retaken over CDP, and the v10 cut (late night)
+
+The owner reviewed the v8/v9 renders and reported the footage of the app itself as low
+quality regardless of the 4K render. The render settings were not the cause. Playwright's
+built-in `recordVideo` is: Chromium hands it JPEG frames at quality 90 and playwright-core
+pipes them into VP8 at a fixed one megabit on one realtime thread, so every take was
+twice-lossy before Remotion ever touched it. `scripts/hq-recorder.mjs` replaces that path
+with the same CDP screencast at JPEG quality 100, every frame kept as bytes with its own
+epoch timestamp, assembled after the take into H.264 at CRF 8, constant 50 fps, each frame
+laid out for its measured wall-clock duration. All three recording scripts now use it, and
+`trailer-assets.mjs` prefers the resulting `.mp4` over a legacy `.webm`.
+
+Two defects surfaced while retaking and both are fixed in `scripts/video.mjs`:
+
+- The flagged-node titles all measured as empty strings, which failed staging at the
+  restored-chain scan. Cause: on a flagged node the ripple flare, an empty `aria-hidden`
+  span, renders before the name, so `querySelector("span")` returned the flare for exactly
+  the flagged nodes. The selector now skips `aria-hidden` spans.
+- A take whose cascade stops short of three hops cannot film the reason beat. The refusal
+  for that is placed after the swarm step exits, deliberately: a first draft refused at the
+  tag beat and exited while the swarm still ran server-side, and the next attempt's reset
+  then wiped state under live agents, which broke two takes in a row. Cascade depth varies
+  between takes because it is decided by which downstream tasks had finished when the
+  mid-run change landed; one take marked 6 of 40 out to 2 hops and was refused, the
+  accepted one marked 8 of 40 out to 3.
+
+Measured on the accepted recordings, all against the live stack:
+
+- The take: 167.5 s locked against the 176 s cap. Eight flags, not seven: seven paint
+  within 400 ms of the marks beat and the eighth, Mart docs, lands 10.0 s later when that
+  job finishes — the same running-work shape as the previous take, one job larger. The
+  detection counter on screen reads **1555 ms**; the ribbon flips 7 of 7 to 8 of 8 at
+  282.8 s of source. Every count-bearing surface followed: the second-drop hit says "seven
+  finished jobs", the quiet break's tail says "eight results are out of date", the
+  reconciliation cue says the eighth job, and the breaks test pins the new tail. Unlike the
+  previous take, the flip itself plays off camera — the camera is on the left of the board
+  at that moment — and the plan comment at the reconciliation cue records the measured
+  order that still joins the counts.
+- The erasure b-roll: `deletion-request-0515`, 18 assets reached, two attestations, report
+  headline 2 of 18 covered and 16 unattested, on screen 1030 ms after the request was
+  submitted. The registry rewrite dropped coverage 3806 ms later on the panel's own read.
+  The film's captions count nothing here, so no caption changed; the four documentation
+  surfaces that say "4.0 s" describe the previous take and change only if this cut ships.
+- The DataHub b-roll: the flow page with 40 tasks, 9 tagged `obsel-stale`, loaded and
+  still from 4.8 s to 16.0 s of the recording.
+
+Staging passed every gate against the new material: the restored chain settles within one
+pixel of its flagged boxes, `still-settled.png` carries all 8 flags, `still-datahub.png` is
+the loaded flow page. `pnpm typecheck` clean; 677 unit tests including the 43 video tests
+pass against the staged assets.
+
+The finished file is `obsel-demo-v10.mp4`: 3840x2160, 4488 frames, 179.520000 s on both
+streams against the 180 s cap, 161,143,199 bytes, -14.07 LUFS, `tv, bt709` on all three
+color tags. **Not reviewed by the owner and not uploaded.** If it replaces the public cut,
+three surfaces still describe the previous take and must change with it: the README table's
+"4.0 s later" (this take measured 3.8 s), the gallery stills
+`docs/images/erasure-covered.png` and `erasure-compromised.png` (frames of the previous
+erasure take), and `docs/demo-script.md`'s description of the finished cut (request id and
+the same 4.0 s).

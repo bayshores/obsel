@@ -73,7 +73,7 @@ export function TableFormPanel({
   /*
    * Seeded once, from what obsel holds.
    *
-   * A lazy initialiser, so this runs on mount and never again: re-seeding from
+   * A lazy initializer, so this runs on mount and never again: re-seeding from
    * `recorded` on a later render would throw away what the reader had typed
    * one second after they reported, when the poll brought the new shape back.
    */

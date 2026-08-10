@@ -188,10 +188,10 @@ test.describe("erasure coverage on the board", () => {
 
 test.describe("the graph read as an erasure report", () => {
   /** Turn the canvas over to coverage, once a report has been read. */
-  async function colourTheGraph(page: Page) {
+  async function colorTheGraph(page: Page) {
     await watch(page, "dsr-2f9c");
     await expect(page.locator("li[data-state]").first()).toBeVisible();
-    await page.getByRole("checkbox", { name: /colour the graph/i }).check();
+    await page.getByRole("checkbox", { name: /color the graph/i }).check();
     await page.waitForTimeout(400);
   }
 
@@ -199,7 +199,7 @@ test.describe("the graph read as an erasure report", () => {
     await openDashboard(page, cascaded(), finishedStep());
     await openTab(page, "erasure");
 
-    const toggle = page.getByRole("checkbox", { name: /colour the graph/i });
+    const toggle = page.getByRole("checkbox", { name: /color the graph/i });
     await expect(toggle).toBeDisabled();
     // Disabled with the reason on screen, rather than hidden. A control that
     // vanishes when it cannot be used teaches a reader nothing.
@@ -208,9 +208,9 @@ test.describe("the graph read as an erasure report", () => {
     );
   });
 
-  test("colours the tables by coverage, and never in the stale amber", async ({ page }) => {
+  test("colors the tables by coverage, and never in the stale amber", async ({ page }) => {
     await arrive(page, mixed());
-    await colourTheGraph(page);
+    await colorTheGraph(page);
 
     const states = await page.evaluate(() =>
       [...document.querySelectorAll("[data-coverage]")].map((node) => ({
@@ -223,7 +223,7 @@ test.describe("the graph read as an erasure report", () => {
     /*
      * Amber means one thing on this board: finished work went out of date. An
      * erasure gap is not that, nothing is out of date, and the two boards appear
-     * minutes apart during a demonstration. This is the colour reservation, held
+     * minutes apart during a demonstration. This is the color reservation, held
      * across the whole canvas rather than only in the module that maps it.
      */
     const amber = ["rgb(255, 176, 32)", "rgb(255, 211, 166)"];
@@ -233,21 +233,21 @@ test.describe("the graph read as an erasure report", () => {
         return [style.color, style.borderLeftColor, style.borderTopColor, style.backgroundColor];
       }),
     );
-    for (const colours of painted) {
-      for (const colour of colours) {
-        expect(amber, "no amber anywhere on the erasure board").not.toContain(colour);
+    for (const colors of painted) {
+      for (const color of colors) {
+        expect(amber, "no amber anywhere on the erasure board").not.toContain(color);
       }
     }
   });
 
   test("a table the walk never reached says so, rather than showing nothing", async ({ page }) => {
     await arrive(page, mixed());
-    await colourTheGraph(page);
+    await colorTheGraph(page);
 
     /*
      * The demo board draws five tables and this report names six assets, only
      * some of which are on it. Whatever the overlap, a table absent from the
-     * report must render as "not reached" rather than as an uncoloured box: an
+     * report must render as "not reached" rather than as an uncolored box: an
      * absent claim and a clean one look identical, and only one of them is true.
      */
     const unreached = await page.evaluate(() =>
@@ -263,16 +263,16 @@ test.describe("the graph read as an erasure report", () => {
   /*
    * The details panel on the coverage board.
    *
-   * A reader who colours the board by coverage and then opens a table was told
+   * A reader who colors the board by coverage and then opens a table was told
    * nothing about the question they were asking: the panel reported writers,
    * readers and shape, all of which are staleness vocabulary, and said nothing
-   * about erasure. The field is gated on the board actually being coloured, so
+   * about erasure. The field is gated on the board actually being colored, so
    * a report read for the panel's tab does not put an erasure verdict on a table
    * a reader is inspecting for a completely different reason.
    */
   test("a table opened on the coverage board reports its coverage state", async ({ page }) => {
     await arrive(page, mixed());
-    await colourTheGraph(page);
+    await colorTheGraph(page);
 
     await page.locator(".react-flow__node-data").first().click();
     const panel = page.locator('[aria-label="Details"]');
@@ -283,7 +283,7 @@ test.describe("the graph read as an erasure report", () => {
   test("a table opened on the staleness board says nothing about erasure", async ({ page }) => {
     await arrive(page, mixed());
     // The report is read for the tab, and the graph is deliberately NOT
-    // coloured by it: `colourTheGraph` is the step this test leaves out.
+    // colored by it: `colorTheGraph` is the step this test leaves out.
     await watch(page, "dsr-2f9c");
     await expect(page.locator("li[data-state]").first()).toBeVisible();
 
@@ -295,10 +295,10 @@ test.describe("the graph read as an erasure report", () => {
 
   test("puts the staleness board back when it is switched off", async ({ page }) => {
     await arrive(page, mixed());
-    await colourTheGraph(page);
+    await colorTheGraph(page);
     expect(await page.locator("[data-coverage]").count()).toBeGreaterThan(0);
 
-    await page.getByRole("checkbox", { name: /colour the graph/i }).uncheck();
+    await page.getByRole("checkbox", { name: /color the graph/i }).uncheck();
     await page.waitForTimeout(600);
 
     await expect(page.locator("[data-coverage]")).toHaveCount(0);

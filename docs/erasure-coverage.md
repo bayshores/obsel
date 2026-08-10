@@ -123,7 +123,7 @@ affirmative certificate. **The erasure kernel gets its own default and must neve
 | --- | -------------------------------------------------------------------- | ------------ | ------------ | --------------------------------------------------------------------- |
 | 1   | MERGE / dbt incremental over prior version                           | UNPROVEN     | UNPROVEN     | not TOTAL; prior version is an unexplained portion of `V`             |
 | 2   | Partition overwrite, 3 of 730                                        | UNPROVEN     | UNPROVEN     | not TOTAL; residue = 727 partitions                                   |
-| 3   | SCD2 snapshot                                                        | UNPROVEN     | UNPROVEN     | not TOTAL, it appends; retention is its correct behaviour             |
+| 3   | SCD2 snapshot                                                        | UNPROVEN     | UNPROVEN     | not TOTAL, it appends; retention is its correct behavior              |
 | 4   | Asset with no attestation of any kind                                | UNPROVEN     | UNPROVEN     | no explanation exists, so residue is all of `V`                       |
 | 4b  | Asset with no recorded upstream lineage, rebuild claimed             | UNPROVEN     | UNPROVEN     | nothing to cross-check CLOSED against, so the claim is refused        |
 | 5   | Cyclic lineage A→B→A                                                 | UNPROVEN     | UNPROVEN     | least fixpoint never promotes either without a grounding direct check |

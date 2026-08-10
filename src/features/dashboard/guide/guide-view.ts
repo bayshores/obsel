@@ -38,8 +38,8 @@ export const RUNNER_ROW_FALLBACK = "An agent CLI, signed in";
 /**
  * The checklist row, which starts a line and so starts with a capital.
  *
- * Spelled out per runner rather than capitalised at the call site, because
- * "The Codex CLI" and "Claude Code" capitalise differently and a generic
+ * Spelled out per runner rather than capitalized at the call site, because
+ * "The Codex CLI" and "Claude Code" capitalize differently and a generic
  * first-letter uppercase would produce "The claude Code".
  */
 export function runnerRowName(name: RunnerName | null): string {
@@ -127,7 +127,7 @@ interface GuideActionBase {
    * the same object with different text, and the reader had to read both to find
    * out which one the board was asking for.
    *
-   * The accent is spent on colour and elevation, never on size. Both labels stay
+   * The accent is spent on color and elevation, never on size. Both labels stay
    * 13px and both details 12px: `docs/verification.md` records three guides that
    * failed by adding what mattered at footnote size, and the secondary here gets
    * MORE contrast than it had, not less.
@@ -146,7 +146,7 @@ interface GuideActionBase {
  * ("Run the orders cleaner again, no changes"), which is right on a button and
  * unreadable in the middle of a sentence about what is happening.
  *
- * Capitalised, because every place one of these is used it opens a sentence: the
+ * Capitalized, because every place one of these is used it opens a sentence: the
  * running line, the failure line, and the finished-step summary in
  * `guide-panel.tsx`.
  */

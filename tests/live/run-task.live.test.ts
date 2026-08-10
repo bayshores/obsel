@@ -3,8 +3,8 @@
  *
  * Both ends of this function are already covered against the real thing. The in-flight guard
  * has `worker.live.test.ts`, each runner's invocation has `runners.live.test.ts`, and the
- * canonicalisation and fingerprint properties have 23 offline self-checks. What none of them
- * touch is the join: announce, run the agent, canonicalise, save, remember, fingerprint,
+ * canonicalization and fingerprint properties have 23 offline self-checks. What none of them
+ * touch is the join: announce, run the agent, canonicalize, save, remember, fingerprint,
  * report, clear the marker. That sequence is what an agent actually is, and until this file
  * it was exercised only by running the demo by hand.
  *
@@ -79,8 +79,8 @@ const INSTRUCTION =
  *
  * One amount is fractional on purpose. Doubling gives 21.0 and 64, which puts a whole number
  * in a column that holds a fractional one, and that is precisely what `canonicalise_numbers`
- * exists to normalise: a live run wrote a money value as `217` where the run before wrote
- * `217.0`, and the two hash differently. With whole numbers throughout, canonicalisation is a
+ * exists to normalize: a live run wrote a money value as `217` where the run before wrote
+ * `217.0`, and the two hash differently. With whole numbers throughout, canonicalization is a
  * no-op here and the fingerprint check below would not be exercising anything.
  */
 const INPUT_ROWS = [
@@ -282,12 +282,12 @@ describe("a full run, from announcement to confirmed completion", () => {
       expect(doubled).toEqual([21, 64]);
 
       /*
-       * Canonicalisation actually did something to this table, which is what makes the
+       * Canonicalization actually did something to this table, which is what makes the
        * fingerprint check below meaningful rather than vacuous.
        *
        * `amount` is passed through unchanged by the agent's own instruction, and the input
        * file holds a plain `32`, because `save_table` writes what it is given and does not
-       * canonicalise. The output file holds `32.0`: the column also carries 10.5, so every
+       * canonicalize. The output file holds `32.0`: the column also carries 10.5, so every
        * value in it is written as a float. Nothing but `canonicalise_numbers` could have made
        * that conversion between the two files.
        */

@@ -10,7 +10,7 @@ fingerprint would be a second answer to the only question obsel exists to
 answer -- `agents/mcp_core.py` says so at the top of the file, and a TypeScript
 port for the browser's convenience would be exactly the drift it warns about.
 So the bench's table takes the same road every agent's table takes:
-`mcp_core.completion_body`, which canonicalises the numbers and calls
+`mcp_core.completion_body`, which canonicalizes the numbers and calls
 `agents/fingerprint.py`, and then obsel's own `POST /api/tasks/complete`.
 
 There is nothing here that an agent could not do, and nothing an agent can do
@@ -61,7 +61,7 @@ def report(request: Any) -> dict[str, Any]:
     way any other agent's would. Skipping it would record a completion for work
     obsel was never told had begun.
 
-    The reply carries obsel's `coordination` verbatim. Nothing here summarises
+    The reply carries obsel's `coordination` verbatim. Nothing here summarizes
     what was invalidated, because the board reads that off the swarm a second
     later and a paraphrase would be a second account of it.
     """

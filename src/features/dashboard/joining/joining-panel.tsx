@@ -65,7 +65,7 @@ export function JoiningPanel({ view }: { view: JoinView }) {
    * not mean "somebody clicked": React sets `open` on the DOM element after
    * creating it, the browser sees the default `false` become `true`, and fires
    * the event. Mount was therefore indistinguishable from a click, so the panel
-   * recorded a preference nobody had expressed and then honoured it forever.
+   * recorded a preference nobody had expressed and then honored it forever.
    *
    * Storing null when the new state already agrees with the derivation fixes it
    * exactly: React's own sync lands back on derived, and only a reader moving

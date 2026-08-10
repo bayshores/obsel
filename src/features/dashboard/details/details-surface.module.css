@@ -3,7 +3,7 @@
  *
  * Bottom-right, which is the one corner of the canvas nothing else claims. The
  * caption owns the top-left, React Flow's zoom controls the top-right, and the
- * colour key the bottom-left. All three states share that anchor, so the panel
+ * color key the bottom-left. All three states share that anchor, so the panel
  * grows upward out of the hint strip rather than appearing somewhere new.
  *
  * Absolutely positioned, which is not a detail: the e2e suite asserts that
@@ -63,7 +63,7 @@
  *
  * 520 is roughly the taller half of a laptop canvas, and the contents scroll
  * inside it. A fingerprint pair and a mark's verbatim reason can be long, and
- * the reason is the one thing on this board that must never be summarised to
+ * the reason is the one thing on this board that must never be summarized to
  * fit, so this bounds the card and never the text.
  */
 .slotPinned {

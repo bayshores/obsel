@@ -76,7 +76,7 @@ export function countUpValue(target: number, elapsedMs: number, durationMs: numb
  * the mark does.
  *
  * `animate` false renders the target immediately, with no frames at all. That is
- * the reduced-motion path, and it follows the board's rule: honouring the
+ * the reduced-motion path, and it follows the board's rule: honoring the
  * preference means showing the finished picture, not a hurried animation of it.
  * It is also how a withheld number stays withheld, since an untrusted read has
  * nothing to count towards.

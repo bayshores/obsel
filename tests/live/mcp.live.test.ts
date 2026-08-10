@@ -93,7 +93,7 @@ describe("the tag round trip, confirmed by reading DataHub rather than MCP", () 
      * The exact sequence §6.1 caught failing: `remove_tags` right after `add_tags`
      * errored, and the identical call seconds later worked. `applyStaleTag` does not
      * return until the tag is readable, so by construction this removal is not issued
-     * into that window — which is the behaviour being asserted, not avoided.
+     * into that window — which is the behavior being asserted, not avoided.
      */
     const urn = taskUrn(SUBJECT);
     await applyStaleTag([urn]);

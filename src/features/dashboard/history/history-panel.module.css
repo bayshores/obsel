@@ -20,7 +20,7 @@
 }
 
 /*
- * Newest first, so no scroll anchoring and no follow-the-bottom behaviour.
+ * Newest first, so no scroll anchoring and no follow-the-bottom behavior.
  *
  * The opposite of the activity feed, and the difference is what each list is
  * for. The feed is a sequence being written now, so it reads top to bottom and

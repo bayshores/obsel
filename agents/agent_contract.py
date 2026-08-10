@@ -187,7 +187,7 @@ def _self_check() -> int:
         ["order_id", "order_total_usd"],
     )
     without_contract = build_prompt(
-        "Summarise the table.", ["a.json", "b.json"], "out.json", None
+        "Summarize the table.", ["a.json", "b.json"], "out.json", None
     )
 
     check(
@@ -312,7 +312,7 @@ def _self_check() -> int:
         check(
             "a table declaring no columns is refused",
             "no columns" in refused(written("empty.json", {"columns": [], "rows": [{"a": 1}]})),
-            "every row would serialise to [] and the whole table to one repeated hash",
+            "every row would serialize to [] and the whole table to one repeated hash",
         )
         check(
             "a table with no rows is refused",

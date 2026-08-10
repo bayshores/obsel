@@ -96,7 +96,7 @@
  * two separate ticks by `layoutId`, which is the part that could not be written
  * in CSS at all without measuring layout by hand on every poll.
  *
- * What stays in CSS is what CSS is better at: the grid, the colours, and the
+ * What stays in CSS is what CSS is better at: the grid, the colors, and the
  * hover and press states below.
  */
 
@@ -268,7 +268,7 @@
    * action the panel's own sentence is asking for. `GuideAction.primary` says
    * which, at most one per stage, and some stages accent nothing.
    *
-   * Spent on colour and elevation, never on size. Both forms keep the same
+   * Spent on color and elevation, never on size. Both forms keep the same
    * 13px label and 12px detail, because `docs/verification.md` records three
    * guides that failed by putting what mattered at footnote size. The secondary
    * ends up with MORE contrast than it had, not less: its label was
@@ -328,7 +328,7 @@
   font-size: var(--mm-text-lg);
   font-weight: var(--mm-weight-semi);
   letter-spacing: var(--mm-track-label);
-  /* The secondary form's colour. `.actionPrimary .actionLabel` takes the rose. */
+  /* The secondary form's color. `.actionPrimary .actionLabel` takes the rose. */
   color: var(--mm-cream);
   transition: color var(--mm-dur-short) var(--mm-ease);
 }
@@ -388,7 +388,7 @@
 }
 
 /*
- * Motion is a preference, and honouring it is `guide-panel.tsx`'s job now.
+ * Motion is a preference, and honoring it is `guide-panel.tsx`'s job now.
  *
  * This was a block restating the end state of every animated element by hand,
  * because `globals.css` cuts durations to 0.01ms globally and an end state

@@ -34,7 +34,7 @@ function problem(body: unknown): string | null {
 
 const GOOD = { name: "build_revenue", reads: ["clean_orders"], writes: ["daily_revenue"] };
 
-describe("a registration obsel can honour", () => {
+describe("a registration obsel can honor", () => {
   it("accepts short names", () => {
     expect(problem(GOOD)).toBeNull();
   });

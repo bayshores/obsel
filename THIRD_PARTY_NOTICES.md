@@ -1,12 +1,12 @@
 # Third-party software and services
 
-What obsel depends on that it did not write, and the licence or terms each is used under.
+What obsel depends on that it did not write, and the license or terms each is used under.
 The hackathon requires third-party SDKs, APIs, and tools to be used within their terms, so
-the one judgement call is written out in full rather than summarised.
+the one judgement call is written out in full rather than summarized.
 
 ## Open-source dependencies
 
-| Component                    | Licence           | Used for                                           |
+| Component                    | License           | Used for                                           |
 | ---------------------------- | ----------------- | -------------------------------------------------- |
 | DataHub (`datahub-project`)  | Apache-2.0        | The metadata platform obsel is built on            |
 | `mcp-server-datahub` 0.6.0   | Apache-2.0        | The MCP Server, for writing the stale tag          |
@@ -30,8 +30,8 @@ sheet uses a Google Fonts `@import`; obsel's copy deliberately does not.
 
 **There is no shader library.** The page's WebGL backdrop is about sixty lines of GLSL in
 `src/features/dashboard/backdrop/backdrop-shader.ts`, written for this project. A commercial shader library
-was evaluated and rejected: its licence makes integration code derivative and still subject to that
-licence, which cannot be reconciled with obsel being Apache-2.0 in a public repository, and it
+was evaluated and rejected: its license makes integration code derivative and still subject to that
+license, which cannot be reconciled with obsel being Apache-2.0 in a public repository, and it
 renders only under WebGPU, so it would have drawn nothing at all, silently, on a judge's machine
 without it.
 
@@ -44,7 +44,7 @@ It worked, and it was a layered-graph renderer being reinvented. React Flow and 
 which deleted roughly 250 lines of geometry outright and gave the cascade an edge animation that
 runs continuously rather than once.
 
-React Flow's attribution badge is left visible in the bottom-right of the graph. The MIT licence
+React Flow's attribution badge is left visible in the bottom-right of the graph. The MIT license
 does not compel that; removing it is what xyflow asks Pro subscribers to pay for, and leaving it is
 the honest position for a public hackathon entry. It is toned down in
 `src/features/dashboard/graph/lineage.module.css` so it does not compete with the data, and it is not
@@ -65,7 +65,7 @@ server as a real client. `mcp` (Python, pinned `==1.28.1` in `agents/requirement
 `agents/mcp_server.py` serves obsel's ten tools over. Both are Anthropic's official SDKs for the
 protocol, used through their documented interfaces.
 
-Node and Python dependency licences are recorded in `pnpm-lock.yaml` and
+Node and Python dependency licenses are recorded in `pnpm-lock.yaml` and
 `agents/requirements.txt`.
 
 ## Sample data
@@ -86,11 +86,11 @@ nothing is fetched from the TLC at demo time.
 
 The submission video is assembled by `video/` with **Remotion 4.0.503**, driven by
 `scripts/trailer-assets.mjs`. Remotion is source-available rather than open source, and
-its licence is the one dependency here that is not permissive: individuals, non-profits,
+its license is the one dependency here that is not permissive: individuals, non-profits,
 and for-profit organizations up to three employees may use it for free, including
-commercially, and larger organizations need a paid company licence. obsel is one
+commercially, and larger organizations need a paid company license. obsel is one
 individual's hackathon entry, which is the first of those categories. Anyone forking this
-repository at a company of four or more needs their own licence to run
+repository at a company of four or more needs their own license to run
 `npx remotion render`; nothing else in the repository depends on it, and the app builds
 and the full verification suite passes without it. Remotion's own agent skills are installed
 with `npx skills add remotion-dev/skills`; `skills-lock.json` records the set and the copies
@@ -125,7 +125,7 @@ about eight seconds of a three-minute video and exists to say that the setup is 
 commands typed on an ordinary desktop. Neither image is redistributed here: the repository
 ignores `video/` entirely, so the files sit outside what a fork receives, and anyone
 re-rendering supplies their own. An earlier cut drew the desktop from four CSS gradients
-and three grey rectangles for exactly this reason; the owner replaced it and this entry is
+and three gray rectangles for exactly this reason; the owner replaced it and this entry is
 the record of that.
 
 ## The demo agents run on a coding CLI, signed in with a consumer subscription
@@ -135,7 +135,7 @@ of a coding CLI, working on the data files with its own tools: `codex exec` for 
 `claude -p` for Claude Code, chosen by `agents/runner_select.py`. On this machine both are
 authenticated with a consumer subscription rather than an API key -- Codex with ChatGPT
 (`auth_mode: chatgpt`), Claude Code with a Claude Max plan. That choice sits in a genuine
-grey area, and pretending otherwise would be worse than naming it.
+gray area, and pretending otherwise would be worse than naming it.
 
 The Codex terms question below was researched first and in more depth, because Codex was the
 only runner until 2026-07-28. The same shape of question applies to Claude Code under a
@@ -154,7 +154,7 @@ harvesting, or web data extraction," _except as permitted through the API_. Scri
 under subscription authentication sits inside that carve-out's shadow. A developer asked
 OpenAI to reconcile the two in [openai/codex discussion #8338](https://github.com/openai/codex/discussions/8338),
 noting that Codex CLI is inherently making programmatic requests. An OpenAI engineer
-replied, linked the terms and the licence, and said plainly: "I'm an engineer, not a
+replied, linked the terms and the license, and said plainly: "I'm an engineer, not a
 lawyer, so I'm not qualified to answer your questions in detail." Two further developers
 have asked related questions in the same thread. As of 2026-07-21 there is no
 authoritative answer.

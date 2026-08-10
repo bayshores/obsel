@@ -24,7 +24,7 @@ import {
  * the module and not the icon would leave the tab showing the previous mark
  * indefinitely, and no other check in the repository would notice.
  *
- * The two colour assertions are not style policing. Both encode the one thing
+ * The two color assertions are not style policing. Both encode the one thing
  * the icon is for beyond identity: staying legible in a browser tab whose
  * theme obsel does not control.
  */
@@ -76,7 +76,7 @@ describe("the favicon draws the same mark as the page", () => {
 
 describe("the favicon survives a browser tab it does not control", () => {
   it("is filled to its own edges", () => {
-    // A rounded or inset background would let the tab strip's own colour show
+    // A rounded or inset background would let the tab strip's own color show
     // at the corners, which is the single thing the red is there to prevent.
     const [, , w, h] = attr("svg", "viewBox").split(/\s+/).map(Number);
     expect(attr("rect", "width")).toBe(String(w));

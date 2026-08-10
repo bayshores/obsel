@@ -75,7 +75,7 @@ export const dataNodeId = (urn: string): string => `d:${urn}`;
  *
  * Status is never consulted here, which is the same discipline the old layout
  * kept and worth keeping for the same reason: nothing moves when three tasks flip
- * amber. A viewer watching the cascade sees colour and motion arrive on a
+ * amber. A viewer watching the cascade sees color and motion arrive on a
  * stationary graph, so they can follow it. If position depended on status, the
  * whole picture would rearrange at the one moment someone is trying to read it.
  *
@@ -144,7 +144,7 @@ export function layoutPositions(
     return {
       id,
       kind: id.startsWith("t:") ? "task" : "data",
-      // dagre centres its nodes; React Flow positions from the top-left corner.
+      // dagre centers its nodes; React Flow positions from the top-left corner.
       x: node.x - node.width / 2,
       y: node.y - node.height / 2,
       width: node.width,

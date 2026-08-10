@@ -86,7 +86,7 @@ function parseStatus(raw: string | undefined, urn: string): TaskStatus {
   // which is exactly what "registered" means.
   if (!raw) return "registered";
   if ((STATUSES as readonly string[]).includes(raw)) return raw as TaskStatus;
-  throw new DataHubError(`task ${urn} has unrecognised ${PROP.status} "${raw}"`);
+  throw new DataHubError(`task ${urn} has unrecognized ${PROP.status} "${raw}"`);
 }
 
 /** Stored fingerprints, or `{}` only when none were ever written. */
@@ -273,7 +273,7 @@ function parseStale(
     throw new DataHubError(`task ${urn} is stale with an unusable ${PROP.staleHops}`);
   }
   if (!changeKind || !(CHANGE_KINDS as readonly string[]).includes(changeKind)) {
-    throw new DataHubError(`task ${urn} is stale with an unrecognised ${PROP.staleChangeKind}`);
+    throw new DataHubError(`task ${urn} is stale with an unrecognized ${PROP.staleChangeKind}`);
   }
 
   const causedByTask = props[PROP.staleCausedByTask];

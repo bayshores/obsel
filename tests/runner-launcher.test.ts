@@ -39,7 +39,7 @@ describe("appendBounded", () => {
     expect(appendBounded(before, [], 4)).toBe(before);
   });
 
-  it("does not mutate its input — the activity route may be serialising the old one", () => {
+  it("does not mutate its input — the activity route may be serializing the old one", () => {
     const before = ["1", "2"];
     appendBounded(before, ["3"], 2);
     expect(before).toEqual(["1", "2"]);

@@ -432,7 +432,7 @@ describe("the cases the table does not list", () => {
     /*
      * The kernel refuses rather than assumes, so until the attestation layer
      * exists nothing reaches ATTESTED outside a test. That is the correct
-     * behaviour for a system whose entire claim rests on the signatures being
+     * behavior for a system whose entire claim rests on the signatures being
      * real: presence of a signature is not verification of one.
      */
     const coverage = coverageFor(input({ attestations: [direct({ signatureVerified: false })] }));

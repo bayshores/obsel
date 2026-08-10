@@ -40,7 +40,7 @@ test.describe("honesty", () => {
 
     // Polled, not measured once: the dashboard only learns the read failed on its
     // next tick, up to POLL_MS later. Asserting immediately after `serve` is a
-    // race that passes or fails on scheduling rather than on behaviour.
+    // race that passes or fails on scheduling rather than on behavior.
     // Not "most" of the numbers: both of them, and as the withheld placeholder
     // rather than as a stale last-known value.
     await expect.poll(readRibbon, { timeout: 8_000 }).toEqual(["··", "··"]);
@@ -163,15 +163,13 @@ test.describe("honesty", () => {
       );
 
     expect(seen.length).toBeGreaterThan(1);
-    // Hierarchy is spent on colour, never on size: three guides failed by putting
+    // Hierarchy is spent on color, never on size: three guides failed by putting
     // what mattered at footnote size, and `docs/verification.md` measured it.
     expect(new Set(seen.map((entry) => entry.size)).size).toBe(1);
-    // And exactly one colour occurs once. Asserted as singular rather than as a
+    // And exactly one color occurs once. Asserted as singular rather than as a
     // hex value, so retuning the palette does not fail this.
-    const colours = seen.map((entry) => entry.color);
-    const once = colours.filter(
-      (colour) => colours.filter((other) => other === colour).length === 1,
-    );
+    const colors = seen.map((entry) => entry.color);
+    const once = colors.filter((color) => colors.filter((other) => other === color).length === 1);
     expect(once).toHaveLength(1);
   });
 
@@ -253,7 +251,7 @@ test.describe("honesty", () => {
     expect(amber.stale).toBe("#ffb020");
     expect(amber.litEdges, "nothing stale means no lit cascade edge").toBe(0);
     /*
-     * And the board says so in words, not only in colour. This used to look for
+     * And the board says so in words, not only in color. This used to look for
      * "nothing to explain", which was the empty state of the changes-between-
      * reads panel the live trace replaced; the calm statement now comes from the
      * guide's own headline, derived from the same snapshot.

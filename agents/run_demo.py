@@ -207,7 +207,7 @@ def cmd_rerun_same(args: argparse.Namespace) -> int:
     # the previous one in exactly one value -- order_id 1012's order_total written
     # as `217` where the run before wrote `217.0`. Python calls those two tables
     # equal, because 217 == 217.0. The fingerprint does not, because it hashes the
-    # serialised value, and `217` and `217.0` are different bytes.
+    # serialized value, and `217` and `217.0` are different bytes.
     #
     # So this check called the two tables identical when they were not, and then
     # blamed obsel for a false alarm that was in fact a correct detection.
@@ -287,7 +287,7 @@ def _capture(
     coordination: dict[str, Any],
     obsel_url: str,
 ) -> None:
-    """Write the artefacts a judge reads, all from this one `change`.
+    """Write the artifacts a judge reads, all from this one `change`.
 
     Assembling these from separate runs would produce a set that looks coherent
     and is not -- the fingerprints in `swarm-before` would belong to a table other

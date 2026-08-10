@@ -25,7 +25,7 @@
  * - **No hover-capable pointer**, which is a touch screen. There is no hover
  *   state to enter, so the reveal would simply never fire.
  * - **`prefers-reduced-motion`**, where this renders `StillMark` and the plain
- *   finished lockup. That follows `guide-panel.tsx`: the preference is honoured
+ *   finished lockup. That follows `guide-panel.tsx`: the preference is honored
  *   by rendering the finished picture, not by playing a shorter animation.
  */
 

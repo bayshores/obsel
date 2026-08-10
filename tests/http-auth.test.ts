@@ -83,7 +83,7 @@ describe("a configured obsel", () => {
      *
      * Timing is not asserted here, because a timing assertion on a shared CI
      * machine is a flake generator and would be removed by the first person it
-     * annoyed. What is asserted is the behaviour that makes the constant-time
+     * annoyed. What is asserted is the behavior that makes the constant-time
      * path reachable: two same-length wrong tokens differing at opposite ends
      * are both refused, so nothing short-circuits on the first byte.
      */

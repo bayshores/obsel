@@ -67,7 +67,7 @@ describe("humanize", () => {
     expect(humanize("orders")).toBe("orders");
   });
 
-  it("does not invent capitalisation — a guessed name is worse than a plain one", () => {
+  it("does not invent capitalization — a guessed name is worse than a plain one", () => {
     expect(humanize("clean_orders")).not.toBe("Clean Orders");
   });
 });

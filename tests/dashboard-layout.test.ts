@@ -110,7 +110,7 @@ describe("layoutPositions — geometry is a function of topology, never of statu
    * The load-bearing invariant, kept from the hand-written layout it replaced.
    *
    * dagre is never told a status, so nothing can move when three tasks flip
-   * amber. That is what makes the cascade followable: colour and motion arrive on
+   * amber. That is what makes the cascade followable: color and motion arrive on
    * a stationary graph. If position depended on status, the entire picture would
    * rearrange at the one moment somebody is trying to read it.
    */
@@ -491,7 +491,7 @@ describe("nodeTone — amber fill means stale, and only stale", () => {
     }
   });
 
-  it("never returns a literal colour — every value is a token", () => {
+  it("never returns a literal color — every value is a token", () => {
     const statuses: TaskStatus[] = ["registered", "running", "complete", "stale"];
     for (const status of statuses) {
       for (const hasMark of [true, false]) {

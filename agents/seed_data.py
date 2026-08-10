@@ -6,7 +6,7 @@ more here than it usually would: obsel's central claim is that an identical
 re-run marks nothing stale, and that claim is only testable if "identical" is
 reproducible.
 
-The rows are deliberately dirty in ordinary ways -- inconsistent capitalisation,
+The rows are deliberately dirty in ordinary ways -- inconsistent capitalization,
 stray whitespace, a few missing or non-positive totals, timestamps where a date
 belongs. The first agent has to make real decisions about them rather than copy
 a clean table across.
@@ -21,7 +21,7 @@ SEED = 20260721
 
 COLUMNS = ["order_id", "customer", "order_total", "order_date"]
 
-# Names are invented. Written in mixed case on purpose; normalising them is part
+# Names are invented. Written in mixed case on purpose; normalizing them is part
 # of the cleaning agent's job.
 _CUSTOMERS = [
     "ada okafor",

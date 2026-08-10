@@ -4,7 +4,7 @@ import "server-only";
  * What every route under `app/api/` does with a request, and with a failure.
  *
  * A mutating route gates, then parses, then runs; a read route only runs. The
- * gate is first so an unauthorised caller never reaches `request.json()`, and
+ * gate is first so an unauthorized caller never reaches `request.json()`, and
  * the 400 is separate from the 500 so a caller can tell a body obsel refused
  * from work obsel attempted and could not finish.
  *

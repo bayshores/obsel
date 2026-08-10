@@ -207,7 +207,7 @@ Codex is a live agent, so this capture is one run rather than the run.
 
 **Held to a contract, so any run gives these:** the column names, which
 [`agents/pipeline.py`](../agents/pipeline.py) names explicitly and the worker enforces; the three
-`["section", "heading", "text"]` columns on both write tasks; and the serialised form of every
+`["section", "heading", "text"]` columns on both write tasks; and the serialized form of every
 number, which `worker.canonicalise_numbers` fixes per column. That last one exists because it went
 wrong: one run wrote a money value `217` where another wrote `217.0`, which is the same number,
 different bytes, and a moved content digest for a table nobody changed.
@@ -324,7 +324,7 @@ JSON as the record.
   claiming DataHub holds no tags.
 - **Failure shapes.** The API's error responses are not sampled here.
 - **The quiet case.** An identical re-run returns a `CoordinationResult` with empty `changedOutputs`
-  and empty `affected`, which is the behaviour the whole design rests on. It has been observed
+  and empty `affected`, which is the behavior the whole design rests on. It has been observed
   live, since `rerun-same` reported 0 changed outputs and 0 marks on a separate run the same day, but
   this capture did not include that step, so there is no sample of it here.
 - **The coordinator's trace.** `GET /api/trace` narrates the steps obsel took to reach this

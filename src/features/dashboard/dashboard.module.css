@@ -166,7 +166,7 @@
  * The right end of the header: the way into the tour, then the connection light.
  *
  * One group rather than two children of the header, because the header is
- * `space-between` and a third loose child would centre the tour button in the
+ * `space-between` and a third loose child would center the tour button in the
  * middle of the bar, which is neither of the two places anybody looks.
  */
 .headerEnd {
@@ -320,7 +320,7 @@
 }
 
 /*
- * The colour key, bottom-left over the graph.
+ * The color key, bottom-left over the graph.
  *
  * Amber is the whole message of this board, and until now nothing on screen
  * said so. Overlaid rather than given its own row because the canvas is the
@@ -367,8 +367,8 @@
   flex: none;
 }
 
-/* An agent: bordered box, with the status bar down its left edge. Grey here,
-   because the key names the shape and the graph colours it. */
+/* An agent: bordered box, with the status bar down its left edge. Gray here,
+   because the key names the shape and the graph colors it. */
 .keyAgent {
   background: var(--mm-surface);
   border: 1px solid var(--mm-rose-line);

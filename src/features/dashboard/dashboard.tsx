@@ -5,7 +5,7 @@
  *
  * One read, `GET /api/swarm`, once a second. Everything on screen is derived
  * from that snapshot by pure functions — `layoutPositions` for where things sit,
- * `nodeTone` for what colour they are, `totals` and `detectionTiming` for the
+ * `nodeTone` for what color they are, `totals` and `detectionTiming` for the
  * numbers. There is no second source and nothing is remembered between polls,
  * so the dashboard cannot drift out of step with what the coordinator believes.
  *
@@ -88,7 +88,7 @@ export function Dashboard() {
   /*
    * The erasure half, and the two pieces of state it needs.
    *
-   * `graphMode` is the reader's choice to colour the board by coverage instead
+   * `graphMode` is the reader's choice to color the board by coverage instead
    * of by staleness. Neither is persisted: a returning reader lands on the
    * staleness board, which is what obsel is watching continuously, rather than
    * on a report about a request they may have finished with.
@@ -116,7 +116,7 @@ export function Dashboard() {
    * The report as a lookup the graph can use, or nothing.
    *
    * Built here rather than in the canvas so the rule is in one place: the board
-   * is coloured by coverage only when a reader asked for that AND a report has
+   * is colored by coverage only when a reader asked for that AND a report has
    * actually been read. A mode with no report would paint every table as
    * unreached, which is a claim about an estate obsel has not looked at.
    */
@@ -356,10 +356,10 @@ export function Dashboard() {
           </div>
 
           {/*
-            The key, and it explains the shapes rather than the colours.
+            The key, and it explains the shapes rather than the colors.
 
-            Every node already prints its own state as a word next to the colour
-            ("done", "out of date", "running"), so glossing the colours here
+            Every node already prints its own state as a word next to the color
+            ("done", "out of date", "running"), so glossing the colors here
             restated something six inches away in a second vocabulary. What
             nothing said was which box is which, and the graph's entire premise
             is that agents read tables other agents write.
@@ -387,12 +387,12 @@ export function Dashboard() {
 
             The agents are still drawn, and the key says they are not judged here
             rather than leaving a reader to guess why the boxes carrying most of
-            the colour a moment ago are now grey. Coverage is a property of an
+            the color a moment ago are now gray. Coverage is a property of an
             asset; obsel has nothing to say about an agent's own erasure state,
             and a board that dimmed them silently would look like it did.
           */}
           {tasks.length > 0 && !showingDetails && coverage !== null && (
-            <ul className={styles.legend} aria-label="What the colours mean">
+            <ul className={styles.legend} aria-label="What the colors mean">
               <li>
                 <span
                   className={styles.keyState}
@@ -440,7 +440,7 @@ export function Dashboard() {
              * is not a display fault: it is obsel stating an erasure verdict
              * about the wrong asset.
              *
-             * Null whenever the board is not coloured by coverage. A report read
+             * Null whenever the board is not colored by coverage. A report read
              * for the panel's tab says nothing about a table the reader is
              * inspecting on the staleness board, and showing it there would be
              * two answers to two different questions in one panel.

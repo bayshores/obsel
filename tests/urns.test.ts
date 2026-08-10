@@ -76,7 +76,7 @@ describe("the TypeScript and Python URN builders agree", () => {
   it("agrees under an overridden flow id, in both directions", () => {
     /*
      * The override is what integration tests use to get their own real DataFlow. If
-     * only one side honoured it, the tests would register through Python into one flow
+     * only one side honored it, the tests would register through Python into one flow
      * and read through TypeScript from another, and a green suite would prove nothing.
      */
     const id = "obsel_urn_agreement_check";

@@ -36,7 +36,7 @@
  *
  * It is deliberately a real bar rather than an invisible drag region on the
  * panel's edge. A window you can move should look like one, and the alternative
- * is a reader discovering the behaviour by accident or never.
+ * is a reader discovering the behavior by accident or never.
  */
 .grip {
   flex: 0 0 auto;

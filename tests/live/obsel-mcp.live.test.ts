@@ -11,7 +11,7 @@
  * DataHub entities in the integration flow (`OBSEL_FLOW_ID`), so these tasks are this
  * file's alone and assertions are containment-style: other suites share the flow.
  *
- * Because those entities are permanent, **the suite normalises before it asserts.** The
+ * Because those entities are permanent, **the suite normalizes before it asserts.** The
  * first version of this file passed once and failed on its second run: the cascade test
  * leaves `mcpjoin_clean` holding a renamed schema, so the next run's "nothing changed"
  * was comparing against the wrong baseline. `establishBaseline` drives the chain to a
@@ -414,7 +414,7 @@ describe("an outside agent joins, works, and finishes", () => {
   it("the same number written two ways is not a change", async () => {
     const client = await connect(obselServer.url);
     // 217 becomes 217.0. A live run produced exactly this drift across four runs of the
-    // same agent over the same seed, and without canonicalisation the content hash moves
+    // same agent over the same seed, and without canonicalization the content hash moves
     // and obsel reports a change nobody made.
     const restyled = {
       columns: ["order_id", "order_total"],
@@ -489,7 +489,7 @@ describe("a real change cascades to work that never read it", () => {
     expect(byTable.get(AGG_OUT).status).toBe("stale");
     expect(answer.staleInputs).toEqual([AGG_OUT]);
 
-    // The mark is carried through untouched rather than summarised, so an agent can
+    // The mark is carried through untouched rather than summarized, so an agent can
     // hand its operator the same sentence obsel recorded.
     const record = await readTask(taskUrn(AGG));
     expect((byTable.get(AGG_OUT).stale as WireRecord).reason).toBe(record?.stale?.reason);

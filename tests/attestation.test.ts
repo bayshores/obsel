@@ -120,7 +120,7 @@ describe("canonical bytes", () => {
      * bytes, so one signature would stand for the other.
      */
     expect(() => canonicalJson({ n: Number.POSITIVE_INFINITY })).toThrow(/encode as null/);
-    expect(() => canonicalJson({ f: () => 1 })).toThrow(/cannot canonicalise/);
+    expect(() => canonicalJson({ f: () => 1 })).toThrow(/cannot canonicalize/);
   });
 
   it("length-prefixes each field, so no two records share the same signed bytes", () => {
@@ -187,7 +187,7 @@ describe("tampering", () => {
     expect(verifyAttestation(forged, context()).ok).toBe(false);
   });
 
-  it("verifies the bytes that arrived, not a re-serialisation of what they parsed to", () => {
+  it("verifies the bytes that arrived, not a re-serialization of what they parsed to", () => {
     /*
      * Added because a mutation survived: replacing the received payload with
      * `canonicalJson(parsed)` before verifying passed all thirty tests, because
@@ -197,7 +197,7 @@ describe("tampering", () => {
      * enforced it.
      *
      * The payload below re-orders the fields. It parses to exactly the same
-     * record, so a verifier that re-serialises first would accept it — and
+     * record, so a verifier that re-serializes first would accept it — and
      * would thereby accept an envelope whose actual bytes nobody ever signed.
      * Once that is allowed, the door is open to payloads that parse the same
      * but read differently: duplicate keys where the last wins, `1e2` for

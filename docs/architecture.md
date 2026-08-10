@@ -205,7 +205,7 @@ The flow, in [`src/server/coordinator/engine.ts`](../src/server/coordinator/engi
    meaning anything.
 
    **What "exactly what it produced before" means, precisely.** Equal fingerprints, not equal
-   bytes. `agents/fingerprint.py` sorts the serialised rows before hashing and leaves out every
+   bytes. `agents/fingerprint.py` sorts the serialized rows before hashing and leaves out every
    column the producing task registered as volatile, so two tables differing only in row order, or
    only in a load timestamp declared at registration, compare identical. Everything else moves the
    hash, including a renamed or dropped volatile column, because the name is part of the schema
@@ -232,9 +232,9 @@ The flow, in [`src/server/coordinator/engine.ts`](../src/server/coordinator/engi
 The page is a separate, dumber path: it polls `GET /api/swarm` once a second and renders
 whatever DataHub currently says. It never computes staleness.
 
-What it _does_ compute is position and colour, and both are deliberately walled off from the
+What it _does_ compute is position and color, and both are deliberately walled off from the
 answer. `src/features/dashboard/graph/positions.ts` hands the swarm to dagre and never passes a task's
-status, so the layout cannot move when three tasks flip to stale. `tone.ts` decides colour from
+status, so the layout cannot move when three tasks flip to stale. `tone.ts` decides color from
 exactly `(status, hasMark)` and reads no timer. `graph/cascade.ts` decides which edges the change
 travelled along by reading hop counts off the marks obsel wrote, rather than re-deriving them from
 topology, so the picture cannot claim a change reached work obsel decided it did not reach. Between
@@ -360,7 +360,7 @@ per hop, because it crosses platforms and flows no single membership read can en
 filters to datasets, since column-level lineage rides the same `DownstreamOf` edge type
 (`environment-findings.md` §13.3).
 
-Three other DataHub behaviours shape this module, all measured and all silent failure modes.
+Three other DataHub behaviors shape this module, all measured and all silent failure modes.
 `GET /entities/<urn>` fabricates a well-formed response for any syntactically valid URN, so it is
 never used to establish existence. `GET /openapi/v3/entity/datajob/<urn>` is, because it returns a
 real 404 for a URN that was never written. `/relationships` pages, and a page followed only once
@@ -396,7 +396,7 @@ sharing a transport.
 [`src/server/datahub/mcp.ts`](../src/server/datahub/mcp.ts).
 
 It is not used for reads. Traversal goes over GMS HTTP for the latency and freshness reasons in
-section 4, and reading a snapshot needs the exact `customProperties` map rather than a summarised
+section 4, and reading a snapshot needs the exact `customProperties` map rather than a summarized
 view. It is not used for entity creation either, because no MCP tool creates entities. That is the
 Python SDK's job, in [`agents/graph.py`](../agents/graph.py) and
 [`agents/setup.py`](../agents/setup.py).
@@ -582,9 +582,9 @@ What has been verified directly, and what has not.
   a dataset it reads, and the cascade is transitive. Full walk measured at 92 ms.
 - The MCP write path, by round trip: apply a tag, confirm it through GraphQL, remove it, confirm
   removal.
-- The two HTTP behaviours `client.ts` depends on, by curl against the live instance on 2026-07-21:
+- The two HTTP behaviors `client.ts` depends on, by curl against the live instance on 2026-07-21:
   `GET /openapi/v3/entity/datajob/<urn>` returns 404 for an invented URN where `GET /entities/<urn>`
-  returns a fabricated 200, and `GET /relationships` honours `start`/`count`/`total` when
+  returns a fabricated 200, and `GET /relationships` honors `start`/`count`/`total` when
   enumerating a flow's members. Reproductions in
   [`docs/environment-findings.md`](environment-findings.md) sections 1 and 9.
 
@@ -697,7 +697,7 @@ What has been verified directly, and what has not.
 
 - **`agents/worker.py`'s contract and its state on disk**, by 16 self-checks in
   `pnpm test:python`, wired into `pnpm verify` so they actually run. Real files in real temporary
-  directories: the canonicalisation properties, a table surviving a save and load byte-stably, a
+  directories: the canonicalization properties, a table surviving a save and load byte-stably, a
   missing table naming its path, a file that is not a table being rejected rather than half-read, and
   an instruction remembered together with the columns it produced, the pair whose separation
   reverted a rename live on 2026-07-22.
@@ -756,7 +756,7 @@ What has been verified directly, and what has not.
   call fails with `expected 'running' to be 'complete'`. And the hand-back restores what the dead run
   left untouched, so a failure while re-running an already-complete task returns it to `complete`
   rather than erasing the good result. The fingerprint obsel records is also compared against one
-  recomputed from the saved file, because canonicalising after the save instead of before would leave
+  recomputed from the saved file, because canonicalizing after the save instead of before would leave
   the record and the bytes permanently out of step; moving that call fails the test.
 
 **Not verified:**
@@ -790,7 +790,7 @@ What has been verified directly, and what has not.
 
 - **The demo has passed once per step, which is not a pass rate.** Codex is a live agent and its
   output has twice proved unstable in ways that made a re-run look like a real change: name casing,
-  then numeric serialisation. Both are pinned now and both were caught by the demo's own assertions
+  then numeric serialization. Both are pinned now and both were caught by the demo's own assertions
   rather than on camera. A third category nobody has hit yet is a live possibility.
 - The TypeScript path end to end against a live DataHub **as an automated test**. It has now been
   exercised by a real run (above), but nothing in `pnpm test` stands DataHub up and asserts the
@@ -812,7 +812,7 @@ What has been verified directly, and what has not.
 - **Any model in the decision path.** Section 5.
 - **Auth.** The local quickstart runs with `METADATA_SERVICE_AUTH_ENABLED=false` and issues no
   token. obsel sends one if `DATAHUB_GMS_TOKEN` is set and otherwise does not, which is the correct
-  behaviour against a default quickstart and is not a production posture.
+  behavior against a default quickstart and is not a production posture.
 - **Anything that repairs stale work itself.** obsel reports which finished work is no longer
   built on something true. Deciding what to do about it is a person's job, or the next agent's.
   The demo's `repair` command does not change this: it is the agents redoing their own work in
@@ -1299,7 +1299,7 @@ cards carrying a status word, a human name, a code identifier, a job sentence, a
 timestamp and a line of runner metadata: 311 px and 205 words describing the same four tasks the
 graph above already drew. Every one of those facts is here instead, including the mark's `reason`,
 which is still stored on the mark, still written into DataHub, and still shown verbatim rather than
-summarised. `e2e/dashboard-layout.spec.ts` asserts it opens in full and is neither clipped nor ellipsised, so
+summarized. `e2e/dashboard-layout.spec.ts` asserts it opens in full and is neither clipped nor ellipsised, so
 the rule that a mark carries a traceable cause is unaffected by the move.
 
 **The trace** is titled "what obsel is doing", and it replaced a panel that diffed two `GET

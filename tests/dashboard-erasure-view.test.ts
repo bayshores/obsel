@@ -82,7 +82,7 @@ describe("the words an erasure state is reported in", () => {
   });
 });
 
-describe("the colour an erasure state is drawn in", () => {
+describe("the color an erasure state is drawn in", () => {
   /*
    * Amber is spoken for. `tone.ts` states the invariant it keeps on the graph:
    * amber fill if and only if a task is out of date. An unattested asset is not
@@ -98,13 +98,13 @@ describe("the colour an erasure state is drawn in", () => {
     }
   });
 
-  it("resolves to mmux tokens rather than to colour values", () => {
+  it("resolves to mmux tokens rather than to color values", () => {
     for (const state of STATES) {
       expect(coverageTone(state).fill).toMatch(/^var\(--[a-z-]+\)$/);
     }
   });
 
-  it("gives every state a distinct colour", () => {
+  it("gives every state a distinct color", () => {
     expect(new Set(STATES.map((state) => coverageTone(state).fill)).size).toBe(STATES.length);
   });
 });

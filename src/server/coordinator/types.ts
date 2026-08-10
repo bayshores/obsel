@@ -405,7 +405,7 @@ export interface SwarmSnapshot {
 }
 
 /**
- * What kind of work one traced step was. Drives nothing but the colour it is
+ * What kind of work one traced step was. Drives nothing but the color it is
  * shown in.
  */
 export type TracePhase =
@@ -477,7 +477,7 @@ export interface CompletionReport {
    * Fingerprint per input dataset URN, as the reporting task read it.
    *
    * Optional and purely additive: an agent that omits it gets exactly the old
-   * behaviour. When present, each observation is compared against what that
+   * behavior. When present, each observation is compared against what that
    * dataset's producer recorded writing. A mismatch means the table changed and
    * nothing reported the change — the case an honest report from the writer
    * would have caught, caught instead by the next honest read.

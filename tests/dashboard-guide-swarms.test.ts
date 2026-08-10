@@ -27,7 +27,7 @@ import {
   task,
 } from "./support/guide-fixtures";
 
-describe("the taxi swarm gets its own buttons, recognised by its own task names", () => {
+describe("the taxi swarm gets its own buttons, recognized by its own task names", () => {
   // Markers, never counts: recognition is the pipelines' task names, so a
   // judge's own agents joined over MCP change nothing, and a mixed board
   // resolves to the swarm whose buttons cannot touch the other's tables.

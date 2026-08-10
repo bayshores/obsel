@@ -70,7 +70,7 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": here,
-      // See tests/support/server-only.ts. Not a stand-in for behaviour: it is the
+      // See tests/support/server-only.ts. Not a stand-in for behavior: it is the
       // marker package's own no-op, which is what Next resolves it to on the server.
       "server-only": `${here}tests/support/server-only.ts`,
     },
