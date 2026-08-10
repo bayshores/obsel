@@ -25,6 +25,7 @@ import "server-only";
  */
 
 import { confirmWrite, gmsUrl } from "./client";
+import { DataHubError } from "./errors";
 
 /**
  * What kind of thing one ledger record is.
@@ -116,7 +117,10 @@ export async function writeLedgerRecord(record: LedgerRecord): Promise<string> {
   });
   if (!response.ok) {
     const detail = (await response.text()).slice(0, 400);
-    throw new Error(`writing ledger record ${urn} answered ${response.status}: ${detail}`);
+    throw new DataHubError(
+      `writing ledger record ${urn} answered ${response.status}: ${detail}`,
+      response.status,
+    );
   }
 
   await confirmWrite(async () => {
@@ -142,7 +146,10 @@ export async function readLedgerRecord(urn: string): Promise<LedgerRecord | null
   );
   if (response.status === 404) return null;
   if (!response.ok) {
-    throw new Error(`reading ledger record ${urn} answered ${response.status}`);
+    throw new DataHubError(
+      `reading ledger record ${urn} answered ${response.status}`,
+      response.status,
+    );
   }
 
   const entity = (await response.json()) as {
