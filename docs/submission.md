@@ -229,6 +229,16 @@ prior-art survey is in `docs/concept.md`.
 6. **card4_repair.** The repair redid 6 of 9 flagged tasks in 37.8 s. The other three cleared
    without re-running, because an upstream redo came back identical. No endpoint clears a flag, and
    a live test asserts that.
+7. **card6_verifier.** The evidence bundle checked in a browser tab, on GitHub Pages, by the same
+   verifier the repository runs. One character of one signature has been changed, the edit is on
+   screen as a field with a before and an after, and the page refuses the record it belongs to.
+
+`scripts/gallery.mjs` builds the cards. Each one carries two callouts: a magnified crop of the
+screenshot, a caption at reading size, and a line back to the rectangle the crop came from, which
+the browser measured while the shot was taken. `card1_hero` and `card6_verifier` were rebuilt that
+way on 2026-08-10 and are in `~/Desktop/devpost-gallery/annotated/`. The other four are still the
+2026-08-01 versions, which carry a headline and nothing else, because each needs its board state
+before it can be retaken.
 
 ---
 

@@ -6049,3 +6049,48 @@ three surfaces still describe the previous take and must change with it: the REA
 `docs/images/erasure-covered.png` and `erasure-compromised.png` (frames of the previous
 erasure take), and `docs/demo-script.md`'s description of the finished cut (request id and
 the same 4.0 s).
+
+## 2026-08-10 — Gallery cards rebuilt with callouts, and a card for the hosted verifier
+
+The 2026-08-01 gallery cards carried a headline, a dim sub-line and a whole screenshot. At
+gallery size that sentence was the only legible thing on the card: the report line or the
+flagged box it described was a few pixels tall, so the card asserted something a reader could
+not check on the card itself. `scripts/gallery.mjs` replaces the one-off image tool that made
+them.
+
+A card is now the same screenshot, dimmed, with two callouts on it. Each callout is a crop of
+that screenshot magnified, sitting under a caption in the card's own type size, with a line
+running back to the rectangle it was cut from; the rectangle itself is redrawn undimmed on the
+shot, so the region a caption is about is the lit part of the picture. The panel and the region
+are one image at two scales, which is why the crop is taken from the capture rather than
+redrawn.
+
+Rectangles are measured, never placed by eye. Every callout names a CSS selector, the page
+reports that element's box while the shot is being taken, and the card converts the box into
+card coordinates. A selector matching nothing stops the card rather than pointing at empty
+space, which is the failure the script is most likely to hit after a copy edit. Board cards
+also refuse to save unless `/api/swarm` says the board is in the state the card claims, the
+same rule and for the same reason as `scripts/capture.mjs`.
+
+Two cards were built on 2026-08-10, both at 1536x1024, into `~/Desktop/devpost-gallery/annotated/`
+so the set the Devpost page is currently showing stays where it is:
+
+- `card6_verifier.png`, new, for the hosted verifier. The page is served from `site/dist/` by
+  the script itself, the first tamper button is pressed, and the shot is taken once `#verdict`
+  reports the refusal. Its callouts are the edit table and the verdict line: one character of
+  one signature before and after, and the refusal the page computed from the signed bytes.
+- `card1_hero.png`, rebuilt, from the live board on the `obsel_taxi_video` flow, 40 tasks, no
+  marks held. Its callouts are one agent box and the board headline reading
+  `all 40 finished, nothing out of date`.
+
+Both were captured against the running stack: DataHub up, and the dashboard served by
+`next start` on port 3100 with `OBSEL_FLOW_ID=obsel_taxi_video`, because the operator's
+server on port 3000 was serving 500s for its JavaScript chunks after a later `pnpm build`
+replaced the ones its markup asks for. The board's own token warning is not in the shot: the
+script pastes `OBSEL_API_TOKEN` into `localStorage` the way an operator pastes it, and nothing
+serves it to the page.
+
+**Not done.** `flagged` has a card spec and refused to build, correctly, because the board
+holds no marks: `flagged: skipped, obsel holds 0 mark(s) on the board`. The repair, DataHub
+and erasure cards have no spec yet. All four need their board state, so they are a run rather
+than a re-render, and the 2026-08-01 versions of them are still what the Devpost page shows.
