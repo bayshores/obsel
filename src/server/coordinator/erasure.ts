@@ -885,6 +885,13 @@ export function summarize(coverage: Coverage[]): {
  * is the opposite of what a reader assumes a version column means, and neither
  * the counts nor the dashboard says otherwise.
  *
+ * It is worded around two cases on purpose. `currentVersion` falls back to
+ * "unknown" for a reachable asset with no attestation at all, and no attestation
+ * names that, so a sentence phrased only around the attested case would be false
+ * of those rows. They are counted unattested either way, so the wording could
+ * not have overstated a count; it would simply have been untrue, which is enough
+ * for fixed text a reader quotes onward beside the numbers.
+ *
  * Fixed text, never computed from the run. They describe the shape of the
  * method, so a report that varied them would be describing something other than
  * the rule it implements.
@@ -904,8 +911,9 @@ export const ASSURANCE_LIMITS: readonly string[] = [
   "an attestation is a signed claim by a named attestor, not a measurement obsel took. obsel " +
     "holds no warehouse credentials and reads no warehouse data, so it cannot itself establish " +
     "that a subject is absent from any asset.",
-  "the version reported for an asset is the version its latest attestation names, which is that " +
-    "attestor's claim and not something obsel observed. obsel learns of a write only when " +
-    "somebody attests to it, so a warehouse write nobody attested to leaves the asset reported " +
-    "as attested absent over the earlier version until a newer attestation arrives.",
+  "where an asset is reported at a version, that version is the one its latest attestation " +
+    "names, which is that attestor's claim and not something obsel observed; an asset nobody " +
+    "has attested to is reported at an unknown version. obsel learns of a write only when " +
+    "somebody attests to it, so an asset written since its last attestation stays reported as " +
+    "attested absent over the earlier version until a newer attestation arrives.",
 ];

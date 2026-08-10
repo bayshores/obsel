@@ -224,12 +224,17 @@ describe("one erasure request, from opening to covered and back", () => {
     }
     /*
      * Including the sentence about where the version beside each asset came
-     * from, added 2026-08-10. The route derives that version from the ledger, so
-     * an asset written since its last attestation is served at the older,
-     * attested version. A consumer reading the counts learns that only if this
-     * sentence rides in the same object.
+     * from, added 2026-08-10 and reworded the same day, neither version run
+     * here. The route derives that version from the ledger, so an asset written
+     * since its last attestation is served at the older, attested version, and
+     * an asset with no attestation at all is served at "unknown". A consumer
+     * reading the counts learns either only if the sentence rides in the same
+     * object, and this run carries both cases: the request opened above ends
+     * with attested rows and unattested ones together.
      */
-    expect(limits.join(" ")).toContain("latest attestation names");
+    const wire = limits.join(" ");
+    expect(wire).toContain("latest attestation names");
+    expect(wire).toContain("unknown version");
   }, 300_000);
 
   it("refuses a second open under the same id, and leaves the first record as it was", async () => {

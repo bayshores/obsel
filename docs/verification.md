@@ -5731,14 +5731,23 @@ behind obsel's fails the lower-bound check by however far the two disagree, and 
 allowed for it because a tolerance is a number nobody can justify; both timestamps are printed so a
 reader can tell skew from a moved date.
 
-**The third sentence, added 2026-08-10.** `ASSURANCE_LIMITS` now also states that the version
-reported for an asset is the version its latest attestation names, an attestor's claim rather than
-something obsel observed, so a warehouse write nobody attested to leaves the asset reported at the
-earlier version. obsel subscribes to nothing and `POST /api/datasets/observe` feeds the staleness
-half only, so nothing else in the payload would have told a reader that. `tests/erasure-limits.test.ts`
-pins the sentence and was run here, failing first for its absence. The matching assertion added to
-`tests/live/erasure.live.test.ts`, that the sentence reaches an API consumer on the real route, has
-not been run.
+**The third sentence, added 2026-08-10.** `ASSURANCE_LIMITS` now also states that where an asset is
+reported at a version, that version is the one its latest attestation names, an attestor's claim
+rather than something obsel observed, so an asset written since its last attestation stays reported
+at the earlier version. obsel subscribes to nothing and `POST /api/datasets/observe` feeds the
+staleness half only, so nothing else in the payload would have told a reader that.
+`tests/erasure-limits.test.ts` pins the sentence and was run here, failing first for its absence. The
+matching assertion added to `tests/live/erasure.live.test.ts`, that the sentence reaches an API
+consumer on the real route, has not been run.
+
+**Reworded the same day, for the case with no attestation.** The sentence first read "the version
+reported for an asset is the version its latest attestation names", which is false of a reachable
+asset nobody has attested to: `currentVersion` in `erasure-engine.ts` falls back to `"unknown"` for
+those, and no attestation names it. Those assets are counted unattested either way, so the wording
+could not have inflated a count, but this is fixed text quoted onward beside the numbers and it has
+to hold for every row. The sentence now states both cases, and `tests/erasure-limits.test.ts` pins
+the unknown-version half as well; it was made to fail on the old text before the wording changed.
+The live assertion was extended to match and is still unrun as of 2026-08-10.
 
 **`examples/erasure-evidence/bundle.json` is a real capture**, not a hand-written shape. One request
 opened through the real HTTP API against the live quickstart DataHub, two challenges issued, two

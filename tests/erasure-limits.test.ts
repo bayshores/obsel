@@ -54,6 +54,15 @@ describe("the report's stated limits", () => {
      * be said.
      */
     expect(all).toContain("latest attestation names");
-    expect(all).toContain("nobody attested to");
+    /*
+     * Both cases, because the sentence is fixed text quoted onward beside the
+     * counts and has to hold for every row it is quoted beside. An asset nobody
+     * has attested to has no attestation to name a version, and
+     * `erasure-engine.ts` reports it at "unknown"; a caveat phrased only around
+     * the attested case would be strictly false of those rows. They are counted
+     * unattested either way, so the error could not have inflated the numbers,
+     * but it would still be a false sentence travelling with them.
+     */
+    expect(all).toContain("unknown version");
   });
 });

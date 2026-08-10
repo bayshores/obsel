@@ -341,11 +341,13 @@ gap rather than silently treated as absence of risk.
 
 Since 2026-07-29 this limit travels in the report itself, as `assurance.limits` in the JSON
 `GET /api/erasure/<id>` returns, beside a second sentence saying an attestation is a signed claim by
-a named attestor rather than a measurement obsel took. A third was added 2026-08-10: the version
-reported for an asset is the version its latest attestation names, so a warehouse write nobody
-attested to leaves the asset reported at the earlier version. That is the limit stated under "What
-this does not fix" in the self-rebuild section above, and it was the only one of the three the
-payload did not carry. The three sentences are fixed text in `ASSURANCE_LIMITS`
+a named attestor rather than a measurement obsel took. A third was added 2026-08-10: where an asset
+is reported at a version, that version is the one its latest attestation names, so an asset written
+since its last attestation stays reported at the earlier version, and an asset with no attestation
+at all is reported at an unknown version. That is the limit stated under "What this does not fix" in
+the self-rebuild section above, and it was the only one of the three the payload did not carry. Its
+first phrasing covered only the attested case and was reworded the same day, because a fixed
+sentence that travels beside the counts has to hold for every row it is quoted beside. The three sentences are fixed text in `ASSURANCE_LIMITS`
 ([`erasure.ts`](../src/server/coordinator/erasure.ts)), and the reason they are in the payload rather
 than only here is that the counts beside them are what gets quoted onward:
 "22 of 23 covered" reads as a statement about an estate unless something in the same object says
