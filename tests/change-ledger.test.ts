@@ -16,7 +16,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { changeBody } from "@/src/server/coordinator/change-ledger";
+import { changeBody, closableIncidents } from "@/src/server/coordinator/change-ledger";
 import { changeUrn } from "@/src/server/datahub/documents";
 import type { DatasetChange } from "@/src/server/coordinator/staleness";
 import type { AffectedTask, StaleMark, TaskRecord } from "@/src/server/coordinator/types";
@@ -218,6 +218,68 @@ describe("what a record carries about the change", () => {
   it("records the measured duration rather than a derived one", () => {
     const body = input({ affected: [affected("daily_revenue")], elapsedMs: 5399 });
     expect(body?.elapsedMs).toBe(5399);
+  });
+
+  it("carries the incident it raised, and omits the field when it raised none", () => {
+    // The field is what the repair path reads to find out which tasks closing
+    // the incident depends on. A record written before incidents existed has no
+    // such field, so absent has to keep meaning "no incident".
+    const raised = input({
+      affected: [affected("daily_revenue")],
+      incident: {
+        urn: "urn:li:incident:11111111-2222-3333-4444-555555555555",
+        dataset: ds("clean_orders"),
+        taskUrns: [task("daily_revenue").urn],
+      },
+    });
+    expect(raised?.incident).toEqual({
+      urn: "urn:li:incident:11111111-2222-3333-4444-555555555555",
+      dataset: ds("clean_orders"),
+      taskUrns: [task("daily_revenue").urn],
+    });
+
+    expect(input({ affected: [affected("daily_revenue")] })).not.toHaveProperty("incident");
+  });
+});
+
+describe("which incidents a repair has closed out", () => {
+  const INCIDENT = {
+    urn: "urn:li:incident:11111111-2222-3333-4444-555555555555",
+    dataset: ds("clean_orders"),
+    taskUrns: [task("build_revenue").urn, task("write_docs").urn],
+  };
+
+  function recorded(): ReturnType<typeof changeBody> {
+    return input({ affected: [affected("build_revenue")], incident: INCIDENT });
+  }
+
+  it("closes one whose named tasks no longer cite the table it was raised on", () => {
+    expect(closableIncidents([recorded()], () => false)).toEqual([INCIDENT]);
+  });
+
+  it("leaves one open when a single named task is still flagged for that table", () => {
+    // The partial repair. One of two tasks redone is not the incident closing;
+    // resolving here would have DataHub saying the opposite of obsel's own marks.
+    const stillFlagged = (taskUrn: string): boolean => taskUrn === task("write_docs").urn;
+    expect(closableIncidents([recorded()], stillFlagged)).toEqual([]);
+  });
+
+  it("ignores a mark citing some other table, which never held it open", () => {
+    // The incident is about one output moving, not about the board being clean.
+    const cites = (_taskUrn: string, dataset: string): boolean => dataset === ds("daily_revenue");
+    expect(closableIncidents([recorded()], cites)).toEqual([INCIDENT]);
+  });
+
+  it("skips records that carry no incident, and bodies that would not parse", () => {
+    const noIncident = input({ affected: [affected("build_revenue")] });
+    expect(closableIncidents([noIncident, null], () => false)).toEqual([]);
+  });
+
+  it("returns one entry per incident however many records name it", () => {
+    // A retried completion can write the same incident into two records. It is
+    // resolved once; a second call on a resolved incident would be a write with
+    // nothing behind it.
+    expect(closableIncidents([recorded(), recorded()], () => false)).toEqual([INCIDENT]);
   });
 });
 

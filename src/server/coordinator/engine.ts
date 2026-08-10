@@ -19,6 +19,7 @@ import {
 } from "@/src/server/datahub/client";
 import { FLOW_URN, isTaskUrn } from "@/src/server/datahub/urns";
 import { clientProperty, type ClientDeclaration } from "@/src/server/http/client-body";
+import { resolveResetIncidents } from "./completion-writes";
 import { rerunPlan, type RerunPlan } from "./rerun";
 import { blocked, readyToStart, taskLabel } from "./staleness";
 import { clear as clearTrace, emit } from "./trace";
@@ -210,7 +211,11 @@ function datahubUrl(): string | null {
  * Baseline fingerprints go too. A reset means the next run is genuinely a first
  * run, which reports no change and marks nothing.
  */
-export async function resetSwarm(): Promise<{ reset: string[]; tagsCleared: string[] }> {
+export async function resetSwarm(): Promise<{
+  reset: string[];
+  tagsCleared: string[];
+  incidentsResolved: string[];
+}> {
   const snapshot = await readSnapshot();
 
   /*
@@ -304,9 +309,16 @@ export async function resetSwarm(): Promise<{ reset: string[]; tagsCleared: stri
     `${snapshot.tasks.length} tasks, ${tagged.length} ${tagged.length === 1 ? "tag" : "tags"} removed`,
   );
 
+  // After the wipe and after the trace clear, so its own trace lines survive.
+  // The marks every open incident described are gone as of the writes above,
+  // which is the one condition under which an incident may come down without
+  // redone work — see `resolveResetIncidents` for why this is not a dismissal.
+  const incidentsResolved = await resolveResetIncidents();
+
   return {
     reset: snapshot.tasks.map((task) => task.name).sort(),
     tagsCleared: tagged.map((task) => task.name).sort(),
+    incidentsResolved,
   };
 }
 

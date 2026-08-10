@@ -14,10 +14,27 @@ import { applyStaleTag, removeStaleTag } from "@/src/server/datahub/mcp";
 import { PROP, updateTaskProperties } from "@/src/server/datahub/client";
 import { clientProperty } from "@/src/server/http/client-body";
 import type { PropertyPatch } from "@/src/server/datahub/properties";
-import { nextChangeSequence, writeChangeRecord } from "@/src/server/datahub/documents";
+import {
+  changeHeadFor,
+  nextChangeSequence,
+  readChangesFor,
+  writeChangeRecord,
+} from "@/src/server/datahub/documents";
+import {
+  activeIncidentsOn,
+  raiseStaleWorkIncident,
+  resolveIncident,
+} from "@/src/server/datahub/incidents";
 import { FLOW_ID } from "@/src/server/datahub/urns";
-import { changeBody } from "./change-ledger";
-import { compareFingerprints, hopLabel as hops, mergeMark, taskLabel as label } from "./staleness";
+import { changeBody, closableIncidents } from "./change-ledger";
+import type { ChangeBody, RaisedIncident } from "./change-ledger";
+import {
+  compareFingerprints,
+  hopLabel as hops,
+  mergeMark,
+  tableLabel,
+  taskLabel as label,
+} from "./staleness";
 import type { DatasetChange } from "./staleness";
 import { emit } from "./trace";
 import type { AffectedTask, CompletionReport, RestoredTask, TaskRecord } from "./types";
@@ -69,6 +86,7 @@ export async function recordChange(input: {
   restored: RestoredTask[];
   elapsedMs: number;
   client?: { name: string; version?: string };
+  incident?: RaisedIncident;
 }): Promise<void> {
   const body = changeBody({ ...input, at: new Date().toISOString() });
   if (body === null) return;
@@ -88,6 +106,215 @@ export async function recordChange(input: {
   } catch (error) {
     const message = error instanceof Error ? error.message : "unknown error";
     emit("write", "could not record this change in the ledger", message);
+  }
+}
+
+/**
+ * Raise ONE DataHub incident for this cascade, on the table whose output moved.
+ *
+ * A stale mark is obsel's record and lives on the DataJob. An incident is
+ * DataHub's, lives on the dataset, and is what somebody looking at that table in
+ * DataHub sees — its `health` reads `FAIL` while the incident is open. One per
+ * cascade, not one per flagged task: the change is a single event, and a table
+ * carrying six incidents for one rename would be six copies of one fact.
+ *
+ * The target is the nearest mark's `causedBy`, which is the output that actually
+ * changed. `affected` is ordered nearest first, so that is `affected[0]`.
+ *
+ * Nothing new is written in words: the title counts the tasks and names the
+ * table, and the body is each mark's own recorded reason and hop count. obsel
+ * says the same thing in both places or it would be two answers.
+ *
+ * **It cannot fail a completion.** A raise that throws is a traced step and
+ * nothing else. The marks are the answer and they are already in DataHub;
+ * losing the second copy of them is worth strictly less than failing a
+ * completion that had already succeeded and having the agent retry it. That is
+ * the same posture as `recordChange` above.
+ *
+ * A completion retried after a partial failure can raise a second incident for
+ * the same cascade — `raiseIncident` takes no idempotency key and obsel invents
+ * none. Both name the same tasks, so the repair that closes one closes the
+ * other; the cost is two rows on the table rather than one.
+ */
+export async function raiseCascadeIncident(
+  affected: AffectedTask[],
+): Promise<RaisedIncident | null> {
+  if (affected.length === 0) return null;
+
+  const dataset = affected[0].mark.causedBy;
+  const table = tableLabel(dataset);
+  const listed = affected.slice(0, 20);
+  const body = listed
+    .map((entry) => `${label(entry.task)} (${hops(entry.mark.hops)}): ${entry.mark.reason}`)
+    .join("\n");
+  const remainder =
+    affected.length > listed.length ? `\n… and ${affected.length - listed.length} more` : "";
+
+  try {
+    const urn = await raiseStaleWorkIncident({
+      dataset,
+      title: `${affected.length} finished ${affected.length === 1 ? "task is" : "tasks are"} out of date after ${table} changed`,
+      description:
+        `${body}${remainder}\n\n` +
+        "Raised by obsel. It is resolved once none of the tasks above still " +
+        "carries a mark citing this table, which happens when each of them has " +
+        "been redone or an upstream redo has shown its work was built on ground " +
+        "that never moved. No obsel route and no obsel tool resolves it by hand.",
+      startedAt: affected[0].mark.since,
+    });
+
+    if (urn === null) {
+      // The skip trap 4 in `incidents.ts` forces. Traced rather than silent:
+      // a table obsel flagged work over, that DataHub has no entity for, is
+      // worth someone knowing about.
+      emit("write", `raised no incident on ${table}`, "DataHub has no dataset under that URN");
+      return null;
+    }
+
+    emit(
+      "write",
+      `raised a DataHub incident on ${table}`,
+      `names ${affected.length} flagged task(s)`,
+    );
+    return { urn, dataset, taskUrns: affected.map((entry) => entry.task.urn) };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "unknown error";
+    emit("write", `could not raise a DataHub incident on ${table}`, message);
+    return null;
+  }
+}
+
+/**
+ * How far back the repair path looks for an incident it may now close.
+ *
+ * The ledger is append-only and per board, and a repair follows its cascade
+ * within a handful of decisions in every shape obsel has been run in. An
+ * incident older than this window stays open until a later repair brings it
+ * inside — stated because it is a real limit, and it falls the safe way: an
+ * incident left open over repaired work is visible and correctable, while one
+ * resolved over work that is still flagged would have DataHub contradicting
+ * obsel's own marks.
+ */
+const INCIDENT_LOOKBACK = 50;
+
+/**
+ * Resolve every incident this decision's repairs have closed out.
+ *
+ * Called from the clear path and from nowhere else, because this is the only
+ * moment a flag comes off. `stillCites` answers, for the board as it stands
+ * after this decision, whether one task still carries a mark citing one dataset;
+ * `closableIncidents` is the rule, and it is pure.
+ *
+ * **Nothing is searched for.** The candidates come from the dataset's own
+ * `incidentsSummary` aspect — one read per repaired table, no index — and the
+ * tasks each incident named come from the change record written when it was
+ * raised. The ledger walk happens only when a repaired table genuinely has an
+ * open incident on it, so an ordinary repair costs one read.
+ *
+ * Like the raise, it cannot fail a completion.
+ */
+export async function resolveClosedIncidents(
+  datasets: string[],
+  stillCites: (taskUrn: string, dataset: string) => boolean,
+): Promise<void> {
+  if (datasets.length === 0) return;
+
+  try {
+    const open = new Set<string>();
+    for (const dataset of datasets) {
+      for (const urn of await activeIncidentsOn(dataset)) open.add(urn);
+    }
+    if (open.size === 0) return;
+
+    const head = await changeHeadFor(FLOW_ID);
+    const from = Math.max(1, head - INCIDENT_LOOKBACK + 1);
+    const records = await readChangesFor(FLOW_ID, { from, limit: INCIDENT_LOOKBACK });
+    const bodies = records.map((record) => {
+      try {
+        return JSON.parse(record.body) as ChangeBody;
+      } catch {
+        // A record whose body will not parse is a record this path cannot act
+        // on. `readChanges` renders the same case as a null body rather than
+        // failing the read, and the incident simply stays open.
+        return null;
+      }
+    });
+
+    const closable = closableIncidents(bodies, stillCites).filter((incident) =>
+      open.has(incident.urn),
+    );
+
+    for (const incident of closable) {
+      await resolveIncident({
+        urn: incident.urn,
+        dataset: incident.dataset,
+        message: "obsel: no task this incident named still carries a mark citing this table",
+      });
+      emit(
+        "write",
+        `resolved the DataHub incident on ${tableLabel(incident.dataset)}`,
+        `${incident.taskUrns.length} named task(s), none still flagged for this table`,
+      );
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "unknown error";
+    emit("write", "could not resolve a DataHub incident", message);
+  }
+}
+
+/**
+ * Resolve every ledger-recorded incident after the board itself was wiped.
+ *
+ * Called from `resetSwarm` and from nowhere else, after the reset has stripped
+ * every mark from the flow. At that moment any incident a cascade raised names
+ * marks that no longer exist, so leaving it open would keep the dataset's
+ * `health` at FAIL over findings the board no longer makes. The rule is
+ * `closableIncidents` with a `stillCites` that answers false for everything,
+ * which is literally true of a board that was just wiped.
+ *
+ * This is not a dismissal path, for the same reason reset itself is not: no
+ * incident is passed in and none can be — the candidates come from the change
+ * ledger's own records, exactly as the repair path finds them — and the marks
+ * the incident described are already gone, taken by the reset that called this.
+ * A caller who wants an incident closed without redoing work still has to wipe
+ * the whole board to get it, on the flow they hold the token for.
+ *
+ * Like the raise and the repair-path resolve, it cannot fail its caller.
+ */
+export async function resolveResetIncidents(): Promise<string[]> {
+  try {
+    const head = await changeHeadFor(FLOW_ID);
+    const from = Math.max(1, head - INCIDENT_LOOKBACK + 1);
+    const records = await readChangesFor(FLOW_ID, { from, limit: INCIDENT_LOOKBACK });
+    const bodies = records.map((record) => {
+      try {
+        return JSON.parse(record.body) as ChangeBody;
+      } catch {
+        return null;
+      }
+    });
+
+    const resolved: string[] = [];
+    for (const incident of closableIncidents(bodies, () => false)) {
+      const active = await activeIncidentsOn(incident.dataset);
+      if (!active.includes(incident.urn)) continue;
+      await resolveIncident({
+        urn: incident.urn,
+        dataset: incident.dataset,
+        message: "obsel: the board was reset, and every mark this incident described went with it",
+      });
+      emit(
+        "write",
+        `resolved the DataHub incident on ${tableLabel(incident.dataset)}`,
+        "board reset: the marks it named no longer exist",
+      );
+      resolved.push(tableLabel(incident.dataset));
+    }
+    return resolved.sort();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "unknown error";
+    emit("write", "could not resolve a DataHub incident after the reset", message);
+    return [];
   }
 }
 

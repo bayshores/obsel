@@ -10,7 +10,14 @@ import "server-only";
  */
 
 import { PROP, readSnapshot, updateTaskProperties } from "@/src/server/datahub/client";
-import { clearRestored, markAllStale, recordChange, recordCompletion } from "./completion-writes";
+import {
+  clearRestored,
+  markAllStale,
+  raiseCascadeIncident,
+  recordChange,
+  recordCompletion,
+  resolveClosedIncidents,
+} from "./completion-writes";
 import {
   affectedBy,
   classifyObservation,
@@ -34,7 +41,9 @@ import type {
   InputObservation,
   ObservationResult,
   OutputFingerprint,
+  RestoredTask,
   StaleMark,
+  SwarmSnapshot,
   TaskRecord,
 } from "./types";
 
@@ -321,6 +330,18 @@ async function decideCompletion(
    */
   await markAllStale(affected);
 
+  /*
+   * The same answer on DataHub's own surface, after both halves of every mark
+   * have landed and been confirmed and not before. An incident raised over marks
+   * that then failed to write would put a finding on a table with nothing on the
+   * board to explain it.
+   *
+   * One per cascade, on the table whose output moved, naming the tasks whose
+   * repair closes it. `completion-writes.ts` owns the wording and the failure
+   * posture; `src/server/datahub/incidents.ts` owns the four DataHub traps.
+   */
+  const incident = await raiseCascadeIncident(affected);
+
   await recordCompletion(finishing, report);
 
   // Remember what was observed, on the producer whose record it contradicts.
@@ -373,6 +394,23 @@ async function decideCompletion(
   const restored = restoredBy(snapshot, finishing, unchangedOutputs);
   await Promise.all(restored.map(clearRestored));
 
+  /*
+   * And the DataHub incident comes down here, in the clear path and nowhere
+   * else, because this is the only moment a flag comes off. An incident closes
+   * when not one of the tasks it named still carries a mark citing the table it
+   * was raised on — so a partial repair leaves it open, which is the same
+   * direction `restoredBy` falls in.
+   *
+   * The tables to look at are the ones this decision took a mark off for: the
+   * finishing task's own mark, cleared by `recordCompletion` above, and the
+   * marks `clearRestored` just stripped. A table nothing was repaired on cannot
+   * have had an incident closed by this decision.
+   */
+  await resolveClosedIncidents(
+    repairedDatasets(finishing, restored),
+    citesAfter(snapshot, { affected, superseded, restored, finishing }),
+  );
+
   const elapsedMs = Date.now() - startedAt;
 
   const outcomes: string[] = [];
@@ -408,6 +446,9 @@ async function decideCompletion(
     restored,
     elapsedMs,
     client: report.client,
+    // Carried into the record so the repair that closes this incident can find
+    // out which tasks closing it depends on without searching for anything.
+    ...(incident ? { incident } : {}),
   });
 
   return {
@@ -420,6 +461,70 @@ async function decideCompletion(
     affected: marked,
     restored,
     elapsedMs,
+  };
+}
+
+/** Every table one mark blames, primary included. Absent `causes` means one cause. */
+function citedBy(mark: StaleMark): string[] {
+  return mark.causes ? mark.causes.map((cause) => cause.causedBy) : [mark.causedBy];
+}
+
+/**
+ * The tables this decision took a mark off for.
+ *
+ * Two sources, and they are the only two ways a flag comes off: the finishing
+ * task's own redo, which `recordCompletion` cleared, and the tasks an upstream
+ * redo proved sound, which `clearRestored` stripped. The marks are read from the
+ * snapshot because they no longer exist anywhere else by the time this is asked.
+ */
+function repairedDatasets(finishing: TaskRecord, restored: RestoredTask[]): string[] {
+  const datasets = new Set<string>();
+  if (finishing.stale) for (const dataset of citedBy(finishing.stale)) datasets.add(dataset);
+  for (const entry of restored) {
+    if (entry.task.stale) for (const dataset of citedBy(entry.task.stale)) datasets.add(dataset);
+  }
+  return [...datasets].sort();
+}
+
+/**
+ * Whether a task still carries a mark citing a table, once this decision's
+ * writes have all landed.
+ *
+ * Computed rather than re-read, and that is the point: a second `readSnapshot`
+ * here would be another round trip, and worse, it would be a different read from
+ * the one every other part of this decision was derived from. The three
+ * modifications below are applied in the order the writes above actually
+ * happened, so this describes the board a reader will see.
+ */
+function citesAfter(
+  snapshot: SwarmSnapshot,
+  decision: {
+    affected: AffectedTask[];
+    superseded: AffectedTask | null;
+    restored: RestoredTask[];
+    finishing: TaskRecord;
+  },
+): (taskUrn: string, dataset: string) => boolean {
+  const marks = new Map<string, StaleMark | null>();
+  for (const task of snapshot.tasks) marks.set(task.urn, task.stale);
+
+  // The cascade's marks, merged onto whatever each task already carried, exactly
+  // as `writeStaleProperties` merged them.
+  for (const entry of decision.affected) {
+    marks.set(entry.task.urn, mergeMark(entry.task.stale, entry.mark));
+  }
+  // The reporter: `recordCompletion` cleared its mark, and the superseded-input
+  // mark, when it earned one, was written after that.
+  marks.set(decision.finishing.urn, decision.superseded ? decision.superseded.mark : null);
+  // The clears come last, because `clearRestored` runs last and strips the lot.
+  for (const entry of decision.restored) marks.set(entry.task.urn, null);
+
+  return (taskUrn, dataset) => {
+    const mark = marks.get(taskUrn);
+    // A task the snapshot did not contain is not on this board — removed, or
+    // never registered. It carries no mark here, and saying otherwise would hold
+    // an incident open on the strength of a task nobody can look at.
+    return mark ? citedBy(mark).includes(dataset) : false;
   };
 }
 
@@ -568,6 +673,13 @@ async function decideObservation(
 
   await markAllStale(affected);
 
+  // The same DataHub incident the completion path raises, for the same reason
+  // and on the same terms. An outside feed noticing a silent change flags work
+  // exactly as an agent's own report does, so the table it changed carries the
+  // finding either way. Nothing is resolved on this path: an observation reports
+  // what a table holds and never redoes work, so no flag comes off here.
+  const incident = await raiseCascadeIncident(affected);
+
   // Recorded on every writer whose claim these bytes contradict, so the next
   // honest reader of this table compares clean instead of raising it again.
   await Promise.all(
@@ -606,6 +718,7 @@ async function decideObservation(
     affected,
     restored: [],
     elapsedMs,
+    ...(incident ? { incident } : {}),
   });
 
   return { dataset, verdict: "changed", affected, elapsedMs };
