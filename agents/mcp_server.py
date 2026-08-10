@@ -232,7 +232,11 @@ def build_server(obsel_url: str = OBSEL_URL) -> Any:
                 re-registering with a different set is refused, because the
                 recorded fingerprints only mean anything under the list they
                 were taken with. Every reader of your table hashes it using
-                this list, which is why it can only name tables you write.
+                this list, which is why it can only name tables you write, and
+                why a table has one list however many tasks write it: if
+                another task already recorded a different set for a table you
+                write, this registration is refused naming that task and both
+                lists.
         """
         if not name:
             raise mcp_core.ToolInputError("a task needs a name")

@@ -232,7 +232,10 @@ content hash, so a re-run differing only there reports no change and marks nothi
 Their names still count, so renaming or dropping one is still a schema change. Declare it once:
 re-registering with a different set is refused, because obsel's recorded fingerprints only mean
 anything under the list they were taken with. Every reader of your table hashes it with your list,
-which is why you can only declare it for tables you write.
+which is why you can only declare it for tables you write, and why a table has one list no matter
+how many tasks write it: if another task already declared a different set for a table you write,
+your registration is refused naming that task and both lists. Register under the list already
+recorded, or reset.
 
 `rerun_plan` is ordering, not permission. It answers "which flagged task should be redone
 first", because a task rebuilt from an input that is itself about to be rebuilt is wasted

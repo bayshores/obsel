@@ -175,6 +175,7 @@ and type-checks, not a plan.
 | The restoration rule: which flags an identical redo provably clears              | `restoredBy` in `src/server/coordinator/staleness.ts`                          |
 | Every change that broke a task, not only the nearest                             | `causes` on `StaleMark`, `mergeMark` in `staleness.ts`, `obsel.stale.causes`   |
 | Columns a task registers as meaningless, excluded from its content hash          | `exclude` in `agents/fingerprint.py`, `obsel.volatile`, `volatile_by_dataset`  |
+| One list per table across the whole board, refused at registration               | `volatileConflict` in `src/server/coordinator/volatile.ts`                     |
 | A door for feeds that never report: an observation of a table's contents         | `POST /api/datasets/observe`, `coordinateObservation`, `agents/observe.py`     |
 | Coverage carried through a compaction that rewrote an asset from its own version | the self-rebuild branch in `residueFromOneRebuild`, `docs/erasure-coverage.md` |
 | The repair loop: flagged work redone in order, restored work skipped             | `cmd_repair` in `agents/run_demo.py`, the guide's leading flagged action       |

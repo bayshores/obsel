@@ -25,7 +25,16 @@ import { blocked, readyToStart, taskLabel } from "./staleness";
 import { clear as clearTrace, emit } from "./trace";
 import type { SwarmSnapshot, TaskRecord } from "./types";
 
-/** Declare a task, what it will touch, its human name, and its one-sentence job. */
+/**
+ * Declare a task, what it will touch, its human name, and its one-sentence job.
+ *
+ * A registration that declares volatile columns is checked against the lists the
+ * rest of the swarm already recorded for those tables, so the board never
+ * carries two lists for one table. The board is read here, where reading DataHub
+ * belongs, and handed to `writeTask`, which decides; the read is skipped
+ * entirely when nothing is declared, since a task declaring nothing cannot
+ * disagree with anyone.
+ */
 export async function registerTask(
   name: string,
   reads: string[],
@@ -35,7 +44,9 @@ export async function registerTask(
   volatile?: Record<string, string[]>,
   client?: ClientDeclaration,
 ): Promise<TaskRecord> {
-  const task = await writeTask(name, reads, writes, description, title, volatile, client);
+  const board =
+    volatile && Object.keys(volatile).length > 0 ? (await readSnapshot()).tasks : undefined;
+  const task = await writeTask(name, reads, writes, description, title, volatile, client, board);
   emit("write", `registered ${label(task)}`, `${task.reads.length} in, ${task.writes.length} out`);
   return task;
 }

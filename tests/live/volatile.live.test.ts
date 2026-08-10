@@ -21,7 +21,8 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { requireDataHub, requireStaleTag, requireUvx } from "./reachable";
 
-const { coordinateCompletion, registerTask } = await import("@/src/server/coordinator/engine");
+const { coordinateCompletion, readSwarm, registerTask } =
+  await import("@/src/server/coordinator/engine");
 const { readTask } = await import("@/src/server/datahub/client");
 const { closeMcpClient } = await import("@/src/server/datahub/mcp");
 const { datasetUrn, taskUrn } = await import("@/src/server/datahub/urns");
@@ -133,6 +134,46 @@ describe("a column registered as volatile", () => {
         [TABLE]: ["loaded_at", "amount"],
       }),
     ).rejects.toThrow(/different set of volatile columns/);
+  });
+
+  it("refuses a SECOND task that declares a different list for the same table", async () => {
+    /*
+     * A reader looks the list up by dataset, not by producer, so one table has
+     * one list across the whole board. Two writers disagreeing leaves that
+     * lookup with two answers, and `volatile_by_dataset` raises rather than pick
+     * one, which takes down every agent's board read until the swarm is reset.
+     *
+     * Refused at the door, and the entity must not exist afterwards: a refusal
+     * that still wrote the task would put the board in exactly the state the
+     * refusal is for.
+     */
+    const second = `volatile_rival_${STAMP}`;
+    await expect(
+      registerTask(second, ["raw_source"], [TABLE], undefined, undefined, {
+        [TABLE]: ["batch_id"],
+      }),
+    ).rejects.toThrow(/two tasks declare different volatile columns/);
+    expect(await readTask(taskUrn(second))).toBeNull();
+
+    // And the board an agent reads still answers with one list for the table,
+    // through the real Python that would have raised on a board carrying both.
+    const { snapshot } = await readSwarm();
+    const lists = JSON.parse(
+      execFileSync(
+        PYTHON,
+        [
+          "-c",
+          [
+            "import json, sys",
+            "from agents.mcp_core import volatile_by_dataset",
+            "print(json.dumps(volatile_by_dataset(json.loads(sys.argv[1]))))",
+          ].join("\n"),
+          JSON.stringify(snapshot.tasks),
+        ],
+        { cwd: REPO, encoding: "utf8" },
+      ),
+    );
+    expect(lists[datasetUrn(TABLE)]).toEqual(["loaded_at"]);
   });
 
   it("marks nothing when a re-run differs only in that column", async () => {

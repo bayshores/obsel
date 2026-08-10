@@ -17,6 +17,7 @@ import "server-only";
  */
 
 import type { SwarmSnapshot, TaskRecord } from "@/src/server/coordinator/types";
+import { volatileConflict, type VolatileDeclaration } from "@/src/server/coordinator/volatile";
 import { clientProperty, type ClientDeclaration } from "@/src/server/http/client-body";
 import { DataHubError } from "./errors";
 import { confirmWrite, gmsFetch, gmsJson, gmsUrl } from "./gms";
@@ -202,6 +203,10 @@ async function writeDataJob(payload: DataJobWritePayload): Promise<void> {
  * `registered` and carries no run state. Re-running a task that already exists
  * goes through `startTask`/`coordinateCompletion`, which preserve the recorded
  * fingerprints — those are the baseline a re-run is compared against.
+ *
+ * `board` is the swarm's other tasks, handed in by the caller that already read
+ * them rather than read again here, so this function keeps one entity read.
+ * Needed only when `volatile` declares something; see the conflict check below.
  */
 export async function registerTask(
   name: string,
@@ -211,6 +216,7 @@ export async function registerTask(
   title?: string,
   volatile?: Record<string, string[]>,
   client?: ClientDeclaration,
+  board?: readonly VolatileDeclaration[],
 ): Promise<TaskRecord> {
   const urn = taskUrn(name);
 
@@ -230,13 +236,12 @@ export async function registerTask(
    */
   const existingEntity = await readTaskEntity(urn);
   const existing = existingEntity ? toTaskRecord(existingEntity) : null;
-  const declared = JSON.stringify(
-    Object.fromEntries(
-      Object.entries(volatile ?? {})
-        .map(([table, columns]) => [datasetUrn(table), [...columns].sort()] as const)
-        .sort(([a], [b]) => a.localeCompare(b)),
-    ),
+  const declaredByDataset = Object.fromEntries(
+    Object.entries(volatile ?? {})
+      .map(([table, columns]) => [datasetUrn(table), [...columns].sort()] as const)
+      .sort(([a], [b]) => a.localeCompare(b)),
   );
+  const declared = JSON.stringify(declaredByDataset);
   const recorded = JSON.stringify(
     Object.fromEntries(
       Object.entries(existing?.volatile ?? {}).sort(([a], [b]) => a.localeCompare(b)),
@@ -250,6 +255,20 @@ export async function registerTask(
         "new name, or reset, which clears the baselines they were taken under.",
     );
   }
+
+  /*
+   * And a table has one list across the whole board, not one per writer.
+   *
+   * The guard above compares this task against its own record, which two
+   * DIFFERENT tasks writing one table never trip. A reader looks the list up by
+   * dataset, so two writers declaring different lists for one table leave that
+   * lookup with two answers: `volatile_by_dataset` in `agents/mcp_core.py`
+   * refuses to pick one and raises, and every agent's board read fails until the
+   * swarm is reset. Refused here so the board never reaches that state; the
+   * decision itself is pure, in `coordinator/volatile.ts`.
+   */
+  const conflict = volatileConflict(name, declaredByDataset, board ?? []);
+  if (conflict) throw new DataHubError(conflict);
 
   await writeDataJob({
     urn,
