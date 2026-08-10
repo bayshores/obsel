@@ -230,12 +230,13 @@ and obsel clears what that provably restores, on its own.
 `volatile` on `register_task` names columns of YOUR OWN output tables whose values change on
 every run and mean nothing: a load timestamp, a batch id, a row number. They are left out of the
 content hash, so a re-run differing only there reports no change and marks nothing downstream.
-Their names still count, so renaming or dropping one is still a schema change. Declare it once:
-re-registering with a different set is refused, because obsel's recorded fingerprints only mean
-anything under the list they were taken with. Every reader of your table hashes it with your list,
-which is why you can only declare it for tables you write, and why a table has one list no matter
-how many tasks write it: if another task already declared a different set for a table you write,
-your registration is refused naming that task and both lists. Register under the list already
+Their names still count, so renaming or dropping one is still a schema change. Declare it with the
+task, before its first run: re-registering with a different set is refused, and so is declaring one
+for the first time once the task has any fingerprint on file, because obsel's recorded fingerprints
+only mean anything under the list they were taken with. Every reader of your table hashes it with
+your list, which is why you can only declare it for tables you write, and why a table has one list
+no matter how many tasks write it: if another task already declared a different set for a table you
+write, your registration is refused naming that task and both lists. Register under the list already
 recorded, or reset.
 
 `rerun_plan` is ordering, not permission. It answers "which flagged task should be redone

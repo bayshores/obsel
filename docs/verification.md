@@ -6864,3 +6864,36 @@ executed: DataHub was out of bounds on the machine it was written on. It drives 
 against a real `next start` and a real DataHub, and its last case is the consequence rather than the
 field — a producer re-declared between two completions still marks its downstream reader when its
 table really changes.
+
+## 2026-08-10 — Declaring volatile columns after a task has finished is refused
+
+The entry above made a re-registration keep the recorded fingerprints, and that opened a sequence
+the immutability check did not cover. Register a task declaring NO volatile columns; complete it,
+so its fingerprints are hashed over every column; then re-register it WITH a list. The check
+refused only a recorded list that was non-empty and different, and a recorded `"{}"` read as
+"nothing declared yet", so the declaration was accepted. The preservation then carried the old
+fingerprints onto the new record, and the task's next completion compared a fingerprint taken
+without the list against one taken with it. Two fingerprints of one table are comparable only if
+both were taken under the same list, so that comparison differs for a reason that has nothing to do
+with the data: a change nobody made in one direction, a real change vanishing into an excluded
+column in the other.
+
+Going from no list to a list is a change of list like any other, so it is now refused on the same
+terms, in `volatileRedeclarationRefused` in `src/server/datahub/registration.ts`. The trigger is
+whether this task holds any fingerprint of its own — recorded, previous, or a reader's observation
+— since those are the hashes taken under the recorded list. A task that has never finished holds
+none, so it may still declare a list for the first time, which is how a declaration is corrected
+before the first run. A non-empty list on file stays fixed whether the task has run or not: every
+reader of that table hashes it under the producer's list, and a reader's own fingerprint sits on the
+reader's record, which this decision cannot see. Nothing on the reader side changed.
+
+**Measured.** `tests/register-merge.test.ts`, now 23 cases, run 2026-08-10. The old rule was
+extracted verbatim into the new function first and 4 of the 23 failed against it: the empty-to-list
+declaration was accepted on a finished task, and on a task whose only fingerprint on file was a
+previous or a reader-observed one.
+
+**Not run.** The round trip through the real HTTP door is two more cases in
+`tests/live/register-preserves.live.test.ts`, ADDED 2026-08-10 AND NOT RUN for the same reason as
+the rest of that file: the refusal answers 500 and leaves the finished record's fingerprints and
+`finishedAt` alone, and the same declaration on a task that has not finished is written and read
+back.

@@ -70,6 +70,50 @@ function sameTables(left: string[], right: string[]): boolean {
   return a.length === b.length && a.every((entry, index) => entry === b[index]);
 }
 
+/**
+ * Whether re-registering an existing task changes the volatile list in a way
+ * that must be refused.
+ *
+ * `recorded` and `declared` are the canonical JSON strings `client.ts` builds,
+ * so both sides spell "the same list" the same way.
+ *
+ * Two rules, and the second is the one this function was added for:
+ *
+ * 1. A non-empty list already on file may never change, run or not. Every
+ *    reader of this task's outputs hashes those tables under this list, looked
+ *    up here on the producer, and a reader's own recorded fingerprint sits on
+ *    the reader's record, which is not visible from here. So the list is fixed
+ *    from the moment it is written.
+ * 2. Going from NO list to a list is the same change, and has to be refused
+ *    just as hard, once this task has a fingerprint on file. Its fingerprints
+ *    were hashed over every column; the next completion would hash the same
+ *    table with a column dropped and compare the two, which is a difference
+ *    with nothing to do with the data. The recorded list being `"{}"` used to
+ *    read as "nothing declared yet", and with re-registration now preserving
+ *    the recorded fingerprints, that opened exactly the incomparable comparison
+ *    the rule above exists to prevent.
+ *
+ * A task with no fingerprint on file has nothing that could become
+ * incomparable, so it may still declare a list for the first time. That is how
+ * a pipeline is corrected before its first run, and it is deliberately the only
+ * change left open.
+ *
+ * `previousFingerprints` and `observed` count as fingerprints on file beside
+ * `fingerprints`: all three are hashes of this task's outputs taken under the
+ * recorded list, and all three are compared against later.
+ */
+export function volatileRedeclarationRefused(
+  existing: Pick<TaskRecord, "fingerprints" | "previousFingerprints" | "observed"> | null,
+  recorded: string,
+  declared: string,
+): boolean {
+  if (existing === null || declared === recorded) return false;
+  if (recorded !== "{}") return true;
+  return [existing.fingerprints, existing.previousFingerprints, existing.observed].some(
+    (taken) => taken !== undefined && Object.keys(taken).length > 0,
+  );
+}
+
 /** Whether a task on file already declares exactly this. */
 export function sameDeclaration(existing: Declaration, declared: Declaration): boolean {
   return (

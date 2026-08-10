@@ -27,6 +27,7 @@ import type { PropertyPatch } from "./properties";
 import {
   registrationProperties,
   sameDeclaration,
+  volatileRedeclarationRefused,
   type Declaration,
   type RegistrationOutcome,
 } from "./registration";
@@ -246,6 +247,10 @@ export async function registerTask(
    * cascade on it — and the opposite mistake is worse, since widening the list
    * can make a real change vanish into an excluded column.
    *
+   * Declaring a list for the first time on a task that has already finished is
+   * the same change and is refused the same way, which is `registration.ts`.
+   * The decision is there rather than inline here so a test can reach it.
+   *
    * Refusing is reversible: pick a new task name, or reset, which clears every
    * baseline so nothing incomparable survives. Accepting silently is not.
    */
@@ -262,7 +267,7 @@ export async function registerTask(
       Object.entries(existing?.volatile ?? {}).sort(([a], [b]) => a.localeCompare(b)),
     ),
   );
-  if (existing && declared !== recorded && recorded !== "{}") {
+  if (volatileRedeclarationRefused(existing, recorded, declared)) {
     throw new DataHubError(
       `task ${name} is already registered with a different set of volatile columns ` +
         `(${recorded}, not ${declared}). Those columns decide what its recorded fingerprints ` +

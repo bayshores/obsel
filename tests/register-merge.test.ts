@@ -20,10 +20,12 @@
 
 import { describe, expect, it } from "vitest";
 
+import type { TaskRecord } from "@/src/server/coordinator/types";
 import { PROP } from "@/src/server/datahub/properties";
 import {
   registrationProperties,
   sameDeclaration,
+  volatileRedeclarationRefused,
   type Declaration,
 } from "@/src/server/datahub/registration";
 
@@ -138,6 +140,86 @@ describe("a re-registration that genuinely differs", () => {
   it("leaves a property obsel does not own alone", () => {
     const foreign = registrationProperties({ ...FINISHED, "team.owner": "analytics" }, RESTATED);
     expect(foreign["team.owner"]).toBe("analytics");
+  });
+});
+
+/**
+ * The sequence this covers, which the preservation above made reachable:
+ * register a task declaring NO volatile columns, let it finish so its
+ * fingerprints are hashed over every column, then re-register it WITH a list.
+ * The recorded list is `"{}"`, so an immutability check that refuses only a
+ * changed non-empty list lets it through, and the preservation carries the old
+ * fingerprints onto the new record. The next completion then compares a
+ * fingerprint taken without the list against one taken with it, which is the
+ * comparison CLAUDE.md forbids: two fingerprints are comparable only if both
+ * were taken under the same list.
+ */
+type BaselineFields = Pick<TaskRecord, "fingerprints" | "previousFingerprints" | "observed">;
+
+const NO_BASELINE: BaselineFields = { fingerprints: {} };
+const FINISHED_RUN: BaselineFields = {
+  fingerprints: {
+    "urn:li:dataset:clean_orders": { schema: "sha1", content: "sha2" },
+  },
+};
+const EMPTY = "{}";
+const LIST = '{"urn:li:dataset:clean_orders":["loaded_at"]}';
+const WIDER = '{"urn:li:dataset:clean_orders":["loaded_at","batch_id"]}';
+
+describe("re-declaring the volatile list", () => {
+  it("is refused when a finished task had none and now declares one", () => {
+    expect(volatileRedeclarationRefused(FINISHED_RUN, EMPTY, LIST)).toBe(true);
+  });
+
+  it("is refused when a finished task drops the list it had", () => {
+    expect(volatileRedeclarationRefused(FINISHED_RUN, LIST, EMPTY)).toBe(true);
+  });
+
+  it("is refused when a finished task widens the list it had", () => {
+    expect(volatileRedeclarationRefused(FINISHED_RUN, LIST, WIDER)).toBe(true);
+  });
+
+  it("is refused on a task whose only fingerprint on file is a reader's observation", () => {
+    const observedOnly: BaselineFields = {
+      fingerprints: {},
+      observed: { "urn:li:dataset:clean_orders": { schema: "sha1", content: "sha3" } },
+    };
+    expect(volatileRedeclarationRefused(observedOnly, EMPTY, LIST)).toBe(true);
+  });
+
+  it("is refused on a task holding only the fingerprint its output had before", () => {
+    const previousOnly: BaselineFields = {
+      fingerprints: {},
+      previousFingerprints: {
+        "urn:li:dataset:clean_orders": { schema: "sha0", content: "sha0" },
+      },
+    };
+    expect(volatileRedeclarationRefused(previousOnly, EMPTY, LIST)).toBe(true);
+  });
+
+  it("is allowed on a task that has never finished, so a pipeline can be corrected", () => {
+    // Nothing on this record was hashed under the old list, so nothing on it
+    // becomes incomparable. This is how a declaration is fixed before the first
+    // run, and it is the path the tightening above must not take away.
+    expect(volatileRedeclarationRefused(NO_BASELINE, EMPTY, LIST)).toBe(false);
+  });
+
+  it("is still refused when the list already on file is not empty, run or not", () => {
+    // The rule that was already here, unchanged. A recorded non-empty list is
+    // what every READER of this task's output hashes that table under, and a
+    // reader's own observation is on the reader's record, which is not visible
+    // from here. So a non-empty list stays fixed from the moment it is written.
+    expect(volatileRedeclarationRefused(NO_BASELINE, LIST, EMPTY)).toBe(true);
+    expect(volatileRedeclarationRefused(NO_BASELINE, LIST, WIDER)).toBe(true);
+  });
+
+  it("is allowed on a task with no record at all, which is a first registration", () => {
+    expect(volatileRedeclarationRefused(null, EMPTY, LIST)).toBe(false);
+  });
+
+  it("is allowed when a finished task declares the same list again", () => {
+    expect(volatileRedeclarationRefused(FINISHED_RUN, LIST, LIST)).toBe(false);
+    expect(volatileRedeclarationRefused(FINISHED_RUN, EMPTY, EMPTY)).toBe(false);
   });
 });
 

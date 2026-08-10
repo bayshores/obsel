@@ -955,6 +955,14 @@ because the OpenAPI v3 upsert replaces the whole aspect: a registration built fr
 alone erased the baseline of a task that had already finished, and its next completion then
 compared against nothing and reported a real change as a first run.
 
+The one part of a declaration a re-registration may not change is the volatile column list, because
+it decides what the recorded fingerprints mean. A list already on file is fixed, and a task that
+holds any fingerprint of its own — recorded, previous, or a reader's observation — may not declare
+its first list either: those hashes were taken over every column, and the next one would not be.
+Both are refused with 500 and an error naming the two lists. A task that has not finished holds no
+such hash and may still declare its first list, which is how a missing declaration is corrected
+before the first run.
+
 ```jsonc
 // request: SHORT dataset names; description optional, ≤300 chars
 {

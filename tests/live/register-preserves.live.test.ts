@@ -50,17 +50,24 @@ const CHANGED = { schema: "schema-v1", content: "content-v2" };
 
 let server: ObselServer;
 
-/** The registration body an agent sends, through the door an agent uses. */
-async function register(body: Record<string, unknown>): Promise<Record<string, unknown>> {
+/** One POST to the registration route, answered or refused. */
+async function post(
+  body: Record<string, unknown>,
+): Promise<{ status: number; reply: Record<string, unknown> }> {
   const response = await fetch(`${server.url}/api/tasks/register`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${API_TOKEN}` },
     body: JSON.stringify(body),
     signal: AbortSignal.timeout(120_000),
   });
-  const reply = (await response.json()) as Record<string, unknown>;
-  if (!response.ok)
-    throw new Error(`register answered ${response.status}: ${JSON.stringify(reply)}`);
+  return { status: response.status, reply: (await response.json()) as Record<string, unknown> };
+}
+
+/** The registration body an agent sends, through the door an agent uses. */
+async function register(body: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const { status, reply } = await post(body);
+  if (status < 200 || status >= 300)
+    throw new Error(`register answered ${status}: ${JSON.stringify(reply)}`);
   return reply;
 }
 
@@ -156,5 +163,55 @@ describe("re-registering a task that has already finished", () => {
     const reader = await readTask(taskUrn(READER));
     expect(reader?.status).toBe("stale");
     expect(reader?.stale?.causedBy).toBe(datasetUrn(TABLE));
+  }, 300_000);
+});
+
+/**
+ * The sequence the preservation above made reachable, over the same door.
+ *
+ * `PRODUCER` was registered declaring no volatile columns and has finished
+ * twice, so its recorded fingerprints were hashed over every column of `TABLE`.
+ * Declaring a volatile list now would leave those fingerprints in place — that
+ * is what preservation does — and the next completion would hash `TABLE` with a
+ * column dropped and compare the two. The recorded list being `"{}"` used to
+ * read as "nothing declared yet" and let the declaration through.
+ *
+ * ADDED 2026-08-10 AND NOT RUN, for the same reason as the tests above.
+ */
+describe("declaring volatile columns after the task has finished", () => {
+  it("is refused, and leaves the record it would have made incomparable alone", async () => {
+    const before = await readTask(taskUrn(PRODUCER));
+
+    const { status, reply } = await post({
+      name: PRODUCER,
+      reads: [SOURCE, `${SOURCE}_extra`],
+      writes: [TABLE],
+      title: "Producer",
+      description: "writes the table",
+      volatile: { [TABLE]: ["loaded_at"] },
+    });
+
+    expect(status).toBe(500);
+    expect(String(reply.error)).toContain("volatile columns");
+
+    const after = await readTask(taskUrn(PRODUCER));
+    expect(after?.volatile).toBeUndefined();
+    expect(after?.fingerprints[datasetUrn(TABLE)]).toEqual(CHANGED);
+    expect(after?.finishedAt).toBe(before?.finishedAt);
+  }, 300_000);
+
+  it("is allowed on a task that has not finished, so a pipeline can be corrected", async () => {
+    const fresh = `reregister_unrun_${STAMP}`;
+    await register({ name: fresh, reads: [SOURCE], writes: [`${fresh}_out`] });
+
+    await register({
+      name: fresh,
+      reads: [SOURCE],
+      writes: [`${fresh}_out`],
+      volatile: { [`${fresh}_out`]: ["loaded_at"] },
+    });
+
+    const after = await readTask(taskUrn(fresh));
+    expect(after?.volatile?.[datasetUrn(`${fresh}_out`)]).toEqual(["loaded_at"]);
   }, 300_000);
 });
