@@ -17,9 +17,15 @@ function copy(bundle) {
   return structuredClone(bundle);
 }
 
+/**
+ * The record the verifier prints first, picked the same way it picks it: by code
+ * unit, never `localeCompare`. A locale-aware comparison would hand a Swedish
+ * browser a different record to edit than the one this page's own output names
+ * first, so the edit and the refusal would stop pointing at each other.
+ */
 function firstAttested(bundle) {
-  return [...bundle.attestations].sort(
-    (a, b) => a.asset.localeCompare(b.asset) || a.sequence - b.sequence,
+  return [...bundle.attestations].sort((a, b) =>
+    a.asset === b.asset ? a.sequence - b.sequence : a.asset < b.asset ? -1 : 1,
   )[0];
 }
 

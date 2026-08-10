@@ -5685,9 +5685,10 @@ standing between a backdated record and a retired key: `keyUsable` now takes the
 against the later of `at` and the challenge's `issuedAt`, so a record quoting a nonce obsel minted
 after the retirement is refused wherever it is read.
 
-Exit 0 means every record verified and the recomputed answer matches the one obsel recorded, asset
-by asset. Exit 1 means it does not check out, naming each record and each failure kind. Exit 2 means
-the file could not be read or is not a bundle.
+Exit 0 means every record verified and the recomputed answer matches the one obsel recorded: the
+summary counts, and then asset by asset. Exit 1 means it does not check out, naming each record and
+each failure kind. Exit 2 means the file could not be read or is not a bundle, which now includes a
+bundle with no `request.seeds` list, counted in the header ahead of every record.
 
 **What it does not establish.** It cannot show that anybody looked in a table. obsel holds no
 warehouse credentials and reads no warehouse data; the script prints both of `ASSURANCE_LIMITS`
@@ -5760,6 +5761,64 @@ reporting `bad-signature`.
 which is excluded through `.git/info/exclude` and is not part of the repository, and prettier does
 not read that file.
 
+## 2026-08-10 — four ways the CLI and the page could answer differently, closed
+
+Commit: this change. One seam, four defects: the command line at
+`scripts/verify-bundle.mjs` and the hosted page at `site/` must refuse the same bundles, with the
+same lines, and say only what they checked. Each was reproduced first as a failing test over a real
+mutated bundle file written to a temp directory, then fixed.
+
+**A malformed record ended the run instead of being refused.** `recordedFieldProblems` returned early
+on a record with no envelope, and `checkRecords` then read `record.body.envelope` anyway. On the
+command line that was a `TypeError` on stderr, output cut off mid-run, no verdict line, and exit 1 —
+the code that means "read and found wanting", for a file that was never finished. In the browser the
+same throw came out of `render()`'s first line, before any DOM write, from an unwrapped `async`
+listener, so the page went on displaying the previous bundle's green verdict beside a file nobody had
+verified. Every entry is now shape-checked before a field of it is read, and a bad entry is printed
+as `FAILED attestations[<index>]` with a named reason. Five entry shapes are covered in
+`tests/verify-evidence.test.ts`: no `body`, a null envelope, a numeric payload, a null entry, and an
+entry naming no asset. Measured on the committed example bundle with a body-less entry appended: two
+`ok` records, one `FAILED ... malformed-record: the record carries no body`, the full coverage table,
+`verdict this bundle does not check out: 1 record(s) failed verification`, exit 1, stderr empty.
+`request.seeds` is counted in the header ahead of every record, so a bundle without it is refused by
+`shapeProblem` at exit 2 instead.
+
+The page's half is two changes in `site/main.js`: the heading, verdict and output are cleared before
+verification starts rather than after it returns, and the `await` is wrapped, so a throw becomes a
+refusal on screen. **Unrun:** no browser test covers that ordering. `pnpm e2e` has no spec for the
+hosted page at all, and the assertion that would carry it — upload a malformed bundle after a clean
+one and read the verdict element — is planned, not written.
+
+**The browser accepted a key the command line refused.** `site/node-crypto.js` decoded the PEM body
+with `atob`, which tolerates missing base64 padding; node's `createPublicKey` refuses the same PEM
+outright, `attestation.ts` catches that and records `bad-signature`. So stripping the single trailing
+`=` from `keys[0].publicKeyPem` gave two records `FAILED` and exit 1 at the command line, and
+"Checks out" on the page. The shim now refuses a body that is not padded standard base64 before
+decoding it. Measured on that bundle after the fix: CLI 2 `FAILED` records and 3 disagreements, the
+built browser core `ok=false, failedRecords=2, disagreements=3`.
+
+**The recorded summary was printed but never compared.** `compare()` walked the per-asset rows only,
+so a bundle whose `report.summary` was edited to `18 of 18` while every row stayed as it was printed
+`recomputed 2 of 18` directly above `recorded 18 of 18` and then said the two matched, exit 0. The
+counts are compared now, and a mismatch is reported as its own difference. The verdict sentence for a
+refusal changed with it, from "N asset(s) disagree with the recorded report" to "N disagreement(s)
+with the recorded report", because a summary is not an asset; `site/main.js` carries the same words.
+Measured on the falsified bundle: `the recorded summary counts 18 of 18 covered, 0 unattested, 0
+contradicted; this recomputation counts 2 of 18 covered, 16 unattested, 0 contradicted`, exit 1.
+
+**Line order depended on the reader's locale.** `order()` sorted records with `localeCompare`, which
+is locale-aware: 'å' sorts beside 'a' in `en_US` and after 'z' in `sv_SE`. Two readers of one bundle
+therefore saw the same records in different orders, and a judge in a Swedish-locale browser could not
+reproduce the CLI's output for a bundle the CLI had just accepted. Sorted by code unit now, in the
+verifier and in `site/tampers.js`, which picks the record to edit the same way. The test runs the
+real script twice over one two-asset bundle with `LC_ALL` set each way and compares the `ok` lines;
+before the fix the two lists were reversed, after it they are equal. Verdicts and counts were never
+affected, which is why this was the smallest of the four.
+
+`pnpm verify` on this commit: 652 passing across 35 files, `prettier --check` clean, lint clean,
+typecheck clean, the Python self-checks green, and `next build` green. Ten of those tests are the
+ones added here, and all ten were watched failing first, each for the defect it names.
+
 ## 2026-08-10 — the same verifier, running in a judge's browser
 
 Commit: this change, on top of `3f807cb`. Nothing here is new machinery; it is the verifier above,
@@ -5806,8 +5865,8 @@ because a computed URL is opaque to a bundler. The CLI's behavior is unchanged, 
 process — still passes unedited, which is what establishes that.
 
 **What is asserted, and how.** `tests/site-verify.test.ts` runs `scripts/build-site.mjs` for real and
-imports `site/dist/core.js`, the built artifact with the substitutions in it. Seven tests, all
-passing:
+imports `site/dist/core.js`, the built artifact with the substitutions in it. Nine tests, all
+passing (the last two added 2026-08-10, in the section above):
 
 | Assertion                                                                              |
 | -------------------------------------------------------------------------------------- |
@@ -5818,6 +5877,8 @@ passing:
 | each of the seven page edits produces the refusal its own button promises              |
 | the CLI, spawned on the same edited JSON, returns the same verdict and the same kind   |
 | no edit mutates the bundle it was handed                                               |
+| a public key whose base64 body lost its padding is refused on both sides               |
+| an attestation entry with no `body` is named on both sides rather than throwing        |
 
 The second and sixth rows are the ones that matter: they hold @noble's arithmetic and `node:crypto`'s
 to the same answers over real signatures, in both directions, rather than asserting they agree.

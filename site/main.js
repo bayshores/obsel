@@ -8,11 +8,27 @@ const el = (id) => document.getElementById(id);
 
 let original = null;
 
+/**
+ * The verdict on screen is cleared before the next bundle is verified.
+ *
+ * Verifying is asynchronous, and the previous run's verdict and lines are still
+ * on the page while it happens. If this throws — a bundle shaped past
+ * `shapeProblem` but hostile beyond it — nothing further writes to the DOM, and
+ * the reader is left looking at a green verdict belonging to a different file.
+ * So the surfaces that could be read as an answer are emptied first, and a throw
+ * is reported here rather than escaping into an unhandled rejection.
+ */
 async function render(bundle, { heading, change = null, expect = null } = {}) {
-  const result = await verifyBundle(bundle);
-
   el("run-heading").textContent = heading;
+  const cleared = el("verdict");
+  cleared.classList.remove("refused", "ok");
+  cleared.textContent = "Verifying this bundle.";
+  el("output").textContent = "";
+  el("run").hidden = false;
 
+  // The edit box describes the argument, not the result, so it is written with
+  // the rest of the clearing: leaving the last edit on screen beside a bundle
+  // that has not been checked yet is the same fault as leaving the verdict.
   const changeBox = el("change");
   if (change) {
     changeBox.hidden = false;
@@ -24,16 +40,24 @@ async function render(bundle, { heading, change = null, expect = null } = {}) {
     changeBox.hidden = true;
   }
 
+  let result;
+  try {
+    result = await verifyBundle(bundle);
+  } catch (error) {
+    cleared.classList.add("refused");
+    cleared.textContent = `Refused: this bundle could not be checked. ${error.message}`;
+    return;
+  }
+
   const verdict = el("verdict");
   verdict.classList.toggle("refused", !result.ok);
   verdict.classList.toggle("ok", result.ok);
   verdict.textContent = result.ok
     ? "Checks out: every record verified, and the recomputed answer matches the recorded one."
     : `Refused: ${result.failedRecords} record(s) failed verification, ` +
-      `${result.disagreements} asset(s) disagree with the recorded report.`;
+      `${result.disagreements} disagreement(s) with the recorded report.`;
 
   const output = el("output");
-  output.textContent = "";
   for (const line of result.lines) {
     const row = document.createElement("span");
     row.textContent = line + "\n";
@@ -46,7 +70,6 @@ async function render(bundle, { heading, change = null, expect = null } = {}) {
     }
     output.append(row);
   }
-  el("run").hidden = false;
   el("run").scrollIntoView({ behavior: "smooth", block: "start" });
 }
 

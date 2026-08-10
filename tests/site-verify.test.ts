@@ -109,6 +109,64 @@ describe("the built browser core against the committed real bundle", () => {
   });
 });
 
+describe("bundles the CLI refuses, over the committed real bundle", () => {
+  /**
+   * One edit to the real bundle, written to a real file, run both ways.
+   *
+   * The page and the CLI are the same code apart from `site/node-crypto.js`, so
+   * the only bundles on which they can differ are the ones that reach it, and a
+   * bundle the browser accepts while the CLI refuses is the worst of the two
+   * directions: the hosted page is what a judge is likelier to use.
+   */
+  function bothWays(name: string, edit: (bundle: Bundle) => void) {
+    const edited = structuredClone(bundle) as Bundle;
+    edit(edited);
+    return { edited, cli: cliVerdict(edited, name) };
+  }
+
+  type Bundle = {
+    keys: { publicKeyPem: string }[];
+    attestations: { body?: { envelope?: { payload?: unknown } } }[];
+  };
+
+  it("refuses a public key whose base64 body lost its padding, as node does", async () => {
+    /*
+     * `createPublicKey` in node refuses an unpadded base64 body outright, and
+     * `attestation.ts` turns that refusal into `bad-signature`. The browser's
+     * `atob` is more forgiving than node and recovers the same 32 key bytes from
+     * the shortened text, which would make one file check out on the page and
+     * fail at the command line.
+     */
+    const { edited, cli } = bothWays("unpadded-pem", (target) => {
+      const pem = target.keys[0].publicKeyPem;
+      target.keys[0].publicKeyPem = pem
+        .split("\n")
+        .map((line) => (line.startsWith("-----") || line === "" ? line : line.replace(/=+$/, "")))
+        .join("\n");
+    });
+
+    const inBrowser = await core.verifyBundle(edited);
+    expect(cli.status, cli.stdout).toBe(1);
+    expect(cli.stdout).toContain("bad-signature");
+    expect(inBrowser.ok).toBe(false);
+    expect(inBrowser.failedRecords).toBe(
+      cli.stdout.split("\n").filter((l) => /^ {2}FAILED /.test(l)).length,
+    );
+  });
+
+  it("names an attestation entry with no body, on both sides, instead of throwing", async () => {
+    const { edited, cli } = bothWays("no-body", (target) => {
+      delete target.attestations[0].body;
+    });
+
+    const inBrowser = await core.verifyBundle(edited);
+    expect(cli.status, cli.stdout).toBe(1);
+    expect(cli.stdout).toContain("the record carries no body");
+    expect(inBrowser.ok).toBe(false);
+    expect(inBrowser.lines.some((line) => line.includes("the record carries no body"))).toBe(true);
+  });
+});
+
 describe("every tamper the page offers", () => {
   it("has a distinct id and an expectation string", () => {
     const ids = new Set(core.TAMPERS.map((tamper) => tamper.id));

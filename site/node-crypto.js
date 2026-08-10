@@ -32,10 +32,24 @@ hashes.sha512 = sha512;
  */
 const SPKI_PREFIX = "302a300506032b6570032100";
 
+/**
+ * Padded standard base64 and nothing else, because node accepts nothing else.
+ *
+ * `atob` decodes an unpadded body happily and recovers the same key bytes,
+ * while node's `createPublicKey` refuses the same PEM outright. That difference
+ * is a bundle the hosted page calls verified and the command line calls
+ * bad-signature, which is the one direction that must never happen: the page is
+ * the surface most readers use. Refused here so both sides say the same thing.
+ */
+const PADDED_BASE64 = /^[A-Za-z0-9+/]+={0,2}$/;
+
 export function createPublicKey(pem) {
   const body = String(pem)
     .replace(/-----(BEGIN|END) PUBLIC KEY-----/g, "")
     .replace(/\s+/g, "");
+  if (body.length % 4 !== 0 || !PADDED_BASE64.test(body)) {
+    throw new Error("the public key body is not padded base64");
+  }
   const der = Uint8Array.from(atob(body), (ch) => ch.charCodeAt(0));
   if (der.length !== 44 || bytesToHex(der.subarray(0, 12)) !== SPKI_PREFIX) {
     throw new Error("not an Ed25519 SPKI public key");

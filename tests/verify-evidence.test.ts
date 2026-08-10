@@ -221,7 +221,10 @@ afterAll(() => {
 });
 
 /** Write a bundle and run the real script over it, as a person would. */
-function verify(bundle: unknown): { code: number; stdout: string; stderr: string } {
+function verify(
+  bundle: unknown,
+  environment: Record<string, string> = {},
+): { code: number; stdout: string; stderr: string } {
   written += 1;
   const path = join(workspace, `bundle-${written}.json`);
   writeFileSync(path, JSON.stringify(bundle, null, 2));
@@ -229,7 +232,7 @@ function verify(bundle: unknown): { code: number; stdout: string; stderr: string
     encoding: "utf8",
     // Vitest sets NODE_OPTIONS for its own workers, and inheriting it here would
     // load the runner into a process that is meant to be a bare `node`.
-    env: { ...process.env, NODE_OPTIONS: "" },
+    env: { ...process.env, NODE_OPTIONS: "", ...environment },
   });
   return { code: run.status ?? -1, stdout: run.stdout ?? "", stderr: run.stderr ?? "" };
 }
@@ -441,5 +444,194 @@ describe("one edit each, and the failure each edit produces", () => {
     for (const line of verify(bundle).stdout.split("\n")) {
       expect(FORBIDDEN.test(line), `forbidden vocabulary in: ${line}`).toBe(false);
     }
+  });
+});
+
+describe("an attestations list holding something that is not a record", () => {
+  /*
+   * A hostile or truncated bundle reaches this script before anything else does,
+   * so every entry in the list is examined before a field of it is read. Without
+   * that, the first reach into a field that is not there throws out of the check
+   * and the process ends mid-run: no verdict line, and an exit code that says the
+   * bundle was read and found wanting when it was never finished.
+   *
+   * Each case below replaces one entry of an otherwise sound bundle. The
+   * requirement is the same for all of them: a named refusal, the verdict line
+   * still printed, exit 1, and nothing on stderr.
+   */
+  const cases: [string, (bundle: Bundle) => void, string][] = [
+    [
+      "an entry with no body at all",
+      (bundle) => {
+        delete (bundle.attestations[0] as { body?: unknown }).body;
+      },
+      "the record carries no body",
+    ],
+    [
+      "an entry whose envelope is null",
+      (bundle) => {
+        (bundle.attestations[0].body as { envelope: unknown }).envelope = null;
+      },
+      "the record carries no envelope",
+    ],
+    [
+      "an entry whose payload is a number",
+      (bundle) => {
+        (bundle.attestations[0].body.envelope as unknown as { payload: unknown }).payload = 7;
+      },
+      "the envelope's payload is not a string",
+    ],
+    [
+      "an entry that is null",
+      (bundle) => {
+        (bundle.attestations as unknown[])[0] = null;
+      },
+      "the entry is not an object",
+    ],
+    [
+      "an entry filed under no asset",
+      (bundle) => {
+        delete (bundle.attestations[0] as { asset?: unknown }).asset;
+      },
+      "the entry names no asset",
+    ],
+  ];
+
+  for (const [name, edit, refusal] of cases) {
+    it(`refuses ${name} by name, and still reaches a verdict`, () => {
+      const bundle = soundBundle();
+      edit(bundle);
+
+      const run = verify(bundle);
+      expect(run.stderr).toBe("");
+      expect(run.stdout, run.stderr).toContain(refusal);
+      expect(run.stdout).toContain("FAILED");
+      expect(run.stdout).toContain("verdict   this bundle does not check out");
+      expect(run.code, run.stdout).toBe(1);
+    });
+  }
+
+  it("refuses a bundle with no seed list as unreadable, before any verdict", () => {
+    /*
+     * `request.seeds` is read while the header is printed, ahead of every record,
+     * so a bundle without it cannot be reported on record by record. Exit 2 is
+     * the code for that: the file could not be read as a bundle at all.
+     */
+    const bundle = soundBundle();
+    delete (bundle.request as { seeds?: unknown }).seeds;
+
+    const run = verify(bundle);
+    expect(run.stderr).toBe("");
+    expect(run.stdout).toContain("is not an obsel evidence bundle");
+    expect(run.stdout).toContain("request.seeds");
+    expect(run.code, run.stdout).toBe(2);
+  });
+});
+
+describe("the recorded summary counts, against the recomputation", () => {
+  it("reports a summary edited away from the rows it summarizes", () => {
+    /*
+     * The summary is the number a reader quotes onward, and it is a separate
+     * field from the rows: editing it alone leaves every row intact, so a check
+     * that only walks rows finds nothing. Here the rows are edited to agree with
+     * the evidence and only the summary is left saying something else.
+     */
+    const bundle = soundBundle();
+    bundle.upstreamOf[MIRROR] = [CUSTOMERS, ELSEWHERE];
+    bundle.report.coverage = [
+      { asset: MIRROR, version: "dbt-run-118", state: "UNPROVEN" },
+      { asset: CUSTOMERS, version: "snapshot-7741", state: "ATTESTED" },
+    ];
+
+    const run = verify(bundle);
+    // Every row agrees with the recomputation; only the summary does not.
+    expect(run.stdout).not.toContain("the evidence here supports");
+    expect(run.stdout).toContain("the recorded summary counts 2 of 2 covered");
+    expect(run.stdout).toContain("this recomputation counts 1 of 2 covered");
+    expect(run.code, run.stdout).toBe(1);
+  });
+
+  it("says nothing about the summary when it agrees", () => {
+    const run = verify(soundBundle());
+    expect(run.stdout).not.toContain("the recorded summary counts");
+    expect(run.code, run.stdout).toBe(0);
+  });
+});
+
+describe("the order of the lines it prints", () => {
+  const A_TABLE = "urn:li:dataset:(urn:li:dataPlatform:snowflake,order_entry.å_table,PROD)";
+  const Z_TABLE = "urn:li:dataset:(urn:li:dataPlatform:snowflake,order_entry.z_table,PROD)";
+
+  const A_CHALLENGE: Challenge = {
+    nonce: "n-a-4410cd",
+    request: REQUEST,
+    asset: A_TABLE,
+    issuedAt: "2026-07-26T11:55:00.000Z",
+    expiresAt: "2026-07-26T12:10:00.000Z",
+  };
+  const Z_CHALLENGE: Challenge = {
+    nonce: "n-z-77b204",
+    request: REQUEST,
+    asset: Z_TABLE,
+    issuedAt: "2026-07-26T11:55:00.000Z",
+    expiresAt: "2026-07-26T12:10:00.000Z",
+  };
+
+  /** Two assets, two real signatures, and no relation between them. */
+  function twoAssetBundle(): Bundle {
+    const entry = (asset: string, version: string, challenge: Challenge) => ({
+      asset,
+      sequence: 1,
+      at: DIRECT_AT,
+      body: {
+        envelope: signAttestation(
+          directRecord({ asset, version, nonce: challenge.nonce }),
+          WAREHOUSE.privateKeyPem,
+          "warehouse-2026-07",
+        ),
+        keyId: "warehouse-2026-07",
+        nonce: challenge.nonce,
+      },
+    });
+
+    return {
+      ...soundBundle(),
+      reachable: [A_TABLE, Z_TABLE],
+      upstreamOf: { [A_TABLE]: [], [Z_TABLE]: [] },
+      challenges: [A_CHALLENGE, Z_CHALLENGE],
+      attestations: [
+        entry(A_TABLE, "snapshot-aaa", A_CHALLENGE),
+        entry(Z_TABLE, "snapshot-zzz", Z_CHALLENGE),
+      ],
+      report: {
+        summary: { total: 2, attested: 2, unproven: 0, contradicted: 0 },
+        coverage: [
+          { asset: A_TABLE, version: "snapshot-aaa", state: "ATTESTED" },
+          { asset: Z_TABLE, version: "snapshot-zzz", state: "ATTESTED" },
+        ],
+        attestationsDroppedForKeys: [],
+      },
+    };
+  }
+
+  it("does not depend on the reader's locale", () => {
+    /*
+     * The hosted page runs this same code in whatever locale the reader's browser
+     * is set to, and a judge comparing the page against the CLI has to see the
+     * same lines in the same order. A locale-aware comparison does not give that:
+     * 'å' sorts beside 'a' in en_US and after 'z' in sv_SE, so the two assets
+     * below swap places between two readers of one file.
+     */
+    const bundle = twoAssetBundle();
+    const okLines = (stdout: string) =>
+      stdout.split("\n").filter((line) => /^ {2}ok {6}/.test(line));
+
+    const english = verify(bundle, { LC_ALL: "en_US.UTF-8", LANG: "en_US.UTF-8" });
+    const swedish = verify(bundle, { LC_ALL: "sv_SE.UTF-8", LANG: "sv_SE.UTF-8" });
+
+    expect(english.code, english.stdout).toBe(0);
+    expect(swedish.code, swedish.stdout).toBe(0);
+    expect(okLines(english.stdout)).toHaveLength(2);
+    expect(okLines(swedish.stdout)).toEqual(okLines(english.stdout));
   });
 });

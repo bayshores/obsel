@@ -119,9 +119,14 @@ export async function verifyBundle(bundle, { print = false, source = "" } = {}) 
   say();
   const ok = checked.failed === 0 && disagreements === 0;
   if (!ok) {
+    /*
+     * "disagreement(s)", not "asset(s)": one of them can be the summary counts,
+     * which are not an asset, and a sentence that miscounts what it found is the
+     * same class of error as not checking.
+     */
     say(
       `verdict   this bundle does not check out: ${checked.failed} record(s) failed ` +
-        `verification, ${disagreements} asset(s) disagree with the recorded report.`,
+        `verification, ${disagreements} disagreement(s) with the recorded report.`,
     );
   } else {
     say("verdict   every record verified, and the recomputed answer matches the recorded one.");
@@ -163,6 +168,15 @@ export function shapeProblem(bundle) {
   if (!Array.isArray(bundle.request.identifierDigests)) {
     return "request.identifierDigests is missing or is not an array";
   }
+  /*
+   * `request.seeds` is counted in the header, ahead of every record, so a bundle
+   * without it cannot be reported on record by record: the count throws before
+   * the first one is read. It belongs here rather than beside the records for
+   * that reason, and the caller's exit 2 is the honest code for it.
+   */
+  if (!Array.isArray(bundle.request.seeds)) {
+    return "request.seeds is missing or is not an array";
+  }
   if (!Array.isArray(bundle.report.coverage) || typeof bundle.report.summary !== "object") {
     return "report.coverage or report.summary is missing";
   }
@@ -183,8 +197,30 @@ function checkRecords(bundle) {
   const spent = new Set();
   let failed = 0;
 
+  /*
+   * Every entry is examined before any field of it is read.
+   *
+   * `shapeProblem` above says the attestations list is a list; it says nothing
+   * about what is in it, and reaching into an entry that is not a record threw
+   * out of the whole check. The CLI ended mid-run with a stack trace and no
+   * verdict, and the page's render threw on its first line, leaving whatever
+   * verdict was already on screen standing beside a bundle nobody verified. A
+   * refusal naming the entry is the answer in both places.
+   *
+   * Malformed entries are reported after the sound ones, in the order the ledger
+   * lists them: they take no part in the replay check below, which is the only
+   * thing the sort order exists for.
+   */
+  const malformed = [];
+  const sound = [];
+  bundle.attestations.forEach((record, index) => {
+    const problem = recordShapeProblem(record);
+    if (problem) malformed.push({ index, problem });
+    else sound.push(record);
+  });
+
   say("attestations");
-  for (const record of [...bundle.attestations].sort(order)) {
+  for (const record of [...sound].sort(order)) {
     /*
      * The URN, not the readable label. Two rows reading `customers` are ordinary
      * on a real estate — a warehouse table and the dbt model built from it share
@@ -224,12 +260,58 @@ function checkRecords(bundle) {
     for (const failure of failures) say(`            ${failure}`);
   }
 
+  for (const entry of malformed) {
+    failed += 1;
+    say(`  FAILED  attestations[${entry.index}]`);
+    say(`            malformed-record: ${entry.problem}`);
+  }
+
   if (bundle.attestations.length === 0) say("  none. every asset below is unattested.");
   return { accepted, failed };
 }
 
+/**
+ * The fields this file reads off a ledger entry before `verifyAttestation` is
+ * asked anything, checked against what actually arrived.
+ *
+ * Only what is read here, and no more. The payload's own shape is
+ * `attestation.ts`'s `describeShapeProblem` and stays there, so the two do not
+ * end up as two opinions about one record.
+ */
+function recordShapeProblem(record) {
+  if (typeof record !== "object" || record === null || Array.isArray(record)) {
+    return "the entry is not an object";
+  }
+  if (typeof record.asset !== "string" || record.asset === "") return "the entry names no asset";
+  if (typeof record.sequence !== "number") return "the entry carries no sequence number";
+  if (typeof record.at !== "string" || record.at === "") return "the entry carries no timestamp";
+
+  const body = record.body;
+  if (typeof body !== "object" || body === null || Array.isArray(body)) {
+    return "the record carries no body";
+  }
+  const envelope = body.envelope;
+  if (typeof envelope !== "object" || envelope === null || Array.isArray(envelope)) {
+    return "the record carries no envelope";
+  }
+  // `Buffer.from(x, "base64")` throws on anything that is not a string, and it
+  // is reached both here and inside `verifyAttestation`.
+  if (typeof envelope.payload !== "string") return "the envelope's payload is not a string";
+  return null;
+}
+
+/**
+ * Ledger order: by asset, and then by the sequence within an asset.
+ *
+ * Compared by code unit rather than with `localeCompare`, because the same code
+ * runs in the CLI and in a browser whose locale obsel does not choose. A
+ * locale-aware comparison puts 'å' beside 'a' for one reader and after 'z' for
+ * another, so two readers of one bundle would see the same lines in different
+ * orders and neither could reproduce the other's output.
+ */
 function order(a, b) {
-  return a.asset.localeCompare(b.asset) || a.sequence - b.sequence;
+  if (a.asset !== b.asset) return a.asset < b.asset ? -1 : 1;
+  return a.sequence - b.sequence;
 }
 
 /**
@@ -244,11 +326,10 @@ function order(a, b) {
  * and the description is what a person reads.
  */
 function recordedFieldProblems(record) {
+  // Called only for records `recordShapeProblem` passed, so the body, the
+  // envelope and a string payload are all there to be read.
   const problems = [];
-  const envelope = record.body?.envelope;
-  if (typeof envelope !== "object" || envelope === null) {
-    return ["the record carries no envelope"];
-  }
+  const envelope = record.body.envelope;
 
   const signed = envelope.signatures?.[0]?.keyid;
   if (signed !== record.body.keyId) {
@@ -412,7 +493,7 @@ function recompute(bundle, accepted, dropped) {
   return { coverage, summary };
 }
 
-/** obsel's answer against this script's, asset by asset. */
+/** obsel's answer against this script's: the counts, and then asset by asset. */
 function compare(bundle, recomputed) {
   const recorded = bundle.report.summary;
   say(
@@ -422,6 +503,25 @@ function compare(bundle, recomputed) {
 
   const claimed = new Map(bundle.report.coverage.map((row) => [row.asset, row]));
   const differences = [];
+
+  /*
+   * The counts are compared, not merely printed beside each other.
+   *
+   * `report.summary` is a stored field of its own, so an edit to it leaves every
+   * row intact and a check that walked only rows found nothing to say. The
+   * summary is the figure a reader quotes onward, which made that the one number
+   * this file endorsed without ever having checked it.
+   */
+  const totals = recomputed.summary;
+  const counted = ["total", "attested", "unproven", "contradicted"];
+  if (counted.some((field) => recorded[field] !== totals[field])) {
+    differences.push(
+      `the recorded summary counts ${recorded.attested} of ${recorded.total} covered, ` +
+        `${recorded.unproven} unattested, ${recorded.contradicted} contradicted; ` +
+        `this recomputation counts ${totals.attested} of ${totals.total} covered, ` +
+        `${totals.unproven} unattested, ${totals.contradicted} contradicted`,
+    );
+  }
   for (const row of recomputed.coverage) {
     const other = claimed.get(row.asset);
     if (!other) {
