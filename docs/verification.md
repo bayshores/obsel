@@ -5749,6 +5749,27 @@ to hold for every row. The sentence now states both cases, and `tests/erasure-li
 the unknown-version half as well; it was made to fail on the old text before the wording changed.
 The live assertion was extended to match and is still unrun as of 2026-08-10.
 
+**One pin per sentence, 2026-08-10.** The rewording above replaced a pin on "nobody attested to",
+which had been the only assertion holding the second half of the third limit — the sentence saying
+an asset written since its last attestation stays reported over the earlier version. Deleting that
+sentence outright would have left the unit test passing. Reading the three limits sentence by
+sentence found two more in the same position: the first limit's statement that an uncatalogued
+export is not represented in any number, and the second limit's statement that an attestation is a
+signed claim by a named attestor rather than a measurement obsel took. `tests/erasure-limits.test.ts`
+now pins all six sentences, one substring each, and the three new pins were each made to fail by
+deleting the sentence they guard from `ASSURANCE_LIMITS` and running the file, then restoring it:
+the failures named `nobody catalogued`, `signed claim by a named attestor` and
+`written since its last attestation` in turn. The test it lives in was renamed, because it no longer
+covers three things.
+
+**Not named in the limits: the compromised-key route to an unknown version.** An asset whose only
+attestations were signed by a key later reported compromised is also reported at `"unknown"`, since
+`invalidatedByKeys` drops those attestations in `erasure-engine.ts` before `currentVersion` is
+computed. The third limit's sentence is one-way and stays true of that asset, and the report already
+names it: `assurance.attestationsDroppedForKeys` lists the asset, the attestor and the reason in the
+same object the limits travel in. Adding the case to the sentence would repeat on one surface what
+that field already carries.
+
 **`examples/erasure-evidence/bundle.json` is a real capture**, not a hand-written shape. One request
 opened through the real HTTP API against the live quickstart DataHub, two challenges issued, two
 attestations signed with a keypair generated in that process and submitted through

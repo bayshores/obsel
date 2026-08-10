@@ -38,13 +38,33 @@ describe("the report's stated limits", () => {
     }
   });
 
-  it("names the three things a reader cannot infer from the counts", () => {
+  /*
+   * One pin per sentence, not per limit. The sentences are what a reader is
+   * left holding, and an edit that shortens a limit by a sentence reads as
+   * tidying rather than as dropping a caveat, so each sentence gets a substring
+   * only it contains. A pin that matched two sentences would survive the
+   * deletion of either one and would therefore guard neither.
+   */
+  it("pins every sentence, so no caveat can be dropped without a failing test", () => {
     const all = ASSURANCE_LIMITS.join(" ").toLowerCase();
     // What the walk covered, and who did the attesting. A report whose caveats
     // dropped either one would leave its numbers reading as a statement about
     // an estate obsel never saw, or as a measurement obsel never took.
     expect(all).toContain("lineage");
     expect(all).toContain("no warehouse credentials");
+    /*
+     * And the reach of that walk in the other direction: DataHub's lineage is
+     * the whole input, so an asset nobody catalogued is absent from the counts
+     * rather than counted unattested. Without this sentence the first limit
+     * says where the numbers came from and not what they leave out.
+     */
+    expect(all).toContain("nobody catalogued");
+    /*
+     * What an attestation is. The credentials sentence beside it says obsel
+     * cannot establish absence itself; this one says what stands in its place,
+     * and a reader who lost it would have the denial without the substitute.
+     */
+    expect(all).toContain("signed claim by a named attestor");
     /*
      * And where the version beside each asset came from. obsel learns of a write
      * only when somebody attests to it, so an asset written since its last
@@ -64,5 +84,13 @@ describe("the report's stated limits", () => {
      * but it would still be a false sentence travelling with them.
      */
     expect(all).toContain("unknown version");
+    /*
+     * And the reason that limit exists at all: a version here moves only when
+     * an attestor reports one, so an asset written since its last attestation
+     * keeps being reported over the earlier version. The two pins above cover
+     * where the version came from; without this one, the sentence saying what
+     * that costs could be deleted and this file would still pass.
+     */
+    expect(all).toContain("written since its last attestation");
   });
 });
