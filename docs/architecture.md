@@ -513,8 +513,8 @@ Port 8080 is GMS, the API. Port 9002 is the frontend proxy. They are not interch
 point at 8080.
 
 Directory rules: `app/` routes and composes,
-`src/features/` is browser code and must never import a server-only module, `src/server/domain/`
-and `src/server/coordinator/` are deterministic and make no model calls, `src/server/datahub/` owns
+`src/features/` is browser code and must never import a server-only module,
+`src/server/coordinator/` is deterministic and makes no model calls, `src/server/datahub/` owns
 every DataHub call.
 
 The first of those is enforced by `eslint.config.mjs` rather than only by review. It reads the

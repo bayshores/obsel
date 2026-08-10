@@ -151,8 +151,6 @@ finished recorded work compose rather than compete; a swarm could run both. And 
 a second tool, with a paper, built on the same underlying observation, is evidence the problem is
 real rather than invented for a demo.
 
-The strongest anticipated judge question. The answer is the demo scenario, not an argument.
-
 ## 4. The second question the same graph answers
 
 Everything above is about agents invalidating each other's finished work. The same wires answer a
@@ -173,8 +171,8 @@ it to erasure accounting is what is new here.
 **It is not a proof of erasure and does not claim to be.** obsel holds no warehouse credentials and
 never reads warehouse data. What it adds to a trusted attestor's word is that the word is
 attributable, scoped, version-bound, freshness-bound and revocable, and that everything nobody said
-a word about is listed rather than omitted. The full rule, the ten counterexamples it survives, and
-the three classes of failure it provably does not catch are in
+a word about is listed rather than omitted. The full rule, the counterexamples it survives, and
+the classes of failure it provably does not catch are in
 [`erasure-coverage.md`](erasure-coverage.md).
 
 When the swarm's job is **building a data pipeline**, the things the agents produce are datasets, so

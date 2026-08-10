@@ -330,7 +330,7 @@ All ten required cases come out right on paper, the snapshot-isolation case come
 a special rule, and Phase 0b corrected the derived-coverage branch from an artifact that barely
 exists in real catalogs to one that is present on 96% of the reachable graph.
 
-Three classes are not caught, and each is recorded above with its reason and mitigation rather than
+Five classes are not caught, and each is recorded above with its reason and mitigation rather than
 left for a reviewer to find.
 
 The rule is sound enough to build. It is not a proof of erasure and this document does not claim to

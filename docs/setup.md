@@ -437,3 +437,13 @@ curl -s -X POST localhost:3000/api/erasure/challenge -H "Authorization: Bearer $
 
 A challenge is single use and expires in fifteen minutes. That is what makes a signature evidence
 about now, rather than an answer prepared whenever it suited the signer.
+
+The submit step hands the DSSE envelope `signAttestation` produced to the proof route:
+
+```bash
+curl -s -X POST localhost:3000/api/erasure/proof -H "Authorization: Bearer $OBSEL_API_TOKEN" \
+  -H 'Content-Type: application/json' -d '{"request":"<id>","envelope":<the signed envelope>}'
+```
+
+An accepted submission lands in the ledger and the next read of `GET /api/erasure/<id>` reflects
+it. A refused one is a 422 listing every failure at once, and writes nothing.
