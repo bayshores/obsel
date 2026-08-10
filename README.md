@@ -166,8 +166,8 @@ about identical output in these documents. Nothing else is excluded.
 **Nothing to install:
 [bayshores.github.io/obsel](https://bayshores.github.io/obsel/)** holds a real evidence bundle from a
 live run and re-checks it in your browser, including the signatures. Seven buttons edit one field of
-it each — flip a byte of a signature, report the signing key compromised, replay a record, edit
-obsel's own answer — and the check runs again on the edit. The page shows what changed and what the
+it each: flip a byte of a signature, report the signing key compromised, replay a record, edit
+obsel's own answer. The check runs again on the edit. The page shows what changed and what the
 refusal was. It is running `attestation.ts`, `erasure.ts` and
 `scripts/verify-bundle.mjs` from this repository, not a recording of them.
 
